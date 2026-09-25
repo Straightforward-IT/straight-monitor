@@ -101,11 +101,19 @@ const LeadSchema = new mongoose.Schema(
       default: false,
     },
 
-    // Location / Standort
+    // Legacy display value retained while consumers migrate to locationV2.
     standort: {
       type: String,
-      enum: ['Hamburg', 'Berlin', 'Köln'],
-      required: true,
+      default: null,
+      trim: true,
+    },
+
+    // Authoritative system location.
+    locationV2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location',
+      default: null,
+      index: true,
     },
 
     // Lead source
@@ -211,6 +219,7 @@ const LeadSchema = new mongoose.Schema(
 // Compound indexes for common filter patterns
 LeadSchema.index({ status: 1, eigentuemer: 1 });
 LeadSchema.index({ stufe: 1, status: 1 });
+LeadSchema.index({ locationV2: 1, status: 1 });
 LeadSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Lead', LeadSchema);

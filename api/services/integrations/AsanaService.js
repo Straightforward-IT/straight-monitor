@@ -228,6 +228,147 @@ async function findAllTasks(opts) {
 }
 
 /**
+ * Fetch every section in a project, preserving the order returned by Asana.
+ * Sections are intentionally loaded at runtime: the Bewerber board must follow
+ * the project's current Asana structure rather than a locally copied status list.
+ *
+ * @param {string} projectId Asana project GID
+ * @param {Object} [opts] Additional Asana section query options
+ * @returns {Promise<Array>} Ordered Asana section records
+ */
+function mergeAsanaOptFields(requiredFields, requestedFields) {
+  const requested = Array.isArray(requestedFields)
+    ? requestedFields
+    : String(requestedFields || "").split(",");
+  return [...new Set([...requiredFields, ...requested].map((field) => String(field).trim()).filter(Boolean))].join(",");
+}
+
+async function findAllSectionsForProject(projectId, opts = {}) {
+  if (!projectId) {
+    throw new Error("Project ID is required to fetch sections.");
+  }
+
+  const api = initSectionsApi();
+  const sections = [];
+  let nextPageOffset = null;
+
+  try {
+    do {
+      const queryOpts = {
+        ...opts,
+        limit: 100,
+        opt_fields: mergeAsanaOptFields(["gid", "name"], opts.opt_fields),
+      };
+      if (nextPageOffset) queryOpts.offset = nextPageOffset;
+
+      const response = await api.getSectionsForProject(projectId, queryOpts);
+      if (response?.data) sections.push(...response.data);
+      nextPageOffset = response?.next_page?.offset || null;
+    } while (nextPageOffset);
+
+    return sections;
+  } catch (error) {
+    console.error(`❌ Error fetching sections for Asana project ${projectId}:`, error.response?.body || error.message);
+    throw new Error("Failed to fetch project sections from Asana");
+  }
+}
+
+const BOARD_TASK_FIELDS = [
+  "gid",
+  "name",
+  "completed",
+  "created_at",
+  "modified_at",
+  "due_on",
+  "due_at",
+  "permalink_url",
+  "memberships.project.gid",
+  "memberships.section.gid",
+];
+
+function taskSectionIdForProject(task, projectId) {
+  const memberships = Array.isArray(task?.memberships) ? task.memberships : [];
+  const projectMembership = memberships.find((membership) =>
+    String(membership?.project?.gid || membership?.project || "") === String(projectId)
+  );
+  return projectMembership?.section?.gid || projectMembership?.section || null;
+}
+
+/**
+ * Combine project tasks with the dynamically fetched Asana sections. Empty
+ * sections are retained as board columns. Tasks without a section stay visible
+ * in `unsectionedTasks` instead of being silently dropped.
+ */
+function groupProjectTasksBySection({ projectId, sections = [], tasks = [] }) {
+  const groupsById = new Map(
+    sections.map((section) => [
+      String(section.gid),
+      { ...section, tasks: [] },
+    ])
+  );
+  const unsectionedTasks = [];
+
+  for (const task of tasks) {
+    const sectionId = taskSectionIdForProject(task, projectId);
+    const group = sectionId ? groupsById.get(String(sectionId)) : null;
+    if (group) group.tasks.push(task);
+    else unsectionedTasks.push(task);
+  }
+
+  return {
+    sections: sections.map((section) => groupsById.get(String(section.gid))),
+    unsectionedTasks,
+  };
+}
+
+/**
+ * Load an Asana project as an ordered section board.
+ *
+ * `includeCompleted` defaults to false. Passing true requests completed tasks
+ * as well, while `taskOptions.completed_since` can override the cutoff.
+ */
+async function getProjectTasksBySection({ projectId, includeCompleted = false, taskOptions = {}, sectionOptions = {} }) {
+  if (!projectId) {
+    throw new Error("Project ID is required to fetch project tasks by section.");
+  }
+
+  const completedSince = taskOptions.completed_since ?? (includeCompleted ? "1970-01-01T00:00:00.000Z" : "now");
+  const [sections, tasks] = await Promise.all([
+    findAllSectionsForProject(projectId, sectionOptions),
+    findAllTasks({
+      ...taskOptions,
+      project: projectId,
+      completed_since: completedSince,
+      opt_fields: mergeAsanaOptFields(BOARD_TASK_FIELDS, taskOptions.opt_fields),
+    }),
+  ]);
+
+  return {
+    projectId: String(projectId),
+    includeCompleted,
+    ...groupProjectTasksBySection({ projectId, sections, tasks }),
+  };
+}
+
+/**
+ * Resolve a team's Bewerber project (`teams.json` → `asana.projectId`) and
+ * load its current Asana sections and tasks as a board-ready data structure.
+ */
+async function getBewerberProjectTasksBySection(teamKey, options = {}) {
+  const team = registry.getTeam(teamKey);
+  const projectId = team?.asana?.projectId;
+  if (!projectId) {
+    throw new Error(`Team '${team?.key || teamKey}' has no Bewerber Asana projectId configured.`);
+  }
+
+  return {
+    teamKey: team.key,
+    teamName: team.displayName || team.key,
+    ...(await getProjectTasksBySection({ ...options, projectId })),
+  };
+}
+
+/**
  * Fetch tasks based on given options
  */
 async function findTasks(opts) {
@@ -1035,6 +1176,10 @@ async function createSalesTask({ projectId, name, due_on, due_at, notes, assigne
 module.exports = {  // find/update
   findTasks,
   findAllTasks,
+  findAllSectionsForProject,
+  groupProjectTasksBySection,
+  getProjectTasksBySection,
+  getBewerberProjectTasksBySection,
   updateTask,
 
   // Bewerber link + routine

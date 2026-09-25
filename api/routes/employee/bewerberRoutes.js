@@ -13,7 +13,7 @@ const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
 const BewerberEmailDocument = require("../../models/System/BewerberEmailDocument");
 const User = require("../../models/System/User");
 const { INVITATION_TYPES, sendInvitation } = require("../../services/employee/BewerberInvitationService");
-const { findAllTasks } = require("../../services/integrations/AsanaService");
+const { findAllTasks, findAllSectionsForProject } = require("../../services/integrations/AsanaService");
 const R2Service = require("../../services/integrations/R2Service");
 const registry = require("../../config/registry");
 const logger = require("../../utils/logger");
@@ -47,6 +47,42 @@ async function isAdmin(userId) {
 }
 
 router.use(auth);
+
+function getBewerberProjectTeams() {
+  return registry.listTeams()
+    .filter((team) => team?.niederlassung?.name && team?.asana?.projectId)
+    .map((team) => ({
+      key: team.key,
+      label: team.niederlassung.name || team.displayName || team.key,
+      projectId: team.asana.projectId,
+    }));
+}
+
+// GET /api/bewerber/asana-sections?teamKey=hamburg
+// Deliberately returns sections only. Tasks are loaded in the next Bewerber board slice.
+router.get("/asana-sections", asyncHandler(async (req, res) => {
+  const teams = getBewerberProjectTeams();
+  const requestedKey = req.query.teamKey ? registry.resolveKey(req.query.teamKey) : teams[0]?.key;
+  const selectedTeam = teams.find((team) => team.key === requestedKey);
+
+  if (!selectedTeam) {
+    return res.status(400).json({ message: "Ungültiger Bewerber-Standort." });
+  }
+
+  const sections = await findAllSectionsForProject(selectedTeam.projectId);
+  res.json({
+    data: {
+      locations: teams.map((team) => ({
+        _id: team.key,
+        shortName: team.label,
+        nameFull: team.label,
+      })),
+      selectedLocationKey: selectedTeam.key,
+      projectId: selectedTeam.projectId,
+      sections: sections.map((section) => ({ gid: section.gid, name: section.name })),
+    },
+  });
+}));
 
 // GET /api/bewerber/suggestions
 router.get("/suggestions", asyncHandler(async (_req, res) => {

@@ -13,7 +13,10 @@ const Comment = require('../../models/System/Comment');
 const R2Service = require('../../services/integrations/R2Service');
 const registry = require('../../config/registry');
 const { createSalesTask, updateTask } = require('../../services/integrations/AsanaService');
-const { resolveLocationFromStandortName } = require('../../services/operations/LocationResolutionService');
+const {
+  resolveActiveLocation,
+  resolveLocationFromStandortName,
+} = require('../../services/operations/LocationResolutionService');
 
 // Multer — memory storage, max 25 MB per file, up to 20 files per request
 const upload = multer({
@@ -33,11 +36,27 @@ const QUELLE_LABELS = {
   web: 'Web', messe: 'Messe', empfehlung: 'Empfehlung',
   kaltakquise: 'Kaltakquise', social_media: 'Social Media', sonstiges: 'Sonstiges',
 };
+const LEGACY_STANDORT_BY_EXTERNAL_ID = { 1: 'Berlin', 2: 'Hamburg', 3: 'Köln' };
+
+function legacyStandortForLocation(location) {
+  return LEGACY_STANDORT_BY_EXTERNAL_ID[String(location?.externalId || '')] || location?.nameFull || null;
+}
+
+async function resolveLeadLocation({ locationV2, standort }) {
+  if (locationV2 !== undefined && locationV2 !== null && locationV2 !== '') {
+    return resolveActiveLocation(locationV2);
+  }
+  return resolveLocationFromStandortName(standort);
+}
+
+function populateLeadLocation(query) {
+  return query.populate('locationV2', 'nameFull shortName color externalId');
+}
 
 // ─── Create a system event in the lead chronik ──────────────────────
 async function createChronikEvent(lead, authorId, authorName, text) {
   try {
-    const location = await resolveLocationFromStandortName(lead.standort);
+    const location = lead.locationV2 || await resolveLocationFromStandortName(lead.standort);
     await Comment.create({
       scope: 'lead_chronik',
       text,
@@ -250,14 +269,14 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     ];
   }
 
-  const leads = await Lead.find(filter)
+  const leadsQuery = Lead.find(filter)
     .populate('eigentuemer', 'name email')
     .populate('angelegtVon', 'name email')
     .populate('kunde', 'kundName kundenNr')
-    .sort({ createdAt: -1 })
-    .lean();
+    .sort({ createdAt: -1 });
+  const result = await populateLeadLocation(leadsQuery).lean();
 
-  res.json(leads);
+  res.json(result);
 }));
 
 // @route   GET /api/leads/:id
@@ -268,12 +287,13 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Ungültige ID.' });
   }
 
-  const lead = await Lead.findById(req.params.id)
+  const leadQuery = Lead.findById(req.params.id)
     .populate('eigentuemer', 'name email')
     .populate('angelegtVon', 'name email')
     .populate('kunde', 'kundName kundenNr kuerzel')
-    .populate('notizen.verfasser', 'name email')
-    .lean();
+    .populate('notizen.verfasser', 'name email');
+  populateLeadLocation(leadQuery);
+  const lead = await leadQuery.lean();
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
   res.json(lead);
@@ -284,7 +304,7 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
 // @access  Private
 router.post('/', auth, asyncHandler(async (req, res) => {
   const {
-    title, wert, waehrung, stufe, standort, quelle,
+    title, wert, waehrung, stufe, locationV2, standort, quelle,
     eigentuemer, kunde, kontakt, labels,
     erwartetesAbschlussDatum, customFields, msContact, msContacts,
   } = req.body;
@@ -292,6 +312,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   if (!title?.trim()) {
     return res.status(400).json({ message: '"title" ist erforderlich.' });
   }
+  const location = await resolveLeadLocation({ locationV2, standort });
+  if (!location) return res.status(400).json({ message: 'Ein aktiver Standort ist erforderlich.' });
 
   const ownerId = eigentuemer && mongoose.Types.ObjectId.isValid(eigentuemer)
     ? eigentuemer
@@ -302,7 +324,8 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     wert:  wert  ?? null,
     waehrung: waehrung || 'EUR',
     stufe:  stufe  || 'neu',
-    standort,
+    standort: legacyStandortForLocation(location),
+    locationV2: location._id,
     quelle: quelle || null,
     eigentuemer:  ownerId,
     angelegtVon:  req.user.id,
@@ -317,14 +340,14 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   await lead.save();
 
-  const [populated, creatorUser] = await Promise.all([
-    Lead.findById(lead._id)
+  const [populatedQuery, creatorUser] = await Promise.all([
+    Promise.resolve(populateLeadLocation(Lead.findById(lead._id)
       .populate('eigentuemer', 'name email')
       .populate('angelegtVon', 'name email')
-      .populate('kunde', 'kundName kundenNr')
-      .lean(),
+      .populate('kunde', 'kundName kundenNr'))),
     User.findById(req.user.id).select('name email').lean(),
   ]);
+  const populated = await populatedQuery.lean();
 
   const uName = creatorUser?.name || creatorUser?.email || 'Unbekannt';
   createChronikEvent(lead, req.user.id, uName, `${uName} – Lead erstellt.`);
@@ -350,6 +373,15 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   for (const field of allowed) {
     if (req.body[field] !== undefined) update[field] = req.body[field];
   }
+  if (req.body.locationV2 !== undefined || req.body.standort !== undefined) {
+    const location = await resolveLeadLocation({
+      locationV2: req.body.locationV2,
+      standort: req.body.standort,
+    });
+    if (!location) return res.status(400).json({ message: 'Ungültiger oder inaktiver Standort.' });
+    update.locationV2 = location._id;
+    update.standort = legacyStandortForLocation(location);
+  }
 
   // Sync stufe with status when status goes to won/lost
   if (update.status === 'won')  update.stufe = 'gewonnen';
@@ -366,15 +398,16 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   if (!oldLead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
 
-  const lead = await Lead.findByIdAndUpdate(
+  const leadQuery = Lead.findByIdAndUpdate(
     req.params.id,
     { $set: update },
     { new: true, runValidators: true }
   )
     .populate('eigentuemer', 'name email')
     .populate('angelegtVon', 'name email')
-    .populate('kunde', 'kundName kundenNr')
-    .lean();
+    .populate('kunde', 'kundName kundenNr');
+  populateLeadLocation(leadQuery);
+  const lead = await leadQuery.lean();
 
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
 
@@ -429,7 +462,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   if (events.length > 0) {
-    const location = await resolveLocationFromStandortName(lead.standort).catch(() => null);
+    const location = lead.locationV2 || await resolveLocationFromStandortName(lead.standort).catch(() => null);
     Comment.insertMany(events.map(text => ({
       scope: 'lead_chronik',
       text,
@@ -603,16 +636,16 @@ router.post('/:id/asana-sales-task', auth, asyncHandler(async (req, res) => {
   const { titel, datum, type, kontakt, aktId } = req.body;
   if (!datum) return res.status(400).json({ message: 'Datum ist erforderlich.' });
 
-  const lead = await Lead.findById(req.params.id)
-    .populate('eigentuemer', 'name email asana_id')
-    .lean();
+  const lead = await populateLeadLocation(Lead.findById(req.params.id)
+    .populate('eigentuemer', 'name email asana_id')).lean();
   if (!lead) return res.status(404).json({ message: 'Lead nicht gefunden.' });
 
-  const salesProjectId = registry.getAsanaSalesProjectId(lead.standort);
+  const asanaStandort = legacyStandortForLocation(lead.locationV2) || lead.standort;
+  const salesProjectId = registry.getAsanaSalesProjectId(asanaStandort);
   if (!salesProjectId) {
-    return res.status(400).json({ message: `Kein Sales-Projekt für Standort "${lead.standort}" konfiguriert.` });
+    return res.status(400).json({ message: `Kein Sales-Projekt für Standort "${asanaStandort}" konfiguriert.` });
   }
-  const salesSectionId = registry.getAsanaSalesAufgabenSectionId(lead.standort);
+  const salesSectionId = registry.getAsanaSalesAufgabenSectionId(asanaStandort);
 
   const AKT_TYPE_LABELS = {
     anruf: 'Anruf', meeting: 'Meeting', aufgabe: 'Aufgabe',

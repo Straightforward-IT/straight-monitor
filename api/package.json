@@ -5,6 +5,7 @@
   "scripts": {
     "test": "mocha \"test/**/*.test.js\" \"tests/**/*.test.js\"",
     "backfill:einsatz-counts": "node scripts/backfillEinsatzCounts.js",
+    "backfill:lead-locations": "node scripts/backfillLeadLocationV2.js",
     "backfill:map": "node scripts/backfillMapGeodata.js",
     "start": "node app.js"
   },

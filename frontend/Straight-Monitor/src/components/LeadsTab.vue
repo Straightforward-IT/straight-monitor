@@ -8,10 +8,10 @@
           <FilterGroup label="Standort">
             <FilterChip
               v-for="s in standortOptions"
-              :key="s"
-              :active="filterStandorte.includes(s)"
-              @click="toggleArrayFilter(filterStandorte, s)"
-            >{{ s }}</FilterChip>
+              :key="s._id"
+              :active="filterStandorte.includes(s._id)"
+              @click="toggleArrayFilter(filterStandorte, s._id)"
+            >{{ s.nameFull }}</FilterChip>
           </FilterGroup>
           <FilterDivider v-if="leadConfig.quelleOptions?.length" />
           <FilterGroup v-if="leadConfig.quelleOptions?.length" label="Quelle">
@@ -144,35 +144,17 @@
     </button>
 
     <!-- Right Sidebar -->
-      <SidePanelFrame
+      <LeadDetailPanel
         v-if="selectedLead"
         v-model="hasSelectedLead"
         v-model:presentation="leadPanelPresentation"
         class="detail-sidebar"
         :class="{ 'detail-sidebar--mobile': isMobile }"
-        width="420px"
-        :modal-minimizable="true"
-        :modal-title="selectedLead.title"
-        :show-close="!isMobile"
+        :lead="selectedLead"
+        :owner-label="selectedLeadOwnerLabel"
+        :is-mobile="isMobile"
         @close="closeSidebar"
       >
-        <template #header>
-          <button v-if="isMobile" class="mobile-back-btn" @click="closeSidebar" title="Zurück">
-            <font-awesome-icon :icon="['fas', 'chevron-left']" />
-          </button>
-          <div class="sidebar-title-area">
-            <h3>{{ selectedLead.title }}</h3>
-            <div class="sidebar-status">
-              <span class="stufe-chip" :class="`stufe-${selectedLead.stufe}`">
-                {{ stufeLabel(selectedLead.stufe) }}
-              </span>
-              <span v-if="selectedLeadOwnerLabel" class="sidebar-owner">
-                <font-awesome-icon :icon="['fas', 'user']" />
-                {{ selectedLeadOwnerLabel }}
-              </span>
-            </div>
-          </div>
-        </template>
         <template #actions>
           <button class="close-btn" :disabled="savingDetail" @click.stop="openSidebarActionMenu" title="Aktionen">
             <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
@@ -203,10 +185,10 @@
 
               <div class="kv-item">
                 <label>Standort <span class="req">*</span></label>
-                <select v-model="detailForm.standort" class="form-input" @change="saveDetail">
-                  <option value="Hamburg">Hamburg</option>
-                  <option value="Berlin">Berlin</option>
-                  <option value="Köln">Köln</option>
+                <select v-model="detailForm.locationV2" class="form-input" @change="saveDetail">
+                  <option v-for="location in locations" :key="location._id" :value="location._id">
+                    {{ location.nameFull }}
+                  </option>
                 </select>
               </div>
 
@@ -575,7 +557,7 @@
                 </div>
                 <div class="asana-view-field">
                   <label class="asana-view-label">Projekt</label>
-                  <span class="asana-view-value">Sales {{ selectedLead?.standort }}</span>
+                  <span class="asana-view-value">Sales {{ leadLocationLabel(selectedLead) }}</span>
                 </div>
                 <div class="asana-view-field">
                   <label class="asana-view-label">Beschreibung</label>
@@ -714,7 +696,7 @@
                     </div>
                     <div class="asana-view-field">
                       <label class="asana-view-label">Projekt</label>
-                      <span class="asana-view-value">Sales {{ selectedLead?.standort }}</span>
+                      <span class="asana-view-value">Sales {{ leadLocationLabel(selectedLead) }}</span>
                     </div>
                     <div class="asana-view-field">
                       <label class="asana-view-label">Beschreibung</label>
@@ -843,224 +825,70 @@
           </section>
 
           <!-- ─── Chronik (Mobile-only) ──────────────────── -->
-          <section
-            v-if="isMobile"
-            class="info-section info-section--chronik-mobile"
-            :class="{ 'mobile-collapsed': !mobileSectionsOpen.chronik }"
-          >
-            <h4
-              class="section-title section-title--mobile-clickable"
-              @click="toggleMobileSection('chronik')"
-            >
+          <section v-if="isMobile" class="info-section info-section--chronik-mobile" :class="{ 'mobile-collapsed': !mobileSectionsOpen.chronik }">
+            <h4 class="section-title section-title--mobile-clickable" @click="toggleMobileSection('chronik')">
               <font-awesome-icon :icon="['fas', 'clock-rotate-left']" /> Chronik
-              <span v-if="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) > 0" class="section-count">
-                {{ chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0) }}
-              </span>
+              <span v-if="mergedTimeline.length" class="section-count">{{ mergedTimeline.length - (mergedTimeline.some((item) => item.kind === 'divider') ? 1 : 0) }}</span>
               <font-awesome-icon class="section-chevron" :icon="['fas', mobileSectionsOpen.chronik ? 'chevron-up' : 'chevron-down']" />
             </h4>
-
-            <div v-if="loadingChronik" class="chronik-empty">
-              <font-awesome-icon :icon="['fas', 'spinner']" spin />
-            </div>
-            <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
-              Noch keine Einträge.
-            </div>
-            <div v-else class="chronik-timeline chronik-timeline--mobile">
-              <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
-                <div v-if="item.kind === 'divider'" class="chronik-divider-now">
-                  <span class="chronik-divider-label">Jetzt</span>
-                </div>
-                <div
-                  v-else-if="item.kind === 'chronik'"
-                  class="chronik-entry"
-                  :class="{ 'chronik-entry--system': item.entry.isSystem }"
-                >
-                  <div class="chronik-dot">
-                    <font-awesome-icon
-                      v-if="item.entry.isSystem"
-                      :icon="['fas', 'circle-dot']"
-                      class="dot-icon dot-icon--system"
-                    />
-                    <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
-                  </div>
-                  <div class="chronik-content">
-                    <div class="chronik-meta">
-                      <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
-                      <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
-                    </div>
-                    <div class="chronik-text-wrap">
-                      <p class="chronik-text">{{ item.entry.text }}</p>
-                      <button
-                        v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
-                        class="ctx-delete-btn"
-                        @click="deleteChronikEntry(item.entry._id)"
-                        title="Löschen"
-                      >
-                        <font-awesome-icon :icon="['fas', 'trash']" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  v-else-if="item.kind === 'aktivitaet'"
-                  class="chronik-entry chronik-entry--akt"
-                  :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
-                >
-                  <div class="chronik-dot">
-                    <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
-                      <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
-                    </button>
-                  </div>
-                  <div class="chronik-content">
-                    <div class="chronik-meta">
-                      <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
-                      <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
-                      <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
-                    </div>
-                    <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
-                      {{ item.akt.titel || '(kein Titel)' }}
-                    </p>
-                    <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
-                      <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
-                    </span>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div class="chronik-inline-compose chronik-compose--mobile">
-              <div class="compose-dot">
-                <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
-              </div>
-              <div class="compose-input-wrap">
-                <textarea
-                  v-model="newChronikText"
-                  placeholder="Kommentar hinzufügen…"
-                  class="note-textarea"
-                  rows="1"
-                  @keydown.ctrl.enter.prevent="addChronikEntry"
-                ></textarea>
-                <button
-                  class="btn btn-primary compose-send-btn"
-                  :disabled="!newChronikText.trim() || addingChronik"
-                  @click="addChronikEntry"
-                >
-                  <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
-                </button>
-              </div>
-            </div>
+            <RecordChronikTimeline
+              :items="mergedTimeline"
+              :loading="loadingChronik"
+              :draft="newChronikText"
+              :adding="addingChronik"
+              :current-user-name="auth.user?.name"
+              :can-delete="canDeleteChronik"
+              :format-date="formatDateTime"
+              @update:draft="newChronikText = $event"
+              @add="addRecordChronikEntry()"
+              @delete="deleteChronikEntry"
+            >
+              <template #item="{ item }"><LeadChronikActivityItem :activity="item.akt" @toggle="toggleAktErledigt" /></template>
+            </RecordChronikTimeline>
           </section>
 
         <template v-if="leadPanelPresentation === 'modal'" #modal-footer>
           <div id="lead-chronik-modal-host" class="lead-chronik-modal-host"></div>
         </template>
-      </SidePanelFrame>
+      </LeadDetailPanel>
 
     <!-- Chronik bottom drawer (slides up when a lead is open) -->
-    <LeadChronikDrawer
+    <RecordChronikDrawer
       :show="!!selectedLead && !isMobile"
-      :sidebar-open="!!selectedLead && leadPanelPresentation === 'panel'"
+      :side-panel-open="!!selectedLead && leadPanelPresentation === 'panel'"
       :embedded="leadPanelPresentation === 'modal'"
       embedded-target="#lead-chronik-modal-host"
       :count="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0)"
-      :lead-title="chronikLead?.title || ''"
+      :context-title="chronikLead?.title || ''"
+      storage-key="leads_chronik_drawer"
+      side-panel-selector=".leads-tab .sp-panel"
+      top-boundary-selector=".tab-content"
+      left-offset="73px"
       @close="closeSidebar"
     >
-      <div class="chronik-drawer-inner">
-        <div v-if="loadingChronik" class="chronik-empty">
-          <font-awesome-icon :icon="['fas', 'spinner']" spin />
-        </div>
-        <div v-else-if="mergedTimeline.length === 0" class="chronik-empty">
-          Noch keine Einträge.
-        </div>
-        <div v-else ref="chronikFeedEl" class="chronik-timeline">
-          <template v-for="item in mergedTimeline" :key="item.kind === 'divider' ? '__divider__' : (item.kind === 'chronik' ? item.entry._id : item.akt._id)">
-            <div v-if="item.kind === 'divider'" class="chronik-divider-now">
-              <span class="chronik-divider-label">Jetzt</span>
-            </div>
-            <div
-              v-else-if="item.kind === 'chronik'"
-              class="chronik-entry"
-              :class="{ 'chronik-entry--system': item.entry.isSystem }"
-            >
-              <div class="chronik-dot">
-                <font-awesome-icon
-                  v-if="item.entry.isSystem"
-                  :icon="['fas', 'circle-dot']"
-                  class="dot-icon dot-icon--system"
-                />
-                <span v-else class="dot-avatar">{{ initials(item.entry.author) }}</span>
-              </div>
-              <div class="chronik-content">
-                <div class="chronik-meta">
-                  <span v-if="!item.entry.isSystem" class="chronik-author">{{ item.entry.author }}</span>
-                  <span class="chronik-time">{{ formatDateTime(item.entry.createdAt) }}</span>
-                </div>
-                <div class="chronik-text-wrap">
-                  <p class="chronik-text">{{ item.entry.text }}</p>
-                  <button
-                    v-if="!item.entry.isSystem && canDeleteChronik(item.entry)"
-                    class="ctx-delete-btn"
-                    @click="deleteChronikEntry(item.entry._id)"
-                    title="Löschen"
-                  >
-                    <font-awesome-icon :icon="['fas', 'trash']" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div
-              v-else-if="item.kind === 'aktivitaet'"
-              class="chronik-entry chronik-entry--akt"
-              :class="{ 'chronik-entry--akt-done': item.akt.erledigt, 'chronik-entry--akt-overdue': isOverdue(item.akt) }"
-            >
-              <div class="chronik-dot">
-                <button class="chronik-akt-check" @click="toggleAktErledigt(item.akt)" :title="item.akt.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'">
-                  <font-awesome-icon :icon="['fas', item.akt.erledigt ? 'circle-check' : 'circle']" />
-                </button>
-              </div>
-              <div class="chronik-content">
-                <div class="chronik-meta">
-                  <font-awesome-icon :icon="aktTypeIcon(item.akt.type)" class="chronik-akt-type-icon" />
-                  <span class="chronik-akt-type-label">{{ aktTypeLabel(item.akt.type) }}</span>
-                  <span class="chronik-time">{{ formatAktDate(item.akt.datum) }}</span>
-                </div>
-                <p class="chronik-text" :class="{ 'chronik-text--done': item.akt.erledigt }">
-                  {{ item.akt.titel || '(kein Titel)' }}
-                </p>
-                <span v-if="item.akt.kontakt?.displayName" class="chronik-akt-kontakt">
-                  <font-awesome-icon :icon="['fas', 'user']" /> {{ item.akt.kontakt.displayName }}
-                </span>
-              </div>
-            </div>
-          </template>
-        </div>
-
-      </div>
+      <RecordChronikTimeline
+        :items="mergedTimeline"
+        :loading="loadingChronik"
+        :composer="false"
+        :draft="newChronikText"
+        :adding="addingChronik"
+        :current-user-name="auth.user?.name"
+        :can-delete="canDeleteChronik"
+        :format-date="formatDateTime"
+        @update:draft="newChronikText = $event"
+        @add="addRecordChronikEntry()"
+        @delete="deleteChronikEntry"
+      ><template #item="{ item }"><LeadChronikActivityItem :activity="item.akt" @toggle="toggleAktErledigt" /></template></RecordChronikTimeline>
       <template #footer>
-        <div class="chronik-inline-compose chronik-compose--drawer">
-          <div class="compose-dot">
-            <span class="dot-avatar">{{ initials(auth.user?.name) }}</span>
-          </div>
-          <div class="compose-input-wrap">
-            <textarea
-              v-model="newChronikText"
-              placeholder="Kommentar hinzufügen…"
-              class="note-textarea"
-              rows="1"
-              @keydown.ctrl.enter.prevent="addChronikEntry"
-            ></textarea>
-            <button
-              class="btn btn-primary compose-send-btn"
-              :disabled="!newChronikText.trim() || addingChronik"
-              @click="addChronikEntry"
-            >
-              <font-awesome-icon :icon="['fas', addingChronik ? 'spinner' : 'paper-plane']" :spin="addingChronik" />
-            </button>
-          </div>
-        </div>
+        <RecordChronikComposer
+          :draft="newChronikText"
+          :adding="addingChronik"
+          :current-user-name="auth.user?.name"
+          @update:draft="newChronikText = $event"
+          @add="addRecordChronikEntry()"
+        />
       </template>
-    </LeadChronikDrawer>
+    </RecordChronikDrawer>
 
     <!-- Create Modal -->
     <ModalFrame
@@ -1075,10 +903,10 @@
             <div class="kv-grid" style="margin-bottom: 16px;">
               <div class="kv-item">
                 <label>Standort <span class="req">*</span></label>
-                <select v-model="createForm.standort" class="form-input">
-                  <option value="Hamburg">Hamburg</option>
-                  <option value="Berlin">Berlin</option>
-                  <option value="Köln">Köln</option>
+                <select v-model="createForm.locationV2" class="form-input">
+                  <option v-for="location in locations" :key="location._id" :value="location._id">
+                    {{ location.nameFull }}
+                  </option>
                 </select>
               </div>
 
@@ -1544,7 +1372,12 @@ import ToolbarIconButton from '@/components/ui-elements/ToolbarIconButton.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
-import LeadChronikDrawer from './leads/LeadChronikDrawer.vue';
+import LeadChronikActivityItem from './leads/LeadChronikActivityItem.vue';
+import LeadDetailPanel from './leads/LeadDetailPanel.vue';
+import RecordChronikDrawer from '@/components/workflow/RecordChronikDrawer.vue';
+import RecordChronikComposer from '@/components/workflow/RecordChronikComposer.vue';
+import RecordChronikTimeline from '@/components/workflow/RecordChronikTimeline.vue';
+import { useRecordChronik } from '@/composables/useRecordChronik';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
@@ -1621,6 +1454,7 @@ function resetMobileSections() {
 // ─── State ───────────────────────────────────────────────────────────
 const loading = ref(false);
 const leads = ref([]);
+const locations = ref([]);
 const labels = ref([]);
 const selectedLead = ref(null);
 const detailForm = reactive({
@@ -1628,7 +1462,7 @@ const detailForm = reactive({
   wert: null,
   waehrung: 'EUR',
   stufe: 'neu',
-  standort: 'Hamburg',
+  locationV2: '',
   quelle: null,
   erwartetesAbschlussDatum: '',
   kontakt: { vorname: '', nachname: '', email: '', telefon: '', firma: '' },
@@ -1669,9 +1503,22 @@ const activeFilterCount = computed(() => {
 });
 
 const standortOptions = computed(() => {
-  const set = new Set(leads.value.map(l => l.standort).filter(Boolean));
-  return [...set].sort();
+  return locations.value;
 });
+
+const defaultLocationId = computed(() => (
+  locations.value.find((location) => String(location.externalId) === '2')?._id
+  || locations.value[0]?._id
+  || ''
+));
+
+function leadLocationId(lead) {
+  return lead?.locationV2?._id || lead?.locationV2 || '';
+}
+
+function leadLocationLabel(lead) {
+  return lead?.locationV2?.nameFull || lead?.standort || '—';
+}
 
 const ownerOptions = computed(() => {
   const map = new Map();
@@ -1869,19 +1716,28 @@ const editingQuelleIdx = ref(null); // index being edited inline
 const editingQuelleLabel = ref('');
 
 // ─── Chronik ─────────────────────────────────────────────────────────
-const chronikEntries = ref([]);
-const loadingChronik = ref(false);
-const newChronikText = ref('');
-const addingChronik = ref(false);
-const chronikExpandedLeadId = ref(null);
 const chronikLead = ref(null);
-const chronikFeedEl = ref(null);
+const {
+  entries: chronikEntries,
+  loading: loadingChronik,
+  draft: newChronikText,
+  adding: addingChronik,
+  add: addRecordChronikEntry,
+  remove: deleteChronikEntry,
+  clear: clearChronik,
+  canDelete: canDeleteChronik,
+} = useRecordChronik({
+  recordId: computed(() => chronikLead.value?._id || null),
+  scope: 'lead_chronik',
+  resourceType: 'Lead',
+  currentUserId: computed(() => auth.user?._id || auth.user?.id || null),
+});
 
 // Merged timeline: past chronik entries + future/present activities, sorted by date
 const mergedTimeline = computed(() => {
   const now = new Date();
   const items = [
-    ...chronikEntries.value.map(e => ({ kind: 'chronik', date: new Date(e.createdAt), entry: e })),
+    ...chronikEntries.value.map(e => ({ kind: 'comment', date: new Date(e.createdAt), entry: e })),
     ...(chronikLead.value?.aktivitaeten || []).map(a => ({ kind: 'aktivitaet', date: new Date(a.datum), akt: a })),
   ].sort((a, b) => a.date - b.date);
 
@@ -1892,77 +1748,14 @@ const mergedTimeline = computed(() => {
   } else if (firstFutureIdx === 0 && items.length > 0) {
     items.unshift({ kind: 'divider', date: now });
   }
-  return items;
+  return items.map((item) => ({
+    ...item,
+    key: item.kind === 'divider' ? '__divider__' : `${item.kind}:${item.entry?._id || item.akt?._id}`,
+  }));
 });
 
-watch(mergedTimeline, () => {
-  requestAnimationFrame(() => {
-    const el = Array.isArray(chronikFeedEl.value) ? chronikFeedEl.value[0] : chronikFeedEl.value;
-    if (el) el.scrollTop = el.scrollHeight;
-  });
-}, { flush: 'post' });
-
-async function loadChronik(leadId) {
-  loadingChronik.value = true;
-  try {
-    const { data } = await api.get('/api/comments', {
-      params: { scope: 'lead_chronik', resourceId: leadId },
-    });
-    chronikEntries.value = data;
-  } catch (e) {
-    console.error('Chronik laden fehlgeschlagen', e);
-  } finally {
-    loadingChronik.value = false;
-  }
-}
-
-async function addChronikEntry() {
-  if (!chronikLead.value || !newChronikText.value.trim()) return;
-  addingChronik.value = true;
-  try {
-    const { data } = await api.post('/api/comments', {
-      scope: 'lead_chronik',
-      text: newChronikText.value.trim(),
-      context: {
-        resourceId: chronikLead.value._id,
-        resourceType: 'Lead',
-      },
-    });
-    chronikEntries.value.push(data);
-    newChronikText.value = '';
-  } catch (e) {
-    console.error('Chronik-Eintrag fehlgeschlagen', e);
-  } finally {
-    addingChronik.value = false;
-  }
-}
-
-async function deleteChronikEntry(id) {
-  try {
-    await api.delete(`/api/comments/${id}`);
-    chronikEntries.value = chronikEntries.value.filter((e) => e._id !== id);
-  } catch (e) {
-    console.error('Chronik-Eintrag löschen fehlgeschlagen', e);
-  }
-}
-
 async function addSystemChronikEntry(leadId, text) {
-  try {
-    const { data } = await api.post('/api/comments', {
-      scope: 'lead_chronik',
-      isSystem: true,
-      text,
-      context: { resourceId: leadId, resourceType: 'Lead' },
-    });
-    chronikEntries.value.push(data);
-  } catch (e) {
-    console.error('System-Chronik fehlgeschlagen', e);
-  }
-}
-
-function canDeleteChronik(entry) {
-  const uid = auth.user?._id || auth.user?.id;
-  return uid && String(entry.authorId) === String(uid);
+  await addRecordChronikEntry({ id: leadId, text, isSystem: true });
 }
 
 function initials(name) {
@@ -2108,7 +1901,7 @@ const filteredLeads = computed(() => {
   }
 
   if (filterStandorte.value.length > 0) {
-    list = list.filter(l => filterStandorte.value.includes(l.standort));
+    list = list.filter(l => filterStandorte.value.includes(leadLocationId(l)));
   }
 
   if (filterQuellen.value.length > 0) {
@@ -2279,14 +2072,16 @@ async function loadAll() {
   // Contacts prefetch runs in parallel, non-blocking
   prefetchContacts();
   try {
-    const [leadsRes, labelsRes, configRes] = await Promise.all([
+    const [leadsRes, labelsRes, configRes, locationsRes] = await Promise.all([
       api.get('/api/leads'),
       api.get('/api/leads/labels'),
       api.get('/api/leads/config'),
+      api.get('/api/locations'),
     ]);
     leads.value = leadsRes.data;
     labels.value = labelsRes.data;
     leadConfig.value = configRes.data;
+    locations.value = locationsRes.data.filter(location => location.isActive !== false);
   } catch (e) {
     console.error('Failed to load leads', e);
   } finally {
@@ -2330,7 +2125,6 @@ async function toggleFavorite(lead) {
 function openLead(lead) {
   if (selectedLead.value && selectedLead.value._id === lead._id) {
     selectedLead.value = null;
-    chronikExpandedLeadId.value = null;
     chronikLead.value = null;
     document.body.style.overflow = '';
     return;
@@ -2343,7 +2137,7 @@ function openLead(lead) {
   detailForm.wert = lead.wert ?? null;
   detailForm.waehrung = lead.waehrung || 'EUR';
   detailForm.stufe = lead.stufe || 'neu';
-  detailForm.standort = lead.standort || 'Hamburg';
+  detailForm.locationV2 = leadLocationId(lead) || defaultLocationId.value;
   detailForm.quelle = lead.quelle || null;
   detailForm.erwartetesAbschlussDatum = lead.erwartetesAbschlussDatum
     ? lead.erwartetesAbschlussDatum.substring(0, 10)
@@ -2356,17 +2150,13 @@ function openLead(lead) {
     firma:    lead.kontakt?.firma    || '',
   };
   detailForm.customFields = { ...(lead.customFields || {}) };
-  chronikExpandedLeadId.value = lead._id;
   chronikLead.value = lead;
-  chronikEntries.value = [];
-  loadChronik(lead._id);
 }
 
 function closeSidebar() {
   selectedLead.value = null;
-  chronikExpandedLeadId.value = null;
   chronikLead.value = null;
-  chronikEntries.value = [];
+  clearChronik();
   sidebarActionMenu.open = false;
   leadPanelPresentation.value = 'panel';
   document.body.style.overflow = '';
@@ -2397,7 +2187,7 @@ async function saveDetail() {
       title: detailForm.title,
       wert: detailForm.wert,
       stufe: detailForm.stufe,
-      standort: detailForm.standort,
+      locationV2: detailForm.locationV2,
       quelle: detailForm.quelle,
       erwartetesAbschlussDatum: detailForm.erwartetesAbschlussDatum || null,
       kontakt: detailForm.kontakt,
@@ -2573,7 +2363,7 @@ function openCreateModal() {
   Object.assign(createForm, {
     title: '',
     wert: null,
-    standort: 'Hamburg',
+    locationV2: defaultLocationId.value,
     quelle: null,
     kontakt: blankKontakt(),
   });
@@ -2628,7 +2418,7 @@ async function createLead() {
     const { data } = await api.post('/api/leads', {
       title:    createForm.title.trim(),
       wert:     createForm.wert,
-      standort: createForm.standort,
+      locationV2: createForm.locationV2,
       quelle:   createForm.quelle,
       kontakt:  createForm.kontakt,
       msContact,

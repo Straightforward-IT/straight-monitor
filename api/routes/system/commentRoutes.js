@@ -43,7 +43,12 @@ router.get('/', auth, asyncHandler(async (req, res) => {
   } else if (mitarbeiterId) {
     filter['context.mitarbeiter'] = mitarbeiterId;
   }
-  if (resourceId)    filter['context.resourceId']  = resourceId;
+  if (resourceId) {
+    if (!mongoose.isValidObjectId(resourceId)) {
+      return res.status(400).json({ message: 'Ungültige resourceId.' });
+    }
+    filter['context.resourceId'] = resourceId;
+  }
 
   if (von && bis) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(von) || !/^\d{4}-\d{2}-\d{2}$/.test(bis)) {
@@ -75,6 +80,9 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   if (context.datum && !/^\d{4}-\d{2}-\d{2}$/.test(context.datum)) {
     return res.status(400).json({ message: 'datum muss im Format YYYY-MM-DD sein.' });
+  }
+  if (context.resourceId && !mongoose.isValidObjectId(context.resourceId)) {
+    return res.status(400).json({ message: 'Ungültige resourceId.' });
   }
 
   const user = await User.findById(req.user.id).select('name email').lean();

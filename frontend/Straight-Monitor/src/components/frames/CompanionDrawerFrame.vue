@@ -75,7 +75,10 @@
           </div>
         </header>
         <template v-if="!collapsed">
-          <div class="cdf-body">
+          <div
+            class="cdf-body"
+            :class="{ 'cdf-body--static': !bodyScrollable }"
+          >
             <div class="cdf-body-content">
               <slot />
             </div>
@@ -119,6 +122,7 @@ const props = defineProps({
   resizable: { type: Boolean, default: true },
   showClose: { type: Boolean, default: true },
   desktopOnly: { type: Boolean, default: false },
+  bodyScrollable: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['update:modelValue', 'update:collapsed', 'close']);
@@ -156,6 +160,7 @@ let startHeight = 0;
 let sidePanelObserver = null;
 let observedSidePanel = null;
 let contentObserver = null;
+let sidePanelWaitObserver = null;
 
 function close() {
   emit('update:modelValue', false);
@@ -204,12 +209,30 @@ function stopResize() {
 function syncSidePanelOffset() {
   if (!props.sidePanelOpen || !drawerRef.value) {
     sidePanelObserver?.disconnect();
+    sidePanelWaitObserver?.disconnect();
+    sidePanelWaitObserver = null;
     observedSidePanel = null;
     sidePanelOffset.value = '0px';
     return;
   }
 
   const sidePanel = document.querySelector(props.sidePanelSelector);
+  if (!sidePanel) {
+    // The drawer and side panel can be mounted in the same render pass. Wait
+    // for the panel rather than permanently falling back to the viewport edge.
+    sidePanelWaitObserver?.disconnect();
+    sidePanelWaitObserver = new MutationObserver(() => {
+      if (document.querySelector(props.sidePanelSelector)) {
+        sidePanelWaitObserver?.disconnect();
+        sidePanelWaitObserver = null;
+        syncSidePanelOffset();
+      }
+    });
+    sidePanelWaitObserver.observe(document.body, { childList: true, subtree: true });
+  } else {
+    sidePanelWaitObserver?.disconnect();
+    sidePanelWaitObserver = null;
+  }
   if (sidePanel !== observedSidePanel) {
     sidePanelObserver?.disconnect();
     observedSidePanel = sidePanel;
@@ -219,8 +242,12 @@ function syncSidePanelOffset() {
     }
   }
 
+  // Use clientWidth (excludes the scrollbar) because the drawer's CSS `right`
+  // is resolved against the viewport's client width. Using innerWidth would
+  // leave a scrollbar-wide gap between the drawer and the side panel.
+  const viewportWidth = document.documentElement.clientWidth;
   sidePanelOffset.value = sidePanel
-    ? `${Math.max(0, window.innerWidth - sidePanel.getBoundingClientRect().left)}px`
+    ? `${Math.max(0, viewportWidth - sidePanel.getBoundingClientRect().left)}px`
     : '0px';
 }
 
@@ -264,6 +291,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopResize();
   sidePanelObserver?.disconnect();
+  sidePanelWaitObserver?.disconnect();
   contentObserver?.disconnect();
   window.removeEventListener('resize', syncLayout);
 });
@@ -335,6 +363,8 @@ onBeforeUnmount(() => {
 .cdf-icon-btn:hover { background: var(--hover); color: var(--text); }
 .cdf-body { flex: 1; min-height: 0; padding: 12px 16px; overflow-y: auto; }
 .cdf-body-content { min-height: 0; }
+.cdf-body--static { display: flex; overflow: hidden; padding-right: 0; }
+.cdf-body--static .cdf-body-content { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .cdf-footer { flex: 0 0 auto; padding: 0 16px 12px; background: var(--tile-bg); }
 
 @media (max-width: 1100px) {
