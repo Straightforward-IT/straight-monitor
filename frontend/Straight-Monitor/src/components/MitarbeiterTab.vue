@@ -23,9 +23,9 @@
                   v-for="location in locations"
                   :key="location._id"
                   class="location-filter-chip"
-                  :active="filters.location === String(location._id)"
+                  :active="filters.locations.includes(String(location._id))"
                   :style="{ '--location-color': location.color || '#6b7280' }"
-                  @click="setFilter('location', filters.location === String(location._id) ? 'Alle' : String(location._id))"
+                  @click="toggleLocationFilter(location._id)"
                 >{{ location.shortName || location.nameFull }}</FilterChip>
               </FilterGroup>
               <FilterDivider />
@@ -60,21 +60,30 @@
               </FilterGroup>
               <FilterDivider />
               <FilterGroup label="Persgruppe">
-                <FilterChip :active="filters.persgruppe === 'Keine'" @click="setFilter('persgruppe', filters.persgruppe === 'Keine' ? 'Alle' : 'Keine')">Keine</FilterChip>
-                <FilterChip v-for="pg in [{val: 101, label: 'Festi'}, {val: 110, label: 'KZF'}, {val: 109, label: 'Mini'}, {val: 106, label: 'Werkst.'}]" :key="pg.val" :active="filters.persgruppe === pg.val" @click="setFilter('persgruppe', filters.persgruppe === pg.val ? 'Alle' : pg.val)">{{ pg.label }}</FilterChip>
+                <FilterChip :active="filters.persgruppen.includes('Keine')" @click="setFilter('persgruppen', filters.persgruppen.includes('Keine') ? [] : ['Keine'])">Keine</FilterChip>
+                <FilterChip v-for="pg in [{val: 101, label: 'Festi'}, {val: 110, label: 'KZF'}, {val: 109, label: 'Mini'}, {val: 106, label: 'Werkst.'}]" :key="pg.val" :active="filters.persgruppen.includes(pg.val)" @click="setFilter('persgruppen', filters.persgruppen.includes(pg.val) ? [] : [pg.val])">{{ pg.label }}</FilterChip>
               </FilterGroup>
             </ToolbarFilter>
             </template>
             <div class="toolbar-inner">
-              <SearchBar
-                class="toolbar-search"
-                v-model="mitarbeitersSearchQuery"
-                placeholder="Mitarbeiter suchen..."
-                aria-label="Mitarbeiter suchen"
+              <MitarbeiterSearch
+                v-model="searchSelectedEmployeeId"
+                v-model:search-value="mitarbeitersSearchQuery"
+                class="toolbar-employee-search"
+                :filter-values="employeeSearchFilterValues"
+                :selected-item="searchSelectedEmployee"
+                include-inactive
+                prefer-active
+                placeholder="Mitarbeiter oder Filter suchen..."
+                @select="onEmployeeSearchSelect"
+                @filters-change="onEmployeeSearchFiltersChange"
               />
               <!-- Selection Info -->
               <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-                <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
+                <button class="selection-count" title="Auswahl löschen" @click="clearSelection">
+                  {{ selectedMitarbeiterIds.size }} ausgewählt
+                  <font-awesome-icon icon="fa-solid fa-times" />
+                </button>
                 <button
                   v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
                   class="btn-select-all-filtered"
@@ -85,10 +94,6 @@
                 <button class="btn-export-action" @click="showExportModal = true">
                   <font-awesome-icon icon="fa-solid fa-table" />
                   Exportieren
-                </button>
-                <button class="btn-clear" @click="clearSelection">
-                  <font-awesome-icon icon="fa-solid fa-times" />
-                  Auswahl löschen
                 </button>
               </div>
             </div>
@@ -134,6 +139,7 @@
             @filter-beruf="activateBerufFilter"
             @filter-qualifikation="activateQualifikationFilter"
             @reactivated="filters.status = 'Alle'"
+            @open-profile-modal="openEmployeeProfileModal"
           />
         </div>
 
@@ -418,6 +424,11 @@
       @close="showExportModal = false"
     />
 
+    <EmployeeCardModal
+      :mitarbeiter-id="profileModalEmployeeId"
+      @close="profileModalEmployeeId = null"
+    />
+
     <!-- Profilbild Upload Modal -->
     <teleport to="body">
       <ImageCropModal
@@ -440,8 +451,9 @@ import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
+import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
-import SearchBar from "@/components/SearchBar.vue";
+import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import SortMenu from "@/components/ui-elements/SortMenu.vue";
 import ToolbarPageControls from "@/components/ui-elements/ToolbarPageControls.vue";
@@ -537,7 +549,7 @@ library.add(
 
 export default {
   name: "MitarbeiterTab",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, ImageCropModal, SearchBar, Toolbar, SortMenu, ToolbarPageControls },
+  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, EmployeeCardModal, ImageCropModal, MitarbeiterSearch, Toolbar, SortMenu, ToolbarPageControls },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -558,6 +570,7 @@ export default {
       filtersLoadedFromCookie: false, // Track if filters were loaded from cookie
       // expanded employee
       expandedEmployeeId: null,
+      profileModalEmployeeId: null,
       
       // filter UI state
       filterExpanded: false,
@@ -589,7 +602,7 @@ export default {
       // enhanced filters matching the "trinity" (Straight + Asana + Flip)
       filters: {
         status: "Aktiv", // Aktiv, Inaktiv, Alle
-        location: "Alle", // Location-ID oder Alle
+        locations: [], // Array of selected Location IDs
         berufKey: null,
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         flipLinkage: "Alle", // Verknüpft, Nicht_verknüpft, Alle
@@ -600,9 +613,12 @@ export default {
         teamleiter: "Alle", // Alle, Nur Teamleiter, Keine Teamleiter
         berufe: [], // Array of selected Beruf IDs
         qualifikationen: [], // Array of selected Qualifikation IDs
-        persgruppe: 'Alle' // 'Alle', 101, 110, 109, 106
+        persgruppen: [],
+        arbeitsverhaeltnisse: [],
+        bewerber: 'Alle'
       },
       mitarbeitersSearchQuery: "",
+      searchSelectedEmployeeId: null,
       qualSearchQuery: "",
       qualDropdownOpen: false,
       qualFocusedPillIdx: -1,
@@ -631,7 +647,7 @@ export default {
     activeFilterCount() {
       let count = 0;
       if (this.filters.status !== 'Aktiv') count++;
-      if (this.filters.location !== 'Alle') count++;
+      if (this.filters.locations.length > 0) count++;
       if (this.filters.berufKey !== null) count++;
       if (this.filters.flipLinkage !== 'Alle') count++;
       if (this.filters.asanaStatus !== 'Alle') count++;
@@ -640,16 +656,20 @@ export default {
       if (this.filters.teamleiter !== 'Alle') count++;
       if (this.filters.berufe.length > 0) count++;
       if (this.filters.qualifikationen.length > 0) count++;
-      if (this.filters.persgruppe !== 'Alle') count++;
+      if (this.filters.persgruppen.length > 0) count++;
+      if (this.filters.arbeitsverhaeltnisse.length > 0) count++;
+      if (this.filters.bewerber !== 'Alle') count++;
       return count;
     },
     activeFilterLabels() {
       const labels = [];
-      const location = this.locations.find(item => String(item._id) === this.filters.location);
+      const selectedLocations = this.locations.filter(item => this.filters.locations.includes(String(item._id)));
       const persgruppeLabels = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
 
       if (this.filters.status !== 'Aktiv') labels.push(`Status: ${this.filters.status}`);
-      if (location) labels.push(`Standort: ${location.shortName || location.nameFull}`);
+      if (selectedLocations.length > 0) {
+        labels.push(`Standort: ${selectedLocations.map(location => location.shortName || location.nameFull).join(', ')}`);
+      }
       if (this.filters.berufKey === 10001) labels.push('Bereich: Service');
       if (this.filters.berufKey === 10002) labels.push('Bereich: Logistik');
       if (this.filters.teamleiter !== 'Alle') labels.push(`Rolle: ${this.filters.teamleiter}`);
@@ -657,11 +677,20 @@ export default {
       if (this.filters.asanaStatus !== 'Alle') labels.push(`Asana: ${this.filters.asanaStatus.replace('_', ' ')}`);
       if (this.filters.personalnrStatus !== 'Alle') labels.push(`P-Nr.: ${this.filters.personalnrStatus}`);
       if (this.filters.profilbildStatus !== 'Alle') labels.push(`Profilbild: ${this.filters.profilbildStatus}`);
-      if (this.filters.persgruppe !== 'Alle') {
-        labels.push(`Persgruppe: ${persgruppeLabels[this.filters.persgruppe] || this.filters.persgruppe}`);
+      if (this.filters.persgruppen.length > 0) {
+        labels.push(`Persgruppe: ${this.filters.persgruppen.map(value => persgruppeLabels[value] || value).join(', ')}`);
       }
-      if (this.filters.berufe.length > 0) labels.push(`Berufe: ${this.filters.berufe.length}`);
-      if (this.filters.qualifikationen.length > 0) labels.push(`Qualifikationen: ${this.filters.qualifikationen.length}`);
+      if (this.filters.arbeitsverhaeltnisse.length > 0) {
+        const labelsByType = { 0: 'Vollzeit', 1: 'Teilzeit', 2: 'Geringfügig beschäftigt', 3: 'Kurzfristig beschäftigt' };
+        labels.push(`Arbeitsverhältnis: ${this.filters.arbeitsverhaeltnisse.map(value => labelsByType[value]).join(', ')}`);
+      }
+      if (this.filters.bewerber !== 'Alle') labels.push(`Status: ${this.filters.bewerber === 'true' ? 'Bewerber' : 'Mitarbeiter'}`);
+      if (this.berufFilterObjects.length > 0) {
+        labels.push(`Berufe: ${this.berufFilterObjects.map(beruf => beruf.designation).join(', ')}`);
+      }
+      if (this.qualFilterObjects.length > 0) {
+        labels.push(`Qualifikationen: ${this.qualFilterObjects.map(qualifikation => qualifikation.designation).join(', ')}`);
+      }
 
       return labels;
     },
@@ -675,11 +704,33 @@ export default {
       return this.dataCache.qualifikationen || [];
     },
 
+    berufFilterObjects() {
+      return this.availableBerufe.filter(beruf =>
+        this.filters.berufe.includes(beruf._id)
+      );
+    },
+
     // Qualifikations-Objekte für ausgewählte IDs (für Pill-Anzeige)
     qualFilterObjects() {
       return this.availableQualifikationen.filter(q =>
         this.filters.qualifikationen.includes(q._id)
       );
+    },
+
+    employeeSearchFilterValues() {
+      return [
+        ...this.filters.locations.map(value => ({ category: 'standorte', value: String(value) })),
+        ...(this.filters.status === 'Alle' ? [] : [{ category: 'aktivstatus', value: String(this.filters.status === 'Aktiv') }]),
+        ...this.filters.berufe.map(value => ({ category: 'berufe', value: String(value) })),
+        ...this.filters.qualifikationen.map(value => ({ category: 'qualifikationen', value: String(value) })),
+        ...this.filters.persgruppen.filter(value => value !== 'Keine').map(value => ({ category: 'persgruppen', value: String(value) })),
+        ...this.filters.arbeitsverhaeltnisse.map(value => ({ category: 'arbeitsverhaeltnisse', value: String(value) })),
+        ...(this.filters.bewerber === 'Alle' ? [] : [{ category: 'bewerber', value: this.filters.bewerber }]),
+      ];
+    },
+
+    searchSelectedEmployee() {
+      return this.mitarbeitersEnriched.find(employee => String(employee._id) === String(this.searchSelectedEmployeeId)) || null;
     },
 
     // Vorschläge für das Qualifikations-Suchfeld
@@ -726,8 +777,8 @@ export default {
       }
 
       // Location Filter
-      if (this.filters.location !== "Alle") {
-        result = result.filter((ma) => this.getLocationId(ma) === this.filters.location);
+      if (this.filters.locations.length > 0) {
+        result = result.filter((ma) => this.filters.locations.includes(this.getLocationId(ma)));
       }
 
       // Bereich Filter
@@ -814,10 +865,22 @@ export default {
       }
 
       // Persgruppe Filter
-      if (this.filters.persgruppe === 'Keine') {
+      if (this.filters.persgruppen.includes('Keine')) {
         result = result.filter((ma) => ma.persgruppe == null);
-      } else if (this.filters.persgruppe !== 'Alle') {
-        result = result.filter((ma) => ma.persgruppe === this.filters.persgruppe);
+      } else if (this.filters.persgruppen.length > 0) {
+        result = result.filter((ma) => this.filters.persgruppen.includes(ma.persgruppe));
+      }
+
+      if (this.filters.arbeitsverhaeltnisse.length > 0) {
+        result = result.filter((ma) => this.filters.arbeitsverhaeltnisse.includes(ma.arbeitsverhaeltnis?.typ));
+      }
+
+      if (this.filters.bewerber !== 'Alle') {
+        result = result.filter((ma) => ma.isBewerberstatus === (this.filters.bewerber === 'true'));
+      }
+
+      if (this.searchSelectedEmployeeId) {
+        result = result.filter((ma) => String(ma._id) === String(this.searchSelectedEmployeeId));
       }
 
       // Profile Completeness Filter
@@ -1027,6 +1090,12 @@ export default {
               this.filters[key] = filterData[key];
             }
           });
+          if (!filterData.locations && filterData.location && filterData.location !== 'Alle') {
+            this.filters.locations = [String(filterData.location)];
+          }
+          if (filterData.persgruppe && filterData.persgruppe !== 'Alle') {
+            this.filters.persgruppen = [filterData.persgruppe];
+          }
           
           this.filtersLoadedFromCookie = true;
         } else {
@@ -1344,6 +1413,20 @@ export default {
       // Save filters to cookie immediately
       this.saveFiltersToCookie();
     },
+
+    toggleLocationFilter(locationId) {
+      const normalizedId = String(locationId);
+      this.filters.locations = this.filters.locations.includes(normalizedId)
+        ? this.filters.locations.filter(id => id !== normalizedId)
+        : [...this.filters.locations, normalizedId];
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+
+    onSkillFilterChange() {
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
     
     // Toggle Beruf filter (für Mehrfachauswahl)
     toggleBerufFilter(berufId) {
@@ -1453,12 +1536,34 @@ export default {
       }
     },
 
+    onEmployeeSearchFiltersChange(activeFilters) {
+      const values = (category) => activeFilters
+        .filter(filter => filter.category === category)
+        .map(filter => filter.value);
+      this.filters.berufe = values('berufe');
+      this.filters.qualifikationen = values('qualifikationen');
+      this.filters.persgruppen = values('persgruppen').map(Number);
+      this.filters.arbeitsverhaeltnisse = values('arbeitsverhaeltnisse').map(Number);
+      this.filters.bewerber = values('bewerber')[0] || 'Alle';
+      this.filters.locations = values('standorte');
+      const activeStatus = values('aktivstatus')[0];
+      this.filters.status = activeStatus === 'true' ? 'Aktiv' : activeStatus === 'false' ? 'Inaktiv' : 'Alle';
+      this.currentPage = 1;
+      this.saveFiltersToCookie();
+    },
+
+    onEmployeeSearchSelect(employee) {
+      this.searchSelectedEmployeeId = employee?._id || null;
+      this.currentPage = 1;
+    },
+
     resetAllFilters() {
       this.filters = {
         status: "Aktiv",
-        location: this.hasUserLocation() ? this.userLocation : "Alle",
+        locations: this.hasUserLocation() ? [this.userLocation] : [],
         berufKey: null,
         flipStatus: "Alle",
+        flipLinkage: "Alle",
         asanaStatus: "Alle",
         personalnrStatus: "Alle",
         profilbildStatus: "Alle",
@@ -1466,12 +1571,17 @@ export default {
         teamleiter: "Alle",
         berufe: [],
         qualifikationen: [],
-        persgruppe: 'Alle'
+        persgruppen: [],
+        arbeitsverhaeltnisse: [],
+        bewerber: 'Alle'
       };
       this.mitarbeitersSearchQuery = "";
+      this.searchSelectedEmployeeId = null;
       this.qualSearchQuery = "";
       this.qualDropdownOpen = false;
+      this.qualFocusedPillIdx = -1;
       this.currentPage = 1;
+      this.saveFiltersToCookie();
     },
 
     /* -------------------- Actions -------------------- */
@@ -1534,6 +1644,9 @@ export default {
     openProfile(ma) {
       // TODO: Implement profile opening functionality
     },
+    openEmployeeProfileModal(employeeId) {
+      this.profileModalEmployeeId = employeeId;
+    },
     editMitarbeiter(ma) {
       // TODO: Implement mitarbeiter editing functionality
     },
@@ -1575,15 +1688,21 @@ export default {
       return Boolean(this.userLocation && this.locations.some((location) => String(location._id) === this.userLocation));
     },
     applyUserLocationDefault() {
-      if (this.hasUserLocation() && !this.filtersLoadedFromCookie) this.filters.location = this.userLocation;
+      if (this.hasUserLocation() && !this.filtersLoadedFromCookie) this.filters.locations = [this.userLocation];
     },
     normalizeLocationFilter() {
-      if (this.filters.location === 'Alle' || this.locations.some((location) => String(location._id) === this.filters.location)) return;
-      const normalizedFilter = String(this.filters.location).trim().toLocaleLowerCase('de');
-      const matchingLocation = this.locations.find((location) => [location.nameFull, location.shortName]
-        .filter(Boolean)
-        .some((value) => String(value).trim().toLocaleLowerCase('de') === normalizedFilter));
-      this.filters.location = matchingLocation ? String(matchingLocation._id) : 'Alle';
+      const normalizedLocations = (Array.isArray(this.filters.locations) ? this.filters.locations : [])
+        .map((filterValue) => {
+          const exactLocation = this.locations.find((location) => String(location._id) === String(filterValue));
+          if (exactLocation) return String(exactLocation._id);
+          const normalizedFilter = String(filterValue).trim().toLocaleLowerCase('de');
+          const matchingLocation = this.locations.find((location) => [location.nameFull, location.shortName]
+            .filter(Boolean)
+            .some((value) => String(value).trim().toLocaleLowerCase('de') === normalizedFilter));
+          return matchingLocation ? String(matchingLocation._id) : null;
+        })
+        .filter(Boolean);
+      this.filters.locations = [...new Set(normalizedLocations)];
     },
     async fetchMitarbeiters() {
       try {
@@ -1946,6 +2065,12 @@ export default {
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+}
+
+.toolbar-employee-search {
+  flex: 1 1 520px;
+  min-width: 280px;
+  max-width: 760px;
 }
 
 .filter-search-toggle {
@@ -3155,31 +3280,26 @@ html {
 .selection-info {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .selection-count {
-  font-size: 0.875rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.btn-clear {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--border);
+  gap: 0.375rem;
+  min-height: 32px;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--brand);
   border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
+  background: transparent;
+  color: var(--brand);
   font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   
   &:hover {
-    background: var(--soft);
-    border-color: var(--brand);
+    background: color-mix(in srgb, var(--brand) 8%, transparent);
   }
 }
 
@@ -3187,6 +3307,7 @@ html {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 32px;
   padding: 0.375rem 0.75rem;
   border: 1px solid var(--brand);
   border-radius: 4px;
@@ -3206,6 +3327,7 @@ html {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 32px;
   padding: 0.375rem 0.75rem;
   border: none;
   border-radius: 4px;

@@ -104,6 +104,17 @@
       </div>
 
       <button
+        v-if="expanded && !showClose"
+        type="button"
+        class="employee-card-open-profile"
+        aria-label="Mitarbeiterprofil in Fenster öffnen"
+        title="Mitarbeiterprofil in Fenster öffnen"
+        @click.stop="$emit('open-profile-modal', resolvedMa._id)"
+      >
+        <font-awesome-icon icon="fa-solid fa-up-right-from-square" />
+      </button>
+
+      <button
         v-if="showClose"
         type="button"
         class="employee-card-close"
@@ -1761,7 +1772,7 @@ export default {
     isSelected: { type: Boolean, default: false },
     enableHeaderContextMenu: { type: Boolean, default: false },
   },
-  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "filter-beruf", "filter-qualifikation", "reactivated", "profile-loaded"],
+  emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "open-profile-modal", "filter-beruf", "filter-qualifikation", "reactivated", "profile-loaded"],
 
   setup(props) {
     const theme = useTheme();
@@ -4243,6 +4254,31 @@ export default {
   color: var(--muted);
   cursor: pointer;
   font-size: 16px;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+.employee-card-open-profile {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &:hover {

@@ -301,14 +301,36 @@ const safeNachname = rawNachname
   }
 }
 
-// GET /api/personal/search?q=... – Lightweight name/email search for quick-add dialogs
+// GET /api/personal/search?q=... – Lightweight employee search with optional smart filters
 router.get(
   '/search',
   auth,
   asyncHandler(async (req, res) => {
-    const { q, includeInactive, requirePersonalnr, preferActive } = req.query;
-    if (!q || String(q).trim().length < 2) return res.json([]);
-    const search = String(q).trim();
+    const {
+      q,
+      includeInactive,
+      requirePersonalnr,
+      preferActive,
+      berufe,
+      qualifikationen,
+      persgruppen,
+      arbeitsverhaeltnisse,
+      standorte,
+      isActive: activeState,
+      bewerber,
+    } = req.query;
+    const search = String(q || '').trim();
+    const parseList = (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const berufIds = parseList(berufe).filter(mongoose.isValidObjectId);
+    const qualifikationIds = parseList(qualifikationen).filter(mongoose.isValidObjectId);
+    const persgruppeValues = parseList(persgruppen).map(Number).filter(Number.isInteger);
+    const arbeitsverhaeltnisValues = parseList(arbeitsverhaeltnisse).map(Number).filter(Number.isInteger);
+    const standortIds = parseList(standorte).filter(mongoose.isValidObjectId);
+    const hasSmartFilters = berufIds.length || qualifikationIds.length || persgruppeValues.length
+      || arbeitsverhaeltnisValues.length || standortIds.length
+      || activeState === 'true' || activeState === 'false'
+      || bewerber === 'true' || bewerber === 'false';
+    if (search.length < 2 && !hasSmartFilters) return res.json([]);
     const terms = search.split(/\s+/).filter(Boolean).slice(0, 5);
     const regex = (term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const matchingTerm = (term) => ({
@@ -322,8 +344,15 @@ router.get(
     const filter = {
       $and: terms.map(matchingTerm),
     };
-    if (includeInactive !== 'true') filter.isActive = true;
+    if (activeState === 'true' || activeState === 'false') filter.isActive = activeState === 'true';
+    else if (includeInactive !== 'true') filter.isActive = true;
     if (requirePersonalnr === 'true') filter.$and.push({ personalnr: { $exists: true, $nin: [null, ''] } });
+    if (berufIds.length) filter.berufe = { $in: berufIds };
+    if (qualifikationIds.length) filter.qualifikationen = { $in: qualifikationIds };
+    if (persgruppeValues.length) filter.persgruppe = { $in: persgruppeValues };
+    if (arbeitsverhaeltnisValues.length) filter['arbeitsverhaeltnis.typ'] = { $in: arbeitsverhaeltnisValues };
+    if (standortIds.length) filter.locationV2 = { $in: standortIds };
+    if (bewerber === 'true' || bewerber === 'false') filter.isBewerberstatus = bewerber === 'true';
     const results = await Mitarbeiter.find(filter)
       .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive locationV2')
       .limit(20)
