@@ -88,12 +88,6 @@
               {{ displayLocation }}
             </span>
             
-            <!-- Department Badge -->
-            <span class="pill muted" v-if="displayDepartment">
-              <font-awesome-icon icon="fa-solid fa-layer-group" />
-              {{ displayDepartment }}
-            </span>
-            
             <!-- Personengruppe Badge -->
             <span class="pill" style="background:var(--soft);color:var(--muted);" v-if="persgruppeLabel">
               <font-awesome-icon icon="fa-solid fa-user" />
@@ -563,11 +557,16 @@
                 <img :src="flipLogo" alt="Flip" class="section-icon" />
                 Flip-Profil
               </h4>
-              <FlipProfile :flip-user="resolvedMa.flip" />
+              <FlipProfile
+                :flip-user="resolvedMa.flip"
+                :groups-loaded="flipGroupsLoaded"
+                :loading-groups="loadingFlipGroups"
+                @load-groups="loadFlipGroups"
+              />
             </div>
             
             <!-- Flip Tasks -->
-            <div class="flip-tasks-section">
+            <div v-if="false" class="flip-tasks-section">
               <h4 class="section-title">
                 <font-awesome-icon icon="fa-solid fa-clipboard-list" class="section-icon" />
                 Flip Tasks
@@ -1750,7 +1749,6 @@ import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 import api from "@/utils/api";
-import { fetchFlipTasks } from "@/utils/flipApi";
 import FlipMappings from "@/assets/FlipMappings.json";
 
 // Assets importieren (Vite handled cache+preload)
@@ -1806,67 +1804,70 @@ export default {
       window.removeEventListener("resize", updateScreenSize);
     });
 
-    // Flip helpers (attributes als Array von {name,value})
-    const getFlipAttr = (name) =>
-      resolvedMaSetup.value?.flip?.attributes?.find?.((a) => a?.name === name)?.value;
-
     const displayLocation = computed(() => {
       const location = resolvedMaSetup.value?.locationV2;
-      if (location?.nameFull || location?.shortName) return location.nameFull || location.shortName;
-
-        // 1. Flip Location
-        const flipLoc = resolvedMaSetup.value?.flip?.profile?.location || getFlipAttr("location");
-        if (flipLoc) return flipLoc;
-
-        // 2. Database Location
-        if (resolvedMaSetup.value?.standort) return resolvedMaSetup.value?.standort;
-
-        // 3. Fallback: Personalnr Logic
-        // 1xxxx = Berlin, 2xxxx = Hamburg, 3xxxx = Köln
-        const pnr = resolvedMaSetup.value?.personalnr;
-        if (pnr) {
-          const s = String(pnr).trim();
-          if (s.startsWith("1")) return "Berlin";
-          if (s.startsWith("2")) return "Hamburg";
-          if (s.startsWith("3")) return "Köln";
-        }
-
-        return "";
+      return location?.nameFull || location?.shortName || "";
     });
-    const displayDepartment = computed(
-      () =>
-        resolvedMaSetup.value?.flip?.profile?.department ||
-        getFlipAttr("department") ||
-        resolvedMaSetup.value?.abteilung ||
-        ""
-    );
-    // FLip Profile Picture
+
     const flip = useFlipAll();
     const photoUrl = ref("");
-    watchEffect(async () => {
-      // 1. Try Flip profile picture
+    let profilePhotoSource = "";
+    let r2PhotoEmployeeId = null;
+    let r2PhotoRequest = null;
+
+    const loadR2ProfilePhoto = (employee = resolvedMaSetup.value) => {
+      const employeeId = employee?._id;
+      if (!employeeId) return Promise.resolve("");
+
+      if (r2PhotoEmployeeId !== employeeId) {
+        r2PhotoEmployeeId = employeeId;
+        r2PhotoRequest = null;
+        profilePhotoSource = "";
+        photoUrl.value = "";
+      }
+
+      if (!employee.profilbild) return Promise.resolve("");
+      if (r2PhotoRequest) return r2PhotoRequest;
+
+      r2PhotoRequest = (async () => {
+        try {
+          const res = await api.get(`/api/personal/mitarbeiter/${employeeId}/profilbild`);
+          const r2Url = res.data?.url || "";
+          if (r2Url && resolvedMaSetup.value?._id === employeeId && profilePhotoSource !== "flip") {
+            photoUrl.value = r2Url;
+            profilePhotoSource = "r2";
+          }
+          return r2Url;
+        } catch (_) {
+          return "";
+        }
+      })();
+
+      return r2PhotoRequest;
+    };
+
+    watchEffect(() => {
+      const employee = resolvedMaSetup.value;
+      if (employee) void loadR2ProfilePhoto(employee);
+    });
+
+    const loadProfilePhoto = async () => {
+      const employee = resolvedMaSetup.value;
+      if (!employee) return;
+
       if (flip.enablePhotos) {
-        const id = resolvedMaSetup.value?.flip?.id;
+        const id = employee.flip?.id;
         if (id) {
           const flipUrl = await flip.ensurePhoto(id);
           if (flipUrl) {
             photoUrl.value = flipUrl;
+            profilePhotoSource = "flip";
             return;
           }
         }
       }
-      // 2. Fallback: R2 profilbild
-      if (resolvedMaSetup.value?.profilbild) {
-        try {
-          const res = await api.get(`/api/personal/mitarbeiter/${resolvedMaSetup.value?._id}/profilbild`);
-          if (res.data?.url) {
-            photoUrl.value = res.data.url;
-            return;
-          }
-        } catch (_) { /* ignore */ }
-      }
-      photoUrl.value = "";
-    });
+      await loadR2ProfilePhoto(employee);
+    };
     
     // Check if user is a Teamleiter
     const isTeamleiter = computed(() => {
@@ -1896,7 +1897,7 @@ export default {
       asanaLogo,
       photoUrl,
       displayLocation,
-      displayDepartment,
+      loadProfilePhoto,
       isTeamleiter,
       router,
       dataCache,
@@ -1924,17 +1925,11 @@ export default {
       searchingAsana: false,
       savingAsana: false,
       loadingAsana: false,
-      // Flip-Tasks States
-      flipTasks: {
-        assignedToMe: [],
-        assignedByMe: [], 
-        available: [],
-        total: 0,
-        summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
-      },
-      loadingTasks: false,
-      tasksLoaded: false,
-      showFinishedTasks: false, // Toggle für erledigte Tasks
+      flipDetailsLoaded: false,
+      flipDetailsRequest: null,
+      flipGroupsLoaded: false,
+      loadingFlipGroups: false,
+      flipGroupsRequest: null,
       // Edit Dialog
       showEditModal: false,
       savingEdit: false,
@@ -2116,28 +2111,6 @@ export default {
         plannedHours,
       };
     },
-    // Filtere Tasks nach Status (offen vs. erledigt)
-    filteredTasksToMe() {
-      if (!this.flipTasks.assignedToMe) return [];
-      return this.flipTasks.assignedToMe.filter(task => {
-        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
-        return this.showFinishedTasks ? isFinished : !isFinished;
-      });
-    },
-    filteredTasksByMe() {
-      if (!this.flipTasks.assignedByMe) return [];
-      return this.flipTasks.assignedByMe.filter(task => {
-        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
-        return this.showFinishedTasks ? isFinished : !isFinished;
-      });
-    },
-    filteredAvailableTasks() {
-      if (!this.flipTasks.available) return [];
-      return this.flipTasks.available.filter(task => {
-        const isFinished = task.progress_status === 'FINISHED' || task.progress_status === 'DONE';
-        return this.showFinishedTasks ? isFinished : !isFinished;
-      });
-    },
     hasAnyDocuments() {
       return (
         (this.resolvedMa?.laufzettel_received && this.resolvedMa.laufzettel_received.length > 0) ||
@@ -2293,6 +2266,11 @@ export default {
         this.rawJson = '';
         this.rawError = '';
         this.rawSuccess = '';
+        this.flipDetailsLoaded = false;
+        this.flipDetailsRequest = null;
+        this.flipGroupsLoaded = false;
+        this.loadingFlipGroups = false;
+        this.flipGroupsRequest = null;
         if (this.view === 'inventar' && this.expanded) {
           this.fetchInventar();
         }
@@ -2301,10 +2279,9 @@ export default {
         }
       }
     },
-    view(newView) {
-      // Load tasks when switching to flip view
-      if (newView === 'links' && this.expanded && this.resolvedMa?.flip?.id && !this.tasksLoaded) {
-        this.loadFlipTasks();
+    async view(newView) {
+      if (newView === 'links' && this.expanded) {
+        await this.loadLinksData();
       }
       // Load inventar when switching to inventar view
       if (newView === 'inventar' && this.expanded && this.inventarLogs.length === 0 && !this.inventarLoading) {
@@ -2346,12 +2323,10 @@ export default {
       try {
         const response = await api.get(`/api/personal/mitarbeiter/${id}`);
         const data = response.data?.data || response.data;
-        await this.enrichWithFlip(data);
         this.selfLoadedMa = data;
-        // loadSelf already refetched the Mitarbeiter + Flip user, so only
-        // reload the related datasets (inventory, feedback, dispo, ...).
         if (this.expanded) {
           this.reloadRelatedData();
+          if (this.view === 'links') await this.loadLinksData();
         }
       } catch (err) {
         console.error('[EmployeeCard] loadSelf failed:', err);
@@ -2368,22 +2343,21 @@ export default {
       }
     },
 
-    // Full reload on card open: refetch the Mitarbeiter + Flip user, then
-    // all related datasets. Always reloads (no cache guards).
+    // Full reload on card open: refresh local employee data and related datasets.
+    // Flip data remains lazy until the Links tab is selected.
     async reloadAllData() {
-      await this.refreshMitarbeiterAndFlip();
+      await this.refreshMitarbeiter();
       this.reloadRelatedData();
+      if (this.view === 'links') await this.loadLinksData();
     },
 
-    // Refetch the Mitarbeiter document (Asana, Personalnr, flip_id, ...) and
-    // the linked Flip user via flip_id, updating the resolved Mitarbeiter.
-    async refreshMitarbeiterAndFlip() {
+    // Refetch the local Mitarbeiter document (Asana, Personalnr, flip_id, ...).
+    async refreshMitarbeiter() {
       const id = this.resolvedMa?._id;
       if (!id) return;
       try {
         const response = await api.get(`/api/personal/mitarbeiter/${id}`);
         const data = response.data?.data || response.data;
-        await this.enrichWithFlip(data);
         await this.dataCache.updateOneMitarbeiter(data);
         if (this.ma) {
           Object.assign(this.ma, data);
@@ -2391,7 +2365,31 @@ export default {
           this.selfLoadedMa = data;
         }
       } catch (err) {
-        console.error('[EmployeeCard] refreshMitarbeiterAndFlip failed:', err);
+        console.error('[EmployeeCard] refreshMitarbeiter failed:', err);
+      }
+    },
+
+    async loadLinksData() {
+      await this.ensureFlipDetails();
+    },
+
+    async ensureFlipDetails() {
+      if (!this.resolvedMa?.flip_id || this.flipDetailsLoaded) return this.resolvedMa?.flip;
+      if (this.flipDetailsRequest) return this.flipDetailsRequest;
+
+      this.flipDetailsRequest = (async () => {
+        await this.enrichWithFlip(this.resolvedMa);
+        if (this.resolvedMa?.flip?.id) {
+          this.flipDetailsLoaded = true;
+          await this.loadProfilePhoto();
+        }
+        return this.resolvedMa?.flip;
+      })();
+
+      try {
+        return await this.flipDetailsRequest;
+      } finally {
+        this.flipDetailsRequest = null;
       }
     },
 
@@ -2402,31 +2400,53 @@ export default {
       try {
         const flipUser = await this.flip.fetchFlipById(data.flip_id);
         if (flipUser) {
-          const response = await api.get(`/api/personal/flip/${data.flip_id}/groups`);
           data.flip = {
             ...flipUser,
-            groups: response.data?.data || [],
+            groups: [],
           };
         }
       } catch { /* flip profile will show on next load */ }
     },
 
-    // Reload every Mitarbeiter-related dataset (inventory, feedback, dispo,
-    // chronik, calendar, Flip tasks). Resets caches so data is always fresh.
+    async loadFlipGroups() {
+      const flipId = this.resolvedMa?.flip?.id;
+      if (!flipId || this.flipGroupsLoaded) return;
+      if (this.flipGroupsRequest) return this.flipGroupsRequest;
+
+      this.loadingFlipGroups = true;
+      this.flipGroupsRequest = api.get(`/api/personal/flip/${flipId}/groups`)
+        .then((response) => {
+          if (this.resolvedMa?.flip?.id === flipId) {
+            this.resolvedMa.flip = {
+              ...this.resolvedMa.flip,
+              groups: response.data?.data || [],
+            };
+            this.flipGroupsLoaded = true;
+          }
+        })
+        .catch((error) => {
+          console.error("[EmployeeCard] loadFlipGroups failed:", error);
+        })
+        .finally(() => {
+          this.loadingFlipGroups = false;
+          this.flipGroupsRequest = null;
+        });
+
+      return this.flipGroupsRequest;
+    },
+
+    // Reload every local Mitarbeiter-related dataset (inventory, feedback,
+    // dispo, chronik, calendar). Flip data is loaded from the Links tab only.
     reloadRelatedData() {
       if (!this.resolvedMa?._id) return;
       this._calFetchedMonths = new Set();
       this.calendarEinsaetze = [];
-      this.tasksLoaded = false;
       this.loadEventReportFeedback();
       this.loadEinsatzContext();
       this.loadEinsatzAnalytics();
       this.loadChronik();
       this._loadCalMonth();
       this.fetchInventar();
-      if (this.resolvedMa?.flip?.id) {
-        this.loadFlipTasks();
-      }
     },
     async loadEventReportFeedback() {
       if (!this.resolvedMa?._id) return;
@@ -2525,7 +2545,7 @@ export default {
         this.rawJson = JSON.stringify(data?.data ?? {}, null, 2);
         this.rawSuccess = 'Gespeichert.';
         // Refresh the resolved Mitarbeiter so other tabs reflect the changes.
-        this.refreshMitarbeiterAndFlip();
+        this.refreshMitarbeiter();
       } catch (err) {
         console.error('[EmployeeCard] saveRawDocument failed:', err);
         this.rawError = err.response?.data?.message || err.message || 'Speichern fehlgeschlagen.';
@@ -3077,104 +3097,6 @@ export default {
       this.savingAsana = false;
     },
 
-    // Flip Tasks Methoden
-    async loadFlipTasks() {
-      if (!this.resolvedMa?.flip?.id) {
-        console.log("❌ No Flip ID available for", this.resolvedMa?.vorname, this.resolvedMa?.nachname);
-        return;
-      }
-
-      console.log("🔄 Loading Flip tasks for user:", this.resolvedMa.flip.id);
-      this.loadingTasks = true;
-
-      try {
-        const response = await fetchFlipTasks(this.resolvedMa.flip.id);
-        this.flipTasks = response || {
-          assignedToMe: [],
-          assignedByMe: [], 
-          available: [],
-          total: 0,
-          summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
-        };
-        this.tasksLoaded = true;
-        
-        console.log(`✅ Loaded ${this.flipTasks.total} Flip tasks for ${this.resolvedMa?.vorname} ${this.resolvedMa?.nachname}:`, this.flipTasks.summary);
-        
-        if (this.flipTasks.debug) {
-          console.log(`🔍 Debug info:`, this.flipTasks.debug);
-        }
-      } catch (error) {
-        console.error("❌ Error loading Flip tasks:", error);
-        this.flipTasks = {
-          assignedToMe: [],
-          assignedByMe: [], 
-          available: [],
-          total: 0,
-          summary: { assignedToMe: 0, assignedByMe: 0, available: 0 }
-        };
-        // Don't show error to user, just log it
-      } finally {
-        this.loadingTasks = false;
-      }
-    },
-
-    formatTaskStatus(status) {
-      const statusMap = {
-        'OPEN': 'Offen',
-        'IN_PROGRESS': 'In Bearbeitung', 
-        'DONE': 'Erledigt',
-        'FINISHED': 'Abgeschlossen',
-        'NEW': 'Neu'
-      };
-      return statusMap[status] || status || 'Offen';
-    },
-
-    formatDueDate(dateString) {
-      if (!dateString) return '';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        });
-      } catch {
-        return dateString;
-      }
-    },
-
-    formatCreatedDate(dateString) {
-      if (!dateString) return '';
-      try {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) {
-          return 'Heute';
-        } else if (diffDays === 1) {
-          return 'Gestern';
-        } else if (diffDays < 7) {
-          return `vor ${diffDays} Tagen`;
-        } else {
-          return date.toLocaleDateString('de-DE', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          });
-        }
-      } catch {
-        return dateString;
-      }
-    },
-
-    openFlipTask(link) {
-      if (link) {
-        window.open(link, '_blank');
-      }
-    },
-
     // ── Flip Management Methods ──────────────────────────────────────
     async restoreFlipUser() {
       if (!this.resolvedMa?.flip_id) return;
@@ -3517,7 +3439,7 @@ export default {
         if (res.data?.url) {
           this.photoUrl = res.data.url;
         }
-      } catch (_) { /* watchEffect will pick it up on next cycle */ }
+      } catch (_) { /* ignore */ }
     },
 
     copyShareLink() {
@@ -3732,18 +3654,6 @@ export default {
       }
     },
 
-    formatTaskDescription(description) {
-      if (!description) return '';
-      
-      console.log('Original description:', description);
-      
-      // Replace URLs with a link icon
-      const urlRegex = /(https?:\/\/[^\s\[\]]+)/g;
-      const result = description.replace(urlRegex, '<span class="task-link-icon" title="Link verfügbar">[Link]</span>');
-      
-      console.log('Formatted description:', result);
-      return result;
-    },
   },
 };
   

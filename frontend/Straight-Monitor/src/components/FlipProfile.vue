@@ -35,8 +35,20 @@
       <h3>
         <font-awesome-icon icon="fa-solid fa-users" />
         Gruppen
+        <button
+          v-if="!groupsLoaded && !loadingGroups"
+          type="button"
+          class="groups-load-btn"
+          @click="$emit('load-groups')"
+        >
+          Laden
+        </button>
       </h3>
-      <div v-if="groupRoots.length" class="group-tree-wrap">
+      <div v-if="loadingGroups" class="empty">
+        <font-awesome-icon icon="fa-solid fa-spinner" spin />
+        Gruppen werden geladen
+      </div>
+      <div v-else-if="groupsLoaded && groupRoots.length" class="group-tree-wrap">
         <div
           v-for="root in groupRoots"
           :key="root.id"
@@ -45,9 +57,10 @@
           <FlipGroupNode :node="root" :removing-group-id="removingGroupId" @remove="removeGroup" />
         </div>
       </div>
-      <div v-else class="empty">
+      <div v-else-if="groupsLoaded" class="empty">
         Keine Gruppen zugewiesen
       </div>
+      <div v-else class="empty">Noch nicht geladen</div>
     </section>
 
     <!-- Custom Attributes -->
@@ -81,8 +94,17 @@ export default {
     flipUser: {
       type: Object,
       required: true
-    }
+    },
+    groupsLoaded: {
+      type: Boolean,
+      default: false,
+    },
+    loadingGroups: {
+      type: Boolean,
+      default: false,
+    },
   },
+  emits: ['load-groups'],
 
   setup(props) {
     const flip = useFlipAll()
@@ -180,6 +202,23 @@ export default {
     margin: 0 0 12px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
+  }
+}
+
+.groups-load-btn {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
   }
 }
 

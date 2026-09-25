@@ -38,12 +38,17 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
+import { useDockedModals } from "@bleck-it/vue-modal-dock";
 import { useTheme } from "@/stores/theme";
 import { useDataCache } from "@/stores/dataCache";
+import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
+import DocumentCard from "@/components/Modals/DocumentCard.vue";
 const NOTIF_STORAGE_KEY = "notif_prompted_v1";
+const MINIMIZED_MODAL_STORAGE_KEY = "straight-monitor:minimized-modals:v1";
 
 const route = useRoute();
 const themeStore = useTheme();
+const dockedModals = useDockedModals();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
 const isPublicEinsaetze = computed(() => route.name === "PublicEinsaetze");
 const isCapacityCounter = computed(() => route.name === "CapacityCounter");
@@ -51,6 +56,84 @@ const isSpecialRoute = computed(() => isFlipCreate.value || isPublicEinsaetze.va
 
 // --- Notification Permission Banner ---
 const showNotifBanner = ref(false);
+
+function removeDockedModal(id) {
+  dockedModals.remove(id);
+}
+
+function restoreMinimizedModal({ id, title, persistence }) {
+  if (!persistence?.type || !persistence.payload) return;
+
+  if (persistence.type === "employee-card") {
+    const { mitarbeiterId } = persistence.payload;
+    if (!mitarbeiterId) return;
+    dockedModals.open({
+      id,
+      title,
+      component: EmployeeCardModal,
+      persistence,
+      props: {
+        mitarbeiterId,
+        hosted: true,
+        onClose: () => removeDockedModal(id),
+      },
+    });
+  } else if (persistence.type === "document-card") {
+    const { document, options = {} } = persistence.payload;
+    if (!document?._id) return;
+    dockedModals.open({
+      id,
+      title,
+      component: DocumentCard,
+      persistence,
+      props: {
+        doc: document,
+        filteredTeamleiter: options.filteredTeamleiter ?? null,
+        filteredMitarbeiter: options.filteredMitarbeiter ?? null,
+        minimizable: true,
+        minimizeId: id,
+        minimizeTitle: title,
+        layer: options.layer ?? "base",
+        closeOnEscape: false,
+        onClose: () => removeDockedModal(id),
+      },
+    });
+  } else {
+    return;
+  }
+
+  dockedModals.minimize(id);
+}
+
+function persistMinimizedModals() {
+  const records = dockedModals.minimizedModals.value
+    .filter(modal => modal.persistence)
+    .map(modal => ({
+      id: modal.id,
+      title: modal.title,
+      persistence: modal.persistence,
+    }));
+
+  try {
+    localStorage.setItem(MINIMIZED_MODAL_STORAGE_KEY, JSON.stringify(records));
+  } catch (error) {
+    console.warn("Minimized modal dock could not be persisted.", error);
+  }
+}
+
+function restoreMinimizedModals() {
+  try {
+    const records = JSON.parse(localStorage.getItem(MINIMIZED_MODAL_STORAGE_KEY) || "[]");
+    if (!Array.isArray(records)) return;
+    records.forEach(restoreMinimizedModal);
+  } catch (error) {
+    console.warn("Minimized modal dock could not be restored.", error);
+    localStorage.removeItem(MINIMIZED_MODAL_STORAGE_KEY);
+  }
+}
+
+watch(dockedModals.minimizedModals, persistMinimizedModals, { deep: true });
+onMounted(restoreMinimizedModals);
 
 function checkNotificationPrompt() {
   if (!("Notification" in window)) return;

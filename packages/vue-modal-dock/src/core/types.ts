@@ -3,11 +3,22 @@ import type { Component, ComputedRef } from 'vue'
 export type ModalProps = Record<string, unknown>
 export type ModalStatus = 'open' | 'minimized'
 
+/**
+ * JSON-safe data an application can use to recreate a minimized modal after
+ * a browser refresh. The host app resolves the type to its Vue component.
+ */
+export interface ModalPersistence {
+  readonly type: string
+  readonly payload: unknown
+}
+
 export interface ModalDefinition<TProps extends ModalProps = ModalProps> {
   readonly id: string
   readonly title: string
   readonly component: Component
   readonly props?: TProps
+  /** Opt-in descriptor for restoring this modal in a future app session. */
+  readonly persistence?: ModalPersistence
   /** Called after the record is removed through either API or UI controls. */
   readonly onRemove?: (id: string) => void
 }

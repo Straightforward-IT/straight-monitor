@@ -16,7 +16,7 @@
 
     <ul class="wp-list">
       <li v-for="ma in recentFiltered" :key="ma._id" class="wp-item">
-        <RouterLink :to="{ path: '/personal', query: { mitarbeiter_id: ma._id } }" class="wp-link">
+        <button type="button" class="wp-link" @click="profileEmployeeId = ma._id">
           <div class="wp-info">
             <span class="wp-name">{{ ma.vorname }} {{ ma.nachname }}<span v-if="ma.personalnr" class="wp-pnr-inline"> · {{ ma.personalnr }}</span></span>
             <div class="wp-meta">
@@ -26,28 +26,35 @@
             <span v-if="ma.createdAt || ma.dateCreated" class="wp-date">{{ formatDateTime(ma.createdAt ?? ma.dateCreated) }}</span>
           </div>
           <font-awesome-icon :icon="['fas', 'chevron-right']" class="wp-arrow" />
-        </RouterLink>
+        </button>
       </li>
       <li v-if="!loading && !recentFiltered.length" class="wp-empty">
         Keine Einträge für diesen Standort.
       </li>
     </ul>
+
+    <EmployeeCardModal
+      v-if="profileEmployeeId"
+      :mitarbeiter-id="profileEmployeeId"
+      @close="profileEmployeeId = null"
+    />
   </DashboardWidget>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
-import { RouterLink } from "vue-router";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useFlipAll } from "@/stores/flipAll";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
+import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 
 const cache = useDataCache();
 const flip  = useFlipAll();
 const auth  = useAuth();
+const profileEmployeeId = ref(null);
 
 const loading = computed(() => cache.loading.mitarbeiter && cache.mitarbeiter.length === 0);
 
@@ -146,9 +153,16 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 6px 10px;
+  border: 0;
   border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   text-decoration: none;
+  cursor: pointer;
   transition: background 0.12s;
 
   &:hover {

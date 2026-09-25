@@ -41,6 +41,17 @@ export function useDocumentModals() {
         closeOnEscape: false,
         onClose: () => dockedModals.remove(id),
       },
+      persistence: {
+        type: 'document-card',
+        payload: {
+          document,
+          options: {
+            filteredTeamleiter: options.filteredTeamleiter ?? null,
+            filteredMitarbeiter: options.filteredMitarbeiter ?? null,
+            layer: options.layer ?? 'base',
+          },
+        },
+      },
     });
   }
 

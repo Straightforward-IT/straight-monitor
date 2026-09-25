@@ -945,13 +945,6 @@ export default {
       return this.filteredMitarbeitersSorted.slice(start, end);
     },
 
-    visibleFlipIdsKey() {
-      return this.paginatedMitarbeiters
-        .map((ma) => ma.flip_id)
-        .filter(Boolean)
-        .join(',');
-    },
-
     totalPages() {
       return Math.ceil(this.filteredMitarbeitersSorted.length / this.itemsPerPage);
     },
@@ -1698,13 +1691,6 @@ export default {
       }
     },
 
-    async loadVisibleFlipUsers() {
-      const ids = this.paginatedMitarbeiters
-        .map((ma) => ma.flip_id)
-        .filter(Boolean);
-      await this.flip.ensureUsers(ids);
-    },
-
     scrollToExpandedEmployee() {
       if (this.expandedEmployeeId) {
         // Warte kurz, bis das DOM aktualisiert wurde
@@ -1724,12 +1710,6 @@ export default {
   watch: {
     mitarbeitersSearchQuery() {
       this.currentPage = 1;
-    },
-    visibleFlipIdsKey: {
-      immediate: true,
-      handler() {
-        this.loadVisibleFlipUsers();
-      },
     },
     initiallyExpanded(newValue) {
       this.expanded = newValue;

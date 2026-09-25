@@ -19,6 +19,7 @@ interface MutableModalRecord<TProps extends ModalProps = ModalProps> {
   title: string
   component: Component
   props?: TProps
+  persistence?: ModalDefinition<TProps>['persistence']
   onRemove?: (id: string) => void
   status: ModalStatus
   createdAt: number
@@ -100,6 +101,7 @@ export function createModalManager(
     if (existing) {
       existing.title = title
       existing.props = definition.props ? { ...definition.props } : undefined
+      existing.persistence = definition.persistence
       existing.onRemove = definition.onRemove
       existing.status = 'open'
       existing.updatedAt = Date.now()
@@ -120,6 +122,7 @@ export function createModalManager(
       title,
       component: markRaw(definition.component),
       props: definition.props ? { ...definition.props } : undefined,
+      persistence: definition.persistence,
       onRemove: definition.onRemove,
       status: 'open',
       createdAt: now,

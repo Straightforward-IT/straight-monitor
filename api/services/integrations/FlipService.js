@@ -19,6 +19,9 @@ const { RANKS, getRankTier, RANK_GROUP_IDS } = require("../../config/flipRanks")
 const { countsForEmployees } = require("../operations/EinsatzCountingService");
 const { sendMail } = require("./EmailService");
 const logger = require("../../utils/logger");
+const sharp = require("sharp");
+const r2Service = require("./R2Service");
+const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
 const {
   findTasks,
   findAllTasks,
@@ -203,6 +206,19 @@ async function flipUserRoutine() {
         }
 
         if (changesMade) await mitarbeiter.save();
+      }
+
+      if (!mitarbeiter.profilbild) {
+        try {
+          const profilePictureCached = await cacheFlipProfilePicture(mitarbeiter, flipUser.id);
+          if (profilePictureCached) {
+            emailLogs.push(`🖼️ Flip-Profilbild in R2 gesichert: ${mitarbeiter.vorname} ${mitarbeiter.nachname}`);
+          }
+        } catch (profilePictureError) {
+          logger.warn(
+            `Flip-Profilbild konnte nicht in R2 gesichert werden (${mitarbeiter._id}): ${profilePictureError.message}`
+          );
+        }
       }
 
       // ── Check Mitarbeiter.email ↔ Flip email mismatch ─────────────────────
@@ -794,6 +810,43 @@ async function getFlipProfilePicture(userId) {
   } catch (err2) {
     return null;
   }
+}
+
+/**
+ * Backfills an employee's R2 profile picture from Flip once. A stored R2 key
+ * prevents later routine runs from requesting the Flip avatar again.
+ */
+async function cacheFlipProfilePicture(mitarbeiter, flipUserId) {
+  if (!mitarbeiter || mitarbeiter.profilbild || !flipUserId) return false;
+
+  const profilePicture = await getFlipProfilePicture(flipUserId);
+  if (!profilePicture?.data) return false;
+
+  const webpBuffer = await sharp(Buffer.from(profilePicture.data))
+    .resize(512, 512, { fit: "cover" })
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  if (!mitarbeiter.r2Prefix) {
+    await Mitarbeiter.collection.updateOne(
+      {
+        _id: mitarbeiter._id,
+        $or: [
+          { r2Prefix: { $exists: false } },
+          { r2Prefix: null },
+          { r2Prefix: "" },
+        ],
+      },
+      { $set: { r2Prefix: `employees/${mitarbeiter._id}` } },
+    );
+  }
+
+  const r2Key = buildEmployeeR2Path(mitarbeiter, "profile", "profile.webp");
+  await r2Service.uploadFile(r2Key, webpBuffer, "image/webp");
+
+  mitarbeiter.profilbild = r2Key;
+  await mitarbeiter.save();
+  return true;
 }
 
 

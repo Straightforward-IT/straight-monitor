@@ -22,6 +22,7 @@ export type {
   ModalDockOptions,
   ModalManager,
   ModalManagerOptions,
+  ModalPersistence,
   MinimizableDefinition,
   MinimizableRecord,
   MinimizeDockManager,
