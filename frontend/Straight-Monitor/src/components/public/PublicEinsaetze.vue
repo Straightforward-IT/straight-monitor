@@ -31,6 +31,7 @@
       @write-report="openEventReportFromDev"
       @open-event-reports="openEventReportFromDev()"
       @open-evaluations="openEvaluationsFromDev"
+      @personal-data-saved="Object.assign(mitarbeiter, $event)"
       @toggle-debug-tl="toggleDebugTL"
     />
 
@@ -63,8 +64,12 @@
           :debug-tl-active="debugTLMode"
           :debug-dev-active="debugDevMode"
           :public-menu-options="publicMenuOptions"
+          :konfektionsgroesse="mitarbeiter.konfektionsgroesse"
+          :schuhgroesse="mitarbeiter.schuhgroesse"
+          :api="api"
           @navigate="navigateTo"
           @open-job="openJob"
+          @apparel-sizes-saved="Object.assign(mitarbeiter, $event)"
           @toggle-debug-tl="toggleDebugTL"
           @toggle-debug-dev="toggleDebugDev"
         />

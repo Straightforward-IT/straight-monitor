@@ -125,6 +125,51 @@
         @set-theme="setTheme"
       />
 
+      <template v-else-if="detailView === 'personal-data'">
+        <section class="job-hero compact">
+          <span class="date-kicker">Mein Profil</span>
+          <h2>Meine Daten</h2>
+          <p>Verwalte deine persönlichen Angaben.</p>
+        </section>
+        <div class="settings-list personal-data-menu">
+          <button type="button" @click="openApparelSizes">
+            <font-awesome-icon icon="fa-solid fa-shirt" />
+            <span><strong>Kleidergrößen</strong><small>Konfektionsgröße und Schuhgröße</small></span>
+            <font-awesome-icon icon="fa-solid fa-chevron-right" />
+          </button>
+        </div>
+      </template>
+
+      <form v-else-if="detailView === 'apparel-sizes'" class="personal-data-form" @submit.prevent="savePersonalData">
+        <section class="job-hero compact">
+          <span class="date-kicker">Meine Daten</span>
+          <h2>Kleidergrößen</h2>
+          <p>Halte deine Größen für die Einsatzplanung aktuell.</p>
+        </section>
+        <label>
+          <span>Ausführung</span>
+          <select v-model="personalDataGender" required>
+            <option value="" disabled>Bitte auswählen</option>
+            <option value="female">Damen</option>
+            <option value="male">Herren</option>
+          </select>
+        </label>
+        <label>
+          <span>Konfektionsgröße</span>
+          <select v-model="personalDataClothingSize" required>
+            <option value="" disabled>Bitte auswählen</option>
+            <option v-for="size in clothingSizes" :key="size" :value="size">{{ size }}</option>
+          </select>
+        </label>
+        <label>
+          <span>Schuhgröße</span>
+          <input v-model.trim="personalDataShoeSize" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" maxlength="4" placeholder="z. B. 42" required />
+        </label>
+        <p v-if="personalDataError" class="inline-message personal-data-error">{{ personalDataError }}</p>
+        <p v-if="personalDataSaved" class="inline-message">Angaben gespeichert.</p>
+        <button class="primary-button wide" type="submit" :disabled="personalDataSaving">{{ personalDataSaving ? 'Speichert ...' : 'Speichern' }}</button>
+      </form>
+
       <template v-else-if="detailView === 'document' && selectedDocument">
         <section class="document-preview">
           <font-awesome-icon icon="fa-solid fa-file-pdf" /><h2>{{ selectedDocument.name }}</h2>
@@ -212,6 +257,7 @@
         @cycle-rank="cycleProfileRank"
         @open-appearance="openAppearance"
         @open-documents="openDocuments"
+        @open-personal-data="openPersonalData"
         @open-evaluations="$emit('open-evaluations')"
         @open-event-reports="$emit('open-event-reports')"
         @reset="resetPrototype"
@@ -258,7 +304,9 @@ import {
   faRotateLeft,
   faSpinner,
   faSun,
+  faShirt,
   faTriangleExclamation,
+  faUser,
 } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import PublicHeader from '../PublicHeader.vue';
@@ -278,7 +326,7 @@ library.add(
   faArrowRightFromBracket, faBriefcase, faCalendarDays, faChevronRight,
   faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faEllipsis,
   faFileCircleExclamation, faFileInvoiceDollar, faFilePdf, faFlask, faFolderOpen,
-  faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faTriangleExclamation,
+  faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser,
 );
 
 const props = defineProps({
@@ -291,7 +339,7 @@ const props = defineProps({
   isTeamleiter: { type: Boolean, default: false },
   debugTlActive: { type: Boolean, default: false },
 });
-defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'toggle-debug-tl']);
+const emit = defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'personal-data-saved', 'toggle-debug-tl']);
 
 const theme = useTheme();
 const { state: demoState, reset } = usePublicDevDemo(props.email);
@@ -320,9 +368,16 @@ const employeeDocuments = ref([]);
 const documentsLoading = ref(false);
 const documentsError = ref('');
 const uploadingRequestId = ref('');
+const personalDataGender = ref('');
+const personalDataClothingSize = ref('');
+const personalDataShoeSize = ref('');
+const personalDataSaving = ref(false);
+const personalDataSaved = ref(false);
+const personalDataError = ref('');
 let timer = null;
 
 const timeEntry = computed(() => demoState.timeEntry);
+const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 const missingDocumentCount = computed(() => employeeDocuments.value.filter((item) => canUpload(item)).length);
 const submittedApplications = computed(() => Object.keys(demoState.applications).length);
 const openActionCount = computed(() => 2 + (submittedApplications.value ? 1 : 0));
@@ -375,7 +430,7 @@ const navigation = computed(() => [
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
-const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', documents: 'Meine Dokumente', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
+const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'apparel-sizes': 'Kleidergrößen', documents: 'Meine Dokumente', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
 const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.status === 'running' && entry.startedAt ? Math.max(0, nowTick.value - new Date(entry.startedAt).getTime() - (entry.pauseMs || 0)) : entry.elapsedMs || 0; });
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
@@ -386,6 +441,22 @@ function openJob(job) { selectedJob.value = job; detailView.value = 'job'; windo
 function openCalendarJob(einsatz) { selectedCalendarJob.value = einsatz; detailView.value = 'calendar-job'; window.scrollTo(0, 0); }
 function openTime() { detailView.value = 'time'; window.scrollTo(0, 0); }
 function openAppearance() { returnDetailView.value = 'profile'; detailView.value = 'appearance'; window.scrollTo(0, 0); }
+function openPersonalData() {
+  returnDetailView.value = 'profile';
+  detailView.value = 'personal-data';
+  window.scrollTo(0, 0);
+}
+function openApparelSizes() {
+  const clothingSize = String(props.mitarbeiter?.konfektionsgroesse || '').match(/^(XS|S|M|L|XL|XXL|3XL)/)?.[1] || '';
+  personalDataClothingSize.value = clothingSize;
+  personalDataGender.value = String(props.mitarbeiter?.konfektionsgroesse || '').includes('(D)') ? 'female' : String(props.mitarbeiter?.konfektionsgroesse || '').includes('(H)') ? 'male' : '';
+  personalDataShoeSize.value = props.mitarbeiter?.schuhgroesse || '';
+  personalDataError.value = '';
+  personalDataSaved.value = false;
+  returnDetailView.value = 'personal-data';
+  detailView.value = 'apparel-sizes';
+  window.scrollTo(0, 0);
+}
 function openDocuments() { detailView.value = 'documents'; window.scrollTo(0, 0); }
 function openDocument(document) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedDocument.value = document; detailView.value = 'document'; }
 function openPayroll(payroll) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
@@ -400,6 +471,25 @@ function advanceTime(status) { timeEntry.value.history.push({ status, at: new Da
 function requestCorrection() { timeEntry.value.correction = { original: formatClock(timeEntry.value.stoppedAt), requested: correctionTime.value, reason: correctionReason.value, requestedAt: new Date().toISOString() }; showCorrection.value = false; correctionTime.value = ''; correctionReason.value = ''; }
 function resetPrototype() { reset(); resetMessage.value = 'Der lokale Prototyp wurde zurückgesetzt.'; window.setTimeout(() => { resetMessage.value = ''; }, 2500); }
 function setTheme(value) { theme.set(value); }
+async function savePersonalData() {
+  if (personalDataSaving.value) return;
+  personalDataSaving.value = true;
+  personalDataError.value = '';
+  personalDataSaved.value = false;
+  try {
+    const { data } = await props.api.patch('/api/public/mitarbeiter/kleidungsgroessen', {
+      gender: personalDataGender.value,
+      konfektionsgroesse: personalDataClothingSize.value,
+      schuhgroesse: personalDataShoeSize.value,
+    }, { params: { email: props.email } });
+    emit('personal-data-saved', data);
+    personalDataSaved.value = true;
+  } catch (error) {
+    personalDataError.value = error.response?.data?.msg || 'Die Angaben konnten nicht gespeichert werden.';
+  } finally {
+    personalDataSaving.value = false;
+  }
+}
 function cycleProfileRank() {
   rankPreviewTier.value = nextProfileRank.value;
 }
@@ -504,6 +594,7 @@ button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:tra
 .job-hero { padding:1rem 0 1.2rem; border-bottom:3px solid var(--primary); }.job-hero.compact { padding-top:.35rem; }.date-kicker { color:var(--primary); font-size:.72rem; font-weight:800; text-transform:uppercase; }.job-hero h2 { margin:.35rem 0 .2rem; font-size:1.65rem; }.job-hero p { color:var(--muted); }.detail-list { margin-top:.5rem; }.detail-row { display:grid; grid-template-columns:100px minmax(0,1fr); gap:1rem; padding:.85rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }.detail-row span { color:var(--muted); }.fixture-note,.data-flow-note { margin-top:1rem; padding:.7rem; background:color-mix(in srgb,var(--primary) 9%,var(--panel)); color:var(--muted); font-size:.72rem; }.sticky-action { margin-top:1rem; }.sticky-action>.primary-button { width:100%; }.status-panel { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:52px; border:1px solid var(--dev-green); color:var(--dev-green); text-transform:uppercase; }.status-waitlist { border-color:#c27a16; color:#c27a16; }.scenario-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:1rem; }.scenario-actions span { width:100%; color:var(--muted); font-size:.68rem; text-transform:uppercase; }.scenario-actions.full button { flex:1; }
 .timer-surface { display:grid; min-height:210px; margin:1rem 0; place-items:center; align-content:center; gap:.6rem; background:var(--panel); border:1px solid var(--border); }.timer-status { color:var(--dev-green); font-size:.75rem; font-weight:700; }.timer { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(2rem,12vw,3.4rem); letter-spacing:0; }.timer-caption { color:var(--muted); font-size:.72rem; }.time-actions { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }.time-actions>:only-child { grid-column:1/-1; }.summary-panel { margin-top:1rem; }.summary-panel>div { display:flex; justify-content:space-between; padding:.6rem 0; border-bottom:1px solid var(--border); }.summary-panel span { color:var(--muted); }.summary-total { font-size:1.05rem; }.workflow-panel { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; gap:.25rem; margin-top:1rem; font-size:.65rem; text-align:center; }.workflow-panel span { padding:.4rem .2rem; color:var(--muted); }.workflow-panel span.active { color:var(--primary); font-weight:800; }.workflow-panel svg { color:var(--border); }.text-button { margin-top:1rem; border:0; background:none; color:var(--primary); text-decoration:underline; cursor:pointer; }
 .correction-form,.availability-editor { display:grid; gap:.8rem; margin-top:1rem; padding:1rem; border:1px solid var(--border); background:var(--panel); }.correction-form label,.availability-editor label { display:grid; gap:.35rem; color:var(--muted); font-size:.75rem; }.correction-form input,.correction-form textarea,.availability-editor input { width:100%; box-sizing:border-box; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.correction-history { display:grid; gap:.3rem; margin-top:1rem; padding:.8rem; border-left:3px solid #c27a16; background:var(--panel); font-size:.75rem; }.correction-history span,.correction-history p { color:var(--muted); }
+.personal-data-menu { margin-top:.8rem; }.personal-data-form { display:grid; gap:.85rem; }.personal-data-form>label { display:grid; gap:.35rem; color:var(--muted); font-size:.78rem; }.personal-data-form input,.personal-data-form select { width:100%; box-sizing:border-box; min-height:44px; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.personal-data-form .job-hero { margin-bottom:.2rem; }.personal-data-error { color:var(--dev-red); }
 .availability-list { border-top:1px solid var(--border); }.availability-list>button { display:grid; width:100%; grid-template-columns:74px minmax(0,1fr) auto; align-items:center; gap:.6rem; min-height:62px; padding:.6rem 0; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }.availability-list>button.selected { color:var(--primary); }.availability-date { display:grid; }.availability-date small { color:var(--muted); }.availability-value { display:flex; align-items:center; gap:.4rem; font-size:.8rem; }.availability-value.available { color:var(--dev-green); }.availability-value.unavailable { color:var(--dev-red); }.availability-value.partial { color:#b56200; }.availability-list button>svg { color:var(--muted); font-size:.7rem; }.segmented-control { display:flex; gap:.35rem; overflow-x:auto; }.time-inputs { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
 .sub-tabs { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; margin-bottom:1rem; }.sub-tabs button { width:100%; }.document-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.5rem; border-bottom:1px solid var(--border); }.document-row>button,.payroll-row { display:grid; width:100%; grid-template-columns:38px minmax(0,1fr) auto; align-items:center; gap:.7rem; min-height:66px; padding:.55rem 0; border:0; background:transparent; color:var(--text); text-align:left; cursor:pointer; }.document-row>button>span:nth-child(2),.payroll-row>span:nth-child(2) { display:grid; gap:.16rem; }.document-row small,.payroll-row small { color:var(--muted); font-size:.7rem; }.document-row button>svg,.payroll-row>svg { color:var(--muted); font-size:.7rem; }.document-status,.payroll-row>span:first-child { display:grid; width:36px; height:36px; place-items:center; border-radius:6px; background:var(--surface); }.document-status.approved,.document-status.in_review { color:var(--dev-green); }.document-status.missing,.document-status.expiring { color:#b56200; }.upload-button { padding:.4rem .55rem; border:1px solid var(--primary); border-radius:5px; color:var(--primary); font-size:.68rem; font-weight:700; cursor:pointer; }.upload-button input { position:absolute; width:1px; height:1px; opacity:0; }.document-preview { display:grid; min-height:380px; place-items:center; align-content:center; gap:.6rem; margin-bottom:1rem; padding:2rem; border:1px solid var(--border); background:var(--panel); text-align:center; }.document-preview>svg { color:#c6453a; font-size:3rem; }.payroll-preview>svg { color:var(--dev-green); }.document-preview h2,.document-preview p { margin:0; }.document-preview p,.document-preview span { color:var(--muted); font-size:.75rem; }.inline-message { margin-top:.7rem; color:var(--primary); font-size:.75rem; text-align:center; }
 .profile-intro { --rank-accent:var(--primary); --rank-ring:var(--rank-accent); display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1rem; }.profile-intro h2 { display:flex; align-items:center; gap:.45rem; margin:0 0 .15rem; font-size:1.35rem; }.profile-intro strong { font-size:.84rem; }.profile-avatar-ring { display:grid; flex:0 0 auto; place-items:center; width:58px; height:58px; padding:3px; border-radius:50%; box-sizing:border-box; background:var(--rank-ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--rank-accent) 26%,transparent); }.profile-avatar { display:grid; flex:0 0 auto; place-items:center; overflow:hidden; border-radius:50%; background:var(--primary); color:white; font-weight:800; object-fit:cover; }.profile-avatar--large { width:52px; height:52px; }.profile-avatar--nav { width:24px; height:24px; font-size:.65rem; }.rank-test-button { display:inline-flex; align-items:center; gap:.35rem; margin-left:auto; padding:.35rem .55rem; border:1px solid var(--rank-accent); border-radius:6px; background:transparent; color:var(--rank-accent); font-size:.7rem; font-weight:700; cursor:pointer; }.rank-test-button:active { opacity:.7; }.profile-rank--bronze { --rank-accent:#b87333; }.profile-rank--silver { --rank-accent:#9ca3af; }.profile-rank--gold { --rank-accent:#d4a72c; }.profile-rank--diamond { --rank-accent:#39b8c8; }.profile-rank--onyx { --rank-accent:#7c3aed; --rank-ring:linear-gradient(135deg,#0d0520,#2e0f6e,#7c3aed,#4a1aaa,#180e40); }.profile-rank--rainbow { --rank-accent:#e15d86; --rank-ring:linear-gradient(135deg,#ef4444,#facc15,#22c55e,#38bdf8,#8b5cf6,#ec4899); }.profile-rank--legend { --rank-accent:#b7791f; }.profile-rank--immortal { --rank-accent:#d946ef; }.settings-list { margin-top:1rem; }.settings-list button>svg:first-child { width:34px; color:var(--primary); }.settings-list .exit-row { color:var(--dev-red); }

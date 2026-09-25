@@ -5,6 +5,53 @@
       <p class="subtitle">Was möchtest du tun?</p>
     </div>
 
+    <ModalFrame
+      v-if="needsApparelSizes"
+      title="Konfektionsgrößen"
+      size="sm"
+      :show-close="false"
+      :close-on-backdrop="false"
+      :close-on-escape="false"
+      class="apparel-modal"
+    >
+      <form class="apparel-form" @submit.prevent="saveApparelSizes">
+        <p>Wir benötigen noch deine Konfektions- und Schuhgröße.</p>
+
+        <fieldset>
+          <legend>Geschlecht</legend>
+          <div class="apparel-options apparel-options--two">
+            <label v-for="option in genderOptions" :key="option.value" :class="{ active: gender === option.value }">
+              <input v-model="gender" type="radio" name="gender" :value="option.value" />
+              {{ option.label }}
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Konfektionsgröße</legend>
+          <div class="apparel-options apparel-options--sizes">
+            <button
+              v-for="size in clothingSizes"
+              :key="size"
+              type="button"
+              :class="{ active: clothingSize === size }"
+              @click="clothingSize = size"
+            >{{ size }}</button>
+          </div>
+        </fieldset>
+
+        <label class="shoe-size-field">
+          <span>Schuhgröße</span>
+          <input v-model.trim="shoeSize" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" maxlength="4" placeholder="z. B. 42" />
+        </label>
+
+        <p v-if="apparelError" class="apparel-error">{{ apparelError }}</p>
+        <ToolbarButton :disabled="apparelSaving || !canSaveApparel" @click="saveApparelSizes">
+          {{ apparelSaving ? 'Speichert ...' : 'Speichern' }}
+        </ToolbarButton>
+      </form>
+    </ModalFrame>
+
     <div class="tiles">
       <!-- Tiles for ALL employees -->
       <div v-if="hasPublicMenuOption('meine-daten')" class="tile" @click="$emit('navigate', 'meine-daten')">
@@ -143,10 +190,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faBriefcase, faClock, faCode, faFolderOpen, faUserTie } from '@fortawesome/free-solid-svg-icons';
 import CountBadge from '@/components/ui-elements/CountBadge.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import calenderLight from '@/assets/calender.png';
 import calenderDark from '@/assets/calender-dark.png';
 import laufzettelLight from '@/assets/laufzettel.png';
@@ -179,11 +228,48 @@ const props = defineProps({
   publicMenuOptions: { type: Array, default: () => [] },
   personalDataTodoCount: { type: Number, default: 0 },
   openTimeEntryCount: { type: Number, default: 0 },
+  konfektionsgroesse: { type: String, default: '' },
+  schuhgroesse: { type: String, default: '' },
+  api: { type: Object, required: true },
 });
 
-defineEmits(['navigate', 'open-job', 'toggle-debug-tl', 'toggle-debug-dev']);
+const emit = defineEmits(['navigate', 'open-job', 'toggle-debug-tl', 'toggle-debug-dev', 'apparel-sizes-saved']);
 
 const isDebugUser = computed(() => isPublicDevUser(props.email));
+const genderOptions = [
+  { value: 'female', label: 'Weiblich' },
+  { value: 'male', label: 'Männlich' },
+];
+const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+const gender = ref('');
+const clothingSize = ref('');
+const shoeSize = ref('');
+const apparelSaving = ref(false);
+const apparelError = ref('');
+const needsApparelSizes = computed(() => !props.konfektionsgroesse || !props.schuhgroesse);
+const canSaveApparel = computed(() => gender.value && clothingSize.value && shoeSize.value);
+
+async function saveApparelSizes() {
+  if (!canSaveApparel.value || apparelSaving.value) return;
+  apparelSaving.value = true;
+  apparelError.value = '';
+  try {
+    const { data } = await props.api.patch(
+      '/api/public/mitarbeiter/kleidungsgroessen',
+      {
+        gender: gender.value,
+        konfektionsgroesse: clothingSize.value,
+        schuhgroesse: shoeSize.value,
+      },
+      { params: { email: props.email } }
+    );
+    emit('apparel-sizes-saved', data);
+  } catch (error) {
+    apparelError.value = error.response?.data?.msg || 'Die Angaben konnten nicht gespeichert werden.';
+  } finally {
+    apparelSaving.value = false;
+  }
+}
 
 function hasPublicMenuOption(option) {
   return props.publicMenuOptions.includes('*') || props.publicMenuOptions.includes(option);
@@ -244,6 +330,38 @@ const upcomingEinsaetze = computed(() => {
   font-size: 0.9rem;
   margin: 0;
 }
+
+.apparel-form {
+  display: grid;
+  gap: 20px;
+
+  > p { color: var(--muted); line-height: 1.45; }
+  fieldset { display: grid; gap: 8px; padding: 0; border: 0; }
+  legend, .shoe-size-field > span { color: var(--text); font-size: 0.85rem; font-weight: 600; }
+}
+
+.apparel-options { display: grid; gap: 8px; }
+.apparel-options--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.apparel-options--sizes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.apparel-options label, .apparel-options button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: center;
+}
+.apparel-options label { display: grid; place-items: center; }
+.apparel-options input { position: absolute; opacity: 0; pointer-events: none; }
+.apparel-options .active { border-color: var(--primary); color: var(--primary); }
+.shoe-size-field { display: grid; gap: 8px; }
+.shoe-size-field input { min-height: 42px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--tile-bg); color: var(--text); font: inherit; }
+.shoe-size-field input:focus { outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent); border-color: var(--primary); }
+.apparel-error { color: #dc3545 !important; font-size: 0.85rem; }
 
 /* Tiles */
 .tiles {

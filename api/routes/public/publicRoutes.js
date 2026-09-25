@@ -18,6 +18,7 @@ const { EventReport, Laufzettel, EvaluierungMA } = require("../../models/Classes
 const CheckIn = require("../../models/CheckIn");
 const R2Service = require("../../services/integrations/R2Service");
 const logger = require("../../utils/logger");
+const { resolvePublicEmployee } = require("../../services/operations/PublicEmployeeService");
 const AsanaService = require("../../services/integrations/AsanaService");
 const { sendMail } = require("../../services/integrations/EmailService");
 const registry = require("../../config/registry");
@@ -305,7 +306,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-        .select("_id vorname nachname email personalnr flip_id rank publicMenuOptions qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+        .select("_id vorname nachname email personalnr flip_id rank publicMenuOptions konfektionsgroesse schuhgroesse qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [
@@ -322,6 +323,51 @@ router.get(
           { path: "locationV2", select: "nameFull shortName color externalId" }
         ]
       });
+
+      const APPAREL_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']);
+      const APPAREL_GENDER_CODES = { female: 'D', male: 'H' };
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // PATCH /api/public/mitarbeiter/kleidungsgroessen
+      // Stores the authenticated employee's missing apparel details.
+      // ─────────────────────────────────────────────────────────────────────────────
+      router.patch(
+        '/mitarbeiter/kleidungsgroessen',
+        asyncHandler(async (req, res) => {
+          const isOidcSession = Boolean(req.oidcEmail || req.oidcFlipId);
+          const legacyEmail = String(req.query.email || '').trim();
+          const isLocalLegacyRequest = ['localhost', '127.0.0.1', '::1'].includes(req.hostname) && Boolean(legacyEmail);
+          if (!isOidcSession && !isLocalLegacyRequest) {
+            return res.status(403).json({ msg: 'Für diese Angabe ist eine persönliche Anmeldung erforderlich.' });
+          }
+
+          const genderCode = APPAREL_GENDER_CODES[String(req.body?.gender || '').trim().toLowerCase()];
+          const clothingSize = String(req.body?.konfektionsgroesse || '').trim().toUpperCase();
+          const rawShoeSize = String(req.body?.schuhgroesse || '').trim().replace(',', '.');
+          const shoeSize = Number(rawShoeSize);
+
+          if (!genderCode || !APPAREL_SIZES.has(clothingSize)) {
+            return res.status(400).json({ msg: 'Bitte Geschlecht und Konfektionsgröße auswählen.' });
+          }
+          if (!Number.isFinite(shoeSize) || shoeSize < 20 || shoeSize > 60 || !Number.isInteger(shoeSize * 2)) {
+            return res.status(400).json({ msg: 'Bitte eine gültige Schuhgröße eingeben.' });
+          }
+
+          const employee = await resolvePublicEmployee(isOidcSession
+            ? { flipId: req.oidcFlipId, email: req.oidcEmail }
+            : { email: legacyEmail });
+          const konfektionsgroesse = `${clothingSize} (${genderCode})`;
+          const schuhgroesse = String(shoeSize);
+          await Mitarbeiter.updateOne(
+            { _id: employee._id },
+            { $set: { konfektionsgroesse, schuhgroesse } },
+            { runValidators: true }
+          );
+
+          logger.info(`Mitarbeiter ${employee._id} hat Konfektionsgrößen ergänzt`);
+          res.json({ konfektionsgroesse, schuhgroesse });
+        })
+      );
 
     if (!mitarbeiter) {
       return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
