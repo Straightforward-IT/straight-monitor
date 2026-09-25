@@ -30,7 +30,8 @@
               </FilterGroup>
               <FilterDivider />
               <FilterGroup label="Bereich">
-                <FilterChip v-for="dept in departments" :key="dept" :active="filters.department === dept" @click="setFilter('department', filters.department === dept ? 'Alle' : dept)">{{ dept }}</FilterChip>
+                <FilterChip :active="filters.berufKey === 10001" @click="setFilter('berufKey', filters.berufKey === 10001 ? null : 10001)">Service</FilterChip>
+                <FilterChip :active="filters.berufKey === 10002" @click="setFilter('berufKey', filters.berufKey === 10002 ? null : 10002)">Logistik</FilterChip>
               </FilterGroup>
               <FilterDivider />
               <FilterGroup label="Rolle">
@@ -563,7 +564,6 @@ export default {
       searchExpanded: false, // Expandable search in filter header
 
       locations: [],
-      departments: ["Service", "Logistik", "Office"],
 
       // selection state
       selectedMitarbeiterIds: new Set(),
@@ -590,7 +590,7 @@ export default {
       filters: {
         status: "Aktiv", // Aktiv, Inaktiv, Alle
         location: "Alle", // Location-ID oder Alle
-        department: "Alle", // Service, Logistik, Management, IT, Alle
+        berufKey: null,
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         flipLinkage: "Alle", // Verknüpft, Nicht_verknüpft, Alle
         asanaStatus: "Alle", // Verknüpft, Nicht_verknüpft, Alle
@@ -632,7 +632,7 @@ export default {
       let count = 0;
       if (this.filters.status !== 'Aktiv') count++;
       if (this.filters.location !== 'Alle') count++;
-      if (this.filters.department !== 'Alle') count++;
+      if (this.filters.berufKey !== null) count++;
       if (this.filters.flipLinkage !== 'Alle') count++;
       if (this.filters.asanaStatus !== 'Alle') count++;
       if (this.filters.personalnrStatus !== 'Alle') count++;
@@ -650,7 +650,8 @@ export default {
 
       if (this.filters.status !== 'Aktiv') labels.push(`Status: ${this.filters.status}`);
       if (location) labels.push(`Standort: ${location.shortName || location.nameFull}`);
-      if (this.filters.department !== 'Alle') labels.push(`Bereich: ${this.filters.department}`);
+      if (this.filters.berufKey === 10001) labels.push('Bereich: Service');
+      if (this.filters.berufKey === 10002) labels.push('Bereich: Logistik');
       if (this.filters.teamleiter !== 'Alle') labels.push(`Rolle: ${this.filters.teamleiter}`);
       if (this.filters.flipLinkage !== 'Alle') labels.push(`Flip: ${this.filters.flipLinkage.replace('_', ' ')}`);
       if (this.filters.asanaStatus !== 'Alle') labels.push(`Asana: ${this.filters.asanaStatus.replace('_', ' ')}`);
@@ -729,15 +730,11 @@ export default {
         result = result.filter((ma) => this.getLocationId(ma) === this.filters.location);
       }
 
-      // Department Filter
-      if (this.filters.department !== "Alle") {
-        result = result.filter((ma) => {
-          const dept = this.getDisplayDepartment(ma);
-          if (this.filters.department === "Office") {
-            return dept && dept.toLowerCase().includes('office');
-          }
-          return dept === this.filters.department;
-        });
+      // Bereich Filter
+      if (this.filters.berufKey !== null) {
+        result = result.filter((ma) => ma.berufe?.some(
+          (beruf) => Number(beruf.jobKey) === this.filters.berufKey
+        ));
       }
 
       // Flip Status Filter
@@ -1460,7 +1457,7 @@ export default {
       this.filters = {
         status: "Aktiv",
         location: this.hasUserLocation() ? this.userLocation : "Alle",
-        department: "Alle",
+        berufKey: null,
         flipStatus: "Alle",
         asanaStatus: "Alle",
         personalnrStatus: "Alle",
