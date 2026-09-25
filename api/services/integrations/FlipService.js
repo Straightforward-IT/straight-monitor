@@ -710,12 +710,6 @@ async function getFlipUsers(initialParams = {}) {
           break; // No pagination info, exit loop
         }
       } catch (reqError) {
-        if (reqError.response?.status === 429) {
-          // If rate limited, wait longer and retry current page
-          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
-          await sleep(2000);
-          continue; // Retry the same page
-        }
         throw reqError;
       }
 
@@ -893,11 +887,6 @@ async function getAllFlipUserGroups(params = {}) {
           break;
         }
       } catch (reqError) {
-        if (reqError.response?.status === 429) {
-          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
-          await sleep(2000);
-          continue;
-        }
         throw reqError;
       }
       await sleep(200);
@@ -939,11 +928,6 @@ async function getAllFlipUserGroupAssignments(groupId) {
           break;
         }
       } catch (reqError) {
-        if (reqError.response?.status === 429) {
-          console.warn(`⏳ Rate limited (429). Waiting 2s before retrying page ${currentPage}...`);
-          await sleep(2000);
-          continue;
-        }
         throw reqError;
       }
       await sleep(200);
