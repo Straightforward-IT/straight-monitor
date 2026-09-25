@@ -18,6 +18,7 @@ const logger = require('../../utils/logger');
 const { resolveActiveLocation, resolveLocationFromGeschSt } = require('../../services/operations/LocationResolutionService');
 const StundenlisteService = require('../../services/operations/StundenlisteService');
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
+const { loadAuftragMitarbeiterExport } = require('../../services/operations/AuftragMitarbeiterExportService');
 const R2Service = require('../../services/integrations/R2Service');
 const { sendMail } = require('../../services/integrations/EmailService');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
@@ -1053,6 +1054,17 @@ router.get('/:auftragNr/telefonliste', auth, asyncHandler(async (req, res) => {
     'Content-Length': buffer.length,
   });
   res.send(buffer);
+}));
+
+// GET /api/auftraege/:auftragNr/mitarbeiter-export - selected-column Excel source data
+router.get('/:auftragNr/mitarbeiter-export', auth, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  await assertOrderHasLocation(req, auftrag);
+
+  const { data } = await loadAuftragMitarbeiterExport(auftragNr);
+  res.json(data);
 }));
 
 // DELETE /api/auftraege/:auftragNr/stundenliste — Löscht die unsignierte Stundenliste aus R2.

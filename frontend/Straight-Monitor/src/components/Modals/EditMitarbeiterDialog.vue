@@ -65,6 +65,17 @@
             <p v-if="!form.iban" class="help-text help-text--missing">IBAN fehlt!</p>
           </div>
         </div>
+
+        <div class="form-grid form-grid--three">
+          <div class="form-group">
+            <label>Konfektionsgröße</label>
+            <input v-model.trim="form.konfektionsgroesse" type="text" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Schuhgröße</label>
+            <input v-model.trim="form.schuhgroesse" type="text" class="form-input" />
+          </div>
+        </div>
       </section>
 
       <section class="form-section">
@@ -301,6 +312,8 @@ const form = ref({
   email: "",
   telefon: "",
   iban: "",
+  konfektionsgroesse: "",
+  schuhgroesse: "",
   geburtsdatum: "",
   geburtsname: "",
   geburtsort: "",
@@ -332,6 +345,8 @@ watch(
         email: newVal.email || "",
         telefon: newVal.telefon || "",
         iban: newVal.iban || "",
+        konfektionsgroesse: newVal.konfektionsgroesse || "",
+        schuhgroesse: newVal.schuhgroesse || "",
         geburtsdatum: toDateInput(newVal.geburtsdatum),
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",

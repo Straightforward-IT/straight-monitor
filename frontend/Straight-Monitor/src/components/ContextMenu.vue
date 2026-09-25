@@ -138,7 +138,7 @@ function selectOption(option: any) {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .context-menu {
@@ -148,7 +148,7 @@ function selectOption(option: any) {
   border-radius: 6px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
   color: var(--text);
-  z-index: 1001;
+  z-index: 2001;
   min-width: 164px;
   padding: 2px 0;
   overflow: hidden;

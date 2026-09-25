@@ -709,6 +709,14 @@
         @select="handleDocumentMenuAction"
       />
 
+      <ExportMitarbeiterModal
+        v-if="showMitarbeiterExportModal"
+        :mitarbeiter-list="mitarbeiterExportData?.mitarbeiter || []"
+        :shifts="mitarbeiterExportData?.schichten || []"
+        :filename="mitarbeiterExportFilename"
+        @close="closeMitarbeiterExport"
+      />
+
       <!-- Sidebar for Event Details -->
       <AuftragDetailsSidePanel
         v-model="hasSelectedEvent"
@@ -2166,6 +2174,7 @@ import {
   faEye,
   faEyeSlash,
   faBuilding,
+  faFileExcel,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { DocusealForm } from "@docuseal/vue";
@@ -2208,6 +2217,7 @@ library.add(
   faEye,
   faEyeSlash,
   faBuilding,
+  faFileExcel,
 );
 
 import api from "@/utils/api";
@@ -2224,6 +2234,7 @@ import FilterGroup from "@/components/FilterGroup.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
 import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
+import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import DocumentPreviewModal from "@/components/Modals/DocumentPreviewModal.vue";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
 import BerufSearch from "@/components/ui-elements/BerufSearch.vue";
@@ -2276,6 +2287,7 @@ export default {
     FilterChip,
     FilterDivider,
     EmployeeCardModal,
+    ExportMitarbeiterModal,
     SearchBar,
     DocusealForm,
     Toolbar,
@@ -2473,6 +2485,9 @@ export default {
       reisekostenListe: [],
       reisekostenListeLoading: false,
       showNeuMenu: false,
+      showMitarbeiterExportModal: false,
+      isLoadingMitarbeiterExport: false,
+      mitarbeiterExportData: null,
       // Document icons
       auftragDocs: [],
       // ── Feiertage ────────────────────────────────────────────────────────────
@@ -2744,6 +2759,16 @@ export default {
     documentMenuItems() {
       return [
         {
+          label: this.isLoadingMitarbeiterExport
+            ? "Mitarbeiterliste wird geladen..."
+            : "Mitarbeiterliste (Excel)",
+          action: "mitarbeiter-export",
+          icon: this.isLoadingMitarbeiterExport
+            ? "fa-solid fa-spinner"
+            : "fa-solid fa-file-excel",
+          disabled: this.isLoadingMitarbeiterExport,
+        },
+        {
           label: this.isGeneratingTelefonliste
             ? "Wird erstellt..."
             : "Telefonliste",
@@ -2782,6 +2807,14 @@ export default {
       if (this.filters.bedarfStatus.length > 0) count++;
       if (this.filters.pseudoEinsatz) count++;
       return count;
+    },
+    mitarbeiterExportFilename() {
+      const auftragNr = this.selectedEvent?.auftragNr || "Export";
+      const eventTitle = String(this.selectedEvent?.eventTitel || "")
+        .trim()
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .replace(/^-+|-+$/g, "");
+      return ["Mitarbeiterliste", auftragNr, eventTitle].filter(Boolean).join("-") + ".xlsx";
     },
     // Maps the active Location v2 filter to its Bundesland code.
     activeStateLand() {
@@ -4276,6 +4309,28 @@ export default {
         this.isGeneratingTelefonliste = false;
       }
     },
+    async openMitarbeiterExport() {
+      if (!this.selectedEvent?.auftragNr || this.isLoadingMitarbeiterExport) return;
+      this.isLoadingMitarbeiterExport = true;
+      try {
+        const { data } = await api.get(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/mitarbeiter-export`,
+        );
+        this.mitarbeiterExportData = data;
+        this.showMitarbeiterExportModal = true;
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Mitarbeiterliste konnte nicht geladen werden",
+        );
+      } finally {
+        this.isLoadingMitarbeiterExport = false;
+      }
+    },
+    closeMitarbeiterExport() {
+      this.showMitarbeiterExportModal = false;
+      this.mitarbeiterExportData = null;
+    },
     // ── Stundenliste-Signatur (DocuSeal) ─────────────────────────────────────
     contactEmail(c) {
       if (!c) return "";
@@ -4754,6 +4809,7 @@ export default {
     },
     async handleDocumentMenuAction(action) {
       this.showNeuMenu = false;
+      if (action === "mitarbeiter-export") await this.openMitarbeiterExport();
       if (action === "telefonliste") await this.downloadTelefonliste();
       if (action === "stundenliste") await this.createStundenliste();
       if (action === "reisekosten") this.openReisekostenModal();
@@ -4765,6 +4821,8 @@ export default {
       // Close modals in order of priority (topmost = last opened)
       if (this.showNeuMenu) {
         this.showNeuMenu = false;
+      } else if (this.showMitarbeiterExportModal) {
+        this.closeMitarbeiterExport();
       } else if (this.showQuickActions) {
         this.showQuickActions = false;
       } else if (this.showLabelDialog) {

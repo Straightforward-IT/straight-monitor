@@ -272,7 +272,7 @@ onBeforeUnmount(deactivateFrame);
   inset: 0;
   z-index: var(--mf-z, var(--z-modal, 1000));
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: var(--mf-overlay-padding, 20px);
   background: var(--mf-overlay-bg, var(--overlay, rgba(0, 0, 0, 0.45)));

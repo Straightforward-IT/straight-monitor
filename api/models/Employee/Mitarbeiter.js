@@ -54,6 +54,8 @@ const MitarbeiterSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     // Optional public portal entries enabled for this employee (e.g. 'new-menu-item').
     publicMenuOptions: [{ type: String, trim: true }],
+    konfektionsgroesse: { type: String, required: false, trim: true },
+    schuhgroesse: { type: String, required: false, trim: true },
     geburtsdatum: { type: Date, required: false },
     geburtsname: { type: String, required: false, trim: true },
     geburtsort: { type: String, required: false, trim: true },

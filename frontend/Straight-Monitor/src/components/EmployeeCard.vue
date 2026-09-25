@@ -1485,6 +1485,7 @@
             <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
             <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email"><dt>Adresse 2</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd></div>
             <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
+            <div v-if="resolvedMa.dateCreated"><dt>Erstellt am</dt><dd>{{ formatDate(resolvedMa.dateCreated) }}</dd></div>
           </dl>
         </section>
         <section class="arbeitsverhaeltnis-section">
@@ -3609,6 +3610,8 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           iban: formData.iban,
+          konfektionsgroesse: formData.konfektionsgroesse,
+          schuhgroesse: formData.schuhgroesse,
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
@@ -3654,6 +3657,8 @@ export default {
           email: formData.email,
           telefon: formData.telefon,
           iban: formData.iban,
+          konfektionsgroesse: formData.konfektionsgroesse,
+          schuhgroesse: formData.schuhgroesse,
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
