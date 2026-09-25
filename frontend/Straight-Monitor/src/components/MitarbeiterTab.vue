@@ -23,9 +23,9 @@
                   v-for="location in locations"
                   :key="location._id"
                   class="location-filter-chip"
-                  :active="filters.locations.includes(String(location._id))"
+                  :active="filters.location === String(location._id)"
                   :style="{ '--location-color': location.color || '#6b7280' }"
-                  @click="toggleLocationFilter(location._id)"
+                  @click="setFilter('location', filters.location === String(location._id) ? 'Alle' : String(location._id))"
                 >{{ location.shortName || location.nameFull }}</FilterChip>
               </FilterGroup>
               <FilterDivider />
@@ -80,10 +80,7 @@
               />
               <!-- Selection Info -->
               <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-                <button class="selection-count" title="Auswahl löschen" @click="clearSelection">
-                  {{ selectedMitarbeiterIds.size }} ausgewählt
-                  <font-awesome-icon icon="fa-solid fa-times" />
-                </button>
+                <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
                 <button
                   v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
                   class="btn-select-all-filtered"
@@ -94,6 +91,10 @@
                 <button class="btn-export-action" @click="showExportModal = true">
                   <font-awesome-icon icon="fa-solid fa-table" />
                   Exportieren
+                </button>
+                <button class="btn-clear" @click="clearSelection">
+                  <font-awesome-icon icon="fa-solid fa-times" />
+                  Auswahl löschen
                 </button>
               </div>
             </div>
@@ -602,7 +603,7 @@ export default {
       // enhanced filters matching the "trinity" (Straight + Asana + Flip)
       filters: {
         status: "Aktiv", // Aktiv, Inaktiv, Alle
-        locations: [], // Array of selected Location IDs
+        location: "Alle", // Location-ID oder Alle
         berufKey: null,
         flipStatus: "Alle", // Aktiv, Gesperrt, Gelöscht, Nicht_verknüpft, Alle
         flipLinkage: "Alle", // Verknüpft, Nicht_verknüpft, Alle
@@ -647,7 +648,7 @@ export default {
     activeFilterCount() {
       let count = 0;
       if (this.filters.status !== 'Aktiv') count++;
-      if (this.filters.locations.length > 0) count++;
+      if (this.filters.location !== 'Alle') count++;
       if (this.filters.berufKey !== null) count++;
       if (this.filters.flipLinkage !== 'Alle') count++;
       if (this.filters.asanaStatus !== 'Alle') count++;
@@ -663,13 +664,11 @@ export default {
     },
     activeFilterLabels() {
       const labels = [];
-      const selectedLocations = this.locations.filter(item => this.filters.locations.includes(String(item._id)));
+      const location = this.locations.find(item => String(item._id) === this.filters.location);
       const persgruppeLabels = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
 
       if (this.filters.status !== 'Aktiv') labels.push(`Status: ${this.filters.status}`);
-      if (selectedLocations.length > 0) {
-        labels.push(`Standort: ${selectedLocations.map(location => location.shortName || location.nameFull).join(', ')}`);
-      }
+      if (location) labels.push(`Standort: ${location.shortName || location.nameFull}`);
       if (this.filters.berufKey === 10001) labels.push('Bereich: Service');
       if (this.filters.berufKey === 10002) labels.push('Bereich: Logistik');
       if (this.filters.teamleiter !== 'Alle') labels.push(`Rolle: ${this.filters.teamleiter}`);
@@ -719,7 +718,7 @@ export default {
 
     employeeSearchFilterValues() {
       return [
-        ...this.filters.locations.map(value => ({ category: 'standorte', value: String(value) })),
+        ...(this.filters.location === 'Alle' ? [] : [{ category: 'standorte', value: String(this.filters.location) }]),
         ...(this.filters.status === 'Alle' ? [] : [{ category: 'aktivstatus', value: String(this.filters.status === 'Aktiv') }]),
         ...this.filters.berufe.map(value => ({ category: 'berufe', value: String(value) })),
         ...this.filters.qualifikationen.map(value => ({ category: 'qualifikationen', value: String(value) })),
@@ -777,8 +776,8 @@ export default {
       }
 
       // Location Filter
-      if (this.filters.locations.length > 0) {
-        result = result.filter((ma) => this.filters.locations.includes(this.getLocationId(ma)));
+      if (this.filters.location !== "Alle") {
+        result = result.filter((ma) => this.getLocationId(ma) === this.filters.location);
       }
 
       // Bereich Filter
@@ -1090,9 +1089,6 @@ export default {
               this.filters[key] = filterData[key];
             }
           });
-          if (!filterData.locations && filterData.location && filterData.location !== 'Alle') {
-            this.filters.locations = [String(filterData.location)];
-          }
           if (filterData.persgruppe && filterData.persgruppe !== 'Alle') {
             this.filters.persgruppen = [filterData.persgruppe];
           }
@@ -1414,15 +1410,6 @@ export default {
       this.saveFiltersToCookie();
     },
 
-    toggleLocationFilter(locationId) {
-      const normalizedId = String(locationId);
-      this.filters.locations = this.filters.locations.includes(normalizedId)
-        ? this.filters.locations.filter(id => id !== normalizedId)
-        : [...this.filters.locations, normalizedId];
-      this.currentPage = 1;
-      this.saveFiltersToCookie();
-    },
-
     onSkillFilterChange() {
       this.currentPage = 1;
       this.saveFiltersToCookie();
@@ -1545,7 +1532,7 @@ export default {
       this.filters.persgruppen = values('persgruppen').map(Number);
       this.filters.arbeitsverhaeltnisse = values('arbeitsverhaeltnisse').map(Number);
       this.filters.bewerber = values('bewerber')[0] || 'Alle';
-      this.filters.locations = values('standorte');
+      this.filters.location = values('standorte')[0] || 'Alle';
       const activeStatus = values('aktivstatus')[0];
       this.filters.status = activeStatus === 'true' ? 'Aktiv' : activeStatus === 'false' ? 'Inaktiv' : 'Alle';
       this.currentPage = 1;
@@ -1560,7 +1547,7 @@ export default {
     resetAllFilters() {
       this.filters = {
         status: "Aktiv",
-        locations: this.hasUserLocation() ? [this.userLocation] : [],
+        location: this.hasUserLocation() ? this.userLocation : "Alle",
         berufKey: null,
         flipStatus: "Alle",
         flipLinkage: "Alle",
@@ -1688,21 +1675,15 @@ export default {
       return Boolean(this.userLocation && this.locations.some((location) => String(location._id) === this.userLocation));
     },
     applyUserLocationDefault() {
-      if (this.hasUserLocation() && !this.filtersLoadedFromCookie) this.filters.locations = [this.userLocation];
+      if (this.hasUserLocation() && !this.filtersLoadedFromCookie) this.filters.location = this.userLocation;
     },
     normalizeLocationFilter() {
-      const normalizedLocations = (Array.isArray(this.filters.locations) ? this.filters.locations : [])
-        .map((filterValue) => {
-          const exactLocation = this.locations.find((location) => String(location._id) === String(filterValue));
-          if (exactLocation) return String(exactLocation._id);
-          const normalizedFilter = String(filterValue).trim().toLocaleLowerCase('de');
-          const matchingLocation = this.locations.find((location) => [location.nameFull, location.shortName]
-            .filter(Boolean)
-            .some((value) => String(value).trim().toLocaleLowerCase('de') === normalizedFilter));
-          return matchingLocation ? String(matchingLocation._id) : null;
-        })
-        .filter(Boolean);
-      this.filters.locations = [...new Set(normalizedLocations)];
+      if (this.filters.location === 'Alle' || this.locations.some((location) => String(location._id) === this.filters.location)) return;
+      const normalizedFilter = String(this.filters.location).trim().toLocaleLowerCase('de');
+      const matchingLocation = this.locations.find((location) => [location.nameFull, location.shortName]
+        .filter(Boolean)
+        .some((value) => String(value).trim().toLocaleLowerCase('de') === normalizedFilter));
+      this.filters.location = matchingLocation ? String(matchingLocation._id) : 'Alle';
     },
     async fetchMitarbeiters() {
       try {
@@ -3280,26 +3261,31 @@ html {
 .selection-info {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 .selection-count {
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.btn-clear {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  min-height: 32px;
-  padding: 0.375rem 0.625rem;
-  border: 1px solid var(--brand);
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: transparent;
-  color: var(--brand);
+  background: var(--surface);
+  color: var(--text);
   font-size: 0.8rem;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   
   &:hover {
-    background: color-mix(in srgb, var(--brand) 8%, transparent);
+    background: var(--soft);
+    border-color: var(--brand);
   }
 }
 
@@ -3307,7 +3293,6 @@ html {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 32px;
   padding: 0.375rem 0.75rem;
   border: 1px solid var(--brand);
   border-radius: 4px;
@@ -3327,7 +3312,6 @@ html {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 32px;
   padding: 0.375rem 0.75rem;
   border: none;
   border-radius: 4px;

@@ -19,6 +19,7 @@
               include-inactive
               require-personalnr
               prefer-active
+              simple
               :selected-item="selectedEmployee"
               placeholder="Mitarbeiter suchen …"
             />

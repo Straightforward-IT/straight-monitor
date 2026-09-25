@@ -160,6 +160,7 @@ const props = defineProps({
   selectedItem: { type: Object, default: null },
   searchValue: { type: String, default: '' },
   filterValues: { type: Array, default: () => [] },
+  simple: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'update:searchValue', 'select', 'filters-change']);
 const toolbarLocation = useToolbarLocationContext();
@@ -219,6 +220,7 @@ const filterCatalog = computed(() => [
 ].sort((first, second) => first.priority - second.priority || first.label.localeCompare(second.label, 'de')));
 
 const filterSuggestions = computed(() => {
+  if (props.simple) return [];
   const terms = normalize(query.value).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
   const selectedKeys = new Set(activeFilters.value.map((filter) => filter.key));
@@ -280,6 +282,7 @@ function updateDropdownPosition() {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 function filterParams() {
+  if (props.simple) return {};
   const values = (category) => activeFilters.value
     .filter((filter) => filter.category === category)
     .map((filter) => filter.value);
@@ -297,7 +300,7 @@ function filterParams() {
 
 async function fetchResults() {
   const currentRequest = ++requestId;
-  const hasFilters = activeFilters.value.length > 0;
+  const hasFilters = !props.simple && activeFilters.value.length > 0;
   const hasQuery = query.value.trim().length > 0;
   if (query.value.trim().length < 2 && !hasFilters) {
     results.value = [];
@@ -312,6 +315,7 @@ async function fetchResults() {
       includeInactive: props.includeInactive,
       requirePersonalnr: props.requirePersonalnr,
       preferActive: props.preferActive,
+      nameOnly: props.simple,
       ...filterParams(),
     } });
     if (currentRequest !== requestId) return;
@@ -423,11 +427,13 @@ function onClickOutside(e) {
   if (container.value && !container.value.contains(e.target)) close();
 }
 onMounted(() => {
-  Promise.allSettled([
-    dataCache.loadBerufe(),
-    dataCache.loadQualifikationen(),
-    api.get('/api/locations').then(({ data }) => { locations.value = (data || []).filter((location) => location.isActive !== false); }),
-  ]);
+  if (!props.simple) {
+    Promise.allSettled([
+      dataCache.loadBerufe(),
+      dataCache.loadQualifikationen(),
+      api.get('/api/locations').then(({ data }) => { locations.value = (data || []).filter((location) => location.isActive !== false); }),
+    ]);
+  }
   document.addEventListener('mousedown', onClickOutside);
   if (!supportsAnchorPositioning) window.addEventListener('scroll', updateDropdownPosition, true);
   window.addEventListener('resize', updateDropdownPosition);
@@ -461,6 +467,10 @@ watch(query, (value) => {
 });
 
 watch([() => props.filterValues, filterCatalog], ([values, catalog]) => {
+  if (props.simple) {
+    activeFilters.value = [];
+    return;
+  }
   const selectedKeys = new Set(values.map(({ category, value }) => `${category}:${value}`));
   const nextFilters = catalog.filter((filter) => selectedKeys.has(filter.key));
   const currentKeys = activeFilters.value.map((filter) => filter.key).sort().join('|');

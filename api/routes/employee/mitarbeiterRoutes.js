@@ -311,6 +311,7 @@ router.get(
       includeInactive,
       requirePersonalnr,
       preferActive,
+      nameOnly,
       berufe,
       qualifikationen,
       persgruppen,
@@ -334,7 +335,10 @@ router.get(
     const terms = search.split(/\s+/).filter(Boolean).slice(0, 5);
     const regex = (term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const matchingTerm = (term) => ({
-      $or: [
+      $or: nameOnly === 'true' ? [
+        { vorname: regex(term) },
+        { nachname: regex(term) },
+      ] : [
         { vorname: regex(term) },
         { nachname: regex(term) },
         { email: regex(term) },
