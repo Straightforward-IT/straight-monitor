@@ -855,6 +855,9 @@ const isReisekostenFlow = computed(() =>
 const isLohnvorschussFlow = computed(() =>
   (form.value.typKey || modal.context.typKey) === 'lohnvorschuss'
 );
+const isUrlaubsantragFlow = computed(() =>
+  (form.value.typKey || modal.context.typKey) === 'urlaubsantrag'
+);
 const hasFixedSignerSlots = computed(() =>
   isReisekostenFlow.value
     || isLohnvorschussFlow.value
@@ -916,6 +919,18 @@ function getLocationSignatureDefault() {
   }
   const manager = selectedLocation.value?.locationManager;
   return { name: manager?.name || manager?.email || '', email: manager?.email || '', embedded: true };
+}
+
+function resolveLocationSigner(existing, configured) {
+  const existingName = String(existing?.name || '').trim();
+  const existingEmail = String(existing?.email || '').trim().toLowerCase();
+  const configuredEmail = String(configured.email || '').trim().toLowerCase();
+
+  if (existingName && existingEmail && existingEmail !== configuredEmail) {
+    return { name: existingName, email: existingEmail, embedded: !!existing.embedded };
+  }
+
+  return configured;
 }
 
 // ── Typeahead: Mitarbeiter ───────────────────────────────────────────────────
@@ -1066,11 +1081,10 @@ function ensureLohnvorschussSignerSlots() {
         embedded: existing.name || existing.email ? !!existing.embedded : slot.embedded,
       };
     }
+    const signer = resolveLocationSigner(existing, slot);
     return {
       ...slot,
-      name: existing.name || slot.name,
-      email: existing.email || slot.email,
-      embedded: existing.name || existing.email ? !!existing.embedded : slot.embedded,
+      ...signer,
     };
   });
 }
@@ -1085,6 +1099,36 @@ watch(
   ],
   () => ensureLohnvorschussSignerSlots(),
   { immediate: true },
+);
+
+function ensureUrlaubsantragEmployeeSigner() {
+  const mitarbeiter = selectedMitarbeiter.value;
+  const employeeRole = templateSignerRoles.value[1];
+  if (!isUrlaubsantragFlow.value || !mitarbeiter || !employeeRole) return;
+
+  const signerIndex = form.value.submitters.findIndex(submitter => submitter.role === employeeRole);
+  if (signerIndex < 0) return;
+
+  const signer = form.value.submitters[signerIndex];
+  if (String(signer.name || '').trim() || String(signer.email || '').trim()) return;
+
+  form.value.submitters.splice(signerIndex, 1, {
+    ...signer,
+    name: `${mitarbeiter.vorname || ''} ${mitarbeiter.nachname || ''}`.trim(),
+    email: mitarbeiter.email || '',
+    mitarbeiterId: mitarbeiter._id,
+    embedded: false,
+  });
+}
+
+watch(
+  [
+    isUrlaubsantragFlow,
+    () => form.value.mitarbeiterId,
+    () => form.value.templateId,
+    () => selectedMitarbeiter.value?._id,
+  ],
+  ensureUrlaubsantragEmployeeSigner,
 );
 
 function selectTemplateChip(tpl) {
@@ -1155,14 +1199,16 @@ function applyTemplateDefaults(template) {
     form.value.submitters = requiredRoles.map((role, index) => {
       const existing = byRole.get(role) || current[index] || {};
       const isFirstSigner = index === 0 && (locationSigner.name || locationSigner.email);
+      const signer = isFirstSigner ? resolveLocationSigner(existing, locationSigner) : existing;
       return {
         role,
-        name: existing.name || (isFirstSigner ? locationSigner.name : ''),
-        email: existing.email || (isFirstSigner ? locationSigner.email : ''),
-        embedded: existing.name || existing.email ? !!existing.embedded : (isFirstSigner ? locationSigner.embedded : false),
+        name: isFirstSigner ? signer.name : existing.name || '',
+        email: isFirstSigner ? signer.email : existing.email || '',
+        embedded: isFirstSigner ? signer.embedded : existing.name || existing.email ? !!existing.embedded : false,
       };
     });
     ensureLohnvorschussSignerSlots();
+    ensureUrlaubsantragEmployeeSigner();
   }
 }
 

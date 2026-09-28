@@ -1059,7 +1059,10 @@ export default {
     // Cookie Management
     saveFiltersToCookie() {
       try {
-        const filterData = JSON.stringify(this.filters);
+        const filterData = JSON.stringify({
+          ...this.filters,
+          searchSelectedEmployeeId: this.searchSelectedEmployeeId,
+        });
         const cookieString = `peopleDocsFilters=${encodeURIComponent(filterData)}; path=/; max-age=2592000`;
         document.cookie = cookieString;
       } catch (error) {
@@ -1085,6 +1088,7 @@ export default {
           if (filterData.persgruppe && filterData.persgruppe !== 'Alle') {
             this.filters.persgruppen = [filterData.persgruppe];
           }
+          this.searchSelectedEmployeeId = filterData.searchSelectedEmployeeId || null;
           
           this.filtersLoadedFromCookie = true;
         } else {
@@ -1535,6 +1539,7 @@ export default {
     onEmployeeSearchSelect(employee) {
       this.searchSelectedEmployeeId = employee?._id || null;
       this.currentPage = 1;
+      this.saveFiltersToCookie();
     },
 
     resetAllFilters() {
