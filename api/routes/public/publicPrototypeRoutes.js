@@ -5,6 +5,7 @@ const Auftrag = require('../../models/Event/Auftrag');
 const Schicht = require('../../models/Event/Schicht');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Einsatz = require('../../models/Event/Einsatz');
+const { createTomorrowConfirmationFixture, deleteTomorrowConfirmationFixture } = require('../../services/public/PublicNeuigkeitenFixtureService');
 
 const router = express.Router();
 
@@ -31,6 +32,11 @@ function requirePrototypeOidc(req, res, next) {
   if (!isOidcDevUser && !isLegacyDevUser) {
     return res.status(403).json({ msg: 'Kein Zugriff auf den Public-Monitor-Prototyp' });
   }
+  return next();
+}
+
+function requireDevelopment(req, res, next) {
+  if (!isDevelopment()) return res.status(404).json({ msg: 'Nicht verfügbar' });
   return next();
 }
 
@@ -138,6 +144,16 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
   });
 
   return res.json({ jobs, source: 'database' });
+}));
+
+// Local-only fixture for exercising the public news confirmation flow.
+router.post('/news-confirmation-fixture', requirePrototypeOidc, requireDevelopment, asyncHandler(async (_req, res) => {
+  const fixture = await createTomorrowConfirmationFixture();
+  res.status(fixture.created ? 201 : 200).json({ fixture });
+}));
+
+router.delete('/news-confirmation-fixture', requirePrototypeOidc, requireDevelopment, asyncHandler(async (_req, res) => {
+  res.json({ fixture: await deleteTomorrowConfirmationFixture() });
 }));
 
 module.exports = router;

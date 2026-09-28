@@ -6,6 +6,7 @@
     </section>
 
     <PublicNewsSection
+      v-if="newsItems.length || newsLoading || newsError"
       :confirming-id="confirmingNewsId"
       :error="newsError"
       :items="newsItems"

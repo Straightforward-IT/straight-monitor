@@ -6,8 +6,15 @@ const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
 const Einsatz = require('../models/Event/Einsatz');
 const Auftrag = require('../models/Event/Auftrag');
+const Schicht = require('../models/Event/Schicht');
 const Mitarbeiter = require('../models/Employee/Mitarbeiter');
+const Sequence = require('../models/System/Sequence');
 const { INVALIDATED_REASON_TIME_CHANGED, invalidateForTimeChange } = require('../services/operations/EinsatzBestaetigungService');
+const {
+  TEST_MITARBEITER_ID,
+  createTomorrowConfirmationFixture,
+  deleteTomorrowConfirmationFixture,
+} = require('../services/public/PublicNeuigkeitenFixtureService');
 
 describe('Public Neuigkeiten API', function () {
   this.timeout(120000);
@@ -53,7 +60,7 @@ describe('Public Neuigkeiten API', function () {
   });
 
   beforeEach(async () => {
-    await Promise.all([Einsatz.deleteMany({}), Auftrag.deleteMany({}), Mitarbeiter.deleteMany({})]);
+    await Promise.all([Einsatz.deleteMany({}), Auftrag.deleteMany({}), Schicht.deleteMany({}), Mitarbeiter.deleteMany({}), Sequence.deleteMany({})]);
     employee = { _id: new mongoose.Types.ObjectId(), personalnr: '310001', asana_id: 'public-news-anna', email: 'anna@example.test', vorname: 'Anna', nachname: 'Test', isActive: true };
     other = { _id: new mongoose.Types.ObjectId(), personalnr: '310002', asana_id: 'public-news-bert', email: 'bert@example.test', vorname: 'Bert', nachname: 'Test', isActive: true };
     await Mitarbeiter.collection.insertMany([employee, other]);
@@ -141,5 +148,39 @@ describe('Public Neuigkeiten API', function () {
     assert.equal(reset.bestaetigungsHistorie.length, 1);
     assert.equal(reset.bestaetigungsHistorie[0].invalidatedReason, INVALIDATED_REASON_TIME_CHANGED);
     assert.equal(stillUntouched.bestaetigt, true);
+  });
+
+  it('creates the requested tomorrow fixture once as a monitor assignment that triggers confirmation', async () => {
+    await Mitarbeiter.collection.insertOne({
+      _id: new mongoose.Types.ObjectId(TEST_MITARBEITER_ID),
+      personalnr: '310067',
+      asana_id: 'public-news-fixture',
+      email: 'cedric-fixture@example.test',
+      vorname: 'Cedric',
+      nachname: 'Fixture',
+      isActive: true,
+    });
+
+    const fixture = await createTomorrowConfirmationFixture();
+    const duplicate = await createTomorrowConfirmationFixture();
+    const einsatz = await Einsatz.findById(fixture.einsatzId).lean();
+    const auftrag = await Auftrag.findOne({ auftragNr: fixture.auftragNr }).lean();
+    const schicht = await Schicht.findById(fixture.schichtId).lean();
+
+    assert.equal(fixture.created, true);
+    assert.equal(duplicate.created, false);
+    assert.equal(duplicate.einsatzId, fixture.einsatzId);
+    assert.equal(auftrag.source, 'monitor');
+    assert.equal(schicht.source, 'monitor');
+    assert.equal(einsatz.source, 'monitor');
+    assert.equal(einsatz.bestaetigungErforderlich, true);
+    assert.equal(einsatz.bestaetigt, false);
+    assert.equal(new Date(einsatz.datumVon).toDateString(), new Date(fixture.datum).toDateString());
+
+    const deleted = await deleteTomorrowConfirmationFixture();
+    assert.deepEqual(deleted, { deleted: true, auftragNr: fixture.auftragNr });
+    assert.equal(await Auftrag.exists({ auftragNr: fixture.auftragNr }), null);
+    assert.equal(await Schicht.exists({ auftragNr: fixture.auftragNr }), null);
+    assert.equal(await Einsatz.exists({ auftragNr: fixture.auftragNr }), null);
   });
 });
