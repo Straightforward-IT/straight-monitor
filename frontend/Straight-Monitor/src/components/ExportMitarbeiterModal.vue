@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import * as XLSX from 'xlsx';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faDownload, faMinus, faPlus, faTableColumns, faXmark } from '@fortawesome/free-solid-svg-icons';
@@ -135,6 +135,7 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import api from '@/utils/api';
 
 library.add(faDownload, faMinus, faPlus, faTableColumns, faXmark);
 
@@ -148,6 +149,12 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const PERSGRUPPE_MAP = { 101: 'Festi (101)', 110: 'KZF (110)', 109: 'Mini (109)', 106: 'Werkst. (106)' };
+let nationalitaetenRequest = null;
+
+const nationalitaeten = ref([]);
+const nationalitaetenBySchluessel = computed(() => new Map(
+  nationalitaeten.value.map(nationalitaet => [String(nationalitaet.schluessel), nationalitaet]),
+));
 const ALL_FIELDS = [
   { key: 'vorname', label: 'Vorname', get: ma => ma.vorname || '' },
   { key: 'nachname', label: 'Nachname', get: ma => ma.nachname || '' },
@@ -157,7 +164,7 @@ const ALL_FIELDS = [
   { key: 'schichtDetails', label: 'Schichtdetails', get: ma => shiftDetailsForEmployee(ma) },
   { key: 'geburtsdatum', label: 'Geburtsdatum', get: ma => ma.geburtsdatum ? formatDate(ma.geburtsdatum) : '' },
   { key: 'geburtsort', label: 'Geburtsort', get: ma => ma.geburtsort || '' },
-  { key: 'nationalitaet', label: 'Nationalität', get: ma => ma.nationalitaet || '' },
+  { key: 'nationalitaet', label: 'Nationalität', get: ma => nationalitaetLabel(ma.nationalitaet) },
   { key: 'einsatzCount', label: 'Einsatzanzahl', get: ma => ma.einsatzCount ?? '' },
   { key: 'konfektionsgroesse', label: 'Konfektionsgröße', get: ma => ma.konfektionsgroesse || '' },
   { key: 'schuhgroesse', label: 'Schuhgröße', get: ma => ma.schuhgroesse || '' },
@@ -183,6 +190,8 @@ const draggedColumnKey = ref('');
 const dragOverColumnKey = ref('');
 const excludedEmployeeIds = ref(new Set());
 const includeExtraInformation = ref(false);
+
+onMounted(loadNationalitaeten);
 
 watch(() => props.shifts, shifts => {
   selectedShiftIds.value = new Set((shifts || []).map(shift => shift.id));
@@ -213,6 +222,28 @@ const previewRows = computed(() => filteredMitarbeiterList.value.map(employee =>
 function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString('de-DE');
+}
+
+async function loadNationalitaeten() {
+  if (!nationalitaetenRequest) {
+    nationalitaetenRequest = api.get('/api/import/nationalitaeten')
+      .then(response => response.data?.data || [])
+      .catch(error => {
+        nationalitaetenRequest = null;
+        throw error;
+      });
+  }
+
+  try {
+    nationalitaeten.value = await nationalitaetenRequest;
+  } catch (error) {
+    console.error('[ExportMitarbeiterModal] Nationalitäten konnten nicht geladen werden:', error);
+  }
+}
+
+function nationalitaetLabel(schluessel) {
+  if (schluessel == null || schluessel === '') return '';
+  return nationalitaetenBySchluessel.value.get(String(schluessel))?.staatAngehoerigkeit || '';
 }
 
 function shiftDetailsForEmployee(employee) {
@@ -288,7 +319,8 @@ function getterFor(key) {
   return ALL_FIELDS.find(field => field.key === key)?.get || (employee => employee[key] || '');
 }
 
-function doExport() {
+async function doExport() {
+  await loadNationalitaeten();
   const headers = selectedKeys.value.map(labelFor);
   const rows = filteredMitarbeiterList.value.map(employee => selectedKeys.value.map(key => getterFor(key)(employee)));
   const extraRows = includeExtraInformation.value
