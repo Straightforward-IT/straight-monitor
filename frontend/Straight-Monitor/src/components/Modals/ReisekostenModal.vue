@@ -126,11 +126,9 @@
                 <h4>Fahrtkosten <span>Einzelnachweis mit Anlagen</span></h4>
                 <button type="button" class="add-btn" @click="addBetragRow('fahrtkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
               </div>
-              <div v-for="(row, i) in form.fahrtkosten" :key="'f'+i" class="betrag-row">
+              <div v-for="(row, i) in form.fahrtkosten" :key="'f'+i" class="betrag-row betrag-row--simple">
                 <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Bemessung €<input v-model.number="row.bemessungEur" type="number" step="0.01" min="0" /></label>
                 <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <label class="mini">%<input v-model.number="row.prozent" type="number" step="1" min="0" /></label>
                 <button type="button" class="del-btn" @click="form.fahrtkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
               </div>
             </div>
@@ -141,11 +139,9 @@
                 <h4>Übernachtungskosten <span>ohne Frühstück</span></h4>
                 <button type="button" class="add-btn" @click="addBetragRow('uebernachtung')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
               </div>
-              <div v-for="(row, i) in form.uebernachtung" :key="'u'+i" class="betrag-row">
+              <div v-for="(row, i) in form.uebernachtung" :key="'u'+i" class="betrag-row betrag-row--simple">
                 <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Bemessung €<input v-model.number="row.bemessungEur" type="number" step="0.01" min="0" /></label>
                 <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <label class="mini">%<input v-model.number="row.prozent" type="number" step="1" min="0" /></label>
                 <button type="button" class="del-btn" @click="form.uebernachtung.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
               </div>
             </div>
@@ -154,20 +150,24 @@
             <div class="rk-block">
               <div class="section-heading">
                 <h4>Pauschalbeträge für Arbeitnehmer</h4>
-                <button type="button" class="add-btn" @click="addPauschUeber"><font-awesome-icon :icon="['fas','plus']" /> Übernachtung</button>
               </div>
-              <div v-for="(row, i) in form.pauschalen.uebernachtungen" :key="'pu'+i" class="betrag-row">
-                <span class="row-label">Übernachtung</span>
-                <label class="mini">Anzahl<input v-model.number="row.anzahl" type="number" step="1" min="0" /></label>
-                <label class="mini">€ / Übernacht.<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
-                <span class="row-total">{{ centToStr(pauschGesamt(row)) }} €</span>
-                <button type="button" class="del-btn" @click="form.pauschalen.uebernachtungen.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+              <div class="pauschal-subsection">
+                <div class="section-heading">
+                  <h5>Übernachtungspauschale</h5>
+                  <button type="button" class="add-btn" @click="addPauschUeber"><font-awesome-icon :icon="['fas','plus']" /> Übernachtung</button>
+                </div>
+                <div v-for="(row, i) in form.pauschalen.uebernachtungen" :key="'pu'+i" class="betrag-row betrag-row--simple">
+                  <span class="row-label">Übernachtung</span>
+                  <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
+                  <button type="button" class="del-btn" @click="form.pauschalen.uebernachtungen.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                </div>
               </div>
-              <div v-for="tag in tagKeys" :key="tag.key" class="betrag-row">
-                <span class="row-label">{{ tag.label }}</span>
-                <label class="mini">Tage<input v-model.number="form.pauschalen[tag.key].tage" type="number" step="1" min="0" /></label>
-                <label class="mini">€ / Tag<input v-model.number="form.pauschalen[tag.key].satzEur" type="number" step="0.01" min="0" /></label>
-                <span class="row-total">{{ centToStr(pauschGesamt(form.pauschalen[tag.key])) }} €</span>
+              <div class="pauschal-subsection pauschal-subsection--abwesenheit">
+                <h5>Abwesenheitspauschalen</h5>
+                <div v-for="tag in tagKeys" :key="tag.key" class="betrag-row betrag-row--simple">
+                  <span class="row-label">{{ tag.label }}</span>
+                  <label class="mini">Betrag €<input v-model.number="form.pauschalen[tag.key].betragEur" type="number" step="0.01" min="0" /></label>
+                </div>
               </div>
             </div>
 
@@ -177,11 +177,9 @@
                 <h4>Nebenkosten</h4>
                 <button type="button" class="add-btn" @click="addBetragRow('nebenkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
               </div>
-              <div v-for="(row, i) in form.nebenkosten" :key="'n'+i" class="betrag-row">
+              <div v-for="(row, i) in form.nebenkosten" :key="'n'+i" class="betrag-row betrag-row--simple">
                 <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Bemessung €<input v-model.number="row.bemessungEur" type="number" step="0.01" min="0" /></label>
                 <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <label class="mini">%<input v-model.number="row.prozent" type="number" step="1" min="0" /></label>
                 <button type="button" class="del-btn" @click="form.nebenkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
               </div>
             </div>
@@ -327,9 +325,9 @@ function emptyForm() {
     uebernachtung: [],
     pauschalen: {
       uebernachtungen: [],
-      tage24: { tage: 0, satzEur: 0 },
-      tage14: { tage: 0, satzEur: 0 },
-      tage8: { tage: 0, satzEur: 0 },
+      tage24: { betragEur: 0 },
+      tage14: { betragEur: 0 },
+      tage8: { betragEur: 0 },
     },
     nebenkosten: [],
     reisedaten: [],
@@ -341,13 +339,13 @@ const form = reactive(emptyForm());
 
 // ── Edit-unit ↔ cents conversion ──────────────────────────────────────────
 function betragRowToCents(r) {
-  return { bezeichnung: r.bezeichnung || '', bemessungCent: eurToCent(r.bemessungEur), betragCent: eurToCent(r.betragEur), prozent: Number(r.prozent) || 0 };
+  return { bezeichnung: r.bezeichnung || '', bemessungCent: 0, betragCent: eurToCent(r.betragEur), prozent: 0 };
 }
 function kmRowToCents(r) {
   return { bezeichnung: r.bezeichnung || '', start: r.start || '', ziel: r.ziel || '', kilometer: Number(r.kilometer) || 0, satzCent: eurToCent(r.satzEur) };
 }
 function pauschRowToCents(r) {
-  return { anzahl: Number(r.anzahl) || 0, tage: Number(r.tage) || 0, satzCent: eurToCent(r.satzEur) };
+  return { anzahl: 1, tage: 0, satzCent: eurToCent(r.betragEur) };
 }
 
 /** Build the cents-based document (for preview, save, totals). */
@@ -378,7 +376,6 @@ function toDoc() {
 
 const summen = computed(() => computeSummen(toDoc()));
 const kmGesamt = (row) => kmGesamtCent(kmRowToCents(row));
-const pauschGesamt = (row) => pauschalGesamtCent(pauschRowToCents(row));
 const reiseKmTotal = computed(() => form.reisedaten.reduce((s, r) => s + (Number(r.kilometer) || 0), 0));
 // Address autocomplete: server suggestions (event/office) + anything already typed.
 const addressSuggestions = computed(() => {
@@ -389,13 +386,13 @@ const addressSuggestions = computed(() => {
 
 // ── Row helpers ─────────────────────────────────────────────────────────────
 function addBetragRow(section) {
-  form[section].push({ bezeichnung: '', bemessungEur: 0, betragEur: 0, prozent: 0 });
+  form[section].push({ bezeichnung: '', betragEur: 0 });
 }
 function addKmRow() {
   form.kilometerpauschale.push({ bezeichnung: 'Kilometerpauschale', kilometer: 0, satzEur: 0.30 });
 }
 function addPauschUeber() {
-  form.pauschalen.uebernachtungen.push({ anzahl: 0, satzEur: 0 });
+  form.pauschalen.uebernachtungen.push({ betragEur: 0 });
 }
 function addReiseRow() {
   // Prefill date with the event range: first row = Reisebeginn, next = Reiseende.
@@ -472,15 +469,16 @@ function applyExisting(d) {
   applyDefaults(d);
   form.ort = d.ort || '';
   form.vorschussEur = centToEur(d.vorschussCent);
-  const mapBetrag = (r) => ({ bezeichnung: r.bezeichnung || '', bemessungEur: centToEur(r.bemessungCent), betragEur: centToEur(r.betragCent), prozent: r.prozent || 0 });
+  const mapBetrag = (r) => ({ bezeichnung: r.bezeichnung || '', betragEur: centToEur(r.betragCent) });
   form.fahrtkosten = (d.fahrtkosten || []).map(mapBetrag);
   form.uebernachtung = (d.uebernachtung || []).map(mapBetrag);
   form.nebenkosten = (d.nebenkosten || []).map(mapBetrag);
   form.reisedaten = (d.reisedaten || []).map((r) => ({ datum: isoToDateInput(r.datum), start: r.start || '', ziel: r.ziel || '', kilometer: r.kilometer || 0 }));
-  form.pauschalen.uebernachtungen = (d.pauschalen?.uebernachtungen || []).map((r) => ({ anzahl: r.anzahl || 0, satzEur: centToEur(r.satzCent) }));
+  const mapPauschal = (r) => ({ betragEur: centToEur(pauschalGesamtCent(r)) });
+  form.pauschalen.uebernachtungen = (d.pauschalen?.uebernachtungen || []).map(mapPauschal);
   for (const t of ['tage24', 'tage14', 'tage8']) {
     const r = d.pauschalen?.[t] || {};
-    form.pauschalen[t] = { tage: r.tage || 0, satzEur: centToEur(r.satzCent) };
+    form.pauschalen[t] = mapPauschal(r);
   }
   linkKmToTrips();
 }
@@ -675,6 +673,8 @@ input, select, textarea { box-sizing: border-box; width: 100%; min-width: 0; bor
 input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none; }
 input:disabled { opacity: 0.7; }
 .betrag-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 0.9fr 0.9fr 0.6fr auto; gap: 8px; align-items: end; }
+.betrag-row--simple { grid-template-columns: minmax(0, 1fr) 176px 40px; }
+.betrag-row--simple .del-btn { justify-self: end; }
 .betrag-row .row-label, .betrag-row .row-total { align-self: center; font-size: 0.78rem; color: var(--muted); }
 .betrag-row .row-total { text-align: right; font-weight: 600; color: var(--text); }
 .reise-row { display: grid; grid-template-columns: 128px minmax(0, 1fr) minmax(0, 1fr) 76px auto; gap: 8px; align-items: end; }
@@ -682,6 +682,9 @@ input:disabled { opacity: 0.7; }
 .reise-total { display: flex; align-items: center; gap: 10px; justify-content: flex-end; font-size: 0.85rem; padding-top: 8px; border-top: 1px solid var(--border); }
 .reise-total b { color: var(--primary); }
 label.mini { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+.pauschal-subsection { display: grid; gap: 8px; }
+.pauschal-subsection--abwesenheit { border-top: 1px solid var(--border); padding-top: 12px; }
+.pauschal-subsection h5 { margin: 0; font-size: 0.78rem; color: var(--muted); }
 .add-btn { border: 1px solid var(--border); background: transparent; color: var(--primary); border-radius: 6px; padding: 5px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; }
 .del-btn { border: none; background: transparent; color: #c3423f; cursor: pointer; padding: 8px; align-self: center; }
 .rk-hint { color: var(--muted); font-size: 0.76rem; font-style: italic; margin: 0; }
