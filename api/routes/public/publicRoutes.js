@@ -33,6 +33,7 @@ const {
   ordinalsForEmployees,
   resolvePersonalNumbers,
 } = require("../../services/operations/EinsatzCountingService");
+const PublicNeuigkeitenService = require('../../services/public/PublicNeuigkeitenService');
 
 // All routes in this file require FLIP_PUBLIC_JWT
 router.use(publicAuth);
@@ -736,6 +737,29 @@ router.get(
     res.json(enriched);
   })
 );
+
+// ──────────────────────────────────────────────
+// Public portal news. Sources are collected server-side so future message,
+// announcement, and link sources share the same employee-scoped endpoint.
+// ──────────────────────────────────────────────
+router.get('/neuigkeiten', asyncHandler(async (req, res) => {
+  const mitarbeiter = await resolvePublicMitarbeiter(req);
+  if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+  const items = await PublicNeuigkeitenService.listForMitarbeiter(mitarbeiter._id);
+  res.json({ items });
+}));
+
+router.post('/neuigkeiten/einsatzbestaetigungen/:einsatzId/:stepKey', asyncHandler(async (req, res) => {
+  const mitarbeiter = await resolvePublicMitarbeiter(req);
+  if (!mitarbeiter) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden' });
+  const result = await PublicNeuigkeitenService.confirmStep({
+    mitarbeiterId: mitarbeiter._id,
+    einsatzId: req.params.einsatzId,
+    stepKey: req.params.stepKey,
+  });
+  if (!result) return res.status(404).json({ msg: 'Offene Einsatzbestätigung nicht gefunden' });
+  res.json(result);
+}));
 
 // ──────────────────────────────────────────────
 // GET /api/public/einsatz-mitarbeiter?auftragNr=...

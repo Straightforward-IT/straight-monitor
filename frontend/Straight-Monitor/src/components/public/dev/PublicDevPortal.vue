@@ -196,14 +196,19 @@
         :job-time="jobTime"
         :jobs="jobs"
         :month-short="monthShort"
+        :confirming-news-id="confirmingNewsId"
         :next-einsatz="nextEinsatz"
         :next-einsatz-date="nextEinsatzDate"
         :next-einsatz-location="nextEinsatzLocation"
         :next-einsatz-role="nextEinsatzRole"
         :next-einsatz-title="nextEinsatzTitle"
+        :news-error="newsError"
+        :news-items="newsItems"
+        :news-loading="newsLoading"
         :recent-jobs-without-time-entry="recentJobsWithoutTimeEntry"
         :upcoming-einsaetze="upcomingEinsaetze"
         :vorname="vorname"
+        @confirm-news="confirmNewsItem"
         @open-calendar-job="openCalendarJob"
         @open-job="openJob"
         @select-tab="selectTab"
@@ -356,6 +361,10 @@ const jobs = ref([]);
 const jobsLoading = ref(true);
 const jobsError = ref('');
 const jobsAreFixtures = ref(false);
+const newsItems = ref([]);
+const newsLoading = ref(true);
+const newsError = ref('');
+const confirmingNewsId = ref('');
 const nowTick = ref(Date.now());
 const showCorrection = ref(false);
 const correctionTime = ref('');
@@ -558,6 +567,33 @@ function canUpload(document) { return ['REQUESTED', 'REJECTED', 'EXPIRED'].inclu
 function documentIcon(status) { return ['APPROVED', 'UPLOADED'].includes(status) ? 'fa-solid fa-circle-check' : ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(status) ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
 function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE')}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE')} hochladen` : 'Bitte hochladen'; }
 async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } }); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
+async function loadNews() {
+  newsLoading.value = true;
+  newsError.value = '';
+  try {
+    const response = await props.api.get('/api/public/neuigkeiten', { params: { email: props.email } });
+    newsItems.value = response.data.items || [];
+  } catch (error) {
+    newsError.value = error.response?.data?.msg || 'Neuigkeiten konnten nicht geladen werden.';
+  } finally {
+    newsLoading.value = false;
+  }
+}
+async function confirmNewsItem(item) {
+  const einsatzId = item?.einsatz?.id;
+  const stepKey = item?.confirmation?.currentStep?.key;
+  if (!einsatzId || !stepKey || confirmingNewsId.value) return;
+  confirmingNewsId.value = item.id;
+  newsError.value = '';
+  try {
+    await props.api.post(`/api/public/neuigkeiten/einsatzbestaetigungen/${einsatzId}/${stepKey}`, null, { params: { email: props.email } });
+    await loadNews();
+  } catch (error) {
+    newsError.value = error.response?.data?.msg || 'Die Bestätigung konnte nicht gespeichert werden.';
+  } finally {
+    confirmingNewsId.value = '';
+  }
+}
 async function loadEmployeeDocuments() { documentsLoading.value = true; documentsError.value = ''; try { const response = await props.api.get('/api/public/employee-documents', { params: { email: props.email } }); employeeDocuments.value = response.data.requests || []; } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokumente konnten nicht geladen werden.'; } finally { documentsLoading.value = false; } }
 async function uploadDocument(event, document) { const file = event.target.files?.[0]; if (!file) return; uploadingRequestId.value = document.id; documentsError.value = ''; const formData = new FormData(); formData.append('document', file); try { await props.api.post(`/api/public/employee-documents/${document.id}/upload`, formData, { params: { email: props.email } }); await loadEmployeeDocuments(); } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokument konnte nicht hochgeladen werden.'; } finally { uploadingRequestId.value = ''; event.target.value = ''; } }
 async function downloadDocument(document) { previewMessage.value = ''; try { const response = await props.api.get(`/api/public/employee-documents/${document.id}/download`, { params: { email: props.email } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Dokument konnte nicht geladen werden.'; } }
@@ -573,7 +609,7 @@ async function loadProfileImage() {
   }
 }
 
-onMounted(() => { loadJobs(); loadEmployeeDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
+onMounted(() => { loadJobs(); loadNews(); loadEmployeeDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
 onBeforeUnmount(() => { window.clearInterval(timer); if (profileImageUrl.value) URL.revokeObjectURL(profileImageUrl.value); });
 </script>
 

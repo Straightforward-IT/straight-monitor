@@ -32,6 +32,7 @@ const { getStaffingCandidates } = require('../../services/operations/StaffingSug
 const { validateAuftragRelease } = require('../../services/operations/AuftragReleaseService');
 const { withAuftragChronik } = require('../../services/operations/AuftragChronikService');
 const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
+const { invalidateForTimeChange } = require('../../services/operations/EinsatzBestaetigungService');
 const resolveQueries = require('../../utils/resolveQueries');
 
 router.use(require('./auftragChronikRoutes'));
@@ -185,6 +186,13 @@ function editableValueChanged(key, nextValue, currentValue) {
     return nextTime !== currentTime;
   }
   return String(nextValue ?? '') !== String(currentValue ?? '');
+}
+
+function hasEinsatzTimeChange(patch, current) {
+  return ['uhrzeitVon', 'uhrzeitBis'].some((key) => (
+    Object.prototype.hasOwnProperty.call(patch, key)
+    && editableValueChanged(key, patch[key], current[key])
+  ));
 }
 
 const STUNDENLISTE_FIELD_LABELS = {
@@ -1605,6 +1613,7 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
     Object.prototype.hasOwnProperty.call(patch, key)
     && editableValueChanged(key, patch[key], current[key])
   ));
+  const confirmationTimeChanged = hasEinsatzTimeChange(patch, current);
   Object.assign(current, patch);
   current.einsatzinformation = await renderShiftInformation({
     auftrag,
@@ -1650,6 +1659,17 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
       { $set: einsatzPatch },
       { runValidators: true }
     );
+  }
+  if (confirmationTimeChanged) {
+    await invalidateForTimeChange({
+      auftragNr,
+      $or: [
+        { schicht: schicht._id },
+        ...(schicht.idAuftragArbeitsschichten !== null
+          ? [{ idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten }]
+          : []),
+      ],
+    });
   }
 
   logger.info(`Schicht ${schicht._id} in Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);
@@ -1814,6 +1834,8 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
       schicht: schicht._id,
       source: 'monitor',
       plannedBy: userId(req),
+      bestaetigungErforderlich: true,
+      bestaetigt: false,
       personalNr: operation.personalNr,
       idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten,
       schichtBezeichnung: schicht.bezeichnung,
@@ -1939,6 +1961,8 @@ router.post('/:auftragNr/einsaetze', auth, withAuftragChronik('Einsatz.created',
     schicht: schicht._id,
     source: 'monitor',
     plannedBy: userId(req),
+    bestaetigungErforderlich: true,
+    bestaetigt: false,
     personalNr,
     idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten,
     schichtBezeichnung: schicht.bezeichnung,
@@ -2023,6 +2047,7 @@ router.patch('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsa
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   await assertOrderHasLocation(req, auftrag);
+  const confirmationTimeChanged = hasEinsatzTimeChange(patch, current);
   const personalNr = patch.personalNr ?? current.personalNr;
   const shiftKey = patch.idAuftragArbeitsschichten ?? current.idAuftragArbeitsschichten;
   const duplicate = await Einsatz.exists({
@@ -2038,6 +2063,7 @@ router.patch('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsa
     { $set: patch },
     { new: true, runValidators: true }
   );
+  if (confirmationTimeChanged) await invalidateForTimeChange({ _id: current._id });
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
   await recordStundenlisteChange(auftragNr, 'Einsatz', getStundenlisteChangeDetails(current, patch));
   logger.info(`Einsatz ${einsatz._id} in Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);

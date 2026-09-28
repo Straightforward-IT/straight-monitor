@@ -104,6 +104,27 @@ const EinsatzSchema = new mongoose.Schema({
   endeOffen: { type: Number, required: false }, // ENDEOFFEN (0/1?)
   isPseudo: { type: Boolean, default: false }, // Manually added pseudo-employee entry
   stundenlisteIncluded: { type: Boolean, default: true },
+  // Monitor-created assignments can require the employee to acknowledge the
+  // current shift details in the public portal. Imported and legacy records
+  // deliberately keep this disabled.
+  bestaetigungErforderlich: { type: Boolean, default: false, index: true },
+  bestaetigt: { type: Boolean, default: false, index: true },
+  bestaetigung: {
+    version: { type: String, default: null },
+    einsatzzeitenGelesenAt: { type: Date, default: null },
+    einsatzkleidungAt: { type: Date, default: null },
+    ankunftspufferAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+  },
+  bestaetigungsHistorie: [{
+    version: { type: String, required: true },
+    einsatzzeitenGelesenAt: { type: Date, default: null },
+    einsatzkleidungAt: { type: Date, default: null },
+    ankunftspufferAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    invalidatedAt: { type: Date, required: true },
+    invalidatedReason: { type: String, required: true },
+  }],
 }, { timestamps: true });
 
 EinsatzSchema.index({ auftragNr: 1, datumVon: 1 });

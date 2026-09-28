@@ -5,6 +5,14 @@
       <span class="prototype-pill">DEV</span>
     </section>
 
+    <PublicNewsSection
+      :confirming-id="confirmingNewsId"
+      :error="newsError"
+      :items="newsItems"
+      :loading="newsLoading"
+      @confirm="$emit('confirm-news', $event)"
+    />
+
     <section v-if="nextEinsatz" class="today-shift">
       <div class="shift-topline"><span>{{ nextEinsatzDate }} · {{ einsatzTime(nextEinsatz) }}</span><span>{{ nextEinsatzRole }}</span></div>
       <h3>{{ nextEinsatzTitle }}</h3>
@@ -38,6 +46,7 @@
 
 <script setup>
 import PublicUpcomingJobs from '@/components/public/PublicUpcomingJobs.vue';
+import PublicNewsSection from './PublicNewsSection.vue';
 
 defineProps({
   dayNumber: { type: Function, required: true },
@@ -46,6 +55,10 @@ defineProps({
   jobTime: { type: Function, required: true },
   jobs: { type: Array, default: () => [] },
   monthShort: { type: Function, required: true },
+  newsError: { type: String, default: '' },
+  newsItems: { type: Array, default: () => [] },
+  newsLoading: { type: Boolean, default: false },
+  confirmingNewsId: { type: String, default: '' },
   nextEinsatz: { type: Object, default: null },
   nextEinsatzDate: { type: String, default: '' },
   nextEinsatzLocation: { type: String, default: '' },
@@ -56,5 +69,5 @@ defineProps({
   vorname: { type: String, default: '' },
 });
 
-defineEmits(['open-calendar-job', 'open-job', 'select-tab']);
+defineEmits(['confirm-news', 'open-calendar-job', 'open-job', 'select-tab']);
 </script>

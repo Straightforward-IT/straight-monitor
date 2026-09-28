@@ -1003,6 +1003,14 @@
                     </template>
                   </div>
                   <div class="ma-badges ma-badges--right">
+                    <CustomTooltip
+                      v-if="einsatz.bestaetigt"
+                      text="Einsatz bestätigt"
+                    >
+                      <span class="einsatz-confirmed-icon" aria-label="Einsatz bestätigt">
+                        <font-awesome-icon icon="fa-solid fa-check" />
+                      </span>
+                    </CustomTooltip>
                     <span
                       v-if="
                         einsatz.qualifikationData &&
@@ -6007,6 +6015,18 @@ export default {
   color: var(--text);
   font-weight: 500;
   margin-top: 4px;
+}
+
+.einsatz-confirmed-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #047857;
+  font-size: .72rem;
 }
 
 .event-einsaetze {
