@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history', 'vorarbeitgebertage'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'nationalitaet', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history', 'vorarbeitgebertage'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -86,7 +86,7 @@
           <div class="card-header">
             <div class="header-content">
               <h2>Personal Import (Liste 7002)</h2>
-              <p class="subtitle">Personalnr., Stammdaten, Berufe, Qualifikationen, Persgruppe, Arbeitszeit, Adressen, E-Mail, Telefon</p>
+              <p class="subtitle">Personalnr., Stammdaten, Berufe, Qualifikationen, Staatsangehörigkeit, Persgruppe, Arbeitszeit, Adressen, E-Mail, Telefon</p>
             </div>
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
@@ -124,6 +124,7 @@
                     <tr><td>AK – Land</td><td>AL – Telefon (TEL)</td><td>AM – E-Mail (EMAIL)</td></tr>
                     <tr><td>AN – Strasse2</td><td>AO – PLZ2</td><td>AP – Ort2</td></tr>
                     <tr><td>AQ – Land2</td><td>AR – Telefon2 (TEL2)</td><td>AS – E-Mail2 (EMAIL2)</td></tr>
+                    <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td colspan="2">Abgleich mit Nationalitäten-Import</td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -369,6 +370,42 @@
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
                   <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td><td>Beruf-Nr (Col C, optional)</td></tr></tbody></table>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nationalitäten -->
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Nationalitäten</h2>
+              <p class="subtitle">Länderschlüssel, Kürzel, Staat und Staatsangehörigkeit</p>
+            </div>
+            <span v-if="nationalitaetFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <div class="upload-area"
+              :class="{ 'has-file': nationalitaetFile }"
+              @dragover.prevent
+              @drop="(e) => handleDragAndDrop(e, 'nationalitaet')"
+              @click="triggerFileInput('nationalitaet-upload')"
+            >
+              <div class="upload-content">
+                <i class="upload-icon" :class="nationalitaetFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
+                <div class="upload-text">
+                  <span v-if="!nationalitaetFile">Datei hier ablegen oder klicken</span>
+                  <span v-else class="file-name">{{ nationalitaetFile.name }}</span>
+                </div>
+              </div>
+              <input id="nationalitaet-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'nationalitaet')" accept=".xlsx, .xls" />
+            </div>
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody><tr><td>SCHLUESSEL</td><td>NATKENNZ</td><td>STAAT</td><td>STAATANGEH</td><td>STAATSCHL</td></tr></tbody></table>
                 </div>
               </details>
             </div>
@@ -863,6 +900,7 @@ export default {
       verfuegbarkeitFile: null,
       berufFile: null,
       qualifikationFile: null,
+      nationalitaetFile: null,
       lohnartFile: null,
       rechnungFile: null,
       kundenpreisFile: null,
@@ -912,6 +950,7 @@ export default {
         verfuegbarkeit: 'Verfügbarkeiten',
         beruf: 'Berufe',
         qualifikation: 'Qualifikationen',
+        nationalitaet: 'Nationalitäten',
         lohnart: 'Lohnarten',
         rechnung: 'Rechnungen',
         kundenpreis: 'Kundenpreise',
@@ -957,6 +996,7 @@ export default {
       if (type === 'verfuegbarkeit') this.verfuegbarkeitFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
+      if (type === 'nationalitaet') this.nationalitaetFile = file;
       if (type === 'lohnart') this.lohnartFile = file;
       if (type === 'rechnung') this.rechnungFile = file;
       if (type === 'kundenpreis') this.kundenpreisFile = file;
@@ -1005,7 +1045,7 @@ export default {
         return;
       }
 
-      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.lohnartFile, this.rechnungFile, this.kundenpreisFile, this.kundenkonditionFile, this.personalnrHistoryFile, this.vorarbeitgebertageFile] : [];
+      const adminFiles = this.isAdmin ? [this.adressenFile, this.einsatzortFile, this.kundenFile, this.berufFile, this.qualifikationFile, this.nationalitaetFile, this.lohnartFile, this.rechnungFile, this.kundenpreisFile, this.kundenkonditionFile, this.personalnrHistoryFile, this.vorarbeitgebertageFile] : [];
       const fileCount = [this.einsatzFile, this.personalFile, this.verfuegbarkeitFile, ...adminFiles].filter(Boolean).length;
       if (!confirm(`Import von ${fileCount} Datei(en) wirklich starten? Es kann einige Sekunden dauern.`)) return;
 
@@ -1025,6 +1065,12 @@ export default {
         if (this.qualifikationFile && this.isAdmin) {
           const response = await this.uploadFile(this.qualifikationFile, 'qualifikation');
           results.push({ type: 'Qualifikationen', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
+        if (this.nationalitaetFile && this.isAdmin) {
+          const response = await this.uploadFile(this.nationalitaetFile, 'nationalitaet');
+          results.push({ type: 'Nationalitäten', ...response });
           if (!response.success) hasErrors = true;
         }
 
@@ -1310,6 +1356,7 @@ export default {
       this.verfuegbarkeitFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
+      this.nationalitaetFile = null;
       this.lohnartFile = null;
       this.rechnungFile = null;
       this.kundenpreisFile = null;
@@ -1322,7 +1369,7 @@ export default {
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile || this.vorarbeitgebertageFile) : false;
+      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.nationalitaetFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile || this.vorarbeitgebertageFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

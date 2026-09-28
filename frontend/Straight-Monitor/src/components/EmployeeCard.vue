@@ -1510,6 +1510,7 @@
             <div v-if="resolvedMa.telefon" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'telefon' }"><dt>Telefon <button class="stammdaten-edit-btn" type="button" title="Telefon bearbeiten" aria-label="Telefon bearbeiten" @click.stop="startEditStammdaten('telefon')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'telefon'"><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
             <div v-if="resolvedMa.geburtsname || resolvedMa.geburtsdatum || resolvedMa.geburtsort" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'geburtsdaten' }"><dt>Geburtsdaten <button class="stammdaten-edit-btn" type="button" title="Geburtsdaten bearbeiten" aria-label="Geburtsdaten bearbeiten" @click.stop="startEditStammdaten('geburtsdaten')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'geburtsdaten'" class="stammdaten-detail-list"><span v-if="resolvedMa.geburtsname">Geb. Name: {{ resolvedMa.geburtsname }}</span><span v-if="resolvedMa.geburtsdatum">Geb. Tag: {{ formatDate(resolvedMa.geburtsdatum) }}</span><span v-if="resolvedMa.geburtsort">Geb. Ort: {{ resolvedMa.geburtsort }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.geburtsname" type="text" aria-label="Geburtsname" placeholder="Geburtsname"><input v-model="stammdatenDraft.geburtsdatum" type="date" aria-label="Geburtsdatum"><input v-model.trim="stammdatenDraft.geburtsort" type="text" aria-label="Geburtsort" placeholder="Geburtsort"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
             <div v-if="resolvedMa.konfektionsgroesse || resolvedMa.schuhgroesse" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'groessen' }"><dt>Klamottengrößen <button class="stammdaten-edit-btn" type="button" title="Klamottengrößen bearbeiten" aria-label="Klamottengrößen bearbeiten" @click.stop="startEditStammdaten('groessen')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'groessen'" class="stammdaten-detail-list"><span v-if="resolvedMa.konfektionsgroesse">Konfektionsgröße: {{ resolvedMa.konfektionsgroesse }}</span><span v-if="resolvedMa.schuhgroesse">Schuhgröße: {{ resolvedMa.schuhgroesse }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.konfektionsgroesse" type="text" aria-label="Konfektionsgröße" placeholder="Konfektionsgröße"><input v-model.trim="stammdatenDraft.schuhgroesse" type="text" aria-label="Schuhgröße" placeholder="Schuhgröße"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'nationalitaet' }"><dt>Staatsangehörigkeit <button class="stammdaten-edit-btn" type="button" title="Staatsangehörigkeit bearbeiten" aria-label="Staatsangehörigkeit bearbeiten" @click.stop="startEditStammdaten('nationalitaet')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'nationalitaet'">{{ nationalitaetLabel(resolvedMa.nationalitaet) || '—' }}</dd><dd v-else class="stammdaten-inline-editor"><select v-model="stammdatenDraft.nationalitaet" aria-label="Staatsangehörigkeit"><option value="">Nicht angegeben</option><option v-for="nationalitaet in nationalitaeten" :key="nationalitaet.schluessel" :value="String(nationalitaet.schluessel)">{{ nationalitaetOptionLabel(nationalitaet) }}</option></select><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
@@ -1778,6 +1779,20 @@ import flipLogo from "@/assets/flip.png";
 import asanaLogo from "@/assets/asana.png";
 import MitarbeiterEinsatzChart from "./MitarbeiterEinsatzChart.vue";
 
+let nationalitaetenRequest = null;
+
+const fetchNationalitaeten = async () => {
+  if (!nationalitaetenRequest) {
+    nationalitaetenRequest = api.get('/api/import/nationalitaeten')
+      .then((response) => response.data?.data || [])
+      .catch((error) => {
+        nationalitaetenRequest = null;
+        throw error;
+      });
+  }
+  return nationalitaetenRequest;
+};
+
 export default {
   name: "EmployeeCard",
   components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard },
@@ -2031,6 +2046,7 @@ export default {
       editingStammdatenField: null,
       stammdatenDraft: {},
       savingStammdatenField: false,
+      nationalitaeten: [],
       // Mini-calendar
       calendarEinsaetze: [],
       calendarLoading: false,
@@ -2331,6 +2347,8 @@ export default {
 
   mounted() {
 
+    this.loadNationalitaeten();
+
     // Self-load if only mitarbeiterId was passed
     if (this.mitarbeiterId && !this.ma) {
       this.loadSelf();
@@ -2404,6 +2422,25 @@ export default {
       }
     },
 
+    async loadNationalitaeten() {
+      try {
+        this.nationalitaeten = await fetchNationalitaeten();
+      } catch (error) {
+        console.error('[EmployeeCard] nationalities could not be loaded:', error);
+      }
+    },
+
+    nationalitaetOptionLabel(nationalitaet) {
+      const label = nationalitaet.staatAngehoerigkeit || nationalitaet.natKennz;
+      return label ? `${nationalitaet.staat} (${label})` : nationalitaet.staat;
+    },
+
+    nationalitaetLabel(schluessel) {
+      if (schluessel == null || schluessel === '') return '';
+      const nationalitaet = this.nationalitaeten.find((entry) => String(entry.schluessel) === String(schluessel));
+      return nationalitaet ? this.nationalitaetOptionLabel(nationalitaet) : `Schlüssel ${schluessel}`;
+    },
+
     startEditStammdaten(field) {
       const employee = this.resolvedMa;
       if (!employee || this.savingStammdatenField) return;
@@ -2430,6 +2467,9 @@ export default {
         groessen: {
           konfektionsgroesse: employee.konfektionsgroesse || '',
           schuhgroesse: employee.schuhgroesse || '',
+        },
+        nationalitaet: {
+          nationalitaet: employee.nationalitaet != null ? String(employee.nationalitaet) : '',
         },
         adresse: {
           strasse: employee.adresse?.strasse || '',
@@ -2488,6 +2528,8 @@ export default {
           konfektionsgroesse: this.stammdatenDraft.konfektionsgroesse?.trim() || '',
           schuhgroesse: this.stammdatenDraft.schuhgroesse?.trim() || '',
         };
+      } else if (field === 'nationalitaet') {
+        update = { nationalitaet: this.stammdatenDraft.nationalitaet || '' };
       } else if (field === 'adresse' || field === 'adresse2') {
         update = {
           [field]: {
@@ -7671,7 +7713,8 @@ export default {
   gap: 4px;
 }
 
-.stammdaten-inline-editor input {
+.stammdaten-inline-editor input,
+.stammdaten-inline-editor select {
   min-width: 0;
   width: 100%;
   padding: 4px 6px;

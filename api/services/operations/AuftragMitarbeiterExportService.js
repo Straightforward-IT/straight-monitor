@@ -12,6 +12,7 @@ const EMPLOYEE_FIELDS = [
   'vorname',
   'nachname',
   'geburtsdatum',
+  'nationalitaet',
   'einsatzCount',
   'konfektionsgroesse',
   'schuhgroesse',
@@ -56,7 +57,14 @@ function buildAuftragMitarbeiterExport({ auftrag, einsaetze, schichten, mitarbei
 
     const key = shiftKey(einsatz, schichtenById, schichtenByLegacyId);
     if (!shifts.has(key)) {
-      shifts.set(key, { id: key, label: shiftLabel(einsatz, schichtenById, schichtenByLegacyId) });
+      const schicht = (einsatz.schicht && schichtenById.get(String(einsatz.schicht)))
+        || schichtenByLegacyId.get(String(einsatz.idAuftragArbeitsschichten));
+      shifts.set(key, {
+        id: key,
+        label: shiftLabel(einsatz, schichtenById, schichtenByLegacyId),
+        uhrzeitVon: schicht?.uhrzeitVon || einsatz.uhrzeitVon || '',
+        uhrzeitBis: schicht?.uhrzeitBis || einsatz.uhrzeitBis || '',
+      });
     }
 
     const employeeId = String(employee._id);
@@ -69,6 +77,7 @@ function buildAuftragMitarbeiterExport({ auftrag, einsaetze, schichten, mitarbei
         vorname: employee.vorname || '',
         nachname: employee.nachname || '',
         geburtsdatum: employee.geburtsdatum || null,
+        nationalitaet: employee.nationalitaet || '',
         einsatzCount: employee.einsatzCount ?? null,
         konfektionsgroesse: employee.konfektionsgroesse || '',
         schuhgroesse: employee.schuhgroesse || '',
@@ -108,7 +117,7 @@ async function loadAuftragMitarbeiterExport(auftragNr) {
 
   const [einsaetze, schichten] = await Promise.all([
     Einsatz.find({ auftragNr: parsedAuftragNr }).sort({ datumVon: 1, uhrzeitVon: 1, personalNr: 1 }).lean(),
-    Schicht.find({ auftragNr: parsedAuftragNr }).select('_id idAuftragArbeitsschichten bezeichnung').lean(),
+    Schicht.find({ auftragNr: parsedAuftragNr }).select('_id idAuftragArbeitsschichten bezeichnung uhrzeitVon uhrzeitBis').lean(),
   ]);
   const personalNrs = [...new Set(einsaetze.map(einsatz => String(einsatz.personalNr || '')).filter(Boolean))];
   const mitarbeiter = personalNrs.length

@@ -154,8 +154,10 @@ const ALL_FIELDS = [
   { key: 'personalnr', label: 'Personalnr.', get: ma => ma.personalnr || '' },
   { key: 'email', label: 'E-Mail', get: ma => ma.email || '' },
   { key: 'telefon', label: 'Telefon', get: ma => ma.telefon || '' },
+  { key: 'schichtDetails', label: 'Schichtdetails', get: ma => shiftDetailsForEmployee(ma) },
   { key: 'geburtsdatum', label: 'Geburtsdatum', get: ma => ma.geburtsdatum ? formatDate(ma.geburtsdatum) : '' },
   { key: 'geburtsort', label: 'Geburtsort', get: ma => ma.geburtsort || '' },
+  { key: 'nationalitaet', label: 'Nationalität', get: ma => ma.nationalitaet || '' },
   { key: 'einsatzCount', label: 'Einsatzanzahl', get: ma => ma.einsatzCount ?? '' },
   { key: 'konfektionsgroesse', label: 'Konfektionsgröße', get: ma => ma.konfektionsgroesse || '' },
   { key: 'schuhgroesse', label: 'Schuhgröße', get: ma => ma.schuhgroesse || '' },
@@ -170,7 +172,9 @@ const ALL_FIELDS = [
   { key: 'dateCreated', label: 'Erstellt am', get: ma => ma.dateCreated ? formatDate(ma.dateCreated) : (ma.createdAt ? formatDate(ma.createdAt) : '') },
 ];
 
-const DEFAULT_KEYS = ['vorname', 'nachname', 'personalnr', 'email', 'telefon'];
+const DEFAULT_KEYS = props.shifts.length
+  ? ['vorname', 'nachname', 'schichtDetails', 'email', 'telefon']
+  : ['vorname', 'nachname', 'email', 'telefon'];
 const selectedKeys = ref([...DEFAULT_KEYS]);
 const selectedShiftIds = ref(new Set());
 const columnMenuOpen = ref(false);
@@ -209,6 +213,19 @@ const previewRows = computed(() => filteredMitarbeiterList.value.map(employee =>
 function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString('de-DE');
+}
+
+function shiftDetailsForEmployee(employee) {
+  const shiftsById = new Map(props.shifts.map(shift => [shift.id, shift]));
+  return (employee.shiftIds || [])
+    .filter(shiftId => selectedShiftIds.value.has(shiftId))
+    .map(shiftId => shiftsById.get(shiftId))
+    .filter(Boolean)
+    .map(shift => {
+      const time = [shift.uhrzeitVon, shift.uhrzeitBis].filter(Boolean).join(' - ');
+      return time ? `${shift.label}: ${time}` : shift.label;
+    })
+    .join('\n');
 }
 
 function toggleShift(shiftId) {

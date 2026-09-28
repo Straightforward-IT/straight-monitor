@@ -12,6 +12,7 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const Lohnart = require('../../models/Payroll/Lohnart');
+const Nationalitaet = require('../../models/System/Nationalitaet');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const KundenKondition = require('../../models/Customer/KundenKondition');
 const ImportLog = require('../../models/System/ImportLog');
@@ -1122,7 +1123,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 });
 
 // --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Führerschein, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AI=Arbeitszeit, AJ=Strasse, AK=PLZ, AL=Ort, AM=Land, AN=Telefon, AO=Email, AP=Strasse2, AQ=PLZ2, AR=Ort2, AS=Land2, AT=Telefon2, AU=Email2
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AG=Arbeitszeit, AH=Strasse, AI=PLZ, AJ=Ort, AK=Land, AL=Telefon, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2, AQ=Land2, AR=Telefon2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 const PERSONAL_7002_HEADERS = [
   'CODE', 'PERSONALNR', 'PERSSTATUS', 'GEBDATUM', 'NACHNAME', 'VORNAME', 'GEBNAME', 'GEBORT', 'EINTRITT1', 'AUSTRITT1',
@@ -1130,7 +1131,7 @@ const PERSONAL_7002_HEADERS = [
   'ARBEITSVERHAELTNIS_VON', 'ARBEITSVERHAELTNISTYP', 'DURCHSCHNBERFORTFUEHREN',
   'ARBEITSZEIT_VON', 'ARBEITSZEIT_BIS', 'ARBZEITMO', 'ARBZEITDI', 'ARBZEITMI', 'ARBZEITDO', 'ARBZEITFR', 'ARBZEITSA', 'ARBZEITSO',
   'ARBZEITWCH', 'ARBZEITMON', 'DZEITKONTOPLUS', 'DZEITKONTOMINUS',
-  'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2',
+  'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2', 'STAATANGEH',
 ];
 
 const validatePersonal7002Header = (header) => {
@@ -1219,11 +1220,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       //   X=Di, Y=Mi, Z=Do, AA=Fr, AB=Sa, AC=So, AD=Woche, AE=Monat,
       //   AF=Zeitkonto-Plus-Limit, AG=Zeitkonto-Minus-Limit, AH=Strasse, AI=PLZ,
       //   AJ=Ort, AK=Land, AL=Tel, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2,
-      //   AQ=Land2, AR=Tel2, AS=Email2
+      //   AQ=Land2, AR=Tel2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, nachname, vorname, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
-      let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon;
+      let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon, nationalitaet;
       let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null, fuehrerschein = null;
 
       if (hasNewFormat) {
@@ -1309,6 +1310,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         const land2 = parseStr(row[addressStart + 9]);
         const tel2 = parseStr(row[addressStart + 10]);
         const email2 = parseStr(row[addressStart + 11]) ? String(row[addressStart + 11]).trim().toLowerCase() : null;
+        nationalitaet = parseStr(row[addressStart + 12]);
         if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
           adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
         }
@@ -1328,6 +1330,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         persgruppRaw = row[5] != null ? parseInt(row[5], 10) : null;
         email = parseStr(row[6]) ? String(row[6]).trim().toLowerCase() : null;
         telefon = parseStr(row[7]);
+        nationalitaet = null;
       }
 
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
@@ -1357,6 +1360,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (hasNewFormat) {
         setFields.adresse = adresse;
         setFields.adresse2 = adresse2;
+        setFields.nationalitaet = nationalitaet;
       }
       if (arbeitsverhaeltnis) setFields.arbeitsverhaeltnis = arbeitsverhaeltnis;
       if (arbeitszeit) setFields.arbeitszeit = arbeitszeit;
@@ -1833,6 +1837,68 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
     logger.error('Import Qualifikation Error:', error);
     await logImport('qualifikation', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
     res.status(500).json({ success: false, message: 'Fehler beim Importieren der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- Nationalitaeten Import ---
+// Spalten: SCHLUESSEL, NATKENNZ, STAAT, STAATANGEH, ..., STAATSCHL
+router.post('/nationalitaet', auth, extendTimeout, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const operations = [];
+
+    for (const row of rawData) {
+      if (!row || !row.length) continue;
+
+      const schluessel = Number.parseInt(row[0], 10);
+      const natKennz = String(row[1] || '').trim();
+      const staat = String(row[2] || '').trim();
+      if (!Number.isFinite(schluessel) || !natKennz || !staat) continue;
+
+      const staatAngehoerigkeit = String(row[3] || '').trim();
+      const staatschluesselValue = Number.parseInt(row[9], 10);
+      operations.push({
+        updateOne: {
+          filter: { schluessel },
+          update: {
+            $set: {
+              natKennz,
+              staat,
+              staatAngehoerigkeit: staatAngehoerigkeit || undefined,
+              staatschluessel: Number.isFinite(staatschluesselValue) ? staatschluesselValue : null,
+            },
+          },
+          upsert: true,
+        },
+      });
+    }
+
+    if (!operations.length) {
+      await logImport('nationalitaet', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Nationalitäten gefunden' }, req.user?.id);
+      return res.json({ success: true, message: 'Keine gültigen Nationalitäten gefunden. (Erwarte SCHLUESSEL, NATKENNZ und STAAT)' });
+    }
+
+    const result = await Nationalitaet.bulkWrite(operations);
+    const inserted = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const unchanged = operations.length - inserted - updated;
+    const response = {
+      success: true,
+      message: `${operations.length} Nationalitäten verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
+      details: { total: operations.length, inserted, updated, unchanged },
+    };
+    await logImport('nationalitaet', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
+    res.json(response);
+  } catch (error) {
+    logger.error('Import Nationalitaet Error:', error);
+    await logImport('nationalitaet', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Nationalitäten.', error: error.message });
   }
 });
 
@@ -2466,6 +2532,20 @@ router.get('/qualifikationen', async (req, res) => {
   } catch (error) {
     logger.error('GET Qualifikationen Error:', error);
     res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Qualifikationen.', error: error.message });
+  }
+});
+
+// --- GET all Nationalitaeten (for employee Stammdaten dropdown) ---
+router.get('/nationalitaeten', async (req, res) => {
+  try {
+    const nationalitaeten = await Nationalitaet.find({})
+      .select('schluessel natKennz staat staatAngehoerigkeit staatschluessel')
+      .sort({ staat: 1 })
+      .lean();
+    res.json({ success: true, data: nationalitaeten });
+  } catch (error) {
+    logger.error('GET Nationalitaeten Error:', error);
+    res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Nationalitäten.' });
   }
 });
 

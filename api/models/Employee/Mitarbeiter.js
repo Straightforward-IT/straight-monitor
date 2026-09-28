@@ -59,6 +59,7 @@ const MitarbeiterSchema = new mongoose.Schema({
     geburtsdatum: { type: Date, required: false },
     geburtsname: { type: String, required: false, trim: true },
     geburtsort: { type: String, required: false, trim: true },
+    nationalitaet: { type: String, required: false, trim: true },
     eintrittsdatum: { type: Date, required: false },
     austrittsdatum: { type: Date, required: false },
     arbeitsverhaeltnis: {
