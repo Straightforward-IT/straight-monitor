@@ -9,6 +9,11 @@
     @close="emit('close')"
   >
     <div class="export-dialog" @click="columnMenuOpen = false">
+      <div v-if="extraInformationEntries.length" class="export-options">
+        <FilterChip :active="includeExtraInformation" @click="includeExtraInformation = !includeExtraInformation">
+          Zusatzinformationen
+        </FilterChip>
+      </div>
       <div v-if="shifts.length" class="shift-filter">
         <span class="shift-filter__label">Schichten</span>
         <div class="shift-filter__chips">
@@ -137,6 +142,7 @@ const props = defineProps({
   mitarbeiterList: { type: Array, default: () => [] },
   shifts: { type: Array, default: () => [] },
   filename: { type: String, default: '' },
+  extraInformation: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits(['close']);
@@ -172,12 +178,15 @@ const columnMenuPosition = ref({ x: 0, y: 0 });
 const draggedColumnKey = ref('');
 const dragOverColumnKey = ref('');
 const excludedEmployeeIds = ref(new Set());
+const includeExtraInformation = ref(false);
 
 watch(() => props.shifts, shifts => {
   selectedShiftIds.value = new Set((shifts || []).map(shift => shift.id));
 }, { immediate: true });
 
 const availableFields = computed(() => ALL_FIELDS.filter(field => !selectedKeys.value.includes(field.key)));
+const extraInformationEntries = computed(() => Object.entries(props.extraInformation || {})
+  .filter(([, value]) => String(value || '').trim()));
 const columnMenuOptions = computed(() => availableFields.value
   .slice()
   .sort((left, right) => left.label.localeCompare(right.label, 'de'))
@@ -265,7 +274,10 @@ function getterFor(key) {
 function doExport() {
   const headers = selectedKeys.value.map(labelFor);
   const rows = filteredMitarbeiterList.value.map(employee => selectedKeys.value.map(key => getterFor(key)(employee)));
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const extraRows = includeExtraInformation.value
+    ? [...extraInformationEntries.value.map(([label, value]) => [label, value]), []]
+    : [];
+  const worksheet = XLSX.utils.aoa_to_sheet([...extraRows, headers, ...rows]);
   worksheet['!cols'] = headers.map((header, columnIndex) => ({
     wch: Math.min(60, Math.max(header.length, ...rows.map(row => String(row[columnIndex] || '').length)) + 2),
   }));
@@ -288,6 +300,7 @@ function doExport() {
 }
 
 .export-dialog, .preview-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.export-options { display: flex; padding: 10px 24px; }
 .shift-filter { display: flex; align-items: flex-start; gap: 12px; padding: 10px 24px; border-bottom: 1px solid var(--border); background: var(--hover, #f9fafb); }
 .shift-filter__label { flex: 0 0 auto; padding-top: 5px; color: var(--muted); font-size: .72rem; font-weight: 600; text-transform: uppercase; }
 .shift-filter__chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -313,5 +326,5 @@ function doExport() {
 .preview-empty { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 120px; color: var(--muted); font-size: 14px; }
 .footer-info { display: flex; align-items: center; margin-right: auto; gap: 12px; color: var(--muted); font-size: 13px; }
 .footer-actions { display: flex; gap: 10px; }
-@media (max-width: 700px) { .shift-filter { padding: 10px 14px; } }
+@media (max-width: 700px) { .export-options { padding: 10px 14px; }.shift-filter { padding: 10px 14px; } }
 </style>

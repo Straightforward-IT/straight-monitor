@@ -714,6 +714,7 @@
         :mitarbeiter-list="mitarbeiterExportData?.mitarbeiter || []"
         :shifts="mitarbeiterExportData?.schichten || []"
         :filename="mitarbeiterExportFilename"
+        :extra-information="mitarbeiterExportExtraInformation()"
         @close="closeMitarbeiterExport"
       />
 
@@ -4334,6 +4335,19 @@ export default {
       } finally {
         this.isLoadingMitarbeiterExport = false;
       }
+    },
+    mitarbeiterExportExtraInformation() {
+      const event = this.selectedEvent || {};
+      return {
+        Auftrag: event.eventTitel || `Auftrag #${event.auftragNr || ''}`,
+        Kunde: event.kundeData?.kundName || '',
+        Datum: event.vonDatum && event.bisDatum
+          ? this.formatDateRange(new Date(event.vonDatum), new Date(event.bisDatum))
+          : '',
+        Einsatzort: [event.eventLocation, event.eventStrasse, event.eventPlz, event.eventOrt]
+          .filter(Boolean)
+          .join(', '),
+      };
     },
     closeMitarbeiterExport() {
       this.showMitarbeiterExportModal = false;
