@@ -163,11 +163,13 @@ const ALL_FIELDS = [
   { key: 'telefon', label: 'Telefon', get: ma => ma.telefon || '' },
   { key: 'schichtDetails', label: 'Schichtdetails', get: ma => shiftDetailsForEmployee(ma) },
   { key: 'geburtsdatum', label: 'Geburtsdatum', get: ma => ma.geburtsdatum ? formatDate(ma.geburtsdatum) : '' },
+  { key: 'geburtsname', label: 'Geburtsname', get: ma => ma.geburtsname || '' },
   { key: 'geburtsort', label: 'Geburtsort', get: ma => ma.geburtsort || '' },
   { key: 'nationalitaet', label: 'Nationalität', get: ma => nationalitaetLabel(ma.nationalitaet) },
   { key: 'einsatzCount', label: 'Einsatzanzahl', get: ma => ma.einsatzCount ?? '' },
   { key: 'konfektionsgroesse', label: 'Konfektionsgröße', get: ma => ma.konfektionsgroesse || '' },
   { key: 'schuhgroesse', label: 'Schuhgröße', get: ma => ma.schuhgroesse || '' },
+  { key: 'locationV2', label: 'Location', get: ma => locationLabel(ma.locationV2) },
   { key: 'persgruppe', label: 'Personengruppe', get: ma => ma.persgruppe ? (PERSGRUPPE_MAP[ma.persgruppe] || String(ma.persgruppe)) : '' },
   { key: 'erstellt_von', label: 'Erstellt von', get: ma => ma.erstellt_von || '' },
   { key: 'austrittsdatum', label: 'Austrittsdatum', get: ma => ma.austrittsdatum ? formatDate(ma.austrittsdatum) : '' },
@@ -244,6 +246,11 @@ async function loadNationalitaeten() {
 function nationalitaetLabel(schluessel) {
   if (schluessel == null || schluessel === '') return '';
   return nationalitaetenBySchluessel.value.get(String(schluessel))?.staatAngehoerigkeit || '';
+}
+
+function locationLabel(location) {
+  if (!location || typeof location !== 'object') return '';
+  return location.nameFull || location.shortName || '';
 }
 
 function shiftDetailsForEmployee(employee) {

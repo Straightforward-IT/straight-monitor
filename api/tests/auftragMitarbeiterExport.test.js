@@ -24,13 +24,14 @@ describe('AuftragMitarbeiterExportService', () => {
         einsatzCount: 12,
         konfektionsgroesse: 'M',
         schuhgroesse: '39',
+        locationV2: { nameFull: 'Hamburg Mitte', shortName: 'HH-M' },
       }],
     });
 
     expect(result.auftrag).to.deep.equal({ auftragNr: 42, eventTitel: 'Testevent' });
     expect(result.schichten).to.deep.equal([
-      { id: 'schicht:shift-a', label: 'Frühschicht' },
-      { id: 'legacy:8', label: 'Spätschicht' },
+      { id: 'schicht:shift-a', label: 'Frühschicht', uhrzeitVon: '', uhrzeitBis: '' },
+      { id: 'legacy:8', label: 'Spätschicht', uhrzeitVon: '', uhrzeitBis: '' },
     ]);
     expect(result.mitarbeiter).to.deep.equal([{
       _id: 'employee-a',
@@ -40,9 +41,11 @@ describe('AuftragMitarbeiterExportService', () => {
       vorname: 'Anna',
       nachname: 'Beispiel',
       geburtsdatum: null,
+      nationalitaet: '',
       einsatzCount: 12,
       konfektionsgroesse: 'M',
       schuhgroesse: '39',
+      locationV2: { nameFull: 'Hamburg Mitte', shortName: 'HH-M' },
       shiftIds: ['schicht:shift-a', 'legacy:8'],
     }]);
   });
@@ -55,7 +58,7 @@ describe('AuftragMitarbeiterExportService', () => {
       mitarbeiter: [{ _id: 'employee-a', personalnr: '300', vorname: 'Max', nachname: 'Mustermann' }],
     });
 
-    expect(result.schichten).to.deep.equal([{ id: 'legacy:3', label: 'Service' }]);
+    expect(result.schichten).to.deep.equal([{ id: 'legacy:3', label: 'Service', uhrzeitVon: '', uhrzeitBis: '' }]);
     expect(result.mitarbeiter[0].shiftIds).to.deep.equal(['legacy:3']);
   });
 
@@ -76,7 +79,7 @@ describe('AuftragMitarbeiterExportService', () => {
 
     expect(result.mitarbeiter[0]).to.have.all.keys(
       '_id', 'personalnr', 'email', 'telefon', 'vorname', 'nachname',
-      'geburtsdatum', 'einsatzCount', 'konfektionsgroesse', 'schuhgroesse', 'shiftIds'
+      'geburtsdatum', 'nationalitaet', 'einsatzCount', 'konfektionsgroesse', 'schuhgroesse', 'locationV2', 'shiftIds'
     );
   });
 });

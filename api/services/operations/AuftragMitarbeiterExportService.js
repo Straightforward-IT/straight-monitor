@@ -16,6 +16,7 @@ const EMPLOYEE_FIELDS = [
   'einsatzCount',
   'konfektionsgroesse',
   'schuhgroesse',
+  'locationV2',
 ].join(' ');
 
 function shiftKey(einsatz, schichtenById, schichtenByLegacyId) {
@@ -81,6 +82,7 @@ function buildAuftragMitarbeiterExport({ auftrag, einsaetze, schichten, mitarbei
         einsatzCount: employee.einsatzCount ?? null,
         konfektionsgroesse: employee.konfektionsgroesse || '',
         schuhgroesse: employee.schuhgroesse || '',
+        locationV2: employee.locationV2 || null,
         shiftIds: [],
       });
     }
@@ -126,7 +128,7 @@ async function loadAuftragMitarbeiterExport(auftragNr) {
         { personalnr: { $in: personalNrs } },
         { 'personalnrHistory.value': { $in: personalNrs } },
       ],
-    }).select(EMPLOYEE_FIELDS).lean()
+    }).select(EMPLOYEE_FIELDS).populate('locationV2', 'nameFull shortName').lean()
     : [];
 
   return { auftrag, data: buildAuftragMitarbeiterExport({ auftrag, einsaetze, schichten, mitarbeiter }) };
