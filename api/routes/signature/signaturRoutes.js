@@ -224,6 +224,34 @@ function parseFolgeaktionen(raw) {
   return { ausliefernAn, ausliefernAnSignierer, emailBenachrichtigung, asanaActions };
 }
 
+const DEFAULT_FOLGEAKTION_RECIPIENTS = {
+  lohnvorschuss: [
+    { displayName: 'Straightforward DH', email: 'dh@straightforward.email' },
+    { displayName: 'Straightforward Invoice', email: 'invoice@straightforward.email' },
+  ],
+};
+
+function withDefaultFolgeaktionen(typKey, folgeaktionen) {
+  const defaultRecipients = DEFAULT_FOLGEAKTION_RECIPIENTS[typKey] || [];
+  if (!defaultRecipients.length) return folgeaktionen;
+
+  const current = folgeaktionen?.toObject ? folgeaktionen.toObject() : (folgeaktionen || {});
+  const recipientsByEmail = new Map();
+  for (const recipient of [...(current.ausliefernAn || []), ...defaultRecipients]) {
+    const email = String(recipient?.email || '').trim().toLowerCase();
+    if (email && !recipientsByEmail.has(email)) {
+      recipientsByEmail.set(email, { displayName: recipient.displayName || '', email });
+    }
+  }
+
+  return {
+    ausliefernAn: [...recipientsByEmail.values()],
+    ausliefernAnSignierer: current.ausliefernAnSignierer !== false,
+    emailBenachrichtigung: current.emailBenachrichtigung !== false,
+    asanaActions: Array.isArray(current.asanaActions) ? current.asanaActions : [],
+  };
+}
+
 function parseEntleiherInvitationRecipients(raw, excludedEmail = '') {
   const normalizedExcludedEmail = String(excludedEmail || '').trim().toLowerCase();
   if (!Array.isArray(raw)) return [];
@@ -1619,6 +1647,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
   if (!signaturTyp || !signaturTyp.isActive) {
     return res.status(400).json({ message: 'Ungültiger oder inaktiver Signaturtyp' });
   }
+  const effectiveFolgeaktionen = withDefaultFolgeaktionen(signaturTyp.key, folgeaktionen);
 
   // Resolve entity links
   let mitarbeiterDoc = null;
@@ -1753,7 +1782,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     submitters: storedSubmitters,
     r2Prefix,
 
-    folgeaktionen: folgeaktionen || undefined,
+    folgeaktionen: effectiveFolgeaktionen || undefined,
 
     createdBy: req.user.id,
   });
@@ -1958,7 +1987,11 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
     vorgang.docusealTemplateName = templateName || '';
   }
 
-  if (folgeaktionen) vorgang.folgeaktionen = folgeaktionen;
+  const effectiveFolgeaktionen = withDefaultFolgeaktionen(
+    vorgang.typKey,
+    folgeaktionen || vorgang.folgeaktionen,
+  );
+  if (effectiveFolgeaktionen) vorgang.folgeaktionen = effectiveFolgeaktionen;
   if (entleiherInvitationRecipientsRaw !== undefined) {
     const entleiherEmail = Array.isArray(submitters)
       ? submitters.find((submitter) => submitter.role === 'Entleiher')?.email

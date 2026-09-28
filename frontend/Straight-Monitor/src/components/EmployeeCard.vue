@@ -1445,6 +1445,29 @@
                   <button class="qa-item" @click="executeQuickAction('time-management')">
                     <font-awesome-icon icon="fa-solid fa-calendar" /> Zeitverwaltung
                   </button>
+                  <div
+                    class="qa-signature-menu"
+                    @mouseenter="openQuickSignatureMenu($event)"
+                    @mouseleave="showQuickSignatureMenu = false"
+                  >
+                    <button class="qa-item qa-item--submenu" @click="toggleQuickSignatureMenu($event)">
+                      <font-awesome-icon icon="fa-solid fa-file-signature" />
+                      <span>Signatur</span>
+                      <font-awesome-icon class="qa-submenu-chevron" icon="fa-solid fa-chevron-right" />
+                    </button>
+                    <div
+                      v-if="showQuickSignatureMenu"
+                      class="qa-submenu"
+                      :class="{ 'qa-submenu--left': quickSignatureMenuOpenLeft }"
+                    >
+                      <button class="qa-item" @click="executeQuickAction('lohnvorschuss')">
+                        <font-awesome-icon icon="fa-solid fa-money-bill-wave" /> Lohnvorschuss
+                      </button>
+                      <button class="qa-item" @click="executeQuickAction('urlaubsantrag')">
+                        <font-awesome-icon icon="fa-solid fa-calendar" /> Urlaubsantrag
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div class="qa-group">
                   <button class="qa-item" @click="executeQuickAction('edit')">
@@ -1483,19 +1506,16 @@
             Stammdaten
           </h4>
           <dl class="stammdaten-grid">
-            <div><dt>E-Mail</dt><dd>{{ resolvedMa.email || '—' }} <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
-            <div v-if="resolvedMa.additionalEmails?.length"><dt>Alt. Mails</dt><dd class="email-list"><span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span></dd></div>
-            <div v-if="resolvedMa.telefon"><dt>Telefon</dt><dd><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
-            <div v-if="resolvedMa.geburtsdatum"><dt>Geburtstag</dt><dd>{{ formatDate(resolvedMa.geburtsdatum) }}</dd></div>
-            <div v-if="resolvedMa.geburtsname"><dt>Geburtsname</dt><dd>{{ resolvedMa.geburtsname }}</dd></div>
-            <div v-if="resolvedMa.geburtsort"><dt>Geburtsort</dt><dd>{{ resolvedMa.geburtsort }}</dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'email' }"><dt>E-Mail <button class="stammdaten-edit-btn" type="button" title="E-Mail bearbeiten" aria-label="E-Mail bearbeiten" @click.stop="startEditStammdaten('email')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'email'" class="stammdaten-detail-list"><span>Primär: {{ resolvedMa.email || '—' }} <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></span><span v-if="resolvedMa.additionalEmails?.length" class="stammdaten-email-alternatives">Alt.: <span class="email-list"><span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span></span></span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.email" type="email" aria-label="Primäre E-Mail" placeholder="Primäre E-Mail"><input v-model="stammdatenDraft.additionalEmails" type="text" aria-label="Alternative E-Mails" placeholder="Alternative E-Mails, durch Komma getrennt"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="resolvedMa.telefon" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'telefon' }"><dt>Telefon <button class="stammdaten-edit-btn" type="button" title="Telefon bearbeiten" aria-label="Telefon bearbeiten" @click.stop="startEditStammdaten('telefon')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'telefon'"><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="resolvedMa.geburtsname || resolvedMa.geburtsdatum || resolvedMa.geburtsort" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'geburtsdaten' }"><dt>Geburtsdaten <button class="stammdaten-edit-btn" type="button" title="Geburtsdaten bearbeiten" aria-label="Geburtsdaten bearbeiten" @click.stop="startEditStammdaten('geburtsdaten')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'geburtsdaten'" class="stammdaten-detail-list"><span v-if="resolvedMa.geburtsname">Geb. Name: {{ resolvedMa.geburtsname }}</span><span v-if="resolvedMa.geburtsdatum">Geb. Tag: {{ formatDate(resolvedMa.geburtsdatum) }}</span><span v-if="resolvedMa.geburtsort">Geb. Ort: {{ resolvedMa.geburtsort }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.geburtsname" type="text" aria-label="Geburtsname" placeholder="Geburtsname"><input v-model="stammdatenDraft.geburtsdatum" type="date" aria-label="Geburtsdatum"><input v-model.trim="stammdatenDraft.geburtsort" type="text" aria-label="Geburtsort" placeholder="Geburtsort"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="resolvedMa.konfektionsgroesse || resolvedMa.schuhgroesse" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'groessen' }"><dt>Klamottengrößen <button class="stammdaten-edit-btn" type="button" title="Klamottengrößen bearbeiten" aria-label="Klamottengrößen bearbeiten" @click.stop="startEditStammdaten('groessen')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'groessen'" class="stammdaten-detail-list"><span v-if="resolvedMa.konfektionsgroesse">Konfektionsgröße: {{ resolvedMa.konfektionsgroesse }}</span><span v-if="resolvedMa.schuhgroesse">Schuhgröße: {{ resolvedMa.schuhgroesse }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.konfektionsgroesse" type="text" aria-label="Konfektionsgröße" placeholder="Konfektionsgröße"><input v-model.trim="stammdatenDraft.schuhgroesse" type="text" aria-label="Schuhgröße" placeholder="Schuhgröße"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
-            <div v-if="addressLines(resolvedMa.adresse).length"><dt>Adresse</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd></div>
-            <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email"><dt>Adresse 2</dt><dd class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd></div>
-            <div v-if="resolvedMa.erstellt_von"><dt>Erstellt</dt><dd>{{ resolvedMa.erstellt_von }}</dd></div>
-            <div v-if="resolvedMa.dateCreated"><dt>Erstellt am</dt><dd>{{ formatDate(resolvedMa.dateCreated) }}</dd></div>
+            <div v-if="addressLines(resolvedMa.adresse).length" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse' }"><dt>Adresse <button class="stammdaten-edit-btn" type="button" title="Adresse bearbeiten" aria-label="Adresse bearbeiten" @click.stop="startEditStammdaten('adresse')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'adresse'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.strasse" type="text" aria-label="Straße" placeholder="Straße"><input v-model.trim="stammdatenDraft.plz" type="text" aria-label="PLZ" placeholder="PLZ"><input v-model.trim="stammdatenDraft.ort" type="text" aria-label="Ort" placeholder="Ort"><input v-model.trim="stammdatenDraft.land" type="text" aria-label="Land" placeholder="Land"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse2' }"><dt>Adresse 2 <button class="stammdaten-edit-btn" type="button" title="Adresse 2 bearbeiten" aria-label="Adresse 2 bearbeiten" @click.stop="startEditStammdaten('adresse2')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'adresse2'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.strasse" type="text" aria-label="Straße" placeholder="Straße"><input v-model.trim="stammdatenDraft.plz" type="text" aria-label="PLZ" placeholder="PLZ"><input v-model.trim="stammdatenDraft.ort" type="text" aria-label="Ort" placeholder="Ort"><input v-model.trim="stammdatenDraft.land" type="text" aria-label="Land" placeholder="Land"><input v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon Adresse 2" placeholder="Telefon"><input v-model.trim="stammdatenDraft.email" type="email" aria-label="E-Mail Adresse 2" placeholder="E-Mail"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="resolvedMa.erstellt_von || resolvedMa.dateCreated"><dt>Erstellt</dt><dd class="stammdaten-detail-list"><span v-if="resolvedMa.erstellt_von">Von: {{ resolvedMa.erstellt_von }}</span><span v-if="resolvedMa.dateCreated">Am: {{ formatDate(resolvedMa.dateCreated) }}</span></dd></div>
           </dl>
         </section>
         <section class="arbeitsverhaeltnis-section">
@@ -1504,8 +1524,7 @@
             Lohn
           </h4>
           <dl class="arbeitsverhaeltnis-grid">
-            <div><dt>IBAN</dt><dd :class="{ 'iban-missing': !resolvedMa.iban }">{{ resolvedMa.iban || 'IBAN fehlt!' }}</dd></div>
-            <div v-if="resolvedMa.arbeitsverhaeltnis?.von"><dt>Gültig ab</dt><dd>{{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'lohn' }"><dt>IBAN & Gültig ab <button class="stammdaten-edit-btn" type="button" title="IBAN und Gültigkeitsdatum bearbeiten" aria-label="IBAN und Gültigkeitsdatum bearbeiten" @click.stop="startEditStammdaten('lohn')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'lohn'" class="stammdaten-detail-list"><span :class="{ 'iban-missing': !resolvedMa.iban }">IBAN: {{ resolvedMa.iban || 'IBAN fehlt!' }}</span><span v-if="resolvedMa.arbeitsverhaeltnis?.von">Gültig ab: {{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.iban" type="text" aria-label="IBAN" placeholder="IBAN"><input v-model="stammdatenDraft.von" type="date" aria-label="Gültig ab"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
             <div v-if="arbeitsverhaeltnisTypLabel"><dt>Arbeitsverhältnis</dt><dd>{{ arbeitsverhaeltnisTypLabel }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
           </dl>
@@ -1748,6 +1767,7 @@ import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
+import { useSignaturModal } from "@/stores/signaturModal";
 import api from "@/utils/api";
 import FlipMappings from "@/assets/FlipMappings.json";
 
@@ -1778,6 +1798,7 @@ export default {
     const router = useRouter();
     const { openDocument: openDocumentModal } = useDocumentModals();
     const { openTimeCapture } = useTimeCaptureModals();
+    const signaturModal = useSignaturModal();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
     const selfLoadedMa = ref(null);
@@ -1906,6 +1927,7 @@ export default {
       flip,
       openDocumentModal,
       openTimeCapture,
+      signaturModal,
     };
   },
 
@@ -1946,6 +1968,8 @@ export default {
 
       // Quick Actions Menu
       showQuickActionsMenu: false,
+      showQuickSignatureMenu: false,
+      quickSignatureMenuOpenLeft: false,
       linkCopied: false,
       quickActionsMenuStyle: {},
       _qaBtn: null,
@@ -2004,6 +2028,9 @@ export default {
       editingDispoNotiz: false,
       dispoNotizDraft: '',
       savingDispoNotiz: false,
+      editingStammdatenField: null,
+      stammdatenDraft: {},
+      savingStammdatenField: false,
       // Mini-calendar
       calendarEinsaetze: [],
       calendarLoading: false,
@@ -2033,6 +2060,14 @@ export default {
     contextMenuOptions() {
       return [
         { label: 'Bearbeiten', action: 'edit' },
+        {
+          label: 'Signatur',
+          icon: ['fas', 'file-signature'],
+          children: [
+            { label: 'Lohnvorschuss', action: 'lohnvorschuss', icon: ['fas', 'money-bill-wave'] },
+            { label: 'Urlaubsantrag', action: 'urlaubsantrag', icon: ['fas', 'calendar'] },
+          ],
+        },
         { label: this.resolvedMa?.isActive ? 'Deaktivieren' : 'Reaktivieren', action: 'toggle-active' },
         { label: 'Löschen', action: 'delete' }
       ];
@@ -2366,6 +2401,133 @@ export default {
         }
       } catch (err) {
         console.error('[EmployeeCard] refreshMitarbeiter failed:', err);
+      }
+    },
+
+    startEditStammdaten(field) {
+      const employee = this.resolvedMa;
+      if (!employee || this.savingStammdatenField) return;
+
+      const dateForInput = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+      };
+      const drafts = {
+        email: {
+          email: employee.email || '',
+          additionalEmails: (employee.additionalEmails || []).join(', '),
+        },
+        telefon: {
+          telefon: employee.telefon || '',
+        },
+        geburtsdaten: {
+          geburtsname: employee.geburtsname || '',
+          geburtsdatum: dateForInput(employee.geburtsdatum),
+          geburtsort: employee.geburtsort || '',
+        },
+        groessen: {
+          konfektionsgroesse: employee.konfektionsgroesse || '',
+          schuhgroesse: employee.schuhgroesse || '',
+        },
+        adresse: {
+          strasse: employee.adresse?.strasse || '',
+          plz: employee.adresse?.plz || '',
+          ort: employee.adresse?.ort || '',
+          land: employee.adresse?.land || '',
+        },
+        adresse2: {
+          strasse: employee.adresse2?.strasse || '',
+          plz: employee.adresse2?.plz || '',
+          ort: employee.adresse2?.ort || '',
+          land: employee.adresse2?.land || '',
+          telefon: employee.adresse2?.telefon || '',
+          email: employee.adresse2?.email || '',
+        },
+        lohn: {
+          iban: employee.iban || '',
+          von: dateForInput(employee.arbeitsverhaeltnis?.von),
+        },
+      };
+
+      this.stammdatenDraft = drafts[field] || {};
+      this.editingStammdatenField = field;
+    },
+
+    cancelEditStammdaten() {
+      if (this.savingStammdatenField) return;
+      this.editingStammdatenField = null;
+      this.stammdatenDraft = {};
+    },
+
+    async saveStammdaten() {
+      const field = this.editingStammdatenField;
+      const employee = this.resolvedMa;
+      if (!field || !employee?._id || this.savingStammdatenField) return;
+
+      let update;
+      if (field === 'email') {
+        update = {
+          email: this.stammdatenDraft.email?.trim() || '',
+          additionalEmails: (this.stammdatenDraft.additionalEmails || '')
+            .split(',')
+            .map((email) => email.trim())
+            .filter(Boolean),
+        };
+      } else if (field === 'telefon') {
+        update = { telefon: this.stammdatenDraft.telefon?.trim() || '' };
+      } else if (field === 'geburtsdaten') {
+        update = {
+          geburtsname: this.stammdatenDraft.geburtsname?.trim() || '',
+          geburtsdatum: this.stammdatenDraft.geburtsdatum || null,
+          geburtsort: this.stammdatenDraft.geburtsort?.trim() || '',
+        };
+      } else if (field === 'groessen') {
+        update = {
+          konfektionsgroesse: this.stammdatenDraft.konfektionsgroesse?.trim() || '',
+          schuhgroesse: this.stammdatenDraft.schuhgroesse?.trim() || '',
+        };
+      } else if (field === 'adresse' || field === 'adresse2') {
+        update = {
+          [field]: {
+            strasse: this.stammdatenDraft.strasse?.trim() || '',
+            plz: this.stammdatenDraft.plz?.trim() || '',
+            ort: this.stammdatenDraft.ort?.trim() || '',
+            land: this.stammdatenDraft.land?.trim() || '',
+            ...(field === 'adresse2' && {
+              telefon: this.stammdatenDraft.telefon?.trim() || '',
+              email: this.stammdatenDraft.email?.trim() || '',
+            }),
+          },
+        };
+      } else if (field === 'lohn') {
+        update = {
+          iban: this.stammdatenDraft.iban?.trim() || '',
+          arbeitsverhaeltnis: {
+            ...employee.arbeitsverhaeltnis,
+            von: this.stammdatenDraft.von || null,
+          },
+        };
+      } else {
+        return;
+      }
+
+      this.savingStammdatenField = true;
+      try {
+        const response = await api.patch(`/api/personal/mitarbeiter/${employee._id}`, update);
+        if (!response.data?.success) {
+          throw new Error(response.data?.message || 'Die Stammdaten konnten nicht gespeichert werden.');
+        }
+        Object.assign(employee, response.data.data);
+        this.dataCache.updateOneMitarbeiter(response.data.data);
+        this.editingStammdatenField = null;
+        this.stammdatenDraft = {};
+      } catch (error) {
+        console.error('Stammdaten speichern fehlgeschlagen:', error);
+        alert(error.response?.data?.message || error.message || 'Die Stammdaten konnten nicht gespeichert werden.');
+      } finally {
+        this.savingStammdatenField = false;
       }
     },
 
@@ -3299,11 +3461,49 @@ export default {
     async handleContextMenuSelect(action) {
       if (action === 'edit') {
         this.openEditModal();
+      } else if (action === 'lohnvorschuss') {
+        this.openLohnvorschussSignature();
+      } else if (action === 'urlaubsantrag') {
+        this.openUrlaubsantragSignature();
       } else if (action === 'delete') {
         this.openDeleteModal();
       } else if (action === 'toggle-active') {
         await this.toggleActiveStatus();
       }
+    },
+
+    openLohnvorschussSignature() {
+      this.openEmployeeSignature('lohnvorschuss', 'Lohnvorschuss');
+    },
+
+    openUrlaubsantragSignature() {
+      this.openEmployeeSignature('urlaubsantrag', 'Urlaubsantrag');
+    },
+
+    openEmployeeSignature(typKey, documentTypeLabel) {
+      const mitarbeiter = this.resolvedMa;
+      const name = [mitarbeiter?.vorname, mitarbeiter?.nachname].filter(Boolean).join(' ').trim();
+      if (!mitarbeiter?._id || !name || !mitarbeiter.locationV2) {
+        window.dispatchEvent(new CustomEvent('app-toast', {
+          detail: { message: `Für ${documentTypeLabel} werden Mitarbeitername und Standort benötigt.`, type: 'error' },
+        }));
+        return;
+      }
+
+      const date = new Date();
+      const dateLabel = [date.getDate(), date.getMonth() + 1, date.getFullYear()]
+        .map((value, index) => index < 2 ? String(value).padStart(2, '0') : String(value))
+        .join('-');
+      const locationId = typeof mitarbeiter.locationV2 === 'object'
+        ? mitarbeiter.locationV2._id
+        : mitarbeiter.locationV2;
+
+      this.signaturModal.openModal({
+        typKey,
+        mitarbeiterId: mitarbeiter._id,
+        locationId,
+        name: `${documentTypeLabel} | ${name} | ${dateLabel}`,
+      });
     },
 
     // --- Quick Actions Menu (Header 3-dot) ---
@@ -3347,11 +3547,26 @@ export default {
 
     _closeQuickActions() {
       this.showQuickActionsMenu = false;
+      this.showQuickSignatureMenu = false;
       if (this._qaScrollHandler) {
         window.removeEventListener('scroll', this._qaScrollHandler, true);
         this._qaScrollHandler = null;
       }
       this._qaBtn = null;
+    },
+
+    openQuickSignatureMenu(event) {
+      const menuItem = event.currentTarget;
+      this.quickSignatureMenuOpenLeft = menuItem.getBoundingClientRect().right + 190 > window.innerWidth;
+      this.showQuickSignatureMenu = true;
+    },
+
+    toggleQuickSignatureMenu(event) {
+      if (this.showQuickSignatureMenu) {
+        this.showQuickSignatureMenu = false;
+        return;
+      }
+      this.openQuickSignatureMenu(event);
     },
 
     getPhoneNumber() {
@@ -3381,11 +3596,21 @@ export default {
       this._closeQuickActions();
       switch (action) {
         case 'time-capture':
-          this.openTimeCapture({ employeeId: String(this.resolvedMa._id) });
+          this.openTimeCapture({
+            employeeId: String(this.resolvedMa._id),
+            employeeName: [this.resolvedMa.vorname, this.resolvedMa.nachname].filter(Boolean).join(' '),
+            preselectFirstOrder: false,
+          });
           break;
         case 'time-management':
           this.$router.push({ name: 'Payroll', query: { tab: 'stundenerfassung', employeeId: String(this.resolvedMa._id) } });
           this.$emit('close');
+          break;
+        case 'lohnvorschuss':
+          this.openLohnvorschussSignature();
+          break;
+        case 'urlaubsantrag':
+          this.openUrlaubsantragSignature();
           break;
         case 'sipgate': {
           const phone = this.getPhoneNumber();
@@ -6806,6 +7031,34 @@ export default {
     .fa-edit { color: #8b5cf6; }
     .fa-user { color: var(--primary, #3b82f6); }
   }
+
+  .qa-signature-menu {
+    position: relative;
+  }
+
+  .qa-item--submenu {
+    .qa-submenu-chevron {
+      margin-left: auto;
+      font-size: 11px;
+    }
+  }
+
+  .qa-submenu {
+    position: absolute;
+    top: -6px;
+    left: calc(100% + 4px);
+    min-width: 190px;
+    padding: 6px 0;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+
+    &.qa-submenu--left {
+      right: calc(100% + 4px);
+      left: auto;
+    }
+  }
   
   .qa-item--danger {
     &:hover {
@@ -7362,6 +7615,82 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+.stammdaten-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stammdaten-field dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stammdaten-edit-btn,
+.stammdaten-save-btn,
+.stammdaten-cancel-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.stammdaten-edit-btn {
+  opacity: 0;
+}
+
+.stammdaten-field:hover .stammdaten-edit-btn,
+.stammdaten-field:focus-within .stammdaten-edit-btn,
+.stammdaten-field--editing .stammdaten-edit-btn {
+  opacity: 1;
+}
+
+.stammdaten-edit-btn:hover,
+.stammdaten-save-btn:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.stammdaten-cancel-btn:hover {
+  color: #c73b3b;
+  background: color-mix(in srgb, #c73b3b 12%, transparent);
+}
+
+.stammdaten-inline-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stammdaten-inline-editor input {
+  min-width: 0;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.stammdaten-edit-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.stammdaten-email-alternatives {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 @container (max-width: 960px) {

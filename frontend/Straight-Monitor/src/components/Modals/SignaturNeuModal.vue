@@ -1458,6 +1458,17 @@ async function hydrateFromContext() {
     form.value.templateId   = ctx.templateId;
     form.value.templateName = ctx.templateName || '';
     applyTemplateDefaults(templates.value.find(t => t.id === ctx.templateId));
+  } else if (ctx.typKey === 'lohnvorschuss') {
+    const lohnvorschussTemplate = templates.value.find(template =>
+      String(template.defaultTypId || '') === String(form.value.typId || '')
+    );
+    if (!lohnvorschussTemplate) {
+      error.value = 'Für Lohnvorschüsse ist keine Standardvorlage hinterlegt. Bitte die Vorlage in der Signaturverwaltung dem Dokumenttyp zuordnen.';
+      return;
+    }
+    form.value.templateId = lohnvorschussTemplate.id;
+    form.value.templateName = lohnvorschussTemplate.name;
+    applyTemplateDefaults(lohnvorschussTemplate);
   }
 
   if (ctx.customEndpoint && form.value.typId) {

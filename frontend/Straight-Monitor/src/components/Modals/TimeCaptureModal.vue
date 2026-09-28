@@ -185,7 +185,7 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfassung.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
-const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, minimizeId: { type: String, required: true } });
+const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, employeeName: { type: String, default: '' }, preselectFirstOrder: { type: Boolean, default: true }, minimizeId: { type: String, required: true } });
 const emit = defineEmits(['update:modelValue']);
 const router = useRouter();
 const month = ref(new Date().toLocaleDateString('sv-SE').slice(0, 7));
@@ -193,7 +193,7 @@ const selectedOrder = ref(props.auftragNr || '');
 const orders = ref([]), review = ref(null), generation = ref(0), loading = ref(false), busy = ref(false);
 const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref(null);
 const filterExpanded = ref(false);
-const employeeSearch = ref('');
+const employeeSearch = ref(props.employeeName);
 const submissionFilter = ref('all');
 const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen' }[status] || 'Offen');
 const modalDetails = computed(() => {
@@ -235,7 +235,7 @@ async function loadOrders() {
   try {
     const { data } = await api.get(`/api/working-times/employees/${props.employeeId}/orders`, { params: { month: month.value } });
     orders.value = data.orders;
-    selectedOrder.value = data.orders[0]?.auftragNr || '';
+    selectedOrder.value = props.preselectFirstOrder ? data.orders[0]?.auftragNr || '' : '';
     if (selectedOrder.value) await loadReview();
   } catch (failure) { error.value = messageOf(failure); }
   finally { loading.value = false; }

@@ -182,37 +182,42 @@
 
     <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
 
-    <Teleport to="body">
-      <Transition name="template-create-modal">
-        <div v-if="showCreateTemplateModal" class="template-create-backdrop" @mousedown.self="closeCreateTemplateModal">
-          <form class="template-create-dialog" @submit.prevent="confirmCreateTemplate">
-            <header>
-              <h2>{{ newTemplate.id ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h2>
-            </header>
-            <div class="template-create-body">
-              <label for="template-create-name">Bezeichnung</label>
-              <input
-                id="template-create-name"
-                v-model="newTemplate.name"
-                name="name"
-                type="text"
-                placeholder="z. B. Arbeitsvertrag KZF"
-                autocomplete="off"
-              />
-              <label for="template-create-typ">Dokumenttyp</label>
-              <select id="template-create-typ" v-model="newTemplate.defaultTypId" name="defaultTypId">
-                <option value="" disabled>Dokumenttyp auswählen</option>
-                <option v-for="typ in typen" :key="typ._id" :value="typ._id">{{ typ.label }}</option>
-              </select>
-            </div>
-            <footer>
-              <button class="template-create-cancel" type="button" @click="closeCreateTemplateModal">Abbrechen</button>
-              <button class="btn-primary" type="submit">Weiter</button>
-            </footer>
-          </form>
+    <ModalFrame
+      :model-value="showCreateTemplateModal"
+      size="sm"
+      :style="{ '--mf-body-padding': '0' }"
+      @update:model-value="closeCreateTemplateModal"
+    >
+      <template #header>
+        <h2 class="template-create-title">{{ newTemplate.id ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h2>
+      </template>
+
+      <form id="template-create-form" @submit.prevent="confirmCreateTemplate">
+        <div class="template-create-body">
+          <label for="template-create-name">Bezeichnung</label>
+          <input
+            id="template-create-name"
+            v-model="newTemplate.name"
+            name="name"
+            type="text"
+            placeholder="z. B. Arbeitsvertrag KZF"
+            autocomplete="off"
+          />
+          <label for="template-create-typ">Dokumenttyp</label>
+          <select id="template-create-typ" v-model="newTemplate.defaultTypId" name="defaultTypId">
+            <option value="" disabled>Dokumenttyp auswählen</option>
+            <option v-for="typ in typen" :key="typ._id" :value="typ._id">{{ typ.label }}</option>
+          </select>
         </div>
-      </Transition>
-    </Teleport>
+      </form>
+
+      <template #footer>
+        <div class="template-create-actions">
+          <button class="template-create-cancel" type="button" @click="closeCreateTemplateModal">Abbrechen</button>
+          <button class="btn-primary" type="submit" form="template-create-form">Weiter</button>
+        </div>
+      </template>
+    </ModalFrame>
 
     <!-- Template context menu — teleported to body to escape overflow clipping -->
     <Teleport to="body">
@@ -274,6 +279,7 @@ import SortMenu from '@/components/ui-elements/SortMenu.vue';
 import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import R2FileBrowser from '@/components/R2FileBrowser.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen, faClone);
 
@@ -579,7 +585,8 @@ async function confirmRename(t) {
   }
 }
 
-function createTemplate() {
+async function createTemplate() {
+  await loadTypen();
   newTemplate.value = { id: null, name: '', defaultTypId: '' };
   showCreateTemplateModal.value = true;
 }
@@ -599,7 +606,8 @@ function confirmCreateTemplate(event) {
   closeCreateTemplateModal();
   builder.openBuilder({ templateId: existingId || null, name, defaultTypId }, () => loadTemplates());
 }
-function editTemplate(t) {
+async function editTemplate(t) {
+  await loadTypen();
   newTemplate.value = { id: t.id, name: t.name, defaultTypId: t.defaultTypId || '' };
   showCreateTemplateModal.value = true;
 }
@@ -927,37 +935,7 @@ onUnmounted(() => {
   color: var(--muted);
 }
 
-.template-create-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.45);
-}
-.template-create-dialog {
-  width: min(440px, 100%);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-
-  header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    h2 { font-size: 1.05rem; font-weight: 600; }
-  }
-  footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 14px 20px;
-    border-top: 1px solid var(--border);
-  }
-}
+.template-create-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .template-create-body {
   display: flex;
   flex-direction: column;
@@ -979,6 +957,7 @@ onUnmounted(() => {
   }
   select { margin-bottom: 8px; cursor: pointer; }
 }
+.template-create-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .template-create-cancel {
   padding: 9px 14px;
   border: 1px solid var(--border);
@@ -990,8 +969,6 @@ onUnmounted(() => {
   cursor: pointer;
   &:hover { border-color: var(--primary); color: var(--primary); }
 }
-.template-create-modal-enter-active, .template-create-modal-leave-active { transition: opacity 0.15s; }
-.template-create-modal-enter-from, .template-create-modal-leave-to { opacity: 0; }
 
 .template-grid {
   display: grid;
