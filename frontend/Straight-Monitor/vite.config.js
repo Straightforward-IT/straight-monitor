@@ -7,6 +7,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
+      },
       manifest: {
         name: 'Straight Monitor',
         short_name: 'Straight Monitor',
