@@ -47,42 +47,42 @@
                   @dragend="endColumnDrag"
                 >
                   <span>{{ labelFor(key) }}</span>
-                  <button
-                    type="button"
+                  <AppIconButton
                     class="column-remove"
-                    :aria-label="`${labelFor(key)} entfernen`"
-                    :title="`${labelFor(key)} entfernen`"
+                    size="sm"
+                    variant="ghost"
+                    :label="`${labelFor(key)} entfernen`"
                     @click.stop="removeField(key)"
                   >
                     <font-awesome-icon icon="fa-solid fa-xmark" />
-                  </button>
+                  </AppIconButton>
                 </th>
                 <th class="column-add-cell">
-                  <button
-                    type="button"
+                  <AppIconButton
                     class="column-add"
-                    aria-label="Spalte hinzufügen"
-                    title="Spalte hinzufügen"
+                    size="sm"
+                    variant="ghost"
+                    label="Spalte hinzufügen"
                     @click.stop="openColumnMenu"
                   >
                     <font-awesome-icon icon="fa-solid fa-plus" />
-                  </button>
+                  </AppIconButton>
                 </th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="row in previewRows" :key="row.__exportKey">
                 <td v-for="(key, columnIndex) in selectedKeys" :key="key">
-                  <button
+                  <AppIconButton
                     v-if="columnIndex === 0"
-                    type="button"
                     class="row-remove"
-                    :aria-label="`${row.__employeeName} aus Export entfernen`"
-                    :title="`${row.__employeeName} aus Export entfernen`"
+                    size="sm"
+                    variant="ghost"
+                    :label="`${row.__employeeName} aus Export entfernen`"
                     @click="removeEmployee(row.__exportKey)"
                   >
                     <font-awesome-icon icon="fa-solid fa-minus" />
-                  </button>
+                  </AppIconButton>
                   {{ row[key] }}
                 </td>
                 <td />
@@ -91,10 +91,10 @@
           </table>
           <div v-else class="preview-empty">
             <p>Füge die erste Spalte hinzu.</p>
-            <button type="button" class="column-add column-add--empty" @click.stop="openColumnMenu">
+            <AppButton size="sm" variant="outlined" @click.stop="openColumnMenu">
               <font-awesome-icon icon="fa-solid fa-plus" />
               Spalte hinzufügen
-            </button>
+            </AppButton>
           </div>
         </div>
       </section>
@@ -135,6 +135,8 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import api from '@/utils/api';
 
 library.add(faDownload, faMinus, faPlus, faTableColumns, faXmark);
@@ -370,15 +372,12 @@ async function doExport() {
 .preview-table td { max-width: 200px; padding: 7px 12px; overflow: hidden; border-bottom: 1px solid var(--border); color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .preview-table tbody tr:hover { background: var(--hover, #f5f5f5); }
 .preview-table tbody td:first-child { position: relative; padding-left: 42px; }
-.row-remove { position: absolute; top: 50%; left: 10px; display: inline-grid; width: 22px; height: 22px; padding: 0; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; opacity: 0; transform: translateY(-50%); }
+.row-remove { --app-button-icon-size: 24px; position: absolute; top: 50%; left: 10px; min-height: 24px; opacity: 0; transform: translateY(-50%); }
 .preview-table tbody tr:hover .row-remove, .row-remove:focus-visible { opacity: 1; }
-.row-remove:hover, .row-remove:focus-visible { background: color-mix(in srgb, #dc3545 12%, transparent); color: #dc3545; }
+.row-remove:hover, .row-remove:focus-visible { background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); color: var(--status-danger-text); }
 .column-add-cell { width: 44px; min-width: 44px; padding: 4px !important; text-align: center !important; }
-.column-remove, .column-add { display: inline-grid; width: 24px; height: 24px; padding: 0; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
-.column-remove:hover, .column-add:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
+.column-remove, .column-add { --app-button-icon-size: 24px; min-height: 24px; }
 .column-remove { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); }
-.column-add { color: var(--primary); }
-.column-add--empty { width: auto; height: auto; gap: 7px; padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); }
 .preview-empty { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 120px; color: var(--muted); font-size: 14px; }
 .footer-info { display: flex; align-items: center; margin-right: auto; gap: 12px; color: var(--muted); font-size: 13px; }
 .footer-actions { display: flex; gap: 10px; }

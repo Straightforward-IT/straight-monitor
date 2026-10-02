@@ -27,9 +27,6 @@
           <button type="button" class="btn-icon" title="Standort bearbeiten" @click="openLocationEdit(location)">
             <font-awesome-icon icon="fa-solid fa-pen" />
           </button>
-          <button type="button" class="btn-icon" :title="location.isActive ? 'Standort deaktivieren' : 'Standort aktivieren'" @click="toggleLocation(location)">
-            <font-awesome-icon :icon="location.isActive ? 'fa-solid fa-ban' : 'fa-solid fa-check'" />
-          </button>
         </div>
       </div>
     </section>

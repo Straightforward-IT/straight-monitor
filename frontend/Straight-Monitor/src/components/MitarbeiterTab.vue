@@ -80,22 +80,28 @@
               />
               <!-- Selection Info -->
               <div v-if="selectedMitarbeiterIds.size > 0" class="selection-info">
-                <span class="selection-count">{{ selectedMitarbeiterIds.size }} ausgewählt</span>
-                <button
+                <AppButton
+                  class="selection-count"
+                  size="sm"
+                  variant="secondary"
+                  :aria-label="`${selectedMitarbeiterIds.size} Mitarbeiter ausgewählt, Auswahl aufheben`"
+                  @click="clearSelection"
+                >
+                  {{ selectedMitarbeiterIds.size }} ausgewählt
+                  <font-awesome-icon icon="fa-solid fa-times" aria-hidden="true" />
+                </AppButton>
+                <AppButton
                   v-if="selectedMitarbeiterIds.size < filteredMitarbeitersSorted.length"
-                  class="btn-select-all-filtered"
+                  size="sm"
+                  variant="outlined"
                   @click="selectAllFiltered"
                 >
                   Alle {{ filteredMitarbeitersSorted.length }} auswählen
-                </button>
-                <button class="btn-export-action" @click="showExportModal = true">
+                </AppButton>
+                <AppButton size="sm" @click="showExportModal = true">
                   <font-awesome-icon icon="fa-solid fa-table" />
                   Exportieren
-                </button>
-                <button class="btn-clear" @click="clearSelection">
-                  <font-awesome-icon icon="fa-solid fa-times" />
-                  Auswahl löschen
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -445,7 +451,6 @@
 <script>
 import api from "@/utils/api";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import CustomTooltip from './CustomTooltip.vue';
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
@@ -458,6 +463,7 @@ import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import SortMenu from "@/components/ui-elements/SortMenu.vue";
 import ToolbarPageControls from "@/components/ui-elements/ToolbarPageControls.vue";
+import AppButton from "@/components/ui-elements/AppButton.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
@@ -551,7 +557,7 @@ library.add(
 
 export default {
   name: "MitarbeiterTab",
-  components: { FontAwesomeIcon, EmployeeCard, CustomTooltip, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, EmployeeCardModal, ImageCropModal, MitarbeiterSearch, Toolbar, SortMenu, ToolbarPageControls },
+  components: { FontAwesomeIcon, EmployeeCard, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, EmployeeCardModal, ImageCropModal, MitarbeiterSearch, Toolbar, SortMenu, ToolbarPageControls, AppButton },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
@@ -1130,11 +1136,6 @@ export default {
       this.selectedMitarbeiterIds = new Set(this.selectedMitarbeiterIds);
     },
 
-    clearSelection() {
-      this.selectedMitarbeiterIds.clear();
-      this.selectedMitarbeiterIds = new Set();
-    },
-
     // Trinity Status Methods
     getFlipStatus(ma) {
       if (!ma.flip) return 'not-linked';
@@ -1319,55 +1320,6 @@ export default {
     },
 
 
-
-    // Personalnr editing
-    startEditPersonalnr(ma) {
-      this.editingPersonalnrId = ma._id;
-      this.editingPersonalnrValue = ma.personalnr || '';
-    },
-
-    cancelEditPersonalnr() {
-      this.editingPersonalnrId = null;
-      this.editingPersonalnrValue = '';
-    },
-
-    async savePersonalnr(ma) {
-      const newPersonalnr = this.editingPersonalnrValue.trim();
-      
-      // Validation
-      if (!newPersonalnr) {
-        alert('Bitte geben Sie eine Personalnummer ein.');
-        return;
-      }
-      
-      if (newPersonalnr === ma.personalnr) {
-        // No change
-        this.cancelEditPersonalnr();
-        return;
-      }
-      
-      try {
-        const response = await api.patch(`/api/personal/mitarbeiter/${ma._id}/personalnr`, {
-          personalnr: newPersonalnr
-        });
-        
-        if (response.data.success) {
-          // Update local data
-          ma.personalnr = newPersonalnr;
-          alert(`✓ Personalnummer erfolgreich aktualisiert auf: ${newPersonalnr}`);
-          this.cancelEditPersonalnr();
-        }
-      } catch (error) {
-        console.error('Error updating personalnr:', error);
-        if (error.response?.data?.conflict) {
-          alert(`⚠️ Konflikt: Diese Personalnummer ist bereits vergeben!\n\nVerwendet von: ${error.response.data.conflict.name}`);
-        } else if (error.response?.data?.message) {
-          alert(`Fehler: ${error.response.data.message}`);
-        } else {
-          alert('Fehler beim Aktualisieren der Personalnummer.');
-        }
-      }
-    },
 
     // Selection management
     clearSelection() {
@@ -1774,14 +1726,14 @@ export default {
 
 .people-page :deep(.location-filter-chip) {
   border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
-  color: var(--location-color);
+  color: var(--text);
 }
 
 .people-page :deep(.location-filter-chip.active) {
   background: color-mix(in srgb, var(--location-color) 12%, transparent);
   border-color: var(--location-color);
   box-shadow: inset 0 0 0 1px var(--location-color);
-  color: var(--location-color);
+  color: var(--text);
 }
 
 /* Controls */
@@ -1844,16 +1796,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.selection-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  background: var(--brand);
-  color: white;
-  padding: 6px 10px;
-  border-radius: 999px;
 }
 
 /* Filter Chips */
@@ -3251,66 +3193,7 @@ html {
 }
 
 .selection-count {
-  font-size: 0.875rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.btn-clear {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: var(--soft);
-    border-color: var(--brand);
-  }
-}
-
-.btn-select-all-filtered {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--brand);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--brand);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: color-mix(in srgb, var(--brand) 8%, transparent);
-  }
-}
-
-.btn-export-action {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: none;
-  border-radius: 4px;
-  background: #1d6f42;
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: #155c35;
-  }
+  border-radius: 999px;
 }
 
 .selection-checkbox,
