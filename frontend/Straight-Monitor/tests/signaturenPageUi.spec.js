@@ -8,6 +8,7 @@ import CustomerSignaturesPanel from '../src/components/customer/CustomerSignatur
 import ModalFrame from '../src/components/frames/ModalFrame.vue';
 import AppSelect from '../src/components/ui-elements/AppSelect.vue';
 import { useSignaturBuilder } from '../src/stores/signaturBuilder';
+import { useSignaturModal } from '../src/stores/signaturModal';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), patch: vi.fn(), put: vi.fn() },
@@ -104,6 +105,38 @@ describe('Signaturen page shared controls', () => {
     expect(wrapper.get('.sc-actions').text()).toContain('Stornieren');
     await wrapper.get('.sc-actions button').trigger('click');
     expect(wrapper.emitted('edit-draft')).toHaveLength(1);
+  });
+
+  it('opens Stundenliste drafts in the generated-document editor', async () => {
+    const stundenliste = {
+      _id: 'hours-1',
+      name: 'Stundenliste Auftrag 42',
+      typKey: 'stundenliste',
+      auftragNr: 42,
+      locationV2: 'hh',
+      status: 'draft',
+      submitters: [],
+    };
+    mocks.api.get.mockImplementation(url => {
+      if (url === '/api/signaturen?refresh=true' || url === '/api/signaturen') return Promise.resolve({ data: [stundenliste] });
+      if (url === '/api/signatur-typen') return Promise.resolve({ data: [type] });
+      if (url === '/api/locations') return Promise.resolve({ data: [{ _id: 'hh', nameFull: 'Hamburg' }] });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    wrapper = mount(SignaturenWorkspace, {
+      props: { tab: 'signaturen' },
+      attachTo: document.body,
+      global: { plugins: [pinia], stubs },
+    });
+    await vi.waitFor(() => expect(wrapper.findComponent(SignaturCard).exists()).toBe(true));
+    await wrapper.getComponent(SignaturCard).vm.$emit('edit-draft', stundenliste);
+    const modal = useSignaturModal(pinia);
+    expect(modal.context).toMatchObject({
+      draftId: 'hours-1',
+      auftragNr: 42,
+      typKey: 'stundenliste',
+      customEndpoint: '/api/signaturen/stundenliste/42',
+    });
   });
 
   it('uses ModalFrame for the embedded template builder and keeps close handling', async () => {

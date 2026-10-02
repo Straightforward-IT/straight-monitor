@@ -246,8 +246,9 @@ describe('signature wizard shared-control migration', () => {
     expect(chip.attributes('aria-pressed')).toBe('false');
     const pending = deferred();
     mocks.api.put.mockReturnValueOnce(pending.promise);
-    await byText(dialog(), 'Als Standard speichern').trigger('click');
-    expect(byText(dialog(), 'Als Standard speichern').attributes('aria-busy')).toBe('true');
+    const saveDefaults = byText(dialog().get('.sig-delivery-default-action'), 'Als Standard speichern');
+    await saveDefaults.trigger('click');
+    expect(saveDefaults.attributes('aria-busy')).toBe('true');
     expect(mocks.api.put).toHaveBeenCalledWith('/api/signaturen/folge-defaults', expect.objectContaining({ kundeId: 'kunde', typId: 'typ' }));
     pending.resolve({ data: {} });
     await flushPromises();

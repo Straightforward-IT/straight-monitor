@@ -382,16 +382,6 @@
                   spin
                 /> Laden…
               </span>
-              <AppButton
-                v-else-if="form.typId"
-                variant="outlined"
-                size="sm"
-                :loading="followerDefaultsSaving"
-                @click="saveFollowerDefaults"
-              >
-                <font-awesome-icon :icon="['fas', 'floppy-disk']" />
-                Als Standard speichern
-              </AppButton>
             </div>
             <div class="sig-follower-chips">
               <button
@@ -455,6 +445,21 @@
                 @click="removeAusliefernEmail(i)"
               >×</AppIconButton>
             </span>
+          </div>
+          <div
+            v-if="linkMode === 'kunde' && form.kundeId && form.typId"
+            class="sig-delivery-default-action"
+          >
+            <AppButton
+              variant="outlined"
+              size="sm"
+              title="Aktuelle Empfängerauswahl als Standard speichern"
+              :loading="followerDefaultsSaving"
+              @click="saveFollowerDefaults"
+            >
+              <font-awesome-icon :icon="['fas', 'floppy-disk']" />
+              Als Standard speichern
+            </AppButton>
           </div>
 
           <!-- Asana Aktionen -->
@@ -655,7 +660,7 @@
             @click="saveAsDraft"
           >
             <font-awesome-icon :icon="['fas', 'floppy-disk']" />
-            {{ modal.context.draftId ? 'Änderungen speichern' : 'Als Entwurf speichern' }}
+            {{ modal.context.draftId ? 'Entwurf speichern' : 'Als Entwurf speichern' }}
           </AppButton>
 
           <AppButton
@@ -2303,6 +2308,7 @@ const ContactSearchPlaceholder = {
   gap: 6px;
   margin-bottom: 8px;
 }
+.sig-delivery-default-action { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .sig-email-chip {
   display: inline-flex;
   align-items: center;

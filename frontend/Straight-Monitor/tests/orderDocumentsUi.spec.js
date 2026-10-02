@@ -292,8 +292,7 @@ describe('document and hours workspace contracts', () => {
     const { wrapper, pinia } = workspace({ stundenlisteStatus: hoursStatus('draft') });
     await wrapper.get('button[title="Signaturentwurf bearbeiten"]').trigger('click'); await flushPromises();
     expect(api.post).not.toHaveBeenCalled();
-    expect(useSignaturModal(pinia).context).toMatchObject({ draftId: 'hours-1', draftData: hoursStatus('draft').vorgang });
-    expect(useSignaturModal(pinia).context.customEndpoint).toBeNull();
+    expect(useSignaturModal(pinia).context).toMatchObject({ draftId: 'hours-1', auftragNr: 42, typKey: 'stundenliste', customEndpoint: '/api/signaturen/stundenliste/42' });
     expect(useSignaturModal(pinia).open).toBe(true);
   });
 

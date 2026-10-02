@@ -526,7 +526,14 @@ function onCancelled(id) {
 function onRefreshed(v) { upsertVorgang(v); }
 
 function onEditDraft(vorgang) {
-  modal.openModal({ draftId: vorgang._id, draftData: vorgang }, (updated) => {
+  const stundenlisteContext = vorgang.typKey === 'stundenliste' && vorgang.auftragNr
+    ? {
+        auftragNr: vorgang.auftragNr,
+        typKey: 'stundenliste',
+        customEndpoint: `/api/signaturen/stundenliste/${vorgang.auftragNr}`,
+      }
+    : {};
+  modal.openModal({ draftId: vorgang._id, draftData: vorgang, ...stundenlisteContext }, (updated) => {
     upsertVorgang(updated);
   });
 }

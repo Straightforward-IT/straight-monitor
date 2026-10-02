@@ -3615,6 +3615,9 @@ export default {
         {
           draftId: draft._id,
           draftData: draft,
+          auftragNr,
+          typKey: "stundenliste",
+          customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,
         },
         // The shared signature modal owns the embedded signing handoff.
         // Refresh only if this Auftrag is still selected when submission completes.
