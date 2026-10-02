@@ -91,36 +91,14 @@
             </div>
             <!-- Mobile day nav — lives inside the toolbar -->
             <template v-if="isMobile">
-              <button
-                class="mdn-btn"
-                @click="previousWeek"
-                title="Vorherige Woche"
-              >
-                <font-awesome-icon icon="fa-solid fa-angles-left" />
-              </button>
-              <button class="mdn-btn" @click="prevDay" title="Vorheriger Tag">
-                <font-awesome-icon icon="fa-solid fa-chevron-left" />
-              </button>
-              <DatePicker
+              <AuftragMobileDateNavigation
                 :model-value="mobileDayDate"
+                @previous-week="previousWeek"
+                @previous-day="prevDay"
+                @next-day="nextDay"
+                @next-week="nextWeek"
                 @update:model-value="setDateFromPicker"
-              >
-                <template #default="{ toggle }">
-                  <button
-                    class="mdn-cal-btn"
-                    @click="toggle"
-                    title="Datum w\u00e4hlen"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-calendar" />
-                  </button>
-                </template>
-              </DatePicker>
-              <button class="mdn-btn" @click="nextDay" title="Nächster Tag">
-                <font-awesome-icon icon="fa-solid fa-chevron-right" />
-              </button>
-              <button class="mdn-btn" @click="nextWeek" title="Nächste Woche">
-                <font-awesome-icon icon="fa-solid fa-angles-right" />
-              </button>
+              />
               <div
                 class="search-wrapper mdn-search"
                 @focusin="onSearchFocusIn"
@@ -355,7 +333,7 @@
                     <span class="shift-name" v-if="s.bezeichnung">{{
                       s.bezeichnung
                     }}</span>
-                    <span v-if="filters.displayLevels.einsatz" class="shift-pos" :class="getShiftBedarfClass(s)"
+                    <span v-if="filters.displayLevels.schicht || filters.displayLevels.einsatz" class="shift-pos" :class="getShiftBedarfClass(s)"
                       >{{ s.besetzt }}/{{ s.bedarf }}</span
                     >
                     <ul
@@ -457,17 +435,21 @@
                   <div v-if="week.showYear" class="kw-year-sep">
                     {{ week.year }}
                   </div>
-                  <button
+                  <AppButton
+                    variant="ghost"
+                    size="sm"
                     class="kw-week-btn"
                     :class="{
                       'is-active': week.isActive,
                       'is-today-week': week.isTodayWeek,
                     }"
                     :title="`KW ${week.kw} \u00b7 ${week.year}`"
+                    :aria-label="`Kalenderwoche ${week.kw} ${week.year} wählen`"
+                    :aria-current="week.isActive ? 'date' : undefined"
                     @click="jumpToWeek(week.date)"
                   >
                     <span class="kw-num-value">{{ week.kw }}</span>
-                  </button>
+                  </AppButton>
                 </template>
               </div>
             </div>
@@ -624,7 +606,7 @@
                         }}</span>
                       </div>
                       <span
-                        v-if="filters.displayLevels.einsatz"
+                        v-if="filters.displayLevels.schicht || filters.displayLevels.einsatz"
                         class="shift-pos"
                         :class="getShiftBedarfClass(s)"
                         >{{ s.besetzt }}/{{ s.bedarf }}</span
@@ -774,9 +756,9 @@
                 :key="label._id"
                 class="label-chip"
                 :style="{
-                  background: label.color + '22',
+                  background: `color-mix(in srgb, ${label.color} 13%, var(--surface))`,
                   borderColor: label.color,
-                  color: label.color,
+                  color: 'var(--text)',
                 }"
               >
                 {{ label.name }}
@@ -826,44 +808,12 @@
                     </span>
                   </div>
                 </div>
-                <CustomTooltip
-                  :text="
-                    schichtStundenlisteIncluded(schichtData)
-                      ? 'Aus Stundenliste ausschließen'
-                      : 'In Stundenliste aufnehmen'
-                  "
-                >
-                  <button
-                    type="button"
-                    class="stundenliste-visibility-btn"
-                    :class="{
-                      'is-excluded': !schichtStundenlisteIncluded(schichtData),
-                    }"
-                    :disabled="
-                      isStundenlisteTogglePending(schichtData.einsaetze)
-                    "
-                    :aria-label="
-                      schichtStundenlisteIncluded(schichtData)
-                        ? 'Schicht aus Stundenliste ausschließen'
-                        : 'Schicht in Stundenliste aufnehmen'
-                    "
-                    @click.stop="
-                      toggleSchichtStundenlisteInclusion(schichtData)
-                    "
-                  >
-                    <font-awesome-icon
-                      :icon="
-                        schichtStundenlisteIncluded(schichtData)
-                          ? 'fa-solid fa-eye'
-                          : 'fa-solid fa-eye-slash'
-                      "
-                    />
-                    <font-awesome-icon
-                      class="stundenliste-signature-icon"
-                      icon="fa-solid fa-file-signature"
-                    />
-                  </button>
-                </CustomTooltip>
+                <OrderHoursVisibilityButton
+                  :included="schichtStundenlisteIncluded(schichtData)"
+                  :pending="isStundenlisteTogglePending(schichtData.einsaetze)"
+                  :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
+                  @toggle="toggleSchichtStundenlisteInclusion(schichtData)"
+                />
               </div>
 
               <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
@@ -952,8 +902,7 @@
                           openMitarbeiterCard(einsatz.mitarbeiterData)
                         "
                       >
-                        {{ einsatz.mitarbeiterData.vorname }}
-                        {{ einsatz.mitarbeiterData.nachname }}
+                        {{ formatEmployeeName(einsatz.mitarbeiterData) }}
                       </a>
                       <TlBadge v-if="isTeamleiter(einsatz.mitarbeiterData)" />
                       <span
@@ -961,12 +910,15 @@
                         class="bew-tag"
                         >Bew.</span
                       >
-                      <button
+                      <AppIconButton
+                        variant="ghost"
+                        size="sm"
                         v-for="doc in getDocsForMitarbeiter(
                           einsatz.mitarbeiterData._id,
                         )"
                         :key="doc._id"
                         class="doc-icon-btn"
+                        :label="`${doc.docType} für ${formatEmployeeName(einsatz.mitarbeiterData)} öffnen`"
                         :title="
                           doc.docType +
                           (doc.datum
@@ -982,8 +934,9 @@
                               : laufzettelImg
                           "
                           class="doc-icon-img"
+                          alt=""
                         />
-                      </button>
+                      </AppIconButton>
                       <span
                         v-if="einsatz.isPseudo"
                         class="pseudo-tag"
@@ -1021,50 +974,22 @@
                     >
                       {{ einsatz.qualifikationData.designation }}
                     </span>
-                    <CustomTooltip
-                      :text="
-                        einsatz.stundenlisteIncluded !== false
-                          ? 'Aus Stundenliste ausschließen'
-                          : 'In Stundenliste aufnehmen'
-                      "
-                    >
-                      <button
-                        type="button"
-                        class="stundenliste-visibility-btn"
-                        :class="{
-                          'is-excluded': einsatz.stundenlisteIncluded === false,
-                        }"
-                        :disabled="isStundenlisteTogglePending([einsatz])"
-                        :aria-label="
-                          einsatz.stundenlisteIncluded !== false
-                            ? 'Mitarbeiter aus Stundenliste ausschließen'
-                            : 'Mitarbeiter in Stundenliste aufnehmen'
-                        "
-                        @click.stop="
-                          toggleEinsatzStundenlisteInclusion(einsatz)
-                        "
-                      >
-                        <font-awesome-icon
-                          :icon="
-                            einsatz.stundenlisteIncluded !== false
-                              ? 'fa-solid fa-eye'
-                              : 'fa-solid fa-eye-slash'
-                          "
-                        />
-                        <font-awesome-icon
-                          class="stundenliste-signature-icon"
-                          icon="fa-solid fa-file-signature"
-                        />
-                      </button>
-                    </CustomTooltip>
-                    <button
+                    <OrderHoursVisibilityButton
+                      :included="einsatz.stundenlisteIncluded !== false"
+                      :pending="isStundenlisteTogglePending([einsatz])"
+                      :subject="einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')"
+                      @toggle="toggleEinsatzStundenlisteInclusion(einsatz)"
+                    />
+                    <AppIconButton
                       v-if="einsatz.isPseudo"
+                      variant="ghost"
+                      size="sm"
                       class="pseudo-remove-btn"
-                      title="Pseudo-Einsatz entfernen"
+                      :label="`Pseudo-Einsatz für ${einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')} entfernen`"
                       @click.stop="removePseudoEinsatz(einsatz._id)"
                     >
                       <font-awesome-icon icon="fa-solid fa-times" />
-                    </button>
+                    </AppIconButton>
                   </div>
                 </div>
 
@@ -1095,405 +1020,48 @@
           <span>Keine Schichten/Einsätze vorhanden</span>
         </div>
 
-        <!-- ── Einsatzdokumente Section ──────────────────────────── -->
-        <div class="einsatzdoks-section">
-          <div class="section-header">
-            <h3>
-              <font-awesome-icon icon="fa-solid fa-folder-open" />
-              Einsatzdokumente
-            </h3>
-            <div class="neu-dok-wrap">
-              <button
-                ref="neuDokButton"
-                class="neu-dok-btn"
-                type="button"
-                @click.stop="toggleNeuMenu"
-              >
-                <font-awesome-icon icon="fa-solid fa-plus" /> Neu
-                <font-awesome-icon
-                  icon="fa-solid fa-chevron-down"
-                  class="neu-dok-caret"
-                />
-              </button>
-            </div>
-          </div>
-
-          <!-- Stundenliste row -->
-          <div v-if="stundenlisteStatusLoading" class="einsatz-dok-loading">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade…
-          </div>
-          <template v-else>
-            <div
-              v-if="sidebarStundenliste"
-              class="einsatz-dok-row einsatz-dok-row--stundenliste"
-              :class="[
-                `einsatz-dok--${sidebarStundenliste.status}`,
-                'einsatz-dok-row--clickable',
-              ]"
-              @click="openSignaturVorgang(sidebarStundenliste._id)"
-            >
-              <div class="einsatz-dok-heading">
-                <div class="einsatz-dok-name">Stundenliste</div>
-              </div>
-              <div class="einsatz-dok-info">
-                <div class="einsatz-dok-meta">
-                  <span class="einsatz-dok-filename">{{
-                    sidebarStundenliste.fileName ||
-                    `${sidebarStundenliste.name}.pdf`
-                  }}</span>
-                  <span
-                    >{{
-                      sidebarStundenliste.submitters.filter(
-                        (s) => s.status === "completed",
-                      ).length
-                    }}/{{
-                      sidebarStundenliste.submitters.length
-                    }}
-                    unterschrieben</span
-                  >
-                </div>
-              </div>
-
-              <!-- Right-side actions -->
-              <div class="einsatz-dok-actions">
-                <a
-                  v-if="stundenlisteStatus?.signedPdfUrl"
-                  :href="stundenlisteStatus.signedPdfUrl"
-                  target="_blank"
-                  rel="noopener"
-                  class="einsatz-dok-action"
-                  title="Unterzeichnete Stundenliste öffnen"
-                  @click.stop
-                >
-                  <font-awesome-icon
-                    icon="fa-solid fa-arrow-up-right-from-square"
-                  />
-                </a>
-                <button
-                  v-if="stundenlisteStatus?.signedPdfUrl"
-                  class="einsatz-dok-action"
-                  type="button"
-                  title="Unterzeichnete Stundenliste herunterladen"
-                  @click.stop="
-                    downloadFile(
-                      stundenlisteStatus.signedPdfUrl,
-                      stundenlistePdfFilename(true),
-                    )
-                  "
-                >
-                  <font-awesome-icon icon="fa-solid fa-download" />
-                </button>
-                <button
-                  v-if="sidebarStundenliste.status === 'completed' && canSignaturen"
-                  class="einsatz-dok-gen-btn"
-                  type="button"
-                  title="Stundenliste neu ausstellen"
-                  @click.stop="openSignatureDialog({ allowReplacement: true })"
-                >
-                  <font-awesome-icon icon="fa-solid fa-file-signature" />
-                  Neu ausstellen
-                </button>
-                <button
-                  v-if="sidebarStundenliste.status === 'open' && canSignaturen"
-                  class="einsatz-dok-action einsatz-dok-action--open-sig"
-                  type="button"
-                  title="Signaturprozess anzeigen"
-                  @click.stop="openSignaturVorgang(sidebarStundenliste._id)"
-                >
-                  <font-awesome-icon
-                    icon="fa-solid fa-arrow-up-right-from-square"
-                  />
-                </button>
-                <template v-if="sidebarStundenliste.status === 'draft'">
-                  <a
-                    v-if="stundenlisteStatus?.unsignedPdfUrl"
-                    :href="stundenlisteStatus.unsignedPdfUrl"
-                    class="einsatz-dok-action"
-                    target="_blank"
-                    rel="noopener"
-                    title="Stundenliste öffnen"
-                    @click.stop
-                  >
-                    <font-awesome-icon
-                      icon="fa-solid fa-arrow-up-right-from-square"
-                    />
-                  </a>
-                  <button
-                    v-if="stundenlisteStatus?.unsignedPdfUrl"
-                    class="einsatz-dok-action"
-                    type="button"
-                    title="Stundenliste herunterladen"
-                    @click.stop="
-                      downloadFile(
-                        stundenlisteStatus.unsignedPdfUrl,
-                        stundenlistePdfFilename(),
-                      )
-                    "
-                  >
-                    <font-awesome-icon icon="fa-solid fa-download" />
-                  </button>
-                  <button
-                    v-if="canSignaturen"
-                    class="einsatz-dok-action einsatz-dok-action--del"
-                    type="button"
-                    title="Signaturentwurf löschen"
-                    @click.stop="deleteStundenlisteDraft"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-trash" />
-                  </button>
-                  <button
-                    class="einsatz-dok-gen-btn"
-                    type="button"
-                    title="Signaturentwurf bearbeiten"
-                    @click.stop="openSignatureDialog"
-                  >
-                    <font-awesome-icon icon="fa-solid fa-file-signature" />
-                    Signieren
-                  </button>
-                </template>
-                <span
-                  class="einsatz-dok-badge"
-                  :class="`badge-${sidebarStundenliste.status}`"
-                >
-                  {{
-                    {
-                      open: "Ausstehend",
-                      completed: "Unterschrieben",
-                      draft: "Entwurf",
-                      cancelled: "Storniert",
-                    }[sidebarStundenliste.status] || sidebarStundenliste.status
-                  }}
-                </span>
-              </div>
-            </div>
-          </template>
-
-          <!-- Reisekostenabrechnungen -->
-          <div
-            v-for="rk in reisekostenListe"
-            :key="rk._id"
-            class="einsatz-dok-row"
-            :class="`einsatz-dok--${rk.status}`"
-          >
-            <font-awesome-icon
-              icon="fa-solid fa-car"
-              class="einsatz-dok-icon"
-            />
-            <div class="einsatz-dok-info">
-              <div class="einsatz-dok-name">Reisekostenabrechnung</div>
-              <div class="einsatz-dok-meta">
-                {{ reisekostenName(rk) }}
-                <template v-if="rk.status === 'signature_pending'">
-                  &middot; Signatur ausstehend</template
-                >
-                <template v-else-if="rk.status === 'completed'">
-                  &middot; Unterschrieben</template
-                >
-                <template v-else> &middot; Entwurf</template>
-              </div>
-            </div>
-            <div class="einsatz-dok-actions">
-              <button
-                v-if="rk.signaturVorgang?._id"
-                class="einsatz-dok-action"
-                type="button"
-                title="Signaturvorgang öffnen"
-                @click="openSignaturVorgang(rk.signaturVorgang._id)"
-              >
-                <font-awesome-icon icon="fa-solid fa-file-signature" />
-              </button>
-              <button
-                class="einsatz-dok-action"
-                type="button"
-                title="PDF öffnen"
-                @click="openReisekostenPdf(rk)"
-              >
-                <font-awesome-icon
-                  icon="fa-solid fa-arrow-up-right-from-square"
-                />
-              </button>
-              <button
-                v-if="rk.status === 'draft'"
-                class="einsatz-dok-action"
-                type="button"
-                title="Bearbeiten"
-                @click="openReisekostenModal(rk._id)"
-              >
-                <font-awesome-icon icon="fa-solid fa-pencil" />
-              </button>
-              <button
-                v-if="rk.status === 'draft' && canSignaturen"
-                class="einsatz-dok-gen-btn"
-                type="button"
-                title="Zur Signatur senden"
-                @click="openReisekostenSignatur(rk)"
-              >
-                <font-awesome-icon icon="fa-solid fa-file-signature" />
-                Signieren
-              </button>
-              <button
-                v-if="rk.status !== 'signature_pending'"
-                class="einsatz-dok-action einsatz-dok-action--del"
-                type="button"
-                title="Löschen"
-                @click="deleteReisekosten(rk)"
-              >
-                <font-awesome-icon icon="fa-solid fa-trash" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Uploaded docs -->
-          <div v-if="einsatzDoksLoading" class="einsatz-dok-loading">
-            <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade…
-          </div>
-          <template v-else>
-            <div
-              v-for="dok in einsatzDoks"
-              :key="dok.key"
-              class="einsatz-dok-row einsatz-dok--upload"
-            >
-              <font-awesome-icon
-                icon="fa-solid fa-file"
-                class="einsatz-dok-icon"
-              />
-              <div class="einsatz-dok-info">
-                <div class="einsatz-dok-name">{{ dok.filename }}</div>
-                <div class="einsatz-dok-meta">
-                  {{ formatFileSize(dok.size) }}
-                </div>
-              </div>
-              <div class="einsatz-dok-actions">
-                <button
-                  class="einsatz-dok-action"
-                  type="button"
-                  title="Öffnen"
-                  @click="previewEinsatzDok(dok)"
-                >
-                  <font-awesome-icon
-                    icon="fa-solid fa-arrow-up-right-from-square"
-                  />
-                </button>
-                <button
-                  class="einsatz-dok-action"
-                  type="button"
-                  title="Herunterladen"
-                  @click="downloadEinsatzDok(dok)"
-                >
-                  <font-awesome-icon icon="fa-solid fa-download" />
-                </button>
-                <button
-                  class="einsatz-dok-action einsatz-dok-action--del"
-                  title="Löschen"
-                  type="button"
-                  @click="deleteEinsatzDok(dok)"
-                >
-                  <font-awesome-icon icon="fa-solid fa-xmark" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Uploading indicator -->
-            <div
-              v-if="einsatzDokUploading"
-              class="einsatz-dok-row einsatz-dok--uploading"
-            >
-              <font-awesome-icon
-                icon="fa-solid fa-spinner"
-                spin
-                class="einsatz-dok-icon"
-              />
-              <div class="einsatz-dok-info">
-                <div class="einsatz-dok-name">Wird hochgeladen…</div>
-              </div>
-            </div>
-
-            <label class="einsatz-dok-upload-btn">
-              <font-awesome-icon icon="fa-solid fa-upload" />
-              Dokumente hochladen
-              <input
-                type="file"
-                multiple
-                class="sr-only"
-                @change="onEinsatzDokUpload"
-              />
-            </label>
-          </template>
-        </div>
+        <OrderDocumentsPanel
+          :hours-status="stundenlisteStatus"
+          :hours-loading="stundenlisteStatusLoading"
+          :documents="einsatzDoks"
+          :documents-loading="einsatzDoksLoading"
+          :expenses="reisekostenListe"
+          :uploading="einsatzDokUploading"
+          :can-sign="canSignaturen"
+          :menu-open="showNeuMenu"
+          :expense-name="reisekostenName"
+          :format-size="formatFileSize"
+          @toggle-menu="toggleNeuMenu"
+          @open-signature="openSignaturVorgang"
+          @download-hours="downloadStundenliste"
+          @edit-hours="openSignatureDialog"
+          @delete-hours="deleteStundenlisteDraft"
+          @open-expense-pdf="openReisekostenPdf"
+          @edit-expense="openReisekostenModal"
+          @sign-expense="openReisekostenSignatur"
+          @delete-expense="deleteReisekosten"
+          @preview-document="previewEinsatzDok"
+          @download-document="downloadEinsatzDok"
+          @delete-document="deleteEinsatzDok"
+          @upload="onEinsatzDokUpload"
+        />
       </AuftragDetailsSidePanel>
 
-      <ModalFrame
+      <OrderDocumentUploadDialog
         v-if="showEinsatzDokDialog"
-        v-model="showEinsatzDokDialog"
-        title="Dokument hochladen"
-        size="sm"
+        :model-value="showEinsatzDokDialog"
+        v-model:type="einsatzDokType"
+        v-model:audience="einsatzDokAudience"
+        v-model:beruf-keys="einsatzDokBerufKeys"
+        v-model:allowed-roles="einsatzDokAllowedRoles"
+        v-model:delivery-emails="einsatzDokDeliveryEmails"
+        v-model:delivery-message="einsatzDokDeliveryMessage"
+        :file="pendingEinsatzDokFile"
+        :uploading="einsatzDokUploading"
+        :error="einsatzDokUploadError"
         @close="cancelEinsatzDokUpload"
-      >
-        <div class="einsatz-dok-dialog">
-          <p>{{ pendingEinsatzDokFile?.name }}</p>
-          <label
-            >Dokumenttyp
-            <select v-model="einsatzDokType">
-              <option value="einsatznachweis">Einsatznachweis</option>
-              <option value="einsatzinformation">Einsatzinformation</option>
-              <option value="ablauf">Ablaufplan</option>
-              <option value="wegbeschreibung">Wegbeschreibung</option>
-              <option value="sicherheit">Sicherheitsdokument</option>
-              <option value="kunde">Kundendokument</option>
-              <option value="sonstiges">Sonstiges</option>
-            </select>
-          </label>
-          <label
-            >Sichtbar für
-            <select v-model="einsatzDokAudience">
-              <option value="job">Mitarbeiter im Auftrag</option>
-              <option value="teamleiter">Teamleiter im Auftrag</option>
-              <option value="office">Alle App-Nutzer</option>
-              <option value="office_roles">Bestimmte App-Rollen</option>
-            </select>
-          </label>
-          <label v-if="einsatzDokAudience === 'job'"
-            >Berufe einschränken (optional)<BerufSearch
-              v-model="einsatzDokBerufKeys"
-          /></label>
-          <label v-if="einsatzDokAudience === 'office_roles'"
-            >App-Rollen (kommagetrennt)<input
-              v-model="einsatzDokAllowedRoles"
-              placeholder="ADMIN, VERTRIEB"
-          /></label>
-          <label
-            >E-Mail-Benachrichtigung (optional)<input
-              v-model="einsatzDokDeliveryEmails"
-              type="text"
-              inputmode="email"
-              placeholder="name@beispiel.de"
-          /></label>
-          <label
-            >Mitteilung (optional)<textarea
-              v-model="einsatzDokDeliveryMessage"
-              rows="3"
-            />
-          </label>
-        </div>
-        <template #footer>
-          <button
-            type="button"
-            class="einsatz-dok-dialog-cancel"
-            :disabled="einsatzDokUploading"
-            @click="cancelEinsatzDokUpload"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            class="einsatz-dok-dialog-submit"
-            :disabled="einsatzDokUploading"
-            @click="confirmEinsatzDokUpload"
-          >
-            {{ einsatzDokUploading ? "Wird hochgeladen..." : "Hochladen" }}
-          </button>
-        </template>
-      </ModalFrame>
+        @submit="confirmEinsatzDokUpload"
+      />
 
       <DocumentPreviewModal
         v-if="previewEinsatzDokument"
@@ -1513,623 +1081,43 @@
         @close="selectedMitarbeiter = null"
       />
 
-      <!-- ── Label Dialog ──────────────────────────────────────────────── -->
-      <div
-        v-if="showLabelDialog"
-        class="modal-overlay"
-        @click.self="showLabelDialog = false"
-      >
-        <div class="modal-content modal-qa">
-          <div class="modal-header">
-            <h2>
-              <font-awesome-icon icon="fa-solid fa-tag" /> Label hinzufügen
-            </h2>
-            <button class="close-btn" @click="showLabelDialog = false">
-              ×
-            </button>
-          </div>
-          <div class="modal-body">
-            <!-- Current Labels on this Auftrag -->
-            <div
-              class="qa-section"
-              v-if="selectedEvent.labels && selectedEvent.labels.length"
-            >
-              <div class="qa-section-label">Aktuelle Labels</div>
-              <div class="label-chips-row">
-                <span
-                  v-for="label in selectedEvent.labels"
-                  :key="label._id"
-                  class="label-chip label-chip--removable"
-                  :style="{
-                    background: label.color + '22',
-                    borderColor: label.color,
-                    color: label.color,
-                  }"
-                >
-                  {{ label.name }}
-                  <button
-                    class="label-chip-remove"
-                    @click="removeLabel(label._id)"
-                    title="Entfernen"
-                  >
-                    ×
-                  </button>
-                </span>
-              </div>
-            </div>
+      <OrderLabelDialog
+        v-model="showLabelDialog"
+        v-model:name="newLabelName"
+        v-model:color="newLabelColor"
+        :labels="selectedEvent?.labels || []"
+        :available-labels="availableGlobalLabels"
+        :preset-colors="labelPresetColors"
+        :saving="labelSaving"
+        :removing-id="labelRemovingId"
+        @create="saveLabel($event.name, $event.color)"
+        @quick-add="quickAddLabel"
+        @remove="removeLabel"
+      />
+      <PseudoOrderCreateDialog
+        v-model="showNewAuftragDialog"
+        v-model:form="newAuftrag"
+        :locations="locations"
+        :saving="newAuftragSaving"
+        @submit="saveNewPseudoAuftrag"
+      />
+      <PseudoAssignmentDialog
+        v-model="showPseudoDialog"
+        v-model:mode="pseudoSchichtMode"
+        v-model:new-shift="pseudoNewSchicht"
+        v-model:shift-key="pseudoSelectedSchicht"
+        :shifts="preparedSchichten"
+        :search="pseudoSearch"
+        :results="pseudoSearchResults"
+        :selected="pseudoSelectedMas"
+        :searching="pseudoSearching"
+        :saving="pseudoSaving"
+        :format-name="formatEmployeeName"
+        @update:search="updatePseudoSearch"
+        @toggle="togglePseudoMa"
+        @submit="savePseudoEinsatz"
+      />
 
-            <!-- Quick-add: Global labels -->
-            <div class="qa-section" v-if="availableGlobalLabels.length">
-              <div class="qa-section-label">Vorhandene Labels</div>
-              <div class="label-chips-row">
-                <span
-                  v-for="gl in availableGlobalLabels"
-                  :key="gl.name"
-                  class="label-chip label-chip--add"
-                  :style="{
-                    background: gl.color + '22',
-                    borderColor: gl.color,
-                    color: gl.color,
-                  }"
-                  @click="quickAddLabel(gl)"
-                >
-                  + {{ gl.name }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Create new label -->
-            <div class="qa-section">
-              <div class="qa-section-label">Neues Label</div>
-              <div class="qa-form-row">
-                <input
-                  v-model="newLabelName"
-                  class="qa-input"
-                  placeholder="Name (max. 20 Zeichen)"
-                  maxlength="20"
-                  @keyup.enter="saveLabel"
-                />
-                <span class="label-count">{{ newLabelName.length }}/20</span>
-              </div>
-              <div class="qa-form-row">
-                <span class="qa-form-field-label">Farbe:</span>
-                <div class="color-palette">
-                  <button
-                    v-for="c in labelPresetColors"
-                    :key="c"
-                    class="color-swatch"
-                    :class="{ active: newLabelColor === c }"
-                    :style="{ background: c }"
-                    @click="newLabelColor = c"
-                    :title="c"
-                  />
-                </div>
-                <input
-                  type="color"
-                  v-model="newLabelColor"
-                  class="color-input-native"
-                  title="Benutzerdefinierte Farbe"
-                />
-              </div>
-              <div class="qa-form-row">
-                <button
-                  class="qa-submit-btn"
-                  :disabled="!newLabelName.trim() || labelSaving"
-                  @click="saveLabel"
-                >
-                  <font-awesome-icon
-                    v-if="labelSaving"
-                    icon="fa-solid fa-spinner"
-                    spin
-                  />
-                  <font-awesome-icon v-else icon="fa-solid fa-check" />
-                  Hinzufügen
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Neuer Pseudo-Auftrag Dialog ──────────────────────────────────── -->
-      <div
-        v-if="showNewAuftragDialog"
-        class="modal-overlay"
-        @click.self="showNewAuftragDialog = false"
-      >
-        <div class="modal-content modal-qa">
-          <div class="modal-header">
-            <h2>
-              <font-awesome-icon icon="fa-solid fa-plus" /> Neuer Pseudo-Auftrag
-            </h2>
-            <button class="close-btn" @click="showNewAuftragDialog = false">
-              ×
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="qa-section">
-              <div class="qa-form-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Titel *</div>
-                  <input
-                    v-model="newAuftrag.eventTitel"
-                    class="qa-input"
-                    placeholder="z.B. Konferenz Berlin 2026"
-                  />
-                </div>
-              </div>
-            </div>
-            <div class="qa-section">
-              <div class="qa-form-row pseudo-time-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Von *</div>
-                  <div class="qa-date-input-wrap">
-                    <input
-                      ref="newAuftragVonInput"
-                      v-model="newAuftrag.vonDatum"
-                      type="date"
-                      class="qa-input qa-date-input"
-                    />
-                    <button
-                      class="qa-date-trigger"
-                      type="button"
-                      title="Datum waehlen"
-                      @click="openNewAuftragDatePicker('newAuftragVonInput')"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-calendar-days" />
-                    </button>
-                  </div>
-                </div>
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Bis *</div>
-                  <div class="qa-date-input-wrap">
-                    <input
-                      ref="newAuftragBisInput"
-                      v-model="newAuftrag.bisDatum"
-                      type="date"
-                      class="qa-input qa-date-input"
-                    />
-                    <button
-                      class="qa-date-trigger"
-                      type="button"
-                      title="Datum waehlen"
-                      @click="openNewAuftragDatePicker('newAuftragBisInput')"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-calendar-days" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="qa-section">
-              <div class="qa-form-row pseudo-time-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Standort</div>
-                  <select v-model="newAuftrag.locationV2" class="qa-select">
-                    <option value="">— Keine —</option>
-                    <option
-                      v-for="location in locations"
-                      :key="location._id"
-                      :value="location._id"
-                    >
-                      {{ location.nameFull }}
-                    </option>
-                  </select>
-                </div>
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Ort</div>
-                  <input
-                    v-model="newAuftrag.eventOrt"
-                    class="qa-input"
-                    placeholder="z.B. Berlin"
-                  />
-                </div>
-              </div>
-            </div>
-            <div class="qa-section">
-              <div class="qa-form-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Location</div>
-                  <input
-                    v-model="newAuftrag.eventLocation"
-                    class="qa-input"
-                    placeholder="z.B. Messe Berlin"
-                  />
-                </div>
-              </div>
-            </div>
-            <div class="qa-section">
-              <button
-                class="qa-submit-btn"
-                :disabled="
-                  !newAuftrag.eventTitel.trim() ||
-                  !newAuftrag.vonDatum ||
-                  !newAuftrag.bisDatum ||
-                  newAuftragSaving
-                "
-                @click="saveNewPseudoAuftrag"
-              >
-                <font-awesome-icon
-                  v-if="newAuftragSaving"
-                  icon="fa-solid fa-spinner"
-                  spin
-                />
-                <font-awesome-icon v-else icon="fa-solid fa-check" />
-                Auftrag anlegen
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Pseudo-MA Dialog ──────────────────────────────────────────── -->
-      <div
-        v-if="showPseudoDialog"
-        class="modal-overlay"
-        @click.self="showPseudoDialog = false"
-      >
-        <div class="modal-content modal-qa">
-          <div class="modal-header">
-            <h2>
-              <font-awesome-icon icon="fa-solid fa-user-plus" />
-              Pseudo-Mitarbeiter einplanen
-            </h2>
-            <button class="close-btn" @click="showPseudoDialog = false">
-              ×
-            </button>
-          </div>
-          <div class="modal-body">
-            <!-- Schicht mode toggle -->
-            <div class="qa-section">
-              <div class="qa-section-label">Schicht</div>
-              <div class="pseudo-mode-toggle">
-                <button
-                  class="pseudo-mode-btn"
-                  :class="{ active: pseudoSchichtMode === 'existing' }"
-                  @click="pseudoSchichtMode = 'existing'"
-                >
-                  Bestehende Schicht
-                </button>
-                <button
-                  class="pseudo-mode-btn"
-                  :class="{ active: pseudoSchichtMode === 'new' }"
-                  @click="pseudoSchichtMode = 'new'"
-                >
-                  Neue Pseudo-Schicht
-                </button>
-              </div>
-            </div>
-
-            <!-- Existing shift selector -->
-            <div v-if="pseudoSchichtMode === 'existing'" class="qa-section">
-              <select v-model="pseudoSelectedSchicht" class="qa-select">
-                <option :value="null">— Automatisch (erste Schicht) —</option>
-                <option
-                  v-for="schicht in preparedSchichten"
-                  :key="schicht.key"
-                  :value="schicht.key"
-                >
-                  {{
-                    schicht.meta.schichtBezeichnung || "Schicht " + schicht.key
-                  }}
-                  <template v-if="schicht.meta.uhrzeitVon">
-                    · {{ schicht.meta.uhrzeitVon.substring(0, 5) }}</template
-                  >
-                </option>
-              </select>
-            </div>
-
-            <!-- New pseudo shift fields -->
-            <div v-if="pseudoSchichtMode === 'new'" class="qa-section">
-              <div class="qa-form-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Bezeichnung *</div>
-                  <input
-                    v-model="pseudoNewSchicht.bezeichnung"
-                    class="qa-input"
-                    placeholder="z.B. Trainer, Service, Logistik..."
-                  />
-                </div>
-              </div>
-              <div class="qa-form-row pseudo-time-row">
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Von</div>
-                  <input
-                    v-model="pseudoNewSchicht.uhrzeitVon"
-                    type="time"
-                    class="qa-input"
-                  />
-                </div>
-                <div style="flex: 1">
-                  <div class="qa-form-field-label">Bis</div>
-                  <input
-                    v-model="pseudoNewSchicht.uhrzeitBis"
-                    type="time"
-                    class="qa-input"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Mitarbeiter search -->
-            <div class="qa-section">
-              <div class="qa-section-label">Mitarbeiter suchen</div>
-              <div class="qa-search-wrap">
-                <input
-                  v-model="pseudoSearch"
-                  class="qa-input"
-                  placeholder="Name oder E-Mail..."
-                  @input="debouncedPseudoSearch"
-                />
-                <font-awesome-icon
-                  v-if="pseudoSearching"
-                  icon="fa-solid fa-spinner"
-                  spin
-                  class="qa-search-spin"
-                />
-              </div>
-              <div v-if="pseudoSearchResults.length" class="qa-search-results">
-                <div
-                  v-for="ma in pseudoSearchResults"
-                  :key="ma._id"
-                  class="qa-search-result"
-                  :class="{
-                    selected: pseudoSelectedMas.some((m) => m._id === ma._id),
-                  }"
-                  @click="togglePseudoMa(ma)"
-                >
-                  <div class="qa-result-name">
-                    <font-awesome-icon
-                      v-if="pseudoSelectedMas.some((m) => m._id === ma._id)"
-                      icon="fa-solid fa-check"
-                      class="qa-result-check"
-                    />
-                    {{ ma.vorname }} {{ ma.nachname }}
-                  </div>
-                  <div class="qa-result-sub">{{ ma.email }}</div>
-                </div>
-              </div>
-              <div v-if="pseudoSelectedMas.length" class="qa-selected-chips">
-                <div class="qa-chips-label">
-                  <font-awesome-icon icon="fa-solid fa-users" />
-                  {{ pseudoSelectedMas.length }}
-                  {{
-                    pseudoSelectedMas.length === 1
-                      ? "Mitarbeiter"
-                      : "Mitarbeiter"
-                  }}
-                  ausgewählt
-                </div>
-                <div class="qa-chips-list">
-                  <div
-                    v-for="ma in pseudoSelectedMas"
-                    :key="ma._id"
-                    class="qa-chip"
-                  >
-                    {{ ma.vorname }} {{ ma.nachname }}
-                    <button class="qa-chip-remove" @click="togglePseudoMa(ma)">
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="qa-section">
-              <button
-                class="qa-submit-btn"
-                :disabled="
-                  !pseudoSelectedMas.length ||
-                  pseudoSaving ||
-                  (pseudoSchichtMode === 'new' &&
-                    !pseudoNewSchicht.bezeichnung.trim())
-                "
-                @click="savePseudoEinsatz"
-              >
-                <font-awesome-icon
-                  v-if="pseudoSaving"
-                  icon="fa-solid fa-spinner"
-                  spin
-                />
-                <font-awesome-icon v-else icon="fa-solid fa-check" />
-                {{
-                  pseudoSelectedMas.length > 1
-                    ? `${pseudoSelectedMas.length} Mitarbeiter einplanen`
-                    : "Einplanen"
-                }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── Stundenliste-Signatur Dialog (ADMIN) ──────────────────────── -->
-      <div
-        v-if="showSignatureDialog"
-        class="modal-overlay"
-        @click.self="closeSignatureDialog"
-      >
-        <div class="modal-content modal-qa">
-          <div class="modal-header">
-            <h2>
-              <font-awesome-icon icon="fa-solid fa-file-signature" />
-              Stundenliste zur Signatur
-            </h2>
-            <button class="close-btn" @click="closeSignatureDialog">×</button>
-          </div>
-          <div class="modal-body">
-            <!-- Loading signers -->
-            <div
-              v-if="sigLoading"
-              class="qa-section"
-              style="text-align: center; padding: 20px"
-            >
-              <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Daten…
-            </div>
-
-            <!-- Success: submission created — Verleiher signing embedded -->
-            <div
-              v-else-if="
-                sigResult &&
-                sigResult.embed &&
-                sigResult.embed.src &&
-                !verleiherSigned
-              "
-              class="qa-section qa-section--signing"
-            >
-              <p class="sig-success-sub" style="margin-bottom: 12px">
-                <font-awesome-icon
-                  icon="fa-solid fa-envelope"
-                  style="margin-right: 4px"
-                />
-                Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }})
-                erhält eine E-Mail. Bitte jetzt als Verleiher unterschreiben:
-              </p>
-              <DocusealForm
-                :src="sigResult.embed.src"
-                host="cdn.docuseal.eu"
-                language="de"
-                :with-title="false"
-                :send-copy-email="false"
-                @complete="onVerleiherSigned"
-              />
-            </div>
-
-            <!-- Verleiher signed: final success -->
-            <div v-else-if="sigResult" class="qa-section">
-              <div class="sig-success">
-                <font-awesome-icon
-                  icon="fa-solid fa-check"
-                  class="sig-success-icon"
-                />
-                <p>Stundenliste unterschrieben.</p>
-                <p class="sig-success-sub">
-                  Der Entleiher ({{ sigEntleiher.name || sigEntleiher.email }})
-                  erhält die Signaturanfrage per E-Mail.
-                </p>
-              </div>
-              <button
-                v-if="sigResult.vorgang && sigResult.vorgang._id"
-                class="qa-submit-btn qa-submit-btn--secondary"
-                style="margin-top: 12px"
-                @click="$router.push('/signaturen')"
-              >
-                <font-awesome-icon icon="fa-solid fa-list-check" />
-                Vorgang öffnen
-              </button>
-              <button
-                class="qa-submit-btn qa-submit-btn--secondary"
-                style="margin-top: 8px"
-                @click="closeSignatureDialog"
-              >
-                Schließen
-              </button>
-            </div>
-
-            <!-- Form -->
-            <template v-else>
-              <!-- Verleiher (location-based, read-only) -->
-              <div class="qa-section">
-                <div class="qa-section-label">
-                  Verleiher (unterschreibt im Monitor)
-                </div>
-                <div class="sig-party-box">
-                  <div class="sig-party-name">
-                    {{ sigVerleiher.name || "—" }}
-                  </div>
-                  <div
-                    class="sig-party-sub"
-                    :class="{ 'sig-party-warn': !sigVerleiher.email }"
-                  >
-                    {{
-                      sigVerleiher.email ||
-                      "Keine Niederlassungs-E-Mail (geschSt prüfen)"
-                    }}
-                  </div>
-                </div>
-              </div>
-
-              <!-- Entleiher (customer) -->
-              <div class="qa-section">
-                <div class="qa-section-label">
-                  Entleiher (Kunde – Signatur per E-Mail)
-                </div>
-
-                <div v-if="sigContactsLoading" class="qa-form-field-label">
-                  <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade
-                  Kontakte…
-                </div>
-
-                <select
-                  v-if="sigContacts.length"
-                  v-model="sigSelectedContactId"
-                  class="qa-select"
-                  @change="onContactSelect"
-                >
-                  <option value="">— Microsoft-Kontakt wählen —</option>
-                  <option v-for="c in sigContacts" :key="c.id" :value="c.id">
-                    {{ c.displayName
-                    }}<template v-if="contactEmail(c)">
-                      · {{ contactEmail(c) }}</template
-                    >
-                  </option>
-                </select>
-                <div
-                  v-else-if="!sigContactsLoading"
-                  class="qa-form-field-label"
-                  style="margin-bottom: 8px"
-                >
-                  Keine verknüpften Kontakte gefunden{{
-                    sigKuerzel ? ` (Kürzel "${sigKuerzel}")` : ""
-                  }}.
-                </div>
-
-                <div class="qa-form-row" style="margin-top: 8px">
-                  <div style="flex: 1">
-                    <div class="qa-form-field-label">Name</div>
-                    <input
-                      v-model="sigEntleiher.name"
-                      class="qa-input"
-                      placeholder="Name des Unterzeichners"
-                    />
-                  </div>
-                </div>
-                <div class="qa-form-row" style="margin-top: 8px">
-                  <div style="flex: 1">
-                    <div class="qa-form-field-label">E-Mail *</div>
-                    <input
-                      v-model="sigEntleiher.email"
-                      type="email"
-                      class="qa-input"
-                      placeholder="kontakt@kunde.de"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="sigError" class="qa-section sig-error">
-                <font-awesome-icon icon="fa-solid fa-times" /> {{ sigError }}
-              </div>
-
-              <div class="qa-section">
-                <button
-                  class="qa-submit-btn"
-                  :disabled="!canSubmitSignature || sigSubmitting"
-                  @click="submitSignature"
-                >
-                  <font-awesome-icon
-                    v-if="sigSubmitting"
-                    icon="fa-solid fa-spinner"
-                    spin
-                  />
-                  <font-awesome-icon v-else icon="fa-solid fa-file-signature" />
-                  {{ sigSubmitting ? "Wird gesendet…" : "Zur Signatur senden" }}
-                </button>
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
     </div>
 
   <AuftragCalendarSearchDropdown
@@ -2186,7 +1174,6 @@ import {
   faFileExcel,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
-import { DocusealForm } from "@docuseal/vue";
 
 library.add(
   faChevronLeft,
@@ -2245,8 +1232,11 @@ import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
 import DocumentPreviewModal from "@/components/Modals/DocumentPreviewModal.vue";
-import ModalFrame from "@/components/frames/ModalFrame.vue";
-import BerufSearch from "@/components/ui-elements/BerufSearch.vue";
+import OrderDocumentsPanel from "@/components/orders/OrderDocumentsPanel.vue";
+import OrderHoursVisibilityButton from "@/components/orders/OrderHoursVisibilityButton.vue";
+import AppButton from "@/components/ui-elements/AppButton.vue";
+import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
+import OrderDocumentUploadDialog from "@/components/orders/dialogs/OrderDocumentUploadDialog.vue";
 import { useCustomerModals } from "@/composables/useCustomerModals";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import { useEventModals } from "@/composables/useEventModals";
@@ -2258,7 +1248,10 @@ import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
-import DatePicker from "@/components/ui-elements/DatePicker.vue";
+import AuftragMobileDateNavigation from "@/components/orders/calendar/AuftragMobileDateNavigation.vue";
+import OrderLabelDialog from "@/components/orders/dialogs/OrderLabelDialog.vue";
+import PseudoOrderCreateDialog from "@/components/orders/dialogs/PseudoOrderCreateDialog.vue";
+import PseudoAssignmentDialog from "@/components/orders/dialogs/PseudoAssignmentDialog.vue";
 import TlBadge from "@/components/ui-elements/TlBadge.vue";
 import ContextMenu from "@/components/ContextMenu.vue";
 import PillMultiSelect from "@/components/ui-elements/PillMultiSelect.vue";
@@ -2267,6 +1260,7 @@ import AuftragCalendarSearchDropdown from "@/components/orders/calendar/AuftragC
 import { loadHolidaysForYear } from "@/utils/holidays.js";
 import { buildEventSchichten } from "@/utils/eventSchichten";
 import { getPeriodRange } from "@/utils/orderListPeriods";
+import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
 import eventreportIcon from "@/assets/eventreport.png";
@@ -2287,9 +1281,12 @@ export default {
   components: {
     AuftragListView,
     AuftragDetailsSidePanel,
-    ModalFrame,
+    OrderDocumentsPanel,
+    OrderHoursVisibilityButton,
+    AppButton,
+    AppIconButton,
+    OrderDocumentUploadDialog,
     DocumentPreviewModal,
-    BerufSearch,
     FilterPanel,
     ThinScrollContainer,
     FilterGroup,
@@ -2298,11 +1295,13 @@ export default {
     EmployeeCardModal,
     ExportMitarbeiterModal,
     SearchBar,
-    DocusealForm,
     Toolbar,
     ToolbarFilter,
     CalendarControls,
-    DatePicker,
+    AuftragMobileDateNavigation,
+    OrderLabelDialog,
+    PseudoOrderCreateDialog,
+    PseudoAssignmentDialog,
     TlBadge,
     ContextMenu,
     PillMultiSelect,
@@ -2316,6 +1315,7 @@ export default {
     const { openReisekosten } = useReisekostenModals();
     const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useMinimizeDock();
+    const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
       const modal = useSignaturModal();
@@ -2339,6 +1339,7 @@ export default {
       restoreMinimizedStundenliste,
       docusealLogo,
       docusealPendingIcon,
+      formatEmployeeName,
     };
   },
   data() {
@@ -2433,6 +1434,7 @@ export default {
         "#64748b",
       ],
       labelSaving: false,
+      labelRemovingId: "",
       // New pseudo Auftrag dialog
       showNewAuftragDialog: false,
       newAuftrag: {
@@ -2459,19 +1461,6 @@ export default {
       showQuickActions: false,
       isGeneratingHoursList: false,
       isGeneratingTelefonliste: false,
-      // ── Stundenliste-Signatur (DocuSeal) ───────────────────────────────────
-      showSignatureDialog: false,
-      sigLoading: false,
-      sigContactsLoading: false,
-      sigSubmitting: false,
-      sigContacts: [],
-      sigSelectedContactId: "",
-      sigKuerzel: "",
-      sigVerleiher: { name: "", email: "" },
-      sigEntleiher: { name: "", email: "" },
-      sigResult: null,
-      sigError: "",
-      verleiherSigned: false,
       // ── Stundenliste status (Einsatzdokumente sidebar) ───────────────────────────
       stundenlisteStatus: null, // { vorgang, isOutdated, outdatedReasons }
       stundenlisteStatusLoading: false,
@@ -2480,6 +1469,7 @@ export default {
       einsatzDoks: [],
       einsatzDoksLoading: false,
       einsatzDokUploading: false,
+      einsatzDokUploadError: "",
       showEinsatzDokDialog: false,
       pendingEinsatzDokFile: null,
       einsatzDokType: "einsatznachweis",
@@ -2529,10 +1519,6 @@ export default {
     },
     canSignaturen() {
       return this.isAdmin || this.isVertrieb;
-    },
-    canSubmitSignature() {
-      const email = (this.sigEntleiher.email || "").trim();
-      return !!this.sigVerleiher.email && /\S+@\S+\.\S+/.test(email);
     },
     sidebarStundenliste() {
       return this.stundenlisteStatus?.vorgang || null;
@@ -3124,16 +2110,6 @@ export default {
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ??
         this.$refs.mobileDatePicker?.click();
-    },
-    openNewAuftragDatePicker(refName) {
-      const input = this.$refs[refName];
-      if (!input) return;
-      if (typeof input.showPicker === "function") {
-        input.showPicker();
-        return;
-      }
-      input.focus();
-      input.click();
     },
     async jumpToDate(event) {
       const selected = new Date(event.target.value + "T00:00:00");
@@ -4105,6 +3081,8 @@ export default {
       await this.saveLabel(gl.name, gl.color);
     },
     async saveLabel(nameArg, colorArg) {
+      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent) return;
+      const selectedEvent = this.selectedEvent;
       const name =
         typeof nameArg === "string" ? nameArg : this.newLabelName.trim();
       const color =
@@ -4113,13 +3091,13 @@ export default {
       this.labelSaving = true;
       try {
         const res = await api.post(
-          `/api/auftraege/${this.selectedEvent.auftragNr}/labels`,
+          `/api/auftraege/${selectedEvent.auftragNr}/labels`,
           { name, color },
         );
-        this.selectedEvent.labels = res.data.labels;
+        selectedEvent.labels = res.data.labels;
         // Sync to auftraege list
         const idx = this.auftraege.findIndex(
-          (a) => a.auftragNr === this.selectedEvent.auftragNr,
+          (a) => a.auftragNr === selectedEvent.auftragNr,
         );
         if (idx !== -1) this.auftraege[idx].labels = res.data.labels;
         this.newLabelName = "";
@@ -4133,17 +3111,22 @@ export default {
       }
     },
     async removeLabel(labelId) {
+      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent) return;
+      const selectedEvent = this.selectedEvent;
+      this.labelRemovingId = labelId;
       try {
         const res = await api.delete(
-          `/api/auftraege/${this.selectedEvent.auftragNr}/labels/${labelId}`,
+          `/api/auftraege/${selectedEvent.auftragNr}/labels/${labelId}`,
         );
-        this.selectedEvent.labels = res.data.labels;
+        selectedEvent.labels = res.data.labels;
         const idx = this.auftraege.findIndex(
-          (a) => a.auftragNr === this.selectedEvent.auftragNr,
+          (a) => a.auftragNr === selectedEvent.auftragNr,
         );
         if (idx !== -1) this.auftraege[idx].labels = res.data.labels;
       } catch (err) {
         alert(err.response?.data?.message || "Fehler beim Entfernen");
+      } finally {
+        this.labelRemovingId = "";
       }
     },
     openNewAuftragDialog() {
@@ -4171,6 +3154,7 @@ export default {
     },
     async saveNewPseudoAuftrag() {
       if (
+        this.newAuftragSaving ||
         !this.newAuftrag.eventTitel.trim() ||
         !this.newAuftrag.vonDatum ||
         !this.newAuftrag.bisDatum
@@ -4354,11 +3338,6 @@ export default {
       this.mitarbeiterExportData = null;
     },
     // ── Stundenliste-Signatur (DocuSeal) ─────────────────────────────────────
-    contactEmail(c) {
-      if (!c) return "";
-      const list = Array.isArray(c.emailAddresses) ? c.emailAddresses : [];
-      return (list[0] && list[0].address) || "";
-    },
     async loadStundenlisteStatus(auftragNr) {
       this.stundenlisteStatusLoading = true;
       try {
@@ -4386,6 +3365,12 @@ export default {
         console.error("Download fehlgeschlagen", e);
       }
     },
+    downloadStundenliste(signed = false) {
+      const url = signed
+        ? this.stundenlisteStatus?.signedPdfUrl
+        : this.stundenlisteStatus?.unsignedPdfUrl;
+      if (url) return this.downloadFile(url, this.stundenlistePdfFilename(signed));
+    },
     async loadEinsatzDoks(auftragNr) {
       this.einsatzDoksLoading = true;
       try {
@@ -4403,7 +3388,7 @@ export default {
     async onEinsatzDokUpload(event) {
       const [file] = Array.from(event.target.files || []);
       event.target.value = "";
-      if (!file || !this.selectedEvent?.auftragNr) return;
+      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr) return;
       this.pendingEinsatzDokFile = file;
       this.einsatzDokType = "einsatznachweis";
       this.einsatzDokAudience = "job";
@@ -4411,17 +3396,20 @@ export default {
       this.einsatzDokAllowedRoles = "";
       this.einsatzDokDeliveryEmails = "";
       this.einsatzDokDeliveryMessage = "";
+      this.einsatzDokUploadError = "";
       this.showEinsatzDokDialog = true;
     },
     cancelEinsatzDokUpload() {
       if (this.einsatzDokUploading) return;
       this.showEinsatzDokDialog = false;
       this.pendingEinsatzDokFile = null;
+      this.einsatzDokUploadError = "";
     },
     async confirmEinsatzDokUpload() {
       const file = this.pendingEinsatzDokFile;
-      if (!file || !this.selectedEvent?.auftragNr) return;
+      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr) return;
       this.einsatzDokUploading = true;
+      this.einsatzDokUploadError = "";
       try {
         const form = new FormData();
         form.append("file", file);
@@ -4440,6 +3428,7 @@ export default {
         this.showEinsatzDokDialog = false;
         this.pendingEinsatzDokFile = null;
       } catch (e) {
+        this.einsatzDokUploadError = e.response?.data?.message || "Dokument konnte nicht hochgeladen werden. Bitte erneut versuchen.";
         console.error("Upload fehlgeschlagen", e);
       } finally {
         this.einsatzDokUploading = false;
@@ -4532,7 +3521,7 @@ export default {
       return (
         name ||
         (doc.mitarbeiter
-          ? `${doc.mitarbeiter.vorname || ""} ${doc.mitarbeiter.nachname || ""}`.trim()
+          ? this.formatEmployeeName(doc.mitarbeiter)
           : "Reisekostenabrechnung")
       );
     },
@@ -4626,85 +3615,14 @@ export default {
         {
           draftId: draft._id,
           draftData: draft,
-          auftragNr,
-          typKey: "stundenliste",
-          customEndpoint: `/api/signaturen/stundenliste/${auftragNr}`,
         },
-        // After creation: surface the embedded Verleiher signing form.
-        (resp) => {
-          this.sigResult = resp;
-          const ent = (resp?.vorgang?.submitters || []).find(
-            (s) => s.role === "Entleiher",
-          );
-          this.sigEntleiher = {
-            name: ent?.name || "",
-            email: ent?.email || "",
-          };
-          this.verleiherSigned = false;
-          this.sigError = "";
-          // Refresh sidebar
-          if (this.selectedEvent?.auftragNr)
-            this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
+        // The shared signature modal owns the embedded signing handoff.
+        // Refresh only if this Auftrag is still selected when submission completes.
+        () => {
+          if (this.selectedEvent?.auftragNr === auftragNr)
+            this.loadStundenlisteStatus(auftragNr);
         },
       );
-    },
-    async loadSignatureContacts() {
-      this.sigContactsLoading = true;
-      try {
-        const { data } = await api.get("/api/graph/contacts");
-        const all = data.contacts || [];
-        const kuerzel = this.sigKuerzel.trim().toLowerCase();
-        this.sigContacts = all.filter(
-          (c) => (c.companyName || "").trim().toLowerCase() === kuerzel,
-        );
-      } catch {
-        this.sigContacts = [];
-      } finally {
-        this.sigContactsLoading = false;
-      }
-    },
-    onContactSelect() {
-      const c = this.sigContacts.find(
-        (x) => x.id === this.sigSelectedContactId,
-      );
-      if (!c) return;
-      this.sigEntleiher = {
-        name: c.displayName || this.sigEntleiher.name,
-        email: this.contactEmail(c) || this.sigEntleiher.email,
-      };
-    },
-    async submitSignature() {
-      if (!this.canSubmitSignature || this.sigSubmitting || !this.selectedEvent)
-        return;
-      this.sigSubmitting = true;
-      this.sigError = "";
-      try {
-        const { data } = await api.post(
-          `/api/docuseal/stundenliste/${this.selectedEvent.auftragNr}`,
-          {
-            entleiher: {
-              name: this.sigEntleiher.name,
-              email: this.sigEntleiher.email.trim(),
-            },
-          },
-        );
-        this.sigResult = data;
-      } catch (err) {
-        this.sigError =
-          err.response?.data?.message || "Signatur-Anfrage fehlgeschlagen";
-      } finally {
-        this.sigSubmitting = false;
-      }
-    },
-    openVerleiherSigning() {
-      const src = this.sigResult?.embed?.src;
-      if (src) window.open(src, "_blank", "noopener");
-    },
-    onVerleiherSigned() {
-      this.verleiherSigned = true;
-    },
-    closeSignatureDialog() {
-      this.showSignatureDialog = false;
     },
     openPseudoDialog() {
       this.showQuickActions = false;
@@ -4721,6 +3639,7 @@ export default {
       this.showPseudoDialog = true;
     },
     togglePseudoMa(ma) {
+      if (this.pseudoSaving) return;
       const idx = this.pseudoSelectedMas.findIndex((m) => m._id === ma._id);
       if (idx === -1) {
         this.pseudoSelectedMas.push(ma);
@@ -4748,8 +3667,12 @@ export default {
         }
       }, 300);
     },
+    updatePseudoSearch(value) {
+      this.pseudoSearch = value;
+      this.debouncedPseudoSearch();
+    },
     async savePseudoEinsatz() {
-      if (!this.pseudoSelectedMas.length) return;
+      if (this.pseudoSaving || !this.selectedEvent || !this.pseudoSelectedMas.length) return;
       if (
         this.pseudoSchichtMode === "new" &&
         !this.pseudoNewSchicht.bezeichnung.trim()
@@ -4781,7 +3704,7 @@ export default {
               );
             } catch (err) {
               errors.push(
-                `${ma.vorname} ${ma.nachname}: ${err.response?.data?.message || "Fehler"}`,
+                `${this.formatEmployeeName(ma)}: ${err.response?.data?.message || "Fehler"}`,
               );
             }
           }),
@@ -4819,12 +3742,12 @@ export default {
       }
     },
 
-    toggleNeuMenu() {
+    toggleNeuMenu(event) {
       if (this.showNeuMenu) {
         this.showNeuMenu = false;
         return;
       }
-      const rect = this.$refs.neuDokButton?.getBoundingClientRect();
+      const rect = event?.currentTarget?.getBoundingClientRect();
       if (!rect) return;
       this.neuMenuPosition = { x: rect.right - 220, y: rect.bottom + 4 };
       this.showNeuMenu = true;
@@ -4839,6 +3762,12 @@ export default {
 
     handleEscapeKey(event) {
       if (event.key !== "Escape") return;
+      // Shared frames own Escape, including their loading and topmost guards.
+      // Never close the workspace detail behind an open dialog.
+      if (
+        this.showLabelDialog || this.showNewAuftragDialog || this.showPseudoDialog || this.showEinsatzDokDialog ||
+        Array.from(document.querySelectorAll('.mf-overlay')).some(overlay => overlay.getClientRects().length)
+      ) return;
 
       // Close modals in order of priority (topmost = last opened)
       if (this.showNeuMenu) {
@@ -4847,12 +3776,6 @@ export default {
         this.closeMitarbeiterExport();
       } else if (this.showQuickActions) {
         this.showQuickActions = false;
-      } else if (this.showLabelDialog) {
-        this.showLabelDialog = false;
-      } else if (this.showNewAuftragDialog) {
-        this.showNewAuftragDialog = false;
-      } else if (this.showPseudoDialog) {
-        this.showPseudoDialog = false;
       } else if (this.selectedMitarbeiter) {
         this.selectedMitarbeiter = null;
         this.fullMitarbeiterData = null;
@@ -5069,38 +3992,6 @@ export default {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
-.stundenliste-visibility-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 40px;
-  height: 26px;
-  flex: 0 0 auto;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
-
-  &.is-excluded {
-    color: var(--muted);
-  }
-  &:disabled {
-    cursor: wait;
-    opacity: 0.55;
-  }
-}
-
-.stundenliste-signature-icon {
-  font-size: 0.7em;
-}
 
 .schicht-header-compact {
   display: flex;
@@ -5318,19 +4209,10 @@ export default {
       border-radius: 4px;
     }
 
-    .doc-icon-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 1px 2px;
-      border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      transition: background 140ms ease;
-
-      &:hover {
-        background: color-mix(in srgb, var(--primary) 15%, transparent);
-      }
+    .doc-icon-btn.app-button--sm {
+      --app-button-icon-size: 26px;
+      min-height: 26px;
+      padding: 0;
 
       .doc-icon-img {
         width: 18px;
@@ -5743,13 +4625,10 @@ export default {
   flex-shrink: 0;
 }
 
-.kw-week-btn {
+.kw-week-btn.app-button--sm {
   width: 50px;
   min-height: 44px;
   flex-shrink: 0;
-  border: 1px solid transparent; /* Keep for stable size, transparent by default */
-  border-radius: 8px;
-  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5783,7 +4662,7 @@ export default {
   &.is-active {
     .kw-num-label,
     .kw-num-value {
-      color: var(--primary);
+      color: var(--action-accent-text);
     }
   }
 }
@@ -6053,63 +4932,6 @@ export default {
   display: inline-block;
 }
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 700px;
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-
-  h2 {
-    margin: 0;
-    font-size: 1.3rem;
-    color: var(--text);
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.8rem;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-
-    &:hover {
-      color: var(--text);
-    }
-  }
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
-}
 
 .detail-grid {
   display: grid;
@@ -6351,56 +5173,6 @@ export default {
 // ── New combined mobile day nav ───────────────────────────────────────────────
 .mobile-day-nav {
   display: none; // replaced by inline toolbar items
-}
-
-// ── Mobile day nav items (inside toolbar) ─────────────────────────────────────
-
-.mdn-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.7rem;
-  transition:
-    color 0.15s,
-    border-color 0.15s,
-    background 0.15s;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
-  }
-}
-
-.mdn-cal-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
-  border-radius: 6px;
-  background: color-mix(in oklab, var(--primary) 8%, transparent);
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-
-  &:hover {
-    background: color-mix(in oklab, var(--primary) 18%, transparent);
-    border-color: var(--primary);
-  }
 }
 
 // Remove old mdn-center now that day display moved below toolbar
@@ -6748,29 +5520,6 @@ export default {
   overflow: hidden;
 }
 
-/* Employee Modal */
-.modal-employee {
-  max-width: 900px;
-  width: 95%;
-}
-
-.modal-employee-body {
-  padding: 0;
-  max-height: 80vh;
-}
-
-.loading-employee {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 40px;
-  color: var(--muted);
-
-  svg {
-    font-size: 2rem;
-  }
-}
 
 /* ── Label chips ────────────────────────────────────────────────────── */
 .label-chips-row {
@@ -6791,32 +5540,6 @@ export default {
   white-space: nowrap;
 }
 
-.label-chip--removable {
-  cursor: default;
-}
-
-.label-chip--add {
-  cursor: pointer;
-  opacity: 0.8;
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.label-chip-remove {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-left: 2px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  color: inherit;
-  opacity: 0.7;
-  &:hover {
-    opacity: 1;
-  }
-}
 
 /* Event card labels */
 .event-labels {
@@ -6862,841 +5585,12 @@ export default {
 }
 
 .pseudo-remove-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 4px;
-  font-size: 0.8rem;
-  border-radius: 3px;
-  line-height: 1;
-  &:hover {
-    color: #e74c3c;
-    background: rgba(231, 76, 60, 0.1);
-  }
+  --action-ghost-text: var(--status-danger-text);
+  --action-accent-text: var(--status-danger-text);
+  --action-ghost-hover: color-mix(in srgb, var(--status-danger-text) 12%, transparent);
 }
 
-/* ── Quick Actions Modal ────────────────────────────────────────────── */
-.modal-qa {
-  max-width: 480px;
-  width: 95%;
 
-  &.modal-qa--signing {
-    max-width: 780px;
-    max-height: 90vh;
-
-    .modal-body {
-      overflow-y: auto;
-    }
-  }
-}
-
-.qa-section {
-  padding: 0 0 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 16px;
-
-  &:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-  }
-}
-
-.qa-section-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.qa-form-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.qa-form-field-label {
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.qa-input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 10px;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font-size: 0.85rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.2s;
-  color-scheme: light dark;
-
-  &:focus {
-    border-color: var(--primary);
-  }
-}
-
-.qa-date-input-wrap {
-  position: relative;
-}
-
-.qa-date-input {
-  padding-right: 38px;
-
-  &::-webkit-calendar-picker-indicator {
-    opacity: 0;
-    cursor: pointer;
-  }
-}
-
-.qa-date-trigger {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.qa-date-trigger:hover,
-.qa-date-trigger:focus-visible {
-  color: var(--primary);
-}
-
-.qa-select {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font-size: 0.85rem;
-  font-family: inherit;
-  outline: none;
-  cursor: pointer;
-  &:focus {
-    border-color: var(--primary);
-  }
-}
-
-.label-count {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.color-palette {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.color-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  transition:
-    transform 0.1s,
-    border-color 0.1s;
-
-  &:hover {
-    transform: scale(1.15);
-  }
-  &.active {
-    border-color: var(--text);
-    transform: scale(1.15);
-  }
-}
-
-.color-input-native {
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 0;
-  background: none;
-}
-
-.qa-search-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.qa-search-spin {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.qa-search-results {
-  margin-top: 6px;
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.qa-search-result {
-  padding: 8px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.1s;
-
-  &:last-child {
-    border-bottom: none;
-  }
-  &:hover,
-  &.selected {
-    background: var(--hover);
-  }
-  &.selected {
-    color: var(--primary);
-  }
-}
-
-.qa-result-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.qa-result-check {
-  color: var(--primary);
-  font-size: 0.75rem;
-  flex-shrink: 0;
-}
-
-.qa-result-sub {
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-/* Multi-select chips area */
-.qa-selected-chips {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.qa-chips-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--primary);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.qa-chips-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.qa-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border: 1.5px solid color-mix(in oklab, var(--primary) 35%, transparent);
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 3px 8px 3px 10px;
-  border-radius: 20px;
-}
-
-.qa-chip-remove {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1;
-  padding: 0 1px;
-  opacity: 0.7;
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.qa-submit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 20px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  &:hover {
-    opacity: 0.88;
-  }
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.qa-submit-btn--secondary {
-  width: 100%;
-  justify-content: center;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  &:hover {
-    opacity: 1;
-    background: var(--hover);
-  }
-}
-
-/* ── Einsatzdokument upload dialog ──────────────────────────────────── */
-.einsatz-dok-dialog {
-  display: grid;
-  gap: 14px;
-
-  > p {
-    overflow: hidden;
-    margin: 0;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--tile-bg);
-    color: var(--muted);
-    font-size: 0.78rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  > label {
-    display: grid;
-    gap: 6px;
-    color: var(--text);
-    font-size: 0.78rem;
-    font-weight: 600;
-  }
-
-  :is(select, input, textarea) {
-    box-sizing: border-box;
-    width: 100%;
-    padding: 9px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--panel);
-    color: var(--text);
-    font: inherit;
-    font-weight: 400;
-
-    &:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent);
-    }
-  }
-
-  textarea {
-    min-height: 76px;
-    resize: vertical;
-  }
-  :deep(.beruf-search__input-wrap) {
-    box-sizing: border-box;
-    height: 38px;
-    min-height: 38px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-  }
-  :deep(.beruf-search__input-wrap:focus-within) {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent);
-  }
-  :deep(.beruf-search__input-wrap input) {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    font-size: 0.8rem;
-  }
-  :deep(.beruf-search__input-wrap input:focus) {
-    box-shadow: none;
-  }
-}
-
-.einsatz-dok-dialog-cancel,
-.einsatz-dok-dialog-submit {
-  min-width: 110px;
-  padding: 9px 14px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    opacity 0.15s,
-    background 0.15s;
-
-  &:disabled {
-    cursor: wait;
-    opacity: 0.55;
-  }
-}
-.einsatz-dok-dialog-cancel {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-}
-.einsatz-dok-dialog-cancel:hover:not(:disabled) {
-  background: var(--hover);
-}
-.einsatz-dok-dialog-submit {
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-.einsatz-dok-dialog-submit:hover:not(:disabled) {
-  opacity: 0.88;
-}
-
-/* ── Einsatzdokumente Section (Sidebar) ────────────────────────────── */
-.einsatzdoks-section {
-  margin-top: 20px;
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-}
-
-.einsatzdoks-section .section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.neu-dok-wrap {
-  position: relative;
-}
-.neu-dok-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--primary);
-  cursor: pointer;
-  padding: 5px 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-  }
-}
-.neu-dok-caret {
-  font-size: 0.62rem;
-}
-.section-action-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--primary);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78rem;
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-  }
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.einsatz-dok-loading {
-  font-size: 0.8rem;
-  color: var(--muted);
-  padding: 8px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.einsatz-dok-empty {
-  font-size: 0.78rem;
-  color: var(--muted);
-  padding: 6px 0;
-  font-style: italic;
-}
-
-.einsatz-dok-upload-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-sizing: border-box;
-  width: 100%;
-  margin-top: 7px;
-  padding: 9px 12px;
-  border: 1px dashed var(--border);
-  border-radius: 9px;
-  background: none;
-  color: var(--muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 6%, transparent);
-  }
-}
-
-.einsatz-dok-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  margin-top: 7px;
-  background: var(--tile-bg, var(--surface));
-  border-left: 3px solid var(--border);
-
-  &.einsatz-dok-row--clickable {
-    cursor: pointer;
-    transition:
-      background 0.15s,
-      border-color 0.15s;
-    &:hover {
-      background: color-mix(
-        in oklab,
-        #f59e0b 6%,
-        var(--tile-bg, var(--surface))
-      );
-      border-color: color-mix(in oklab, #f59e0b 40%, var(--border));
-    }
-  }
-  &.einsatz-dok--completed {
-    border-left-color: #10b981;
-  }
-  &.einsatz-dok--open {
-    border-left-color: #f59e0b;
-  }
-  &.einsatz-dok--draft {
-    border-left-color: var(--muted);
-  }
-  &.einsatz-dok--signature_pending {
-    border-left-color: #f59e0b;
-  }
-  &.einsatz-dok--cancelled {
-    border-left-color: #ef4444;
-    opacity: 0.7;
-  }
-  &.einsatz-dok--none {
-    border-left-color: var(--border);
-  }
-  &.einsatz-dok--generated {
-    border-left-color: var(--muted);
-  }
-  &.einsatz-dok--upload {
-    border-left-color: #6366f1;
-  }
-  &.einsatz-dok--uploading {
-    border-left-color: var(--muted);
-    opacity: 0.7;
-  }
-}
-
-.einsatz-dok-row--stundenliste {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 7px;
-  padding: 10px 12px;
-
-  .einsatz-dok-heading {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .einsatz-dok-heading-status {
-    margin-left: 4px;
-    color: var(--muted);
-    font-size: 0.68rem;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-
-  .einsatz-dok-info {
-    width: 100%;
-  }
-
-  .einsatz-dok-meta {
-    display: grid;
-    gap: 2px;
-    margin-top: 0;
-    line-height: 1.35;
-  }
-
-  .einsatz-dok-filename {
-    color: var(--text);
-    overflow-wrap: anywhere;
-  }
-
-  .einsatz-dok-actions {
-    width: 100%;
-    justify-content: flex-end;
-    gap: 6px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-  }
-
-  .einsatz-dok-badge {
-    order: -1;
-    margin-right: auto;
-  }
-}
-
-.einsatz-dok-icon {
-  font-size: 1rem;
-  flex-shrink: 0;
-  color: var(--primary);
-  &--muted {
-    color: var(--muted);
-  }
-}
-
-.einsatz-dok-info {
-  flex: 1;
-  min-width: 0;
-}
-.einsatz-dok-name {
-  font-size: 0.83rem;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.einsatz-dok-meta {
-  font-size: 0.72rem;
-  color: var(--muted);
-  margin-top: 2px;
-}
-
-.einsatz-dok-badge {
-  font-size: 0.64rem;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  &.badge-completed {
-    background: color-mix(in srgb, #10b981 16%, transparent);
-    color: #10b981;
-  }
-  &.badge-open {
-    background: color-mix(in srgb, #f59e0b 14%, transparent);
-    color: #f59e0b;
-  }
-  &.badge-draft {
-    background: var(--hover);
-    color: var(--muted);
-  }
-  &.badge-cancelled {
-    background: color-mix(in srgb, #ef4444 12%, transparent);
-    color: #ef4444;
-  }
-  &.badge-none {
-    background: var(--hover);
-    color: var(--muted);
-  }
-}
-
-.einsatz-dok-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.einsatz-dok-action {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 3px 5px;
-  border-radius: 5px;
-  font-size: 0.78rem;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  &:hover {
-    background: var(--hover);
-    color: var(--text);
-  }
-  &--del:hover {
-    color: #ef4444;
-    background: color-mix(in srgb, #ef4444 10%, transparent);
-  }
-}
-
-.einsatz-dok-gen-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border: 1px solid var(--primary);
-  border-radius: 7px;
-  background: none;
-  color: var(--primary);
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-  }
-}
-
-/* ── Stundenliste-Signatur Dialog ──────────────────────────────────── */
-.sig-party-box {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--hover);
-}
-.sig-party-name {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.sig-party-sub {
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-top: 2px;
-}
-.sig-party-warn {
-  color: #dc3545;
-}
-
-.sig-error {
-  color: #dc3545;
-  font-size: 0.82rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sig-success {
-  text-align: center;
-  padding: 8px 0 16px;
-}
-.sig-success-icon {
-  font-size: 1.8rem;
-  color: var(--primary);
-  margin-bottom: 8px;
-}
-.sig-success-sub {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.sig-success + .qa-submit-btn,
-.qa-submit-btn--secondary {
-  width: 100%;
-  justify-content: center;
-}
-
-/* ── Pseudo shift mode toggle ──────────────────────────────────────── */
-.pseudo-mode-toggle {
-  display: flex;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.pseudo-mode-btn {
-  flex: 1;
-  padding: 7px 12px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  background: transparent;
-  border: none;
-  border-right: 1px solid var(--border);
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-
-  &:last-child {
-    border-right: none;
-  }
-  &:hover {
-    background: var(--hover);
-    color: var(--text);
-  }
-
-  &.active {
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
-    color: var(--primary);
-    font-weight: 600;
-  }
-}
-
-.pseudo-time-row {
-  gap: 10px;
-  margin-top: 10px;
-}
 
 // ── Feiertage Highlighting ─────────────────────────────────────────────────
 

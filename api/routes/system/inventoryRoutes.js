@@ -197,42 +197,98 @@ router.post('/items', auth, asyncHandler(async (req, res) => {
 }));
 
 router.patch('/items/:itemId', auth, asyncHandler(async (req, res) => {
+  const user = await currentUser(req.user.id);
+  const session = await mongoose.startSession();
   try {
-    const item = await InventoryItem.findById(req.params.itemId);
-    if (!item) throw httpError(404, 'Artikel nicht gefunden');
+    let response;
     const payload = normalizeItemPayload(req.body, true);
+    await session.withTransaction(async () => {
+      const item = await InventoryItem.findById(req.params.itemId).session(session);
+      if (!item) throw httpError(404, 'Artikel nicht gefunden');
+      const stockChanges = [];
 
-    if (req.body.bestaende !== undefined) {
-      if (!Array.isArray(req.body.bestaende)) throw httpError(400, 'bestaende muss ein Array sein');
-      const stocks = req.body.bestaende.map((stock) => ({
-        ...normalizeStockInput(stock, payload.shopUrl ?? item.shopUrl),
-        stockId: stock.stockId || null,
-      }));
-      await validateLocationIds(stocks);
+      if (req.body.bestaende !== undefined) {
+        if (!Array.isArray(req.body.bestaende)) throw httpError(400, 'bestaende muss ein Array sein');
+        const stocks = req.body.bestaende.map((stock) => ({
+          ...normalizeStockInput(stock, payload.shopUrl ?? item.shopUrl),
+          stockId: stock.stockId || null,
+        }));
+        await validateLocationIds(stocks);
 
-      const existingStocks = new Map(item.bestaende.map((stock) => [stockCombinationKey(stock), stock]));
-      const existingStocksById = new Map(item.bestaende.map((stock) => [String(stock._id), stock]));
-      const submittedKeys = new Set(stocks.map(stockCombinationKey));
-      if (submittedKeys.size !== stocks.length) throw httpError(400, 'Eine Bestandskombination darf nur einmal vorkommen');
+        const existingStocks = new Map(item.bestaende.map((stock) => [stockCombinationKey(stock), stock]));
+        const existingStocksById = new Map(item.bestaende.map((stock) => [String(stock._id), stock]));
+        const submittedKeys = new Set(stocks.map(stockCombinationKey));
+        if (submittedKeys.size !== stocks.length) throw httpError(400, 'Eine Bestandskombination darf nur einmal vorkommen');
 
-      // Nicht mitgesendete Zeilen bleiben unverändert; Deaktivieren nur explizit via PATCH /stocks/:stockId.
-      for (const stock of stocks) {
-        const existingStock = stock.stockId
-          ? existingStocksById.get(String(stock.stockId))
-          : existingStocks.get(stockCombinationKey(stock));
-        if (stock.stockId && !existingStock) throw httpError(400, 'Bestandskombination gehört nicht zu diesem Artikel');
-        const { stockId, ...stockPayload } = stock;
-        if (existingStock) Object.assign(existingStock, stockPayload, { isActive: true });
-        else item.bestaende.push(stockPayload);
+        // Nicht mitgesendete Zeilen bleiben unverändert; Deaktivieren nur explizit via PATCH /stocks/:stockId.
+        for (const stock of stocks) {
+          const existingStock = stock.stockId
+            ? existingStocksById.get(String(stock.stockId))
+            : existingStocks.get(stockCombinationKey(stock));
+          if (stock.stockId && !existingStock) throw httpError(400, 'Bestandskombination gehört nicht zu diesem Artikel');
+          const { stockId, ...stockPayload } = stock;
+          const bestandVorher = Number(existingStock?.bestand || 0);
+          if (existingStock) Object.assign(existingStock, stockPayload, { isActive: true });
+          else item.bestaende.push(stockPayload);
+          const updatedStock = existingStock || item.bestaende[item.bestaende.length - 1];
+          const bestandNachher = Number(updatedStock.bestand || 0);
+          if (bestandVorher !== bestandNachher) {
+            stockChanges.push({ stock: updatedStock, bestandVorher, bestandNachher });
+          }
+        }
       }
-    }
 
-    Object.assign(item, payload);
-    await item.save();
-    await item.populate('bestaende.location', 'nameFull shortName isActive');
-    res.json({ item, stocks: item.bestaende.map((stock) => toFlatStock(item, stock)) });
+      Object.assign(item, payload);
+      await item.save({ session });
+
+      if (stockChanges.length) {
+        const locationIds = [...new Set(stockChanges.map(({ stock }) => String(stock.location)))];
+        const locations = await Location.find({ _id: { $in: locationIds } })
+          .select('nameFull')
+          .session(session)
+          .lean();
+        const locationsById = new Map(locations.map((location) => [String(location._id), location]));
+        const changesByLocation = stockChanges.reduce((groups, change) => {
+          const locationId = String(change.stock.location);
+          if (!groups.has(locationId)) groups.set(locationId, []);
+          groups.get(locationId).push(change);
+          return groups;
+        }, new Map());
+
+        await Monitoring.create([...changesByLocation].map(([locationId, changes]) => ({
+          benutzer: req.user.id,
+          benutzerMail: user.email || user.name || '-',
+          benutzerName: user.name || null,
+          standort: locationsById.get(locationId)?.nameFull || 'Unbekannter Standort',
+          locationV2: locationId,
+          locationId,
+          art: 'änderung',
+          timestamp: new Date(),
+          anmerkung: 'Bestand manuell angepasst',
+          items: changes.map(({ stock, bestandVorher, bestandNachher }) => ({
+            itemId: stock.legacyItemId || item._id,
+            inventoryItemId: item._id,
+            stockId: stock._id,
+            locationId,
+            bezeichnung: item.bezeichnung,
+            groesse: stock.groesseKey || 'onesize',
+            variationKey: stock.variationKey || null,
+            anzahl: Math.abs(bestandNachher - bestandVorher),
+            bestandVorher,
+            bestandNachher,
+            soll: stock.soll,
+          })),
+        })), { session });
+      }
+
+      await item.populate('bestaende.location', 'nameFull shortName isActive');
+      response = { item, stocks: item.bestaende.map((stock) => toFlatStock(item, stock)) };
+    });
+    res.json(response);
   } catch (error) {
     mapError(error, res);
+  } finally {
+    await session.endSession();
   }
 }));
 
@@ -320,12 +376,12 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
   const { locationId, mitarbeiterId, direction, anmerkung = '', templateId = null, lines } = req.body;
   if (!mongoose.isValidObjectId(locationId)) throw httpError(400, 'locationId ist erforderlich');
   if (mitarbeiterId && !mongoose.isValidObjectId(mitarbeiterId)) throw httpError(400, 'mitarbeiterId ist ungültig');
-  if (!['issue', 'return'].includes(direction)) throw httpError(400, 'direction muss issue oder return sein');
+  if (!['issue', 'return', 'adjust'].includes(direction)) throw httpError(400, 'direction muss issue, return oder adjust sein');
   if (!Array.isArray(lines) || !lines.length) throw httpError(400, 'Mindestens eine Bestandszeile ist erforderlich');
 
   const location = await Location.findOne({ _id: locationId, isActive: true }).lean();
   if (!location) throw httpError(400, 'Standort nicht gefunden oder inaktiv');
-  const employee = mitarbeiterId
+  const employee = mitarbeiterId && direction !== 'adjust'
     ? await Mitarbeiter.findById(mitarbeiterId).select('vorname nachname personalnr').lean()
     : null;
   if (mitarbeiterId && !employee) throw httpError(404, 'Mitarbeiter nicht gefunden');
@@ -337,8 +393,11 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
 
   for (const line of lines) {
     const quantity = Number(line.anzahl);
-    if (!mongoose.isValidObjectId(line.stockId) || !Number.isInteger(quantity) || quantity < 1) {
-      throw httpError(400, 'Jede Zeile braucht stockId und eine positive ganze Anzahl');
+    const minimumQuantity = direction === 'adjust' ? 0 : 1;
+    if (!mongoose.isValidObjectId(line.stockId) || !Number.isInteger(quantity) || quantity < minimumQuantity) {
+      throw httpError(400, direction === 'adjust'
+        ? 'Jede Bestandsänderung braucht einen ganzzahligen Zielbestand ab 0'
+        : 'Jede Zeile braucht stockId und eine positive ganze Anzahl');
     }
     quantities.set(String(line.stockId), (quantities.get(String(line.stockId)) || 0) + quantity);
   }
@@ -361,9 +420,14 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
           throw httpError(409, `Nicht genug Bestand fuer ${item.bezeichnung}`);
         }
 
-        stock.bestand += direction === 'issue' ? -quantity : quantity;
+        const bestandVorher = Number(stock.bestand || 0);
+        stock.bestand = direction === 'adjust'
+          ? quantity
+          : stock.bestand + (direction === 'issue' ? -quantity : quantity);
+        const bestandNachher = Number(stock.bestand || 0);
         await item.save({ session });
         updatedStocks.push(toFlatStock(item, stock));
+        if (direction === 'adjust' && bestandVorher === bestandNachher) continue;
         monitoringItems.push({
           itemId: stock.legacyItemId || item._id,
           inventoryItemId: item._id,
@@ -372,29 +436,31 @@ router.post('/transactions', auth, asyncHandler(async (req, res) => {
           bezeichnung: item.bezeichnung,
           groesse: stock.groesseKey || 'onesize',
           variationKey: stock.variationKey || null,
-          anzahl: quantity,
+          anzahl: direction === 'adjust' ? Math.abs(bestandNachher - bestandVorher) : quantity,
+          bestandVorher: direction === 'adjust' ? bestandVorher : undefined,
+          bestandNachher: direction === 'adjust' ? bestandNachher : undefined,
           soll: stock.soll,
         });
       }
 
-      const monitoring = await Monitoring.create([{
+      const monitoring = monitoringItems.length ? await Monitoring.create([{
         benutzer: req.user.id,
         benutzerMail: user.email || user.name || '-',
         benutzerName: user.name || null,
         standort: location.nameFull,
         locationV2: location._id,
         locationId,
-        art: direction === 'issue' ? 'entnahme' : 'zugabe',
+        art: direction === 'issue' ? 'entnahme' : direction === 'return' ? 'zugabe' : 'änderung',
         timestamp: new Date(),
         items: monitoringItems,
         packageTemplate: packageTemplate?._id || null,
         packageTemplateName: packageTemplate?.name || null,
-        anmerkung: `${templateId ? `[Paketvorlage: ${templateId}] ` : ''}${anmerkung}`.trim(),
+        anmerkung: `${templateId ? `[Paketvorlage: ${templateId}] ` : ''}${anmerkung || (direction === 'adjust' ? 'Bestand manuell angepasst' : '')}`.trim(),
         mitarbeiter: employee?._id || null,
         mitarbeiterName: employee ? `${employee.vorname} ${employee.nachname}`.trim() : null,
         mitarbeiterPersonalnr: employee?.personalnr || null,
-      }], { session });
-      result = { updatedStocks, monitoring: monitoring[0] };
+      }], { session }) : [];
+      result = { updatedStocks, monitoring: monitoring[0] || null };
     });
     res.status(201).json(result);
   } finally {

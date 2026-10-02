@@ -37,41 +37,16 @@
         </div>
 
         <div v-else class="kunden-grid">
-           <!-- Simple Card List for now -->
-            <div 
-              v-for="kunde in paginatedKunden" 
-              :key="kunde._id" 
-              class="kunde-card"
-              @click="openCustomer(kunde)"
-            >
-              <div class="card-header">
-                <div class="card-title-block">
-                  <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
-                </div>
-                <div class="card-header-right">
-                  <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
-                    {{ getStatusText(kunde.kundStatus) }}
-                  </span>
-                  <FavoriteStarButton
-                    :active="isHighlighted(kunde)"
-                    active-title="Hervorhebung entfernen"
-                    inactive-title="Kunde hervorheben"
-                    @toggle="toggleHighlight(kunde)"
-                  />
-                  <button class="ctx-menu-btn" @click.stop="openContextMenu(kunde, $event)" title="Aktionen">
-                    <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-                  </button>
-                </div>
-              </div>
-              <div class="card-body">
-                <p><strong>Nr:</strong> {{ kunde.kundenNr }}<span v-if="kunde.kuerzel" class="kuerzel-inline"> · {{ kunde.kuerzel }}</span></p>
-                <div v-if="kunde.contacts && kunde.contacts.length" class="contact-preview">
-                   <font-awesome-icon :icon="['fas', 'user']" />
-                   {{ kunde.contacts[0].vorname }} {{ kunde.contacts[0].nachname }}
-                   <span v-if="kunde.contacts.length > 1" class="more-contacts">+{{ kunde.contacts.length - 1 }}</span>
-                </div>
-              </div>
-            </div>
+           <CustomerListCard
+             v-for="kunde in paginatedKunden"
+             :key="kunde._id"
+             :kunde="kunde"
+             :highlighted="isHighlighted(kunde)"
+             show-highlight
+             @open="openCustomer"
+             @menu="openContextMenu"
+             @toggle-highlight="toggleHighlight"
+           />
         </div>
       </div>
 
@@ -101,32 +76,13 @@
         </div>
 
         <div v-else class="kunden-grid">
-          <div
+          <CustomerListCard
             v-for="kunde in watchlistedKunden"
             :key="kunde._id"
-            class="kunde-card"
-            @click="openCustomer(kunde)"
-          >
-            <div class="card-header">
-              <h3>{{ kunde.kundName || 'Unbenannt' }}</h3>
-              <div class="card-header-right">
-                <span class="status-badge" :class="getStatusClass(kunde.kundStatus)">
-                  {{ getStatusText(kunde.kundStatus) }}
-                </span>
-                <button class="ctx-menu-btn" @click.stop="openContextMenu(kunde, $event)" title="Aktionen">
-                  <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-                </button>
-              </div>
-            </div>
-            <div class="card-body">
-              <p><strong>Nr:</strong> {{ kunde.kundenNr }}<span v-if="kunde.kuerzel" class="kuerzel-inline"> · {{ kunde.kuerzel }}</span></p>
-              <div v-if="kunde.contacts && kunde.contacts.length" class="contact-preview">
-                <font-awesome-icon :icon="['fas', 'user']" />
-                {{ kunde.contacts[0].vorname }} {{ kunde.contacts[0].nachname }}
-                <span v-if="kunde.contacts.length > 1" class="more-contacts">+{{ kunde.contacts.length - 1 }}</span>
-              </div>
-            </div>
-          </div>
+            :kunde="kunde"
+            @open="openCustomer"
+            @menu="openContextMenu"
+          />
         </div>
       </div>
 
@@ -203,22 +159,22 @@
                   <span>{{ c.companyName || '–' }}</span>
                 </td>
                 <td>
-                  <span v-if="getLinkedKunde(c)" class="linked-kunde" @click="openCustomer(getLinkedKunde(c))">
+                  <button v-if="getLinkedKunde(c)" type="button" class="linked-kunde" :aria-label="`${getLinkedKunde(c).kundName} öffnen`" @click="openCustomer(getLinkedKunde(c))">
                     <font-awesome-icon :icon="['fas', 'link']" />
                     {{ getLinkedKunde(c).kundName }}
-                  </span>
+                  </button>
                   <span v-else class="no-link">–</span>
                 </td>
                 <td class="contact-team-badge">
                   <span class="team-badge">{{ c._team }}</span>
                 </td>
                 <td class="contact-actions">
-                  <button class="btn-icon" @click.stop="openEditContact(c)" title="Bearbeiten">
+                  <AppIconButton size="sm" variant="ghost" :label="`${c.displayName} bearbeiten`" @click="openEditContact(c)">
                     <font-awesome-icon :icon="['fas', 'pen']" />
-                  </button>
-                  <button class="btn-icon btn-delete" @click.stop="deleteContactConfirm(c)" title="Kontakt löschen">
+                  </AppIconButton>
+                  <AppIconButton size="sm" variant="ghost" :label="`${c.displayName} löschen`" @click="deleteContactConfirm(c)">
                     <font-awesome-icon :icon="['fas', 'trash']" />
-                  </button>
+                  </AppIconButton>
                 </td>
               </tr>
             </tbody>
@@ -247,59 +203,56 @@
       @close="contextMenu.visible = false"
     />
 
-    <!-- Contact Edit Modal -->
-    <teleport to="body">
-      <div v-if="editContact" class="modal-overlay" @click="editContact = null">
-        <div class="contact-edit-modal" @click.stop>
-          <div class="modal-header">
-            <h3>Kontakt bearbeiten</h3>
-            <button class="btn-icon" @click="editContact = null">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="form-row">
-              <label>Vorname</label>
-              <input v-model="editForm.givenName" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>Nachname</label>
-              <input v-model="editForm.surname" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>E-Mail</label>
-              <input v-model="editForm.email" type="email" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>Telefon (Mobil)</label>
-              <input v-model="editForm.mobilePhone" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>Telefon (Geschäftlich)</label>
-              <input v-model="editForm.businessPhone" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>Position</label>
-              <input v-model="editForm.jobTitle" class="form-input" />
-            </div>
-            <div class="form-row">
-              <label>Firma (companyName)</label>
-              <input v-model="editForm.companyName" class="form-input" />
-              <span v-if="editFormLinkedKunde" class="edit-linked-hint">
-                <font-awesome-icon :icon="['fas', 'link']" /> {{ editFormLinkedKunde.kundName }}
-              </span>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-secondary" @click="editContact = null">Abbrechen</button>
-            <button class="btn-primary" @click="saveEditContact" :disabled="editSaving">
-              <font-awesome-icon v-if="editSaving" :icon="['fas', 'spinner']" spin />
-              Speichern
-            </button>
-          </div>
+    <ModalFrame
+      :model-value="Boolean(editContact)"
+      title="Kontakt bearbeiten"
+      size="sm"
+      layer="elevated"
+      :show-close="!editSaving"
+      :close-on-backdrop="!editSaving"
+      :close-on-escape="!editSaving"
+      :style="{ '--mf-max-width': '480px', '--mf-body-padding': '0' }"
+      @update:model-value="closeEditContact"
+    >
+      <form id="customer-contact-edit-form" class="contact-edit-body" @submit.prevent="saveEditContact">
+        <div class="form-row">
+          <label for="customer-contact-given-name">Vorname</label>
+          <AppTextInput id="customer-contact-given-name" v-model="editForm.givenName" :disabled="editSaving" />
         </div>
-      </div>
-    </teleport>
+        <div class="form-row">
+          <label for="customer-contact-surname">Nachname</label>
+          <AppTextInput id="customer-contact-surname" v-model="editForm.surname" :disabled="editSaving" />
+        </div>
+        <div class="form-row">
+          <label for="customer-contact-email">E-Mail</label>
+          <AppTextInput id="customer-contact-email" v-model="editForm.email" type="email" :disabled="editSaving" />
+        </div>
+        <div class="form-row">
+          <label for="customer-contact-mobile">Telefon (Mobil)</label>
+          <AppTextInput id="customer-contact-mobile" v-model="editForm.mobilePhone" :disabled="editSaving" />
+        </div>
+        <div class="form-row">
+          <label for="customer-contact-business-phone">Telefon (Geschäftlich)</label>
+          <AppTextInput id="customer-contact-business-phone" v-model="editForm.businessPhone" :disabled="editSaving" />
+        </div>
+        <div class="form-row">
+          <label for="customer-contact-position">Position</label>
+          <AppTextInput id="customer-contact-position" v-model="editForm.jobTitle" :disabled="editSaving" />
+        </div>
+        <div class="form-row">
+          <label for="customer-contact-company">Firma (companyName)</label>
+          <AppTextInput id="customer-contact-company" v-model="editForm.companyName" :disabled="editSaving" />
+          <span v-if="editFormLinkedKunde" class="edit-linked-hint">
+            <font-awesome-icon :icon="['fas', 'link']" /> {{ editFormLinkedKunde.kundName }}
+          </span>
+        </div>
+        <p v-if="editError" class="contact-edit-error" role="alert">{{ editError }}</p>
+      </form>
+      <template #footer>
+        <AppButton variant="secondary" :disabled="editSaving" @click="closeEditContact">Abbrechen</AppButton>
+        <AppButton type="submit" form="customer-contact-edit-form" :loading="editSaving">Speichern</AppButton>
+      </template>
+    </ModalFrame>
 
   </div>
 </template>
@@ -331,8 +284,12 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
-import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
+import CustomerListCard from '@/components/customer/CustomerListCard.vue';
 import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import api from '@/utils/api';
 
 const dataCache = useDataCache();
@@ -672,24 +629,6 @@ function setStatusFilter(val) {
   }
 }
 
-function getStatusText(status) {
-  switch(status) {
-    case 1: return 'Potentiell';
-    case 2: return 'Aktiv';
-    case 3: return 'Inaktiv';
-    default: return 'Unbekannt';
-  }
-}
-
-function getStatusClass(status) {
-  switch(status) {
-    case 1: return 'status-lead';
-    case 2: return 'status-active';
-    case 3: return 'status-inactive';
-    default: return '';
-  }
-}
-
 function formatDate(dateStr) {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('de-DE');
@@ -708,6 +647,7 @@ const contactFilters = ref({ team: null, linked: null, kundeId: '' });
 const editContact = ref(null);
 const editForm = ref({});
 const editSaving = ref(false);
+const editError = ref('');
 const showKontaktAnlegenModal = ref(false);
 
 function onKontaktAngelegt(contact) {
@@ -812,6 +752,7 @@ const editFormLinkedKunde = computed(() => {
 });
 
 function openEditContact(contact) {
+  editError.value = '';
   editContact.value = contact;
   editForm.value = {
     givenName: contact.givenName || '',
@@ -824,9 +765,16 @@ function openEditContact(contact) {
   };
 }
 
+function closeEditContact() {
+  if (editSaving.value) return;
+  editContact.value = null;
+  editError.value = '';
+}
+
 async function saveEditContact() {
   if (!editContact.value || editSaving.value) return;
   editSaving.value = true;
+  editError.value = '';
   try {
     const f = editForm.value;
     const patch = {
@@ -846,6 +794,7 @@ async function saveEditContact() {
     editContact.value = null;
   } catch (e) {
     console.error('Failed to update contact:', e);
+    editError.value = e?.response?.data?.message || 'Kontakt konnte nicht gespeichert werden.';
   } finally {
     editSaving.value = false;
   }
@@ -1013,91 +962,6 @@ watch(currentTab, (tab) => {
   gap: 16px;
 }
 
-.kunde-card {
-  background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.kunde-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.card-title-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.card-header-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.ctx-menu-btn {
-  background: transparent;
-  border: none;
-  padding: 6px 8px;
-  cursor: pointer;
-  color: var(--muted);
-  transition: color 0.2s;
-  line-height: 1;
-  border-radius: 4px;
-  font-size: 18px;
-}
-
-.ctx-menu-btn:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.card-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.status-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.status-active { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-.status-inactive { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
-.status-lead { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
-
-.card-body p {
-  margin: 4px 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.card-body strong {
-  color: var(--text);
-}
-
-.kuerzel-inline {
-  color: var(--primary);
-  font-weight: 500;
-}
-
 /* Empty & Loading States */
 .empty-list, .loading-state {
   text-align: center;
@@ -1158,47 +1022,8 @@ watch(currentTab, (tab) => {
   font-size: 12px;
 }
 
-.kunden-grid .kunde-card {
-  cursor: pointer;
-}
-
 .lead-item {
   cursor: pointer;
-}
-
-.contact-preview {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text);
-  margin-top: 6px;
-  
-  svg { color: var(--muted); }
-}
-
-.more-contacts {
-  font-size: 11px;
-  background: var(--hover);
-  padding: 2px 6px;
-  border-radius: 10px;
-  color: var(--muted);
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
 }
 
 /* Contacts Table */
@@ -1271,32 +1096,24 @@ watch(currentTab, (tab) => {
   min-width: 120px;
 }
 
-.btn-icon {
-  background: transparent;
-  border: none;
-  padding: 4px 6px;
-  cursor: pointer;
-  color: var(--muted);
-  transition: color 0.2s;
-  font-size: 13px;
-}
-
-.btn-icon:hover {
-  color: var(--text);
-}
-
 .linked-kunde {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--primary);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--action-accent-text);
   cursor: pointer;
+  font: inherit;
   font-weight: 500;
 }
 
 .linked-kunde:hover {
   text-decoration: underline;
 }
+
+.linked-kunde:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
 .no-link {
   color: var(--muted);
@@ -1321,35 +1138,8 @@ watch(currentTab, (tab) => {
   white-space: nowrap;
 }
 
-.btn-delete:hover {
-  color: #ef4444;
-}
-
 /* Contact Edit Modal */
-.contact-edit-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
-}
-
-.contact-edit-modal .modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.contact-edit-modal .modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.contact-edit-modal .modal-body {
+.contact-edit-body {
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1370,70 +1160,13 @@ watch(currentTab, (tab) => {
   letter-spacing: 0.3px;
 }
 
-.form-input {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font-size: 14px;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
 .edit-linked-hint {
   font-size: 12px;
-  color: var(--primary);
+  color: var(--action-accent-text);
   margin-top: 2px;
 }
 
-.contact-edit-modal .modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.btn-secondary:hover {
-  background: var(--hover);
-}
-
-.btn-primary {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: var(--primary);
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.contact-edit-error { margin: 0; color: var(--status-danger-text); font-size: 0.82rem; }
 
 /* ---- Mobile Responsive ---- */
 @media (max-width: 768px) {

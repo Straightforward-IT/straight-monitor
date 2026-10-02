@@ -97,7 +97,9 @@ router.get("/inventory-item/:itemId", auth, asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Artikel-ID ist ungültig" });
   }
 
-  const item = await InventoryItem.findById(req.params.itemId).lean();
+  const item = await InventoryItem.findById(req.params.itemId)
+    .populate('bestaende.location', 'nameFull shortName isActive')
+    .lean();
   if (!item) return res.status(404).json({ message: "Artikel nicht gefunden" });
 
   const createdAt = item.createdAt || item._id.getTimestamp?.() || new Date(0);
@@ -120,8 +122,72 @@ router.get("/inventory-item/:itemId", auth, asyncHandler(async (req, res) => {
       currentBestand,
       variationen: item.variationen || [],
       groessen: item.groessen || [],
+      bestaende: (item.bestaende || []).map((stock) => ({
+        _id: stock._id,
+        location: stock.location ? {
+          _id: stock.location._id,
+          nameFull: stock.location.nameFull,
+          shortName: stock.location.shortName,
+          isActive: stock.location.isActive,
+        } : null,
+        variationKey: stock.variationKey || null,
+        groesseKey: stock.groesseKey || 'onesize',
+        bestand: Number(stock.bestand || 0),
+        isActive: stock.isActive !== false,
+      })),
     },
     events: buildInventoryHistoryEvents(item, enrichedLogs),
+  });
+}));
+
+// GET normalized monitoring history for a PaketVorlage's actual bookings
+router.get('/package-template/:templateId', auth, asyncHandler(async (req, res) => {
+  const { templateId } = req.params;
+  if (!mongoose.isValidObjectId(templateId)) {
+    return res.status(400).json({ message: 'Paketvorlagen-ID ist ungültig' });
+  }
+  if (req.query.locationId && !mongoose.isValidObjectId(req.query.locationId)) {
+    return res.status(400).json({ message: 'Standort-ID ist ungültig' });
+  }
+
+  const template = await PaketVorlage.findById(templateId).select('name createdAt isActive').lean();
+  if (!template) return res.status(404).json({ message: 'Paketvorlage nicht gefunden' });
+
+  const packageFilter = {
+    $or: [
+      { packageTemplate: template._id },
+      { anmerkung: { $regex: `\\[Paketvorlage: ${templateId}\\]`, $options: 'i' } },
+    ],
+  };
+  const locationFilter = req.query.locationId
+    ? { $or: [{ locationV2: req.query.locationId }, { locationId: req.query.locationId }] }
+    : null;
+  const logs = await Monitoring.find(locationFilter ? { $and: [packageFilter, locationFilter] } : packageFilter)
+    .sort({ timestamp: 1 })
+    .lean();
+
+  const locations = new Map();
+  const events = logs.map((log) => {
+    const activeLines = (log.items || []).filter((line) => !log.storniert && !line.storniert);
+    const quantity = activeLines.reduce((total, line) => total + Number(line.anzahl || 0), 0);
+    const locationId = String(log.locationV2 || log.locationId || '');
+    if (locationId) locations.set(locationId, log.standort || 'Unbekannter Standort');
+    return {
+      id: String(log._id),
+      timestamp: log.timestamp,
+      art: log.art,
+      quantity,
+      locationId: locationId || null,
+      standort: log.standort || '',
+      cancelled: Boolean(log.storniert),
+      partiallyCancelled: !log.storniert && activeLines.length < (log.items || []).length,
+    };
+  });
+
+  res.json({
+    template: { _id: template._id, name: template.name, createdAt: template.createdAt, isActive: template.isActive },
+    locations: [...locations].map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, 'de')),
+    events,
   });
 }));
 

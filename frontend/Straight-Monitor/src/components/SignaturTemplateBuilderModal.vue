@@ -1,57 +1,57 @@
 <template>
-  <Teleport to="body">
-    <Transition name="sigb-modal">
-      <div v-if="builder.open" class="sigb-backdrop" @mousedown.self="close">
-        <div class="sigb-dialog" role="dialog" aria-modal="true">
-          <header class="sigb-header">
-            <div class="sigb-title">
-              <font-awesome-icon :icon="['fas', 'pen-ruler']" />
-              <h2>{{ builder.templateId ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h2>
-            </div>
-            <button class="sigb-close" type="button" title="Schließen" @click="close">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
-
-          <div class="sigb-body">
-            <div v-if="loading" class="sigb-state">
-              <font-awesome-icon :icon="['fas', 'spinner']" spin size="2x" />
-              <p>Builder wird geladen…</p>
-            </div>
-            <div v-else-if="error" class="sigb-state sigb-state--error">
-              <font-awesome-icon :icon="['fas', 'triangle-exclamation']" size="2x" />
-              <p>{{ error }}</p>
-              <button class="sigb-retry" type="button" @click="loadToken">Erneut versuchen</button>
-            </div>
-            <DocusealBuilder
-              v-else-if="token"
-              :token="token"
-              :host="docusealHost"
-              language="de"
-              :custom-css="builderCustomCss"
-              :autosave="!isNewTemplate"
-              @load="onTemplateEvent"
-              @upload="onUpload"
-              @save="onSave"
-            />
-          </div>
-        </div>
+  <ModalFrame
+    :model-value="builder.open"
+    :title="builder.templateId ? 'Vorlage bearbeiten' : 'Neue Vorlage'"
+    size="full"
+    layer="elevated"
+    :style="{ '--mf-max-width': '95vw', '--mf-max-height': '95vh', '--mf-body-padding': '0' }"
+    @close="close"
+  >
+    <template #header="{ titleId }">
+      <div class="sigb-title">
+        <font-awesome-icon :icon="['fas', 'pen-ruler']" />
+        <h2 :id="titleId">{{ builder.templateId ? 'Vorlage bearbeiten' : 'Neue Vorlage' }}</h2>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+
+    <div class="sigb-body">
+      <div v-if="loading" class="sigb-state">
+        <font-awesome-icon :icon="['fas', 'spinner']" spin size="2x" />
+        <p>Builder wird geladen…</p>
+      </div>
+      <div v-else-if="error" class="sigb-state sigb-state--error">
+        <font-awesome-icon :icon="['fas', 'triangle-exclamation']" size="2x" />
+        <p>{{ error }}</p>
+        <AppButton variant="secondary" @click="loadToken">Erneut versuchen</AppButton>
+      </div>
+      <DocusealBuilder
+        v-else-if="token"
+        :token="token"
+        :host="docusealHost"
+        language="de"
+        :custom-css="builderCustomCss"
+        :autosave="!isNewTemplate"
+        @load="onTemplateEvent"
+        @upload="onUpload"
+        @save="onSave"
+      />
+    </div>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faPenRuler, faXmark, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
+import { faPenRuler, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { DocusealBuilder } from '@docuseal/vue';
 import api from '@/utils/api';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
 import { useTheme } from '@/stores/theme';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
-library.add(faPenRuler, faXmark, faSpinner, faTriangleExclamation);
+library.add(faPenRuler, faSpinner, faTriangleExclamation);
 
 const builder = useSignaturBuilder();
 const theme = useTheme();
@@ -200,55 +200,12 @@ watch(() => builder.open, (open) => {
 </script>
 
 <style scoped lang="scss">
-.sigb-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  background: rgba(0, 0, 0, 0.55);
+.sigb-title {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 2.5vh 2.5vw;
-}
-
-.sigb-dialog {
-  width: 95vw;
-  height: 95vh;
-  background: var(--surface);
-  border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sigb-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-
-  .sigb-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--primary);
-    h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 0; }
-  }
-}
-
-.sigb-close {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 1.1rem;
-  cursor: pointer;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  &:hover { background: var(--hover); color: var(--text); }
+  gap: 10px;
+  color: var(--action-accent-text);
+  h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 0; }
 }
 
 .sigb-body {
@@ -266,20 +223,6 @@ watch(() => builder.open, (open) => {
   gap: 14px;
   color: var(--muted);
 
-  &--error { color: #ef4444; }
+  &--error { color: var(--status-danger-text); }
 }
-
-.sigb-retry {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-  font-weight: 600;
-  &:hover { background: var(--hover); }
-}
-
-.sigb-modal-enter-active, .sigb-modal-leave-active { transition: opacity 0.2s; }
-.sigb-modal-enter-from, .sigb-modal-leave-to { opacity: 0; }
 </style>

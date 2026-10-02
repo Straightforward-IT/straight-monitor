@@ -5,461 +5,684 @@
     minimize-id="signature-new"
     :minimize-title="signatureDockTitle"
     size="xl"
-    :close-on-backdrop="!submitting"
+    :title="modalTitle"
+    :close-on-backdrop="!busy"
+    :close-on-escape="!busy"
     style="--mf-max-width: 860px; --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-footer-padding: 0; --mf-footer-border: none"
     @close="close"
   >
-    <template #header>
+    <template #header="{ titleId }">
       <div class="sig-header-title">
         <font-awesome-icon :icon="['fas', modal.context.draftId ? 'pen-nib' : 'file-signature']" />
-        <h2>{{ modalTitle }}</h2>
+        <h2 :id="titleId">
+          {{ modalTitle }}
+        </h2>
       </div>
     </template>
 
     <div class="sig-content">
+      <!-- Step breadcrumb -->
+      <nav
+        class="sig-steps"
+        aria-label="Schritte zur Signatur"
+      >
+        <button
+          v-for="(s, i) in steps"
+          :key="s.key"
+          class="sig-step"
+          :class="{ active: currentStep === i, done: currentStep > i, reachable: i <= maxReachableStep }"
+          type="button"
+          :disabled="i > maxReachableStep || busy || showCloseConfirm"
+          :aria-current="currentStep === i ? 'step' : undefined"
+          @click="i <= maxReachableStep && (currentStep = i)"
+        >
+          <span class="sig-step-num">
+            <font-awesome-icon
+              v-if="currentStep > i"
+              :icon="['fas', 'check']"
+            />
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <span class="sig-step-label">{{ s.label }}</span>
+        </button>
+      </nav>
 
-          <!-- Step breadcrumb -->
-          <nav class="sig-steps">
+      <!-- Body -->
+      <div class="sig-body">
+        <!-- ───────── STEP 1: Dokument & Typ ───────── -->
+        <section
+          v-show="currentStep === 0"
+          class="sig-section"
+        >
+          <template v-if="!isContextLocked">
+            <label class="sig-field-label">Location</label>
+            <div class="sig-chip-row">
+              <FilterChip
+                v-for="location in locations"
+                :key="location._id"
+                :active="form.locationId === location._id"
+                @click="form.locationId = form.locationId === location._id ? null : location._id"
+              >
+                {{ location.nameFull }}
+              </FilterChip>
+            </div>
+          </template>
+
+          <label
+            class="sig-field-label"
+            for="sig-name"
+          >Bezeichnung</label>
+          <AppTextInput
+            id="sig-name"
+            v-model="form.name"
+            type="text"
+            :readonly="isGeneratedDocumentFlow"
+            placeholder="z. B. Stundenliste Auftrag 12345"
+          />
+
+          <label class="sig-field-label">Dokumenttyp</label>
+          <div
+            v-if="typenLoading"
+            class="sig-loading-inline"
+          >
+            <font-awesome-icon
+              :icon="['fas', 'spinner']"
+              spin
+            /> Typen laden…
+          </div>
+          <div
+            v-else-if="isContextLocked"
+            class="sig-fixed-type"
+          >
+            <font-awesome-icon :icon="typIcon(form.typKey || modal.context.typKey)" />
+            <span>
+              <strong>{{ selectedTyp?.label || form.typKey || modal.context.typKey }}</strong>
+              <small>{{ isReisekostenFlow ? 'Das signierte Dokument wird an Invoice ausgeliefert' : (usesCustomEndpoint ? 'Das Dokument wird automatisch generiert' : 'Dokumenttyp ist festgelegt') }}</small>
+            </span>
+            <font-awesome-icon
+              :icon="['fas', 'lock']"
+              class="sig-fixed-type-lock"
+            />
+          </div>
+          <div
+            v-else
+            class="sig-type-grid"
+          >
             <button
-              v-for="(s, i) in steps"
-              :key="s.key"
-              class="sig-step"
-              :class="{ active: currentStep === i, done: currentStep > i, reachable: i <= maxReachableStep }"
+              v-for="t in typen"
+              :key="t._id"
+              class="sig-type-card"
+              :class="{ active: form.typId === t._id }"
+              :aria-pressed="form.typId === t._id"
               type="button"
-              :disabled="i > maxReachableStep"
-              @click="i <= maxReachableStep && (currentStep = i)"
+              @click="selectTyp(t)"
             >
-              <span class="sig-step-num">
-                <font-awesome-icon v-if="currentStep > i" :icon="['fas', 'check']" />
-                <template v-else>{{ i + 1 }}</template>
-              </span>
-              <span class="sig-step-label">{{ s.label }}</span>
-            </button>
-          </nav>
-
-          <!-- Body -->
-          <div class="sig-body">
-            <!-- ───────── STEP 1: Dokument & Typ ───────── -->
-            <section v-show="currentStep === 0" class="sig-section">
-              <template v-if="!isContextLocked">
-                <label class="sig-field-label">Location</label>
-                <div class="sig-chip-row">
-                <FilterChip
-                  v-for="location in locations"
-                  :key="location._id"
-                  :active="form.locationId === location._id"
-                  @click="form.locationId = form.locationId === location._id ? null : location._id"
-                >
-                  {{ location.nameFull }}
-                </FilterChip>
-                </div>
-              </template>
-
-              <label class="sig-field-label" for="sig-name">Bezeichnung</label>
-              <input
-                id="sig-name"
-                v-model="form.name"
-                type="text"
-                class="sig-input"
-                :readonly="isGeneratedDocumentFlow"
-                placeholder="z. B. Stundenliste Auftrag 12345"
+              <font-awesome-icon
+                :icon="typIcon(t.key)"
+                class="sig-type-icon"
               />
+              <span class="sig-type-label">{{ t.label }}</span>
+              <span class="sig-type-link">{{ linkLabel(t.linkedTo) }}</span>
+            </button>
+            <button
+              v-if="isAdmin"
+              class="sig-type-card sig-type-card--add"
+              type="button"
+              title="Neuen Typ anlegen"
+              @click="showTypModal = true"
+            >
+              <font-awesome-icon
+                :icon="['fas', 'plus']"
+                class="sig-type-icon"
+              />
+              <span class="sig-type-label">Neuer Typ</span>
+            </button>
+          </div>
 
-              <label class="sig-field-label">Dokumenttyp</label>
-              <div v-if="typenLoading" class="sig-loading-inline">
-                <font-awesome-icon :icon="['fas', 'spinner']" spin /> Typen laden…
-              </div>
-              <div v-else-if="isContextLocked" class="sig-fixed-type">
-                <font-awesome-icon :icon="typIcon(form.typKey || modal.context.typKey)" />
-                <span>
-                  <strong>{{ selectedTyp?.label || form.typKey || modal.context.typKey }}</strong>
-                  <small>{{ isReisekostenFlow ? 'Das signierte Dokument wird an Invoice ausgeliefert' : (usesCustomEndpoint ? 'Das Dokument wird automatisch generiert' : 'Dokumenttyp ist festgelegt') }}</small>
-                </span>
-                <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
-              </div>
-              <div v-else class="sig-type-grid">
-                <button
-                  v-for="t in typen"
-                  :key="t._id"
-                  class="sig-type-card"
-                  :class="{ active: form.typId === t._id }"
-                  type="button"
-                  @click="selectTyp(t)"
-                >
-                  <font-awesome-icon :icon="typIcon(t.key)" class="sig-type-icon" />
-                  <span class="sig-type-label">{{ t.label }}</span>
-                  <span class="sig-type-link">{{ linkLabel(t.linkedTo) }}</span>
-                </button>
-                <button
-                  v-if="isAdmin"
-                  class="sig-type-card sig-type-card--add"
-                  type="button"
-                  title="Neuen Typ anlegen"
-                  @click="showTypModal = true"
-                >
-                  <font-awesome-icon :icon="['fas', 'plus']" class="sig-type-icon" />
-                  <span class="sig-type-label">Neuer Typ</span>
-                </button>
-              </div>
+          <template v-if="!usesCustomEndpoint && form.typId && templatesForTyp.length">
+            <label class="sig-field-label">Vorlage</label>
+            <div class="sig-tpl-chips">
+              <button
+                v-for="tpl in templatesForTyp"
+                :key="tpl.id"
+                class="sig-tpl-chip"
+                :class="{ active: form.templateId === tpl.id }"
+                :aria-pressed="form.templateId === tpl.id"
+                type="button"
+                @click="selectTemplateChip(tpl)"
+              >
+                <font-awesome-icon :icon="['fas', 'file-lines']" />
+                {{ tpl.name }}
+              </button>
+            </div>
+          </template>
+        </section>
 
-              <template v-if="!usesCustomEndpoint && form.typId && templatesForTyp.length">
-                <label class="sig-field-label">Vorlage</label>
-                <div class="sig-tpl-chips">
-                  <button
-                    v-for="tpl in templatesForTyp"
-                    :key="tpl.id"
-                    class="sig-tpl-chip"
-                    :class="{ active: form.templateId === tpl.id }"
-                    type="button"
-                    @click="selectTemplateChip(tpl)"
+        <!-- ───────── STEP 2: Verknüpfung ───────── -->
+        <section
+          v-show="currentStep === 1"
+          class="sig-section"
+        >
+          <template v-if="isContextLocked">
+            <label class="sig-field-label">Verknüpft mit</label>
+            <div class="sig-fixed-type">
+              <font-awesome-icon :icon="linkMode === 'kunde' ? ['fas', 'building'] : ['fas', 'id-badge']" />
+              <span>
+                <strong>{{ linkMode === 'kunde' ? selectedKunde?.kundName : `${selectedMitarbeiter?.vorname || ''} ${selectedMitarbeiter?.nachname || ''}`.trim() }}</strong>
+                <small>{{ linkMode === 'kunde' ? selectedKunde?.kuerzel || selectedKunde?.kundenNr : selectedMitarbeiter?.email }}</small>
+              </span>
+              <font-awesome-icon
+                :icon="['fas', 'lock']"
+                class="sig-fixed-type-lock"
+              />
+            </div>
+          </template>
+          <template v-else>
+            <label class="sig-field-label">Verknüpfen mit</label>
+            <AppSegmentedControl
+              :model-value="linkMode"
+              :options="availableLinkOptions"
+              label="Verknüpfen mit"
+              class="sig-link-toggle"
+              @update:model-value="setLinkMode"
+            >
+              <template #option="{ option }">
+                <font-awesome-icon :icon="option.icon" />
+                {{ option.label }}
+              </template>
+            </AppSegmentedControl>
+
+            <!-- Kunde search -->
+            <div
+              v-if="linkMode === 'kunde'"
+              class="sig-link-search"
+            >
+              <ContactSearchPlaceholder
+                v-if="form.kundeId"
+                :title="selectedKunde ? selectedKunde.kundName : ''"
+                :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
+                @clear="clearKunde"
+              />
+              <KundeSearch
+                v-else
+                v-model="form.kundeId"
+                placeholder="Kunde / Kürzel suchen…"
+                @select="selectKunde"
+              />
+            </div>
+
+            <!-- Mitarbeiter search -->
+            <div
+              v-if="linkMode === 'mitarbeiter'"
+              class="sig-link-search"
+            >
+              <ContactSearchPlaceholder
+                v-if="form.mitarbeiterId"
+                :title="selectedMitarbeiter ? `${selectedMitarbeiter.vorname} ${selectedMitarbeiter.nachname}` : ''"
+                :subtitle="selectedMitarbeiter ? (selectedMitarbeiter.email || '') : ''"
+                @clear="clearMitarbeiter"
+              />
+              <div
+                v-else
+                ref="maBox"
+                class="sig-typeahead"
+              >
+                <div class="sig-search-input">
+                  <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                  <input
+                    v-model="maQuery"
+                    type="text"
+                    placeholder="Mitarbeiter suchen…"
+                    @focus="maOpen = true"
                   >
-                    <font-awesome-icon :icon="['fas', 'file-lines']" />
-                    {{ tpl.name }}
+                </div>
+                <div
+                  v-if="maOpen && filteredMitarbeiter.length"
+                  class="sig-typeahead-list"
+                >
+                  <button
+                    v-for="m in filteredMitarbeiter"
+                    :key="m._id"
+                    class="sig-typeahead-item"
+                    type="button"
+                    @click="selectMitarbeiter(m)"
+                  >
+                    <span class="sig-ta-name">{{ m.vorname }} {{ m.nachname }}</span>
+                    <span class="sig-ta-kuerzel">{{ m.email || '—' }}</span>
                   </button>
                 </div>
-              </template>
-
-            </section>
-
-            <!-- ───────── STEP 2: Verknüpfung ───────── -->
-            <section v-show="currentStep === 1" class="sig-section">
-              <template v-if="isContextLocked">
-                <label class="sig-field-label">Verknüpft mit</label>
-                <div class="sig-fixed-type">
-                  <font-awesome-icon :icon="linkMode === 'kunde' ? ['fas', 'building'] : ['fas', 'id-badge']" />
-                  <span>
-                    <strong>{{ linkMode === 'kunde' ? selectedKunde?.kundName : `${selectedMitarbeiter?.vorname || ''} ${selectedMitarbeiter?.nachname || ''}`.trim() }}</strong>
-                    <small>{{ linkMode === 'kunde' ? selectedKunde?.kuerzel || selectedKunde?.kundenNr : selectedMitarbeiter?.email }}</small>
-                  </span>
-                  <font-awesome-icon :icon="['fas', 'lock']" class="sig-fixed-type-lock" />
-                </div>
-              </template>
-              <template v-else>
-                <label class="sig-field-label">Verknüpfen mit</label>
-                <div class="sig-link-toggle">
-                  <button
-                    v-for="opt in linkOptions"
-                    :key="opt.key"
-                    class="sig-link-btn"
-                    :class="{ active: linkMode === opt.key }"
-                    type="button"
-                    :disabled="!isLinkAllowed(opt.key)"
-                    @click="setLinkMode(opt.key)"
-                  >
-                    <font-awesome-icon :icon="opt.icon" />
-                    {{ opt.label }}
-                  </button>
-                </div>
-
-                <!-- Kunde search -->
-                <div v-if="linkMode === 'kunde'" class="sig-link-search">
-                  <ContactSearchPlaceholder
-                    v-if="form.kundeId"
-                    :title="selectedKunde ? selectedKunde.kundName : ''"
-                    :subtitle="selectedKunde ? (selectedKunde.kuerzel || String(selectedKunde.kundenNr || '')) : ''"
-                    @clear="clearKunde"
-                  />
-                  <KundeSearch
-                    v-else
-                    v-model="form.kundeId"
-                    placeholder="Kunde / Kürzel suchen…"
-                    @select="selectKunde"
-                  />
-                </div>
-
-                <!-- Mitarbeiter search -->
-                <div v-if="linkMode === 'mitarbeiter'" class="sig-link-search">
-                  <ContactSearchPlaceholder
-                    v-if="form.mitarbeiterId"
-                    :title="selectedMitarbeiter ? `${selectedMitarbeiter.vorname} ${selectedMitarbeiter.nachname}` : ''"
-                    :subtitle="selectedMitarbeiter ? (selectedMitarbeiter.email || '') : ''"
-                    @clear="clearMitarbeiter"
-                  />
-                  <div v-else class="sig-typeahead" ref="maBox">
-                    <div class="sig-search-input">
-                      <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                      <input v-model="maQuery" type="text" placeholder="Mitarbeiter suchen…" @focus="maOpen = true" />
-                    </div>
-                    <div v-if="maOpen && filteredMitarbeiter.length" class="sig-typeahead-list">
-                      <button
-                        v-for="m in filteredMitarbeiter"
-                        :key="m._id"
-                        class="sig-typeahead-item"
-                        type="button"
-                        @click="selectMitarbeiter(m)"
-                      >
-                        <span class="sig-ta-name">{{ m.vorname }} {{ m.nachname }}</span>
-                        <span class="sig-ta-kuerzel">{{ m.email || '—' }}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-            </section>
-
-            <!-- ───────── STEP 3: Unterzeichner ───────── -->
-            <section v-show="currentStep === 2" class="sig-section">
-              <label class="sig-field-label">Vorlage</label>
-              <div v-if="usesCustomEndpoint" class="sig-template-auto">
-                <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" />
-                <span>{{ modal.context.sourceDocumentName || `Dokument wird automatisch generiert (${modal.context.typKey}).` }}</span>
               </div>
-              <div v-else class="sig-template-row">
-                <select v-model="form.templateId" class="sig-select" @change="onTemplateChange">
-                  <option :value="null">— Entwurf ohne Vorlage —</option>
-                  <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
-                <button class="sig-btn sig-btn--ghost" type="button" @click="openBuilder">
-                  <font-awesome-icon :icon="['fas', 'pen-ruler']" />
-                  {{ form.templateId ? 'Bearbeiten' : 'Neu erstellen' }}
-                </button>
-              </div>
+            </div>
+          </template>
+        </section>
 
-              <label class="sig-field-label">Unterzeichner</label>
-              <div class="sig-submitters">
-                <template v-for="(sub, i) in form.submitters" :key="i">
+        <!-- ───────── STEP 3: Unterzeichner ───────── -->
+        <section
+          v-show="currentStep === 2"
+          class="sig-section"
+        >
+          <label class="sig-field-label">Vorlage</label>
+          <div
+            v-if="usesCustomEndpoint"
+            class="sig-template-auto"
+          >
+            <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" />
+            <span>{{ modal.context.sourceDocumentName || `Dokument wird automatisch generiert (${modal.context.typKey}).` }}</span>
+          </div>
+          <div
+            v-else
+            class="sig-template-row"
+          >
+            <select
+              v-model="form.templateId"
+              class="sig-select"
+              @change="onTemplateChange"
+            >
+              <option :value="null">
+                — Entwurf ohne Vorlage —
+              </option>
+              <option
+                v-for="t in templates"
+                :key="t.id"
+                :value="t.id"
+              >
+                {{ t.name }}
+              </option>
+            </select>
+            <AppButton
+              variant="secondary"
+              @click="openBuilder"
+            >
+              <font-awesome-icon :icon="['fas', 'pen-ruler']" />
+              {{ form.templateId ? 'Bearbeiten' : 'Neu erstellen' }}
+            </AppButton>
+          </div>
+
+          <label class="sig-field-label">Unterzeichner</label>
+          <div class="sig-submitters">
+            <template
+              v-for="(sub, i) in form.submitters"
+              :key="i"
+            >
+              <ContactSearchPicker
+                v-model="form.submitters[i]"
+                :role-name="sub.role || `Unterzeichner ${i + 1}`"
+                :contacts="graphContacts"
+                :mitarbeiter="mitarbeiterList"
+                :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
+                :kuerzel="selectedKunde?.kuerzel"
+                :company-name="sub.role === 'Entleiher' ? (selectedKunde?.kuerzel || selectedKunde?.kundName) : ''"
+                :locked="isReisekostenFlow"
+                :removable="!hasFixedSignerSlots && form.submitters.length > 1"
+                @remove="removeSubmitter(i)"
+              />
+              <template v-if="canAddStundenlisteInvitationRecipients && sub.role === 'Entleiher'">
+                <div class="sig-entleiher-recipients">
+                  <span class="sig-entleiher-recipients-label">Weitere Empfänger des Entleihers</span>
                   <ContactSearchPicker
-                    v-model="form.submitters[i]"
-                    :role-name="sub.role || `Unterzeichner ${i + 1}`"
+                    v-for="(recipient, recipientIndex) in entleiherInvitationRecipients"
+                    :key="`entleiher-invitation-${recipientIndex}`"
+                    v-model="entleiherInvitationRecipients[recipientIndex]"
+                    role-name="Weitere Empfänger"
                     :contacts="graphContacts"
                     :mitarbeiter="mitarbeiterList"
-                    :mitarbeiter-id="sub.role === 'Mitarbeiter' ? form.mitarbeiterId : null"
                     :kuerzel="selectedKunde?.kuerzel"
-                    :company-name="sub.role === 'Entleiher' ? (selectedKunde?.kuerzel || selectedKunde?.kundName) : ''"
-                    :locked="isReisekostenFlow"
-                    :removable="!hasFixedSignerSlots && form.submitters.length > 1"
-                    @remove="removeSubmitter(i)"
+                    :removable="true"
+                    :show-delivery-method="false"
+                    :excluded-emails="[...form.submitters, ...entleiherInvitationRecipients].map(contact => contact.email)"
+                    @remove="removeEntleiherInvitationRecipient(recipientIndex)"
                   />
-                  <template v-if="canAddStundenlisteInvitationRecipients && sub.role === 'Entleiher'">
-                    <div class="sig-entleiher-recipients">
-                      <span class="sig-entleiher-recipients-label">Weitere Empfänger des Entleihers</span>
-                      <ContactSearchPicker
-                        v-for="(recipient, recipientIndex) in entleiherInvitationRecipients"
-                        :key="`entleiher-invitation-${recipientIndex}`"
-                        v-model="entleiherInvitationRecipients[recipientIndex]"
-                        role-name="Weitere Empfänger"
-                        :contacts="graphContacts"
-                        :mitarbeiter="mitarbeiterList"
-                        :kuerzel="selectedKunde?.kuerzel"
-                        :removable="true"
-                        :show-delivery-method="false"
-                        :excluded-emails="[...form.submitters, ...entleiherInvitationRecipients].map(contact => contact.email)"
-                        @remove="removeEntleiherInvitationRecipient(recipientIndex)"
-                      />
-                      <button class="sig-add-submitter sig-add-invitation-recipient" type="button" @click="addEntleiherInvitationRecipient">
-                        <font-awesome-icon :icon="['fas', 'plus']" /> Weitere Empfänger
-                      </button>
-                    </div>
-                  </template>
-                </template>
-              </div>
-              <button v-if="!form.templateId && !hasFixedSignerSlots" class="sig-add-submitter" type="button" @click="addSubmitter">
-                <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
-              </button>
-            </section>
-
-            <!-- ───────── STEP 4: Folgeaktionen ───────── -->
-            <section v-show="currentStep === 3" class="sig-section">
-
-              <!-- Ausliefern an -->
-              <label class="sig-field-label">
-                <font-awesome-icon :icon="['fas', 'envelope']" /> Fertig­gestelltes Dokument ausliefern an
-              </label>
-
-              <!-- Kontakt-Vorschläge vom verlinkten Kunden -->
-              <div v-if="linkMode === 'kunde' && kundeContactSuggestions.length" class="sig-follower-suggestions">
-                <div class="sig-follower-header">
-                  <span class="sig-follower-label">
-                    <font-awesome-icon :icon="['fas', 'building']" />
-                    Kontakte von {{ selectedKunde?.kundName || selectedKunde?.kuerzel }}
-                  </span>
-                  <span v-if="followerDefaultsLoading" class="sig-follower-loading">
-                    <font-awesome-icon :icon="['fas', 'spinner']" spin /> Laden…
-                  </span>
-                  <button
-                    v-else-if="form.typId"
-                    class="sig-follower-save-btn"
-                    type="button"
-                    :disabled="followerDefaultsSaving"
-                    @click="saveFollowerDefaults"
+                  <AppButton
+                    variant="outlined"
+                    class="sig-add-submitter"
+                    @click="addEntleiherInvitationRecipient"
                   >
-                    <font-awesome-icon :icon="['fas', followerDefaultsSaving ? 'spinner' : 'floppy-disk']" :spin="followerDefaultsSaving" />
-                    Als Standard speichern
-                  </button>
+                    <font-awesome-icon :icon="['fas', 'plus']" /> Weitere Empfänger
+                  </AppButton>
                 </div>
-                <div class="sig-follower-chips">
-                  <button
-                    v-for="c in kundeContactSuggestions"
-                    :key="c.email"
-                    class="sig-follower-chip"
-                    :class="{ selected: isFollowerSelected(c.email) }"
-                    :style="isFollowerSelected(c.email) ? {} : followerChipColor(c.displayName)"
-                    type="button"
-                    :title="c.email"
-                    @click="toggleFollower(c)"
-                  >
-                    <font-awesome-icon :icon="['fas', isFollowerSelected(c.email) ? 'circle-check' : 'circle']" class="sig-follower-chip-icon" />
-                    <span class="sig-follower-chip-name">{{ c.displayName }}</span>
-                  </button>
-                </div>
-              </div>
-              <div class="sig-email-add-row">
-                <ContactSearchPicker
-                  :key="deliveryPickerKey"
-                  v-model="deliveryRecipient"
-                  role-name="Empfänger"
-                  :contacts="graphContacts"
-                  :mitarbeiter="mitarbeiterList"
-                  :kuerzel="selectedKunde?.kuerzel"
-                  :removable="false"
-                  :show-delivery-method="false"
-                  :excluded-emails="folgeaktionen.ausliefernAn.map(recipient => recipient.email)"
-                  @selected="addAusliefernEmail"
-                />
-              </div>
-              <p v-if="newEmailError" class="sig-error" style="margin-top:6px;">{{ newEmailError }}</p>
-              <p class="sig-hint" style="margin-top:0;margin-bottom:10px;">
-                Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
-              </p>
-              <div class="sig-email-chips">
-                <span v-for="(r, i) in folgeaktionen.ausliefernAn" :key="i" class="sig-email-chip">
-                  <span>{{ r.displayName || r.email }}</span>
-                  <small v-if="r.displayName">{{ r.email }}</small>
-                  <button type="button" class="sig-chip-remove" @click="removeAusliefernEmail(i)">×</button>
-                </span>
-              </div>
-
-              <!-- Asana Aktionen -->
-              <label class="sig-field-label" style="margin-top:20px;">
-                <font-awesome-icon :icon="['fas', 'robot']" /> Asana-Aktionen nach Abschluss
-              </label>
-
-              <!-- Added actions list -->
-              <div v-if="folgeaktionen.asanaActions.length" class="sig-asana-list">
-                <div v-for="(a, i) in folgeaktionen.asanaActions" :key="i" class="sig-asana-item">
-                  <font-awesome-icon :icon="asanaActionIcons[a.type]" class="sig-asana-type-icon" :class="`sig-asana-type--${a.type}`" />
-                  <div class="sig-asana-item-info">
-                    <span class="sig-asana-action-label">{{ asanaActionLabels[a.type] }}</span>
-                    <span class="sig-asana-task-name">{{ a.taskName || a.taskGid }}</span>
-                    <span v-if="a.type === 'comment' && a.comment" class="sig-asana-comment-preview">„{{ a.comment }}"</span>
-                  </div>
-                  <button type="button" class="sig-chip-remove" @click="removeAsanaAction(i)">×</button>
-                </div>
-              </div>
-
-              <!-- Asana action builder -->
-              <div v-if="showAsanaBuilder" class="sig-asana-builder">
-                <div class="sig-typeahead">
-                  <div class="sig-search-input">
-                    <font-awesome-icon :icon="asanaSearching ? ['fas', 'spinner'] : ['fas', 'magnifying-glass']" :spin="asanaSearching" />
-                    <input v-model="asanaSearchQuery" type="text" placeholder="Asana-Task suchen…" />
-                  </div>
-                  <div v-if="asanaSearchResults.length" class="sig-typeahead-list">
-                    <button
-                      v-for="t in asanaSearchResults"
-                      :key="t.gid"
-                      class="sig-typeahead-item"
-                      type="button"
-                      @click="selectAsanaTask(t)"
-                    >
-                      <span class="sig-ta-name">{{ t.name }}</span>
-                    </button>
-                  </div>
-                </div>
-                <div v-if="pendingAction.taskGid" class="sig-asana-action-row">
-                  <select v-model="pendingAction.type" class="sig-select sig-select--inline">
-                    <option value="complete">Erledigen</option>
-                    <option value="comment">Kommentieren</option>
-                    <option value="delete">Löschen</option>
-                  </select>
-                  <textarea
-                    v-if="pendingAction.type === 'comment'"
-                    v-model="pendingAction.comment"
-                    class="sig-input sig-textarea"
-                    placeholder="Kommentartext…"
-                    rows="2"
-                  />
-                  <button class="sig-btn sig-btn--primary" type="button" @click="addAsanaAction">
-                    <font-awesome-icon :icon="['fas', 'plus']" /> Aktion hinzufügen
-                  </button>
-                </div>
-              </div>
-
-              <button v-if="!showAsanaBuilder" class="sig-add-submitter" type="button" @click="showAsanaBuilder = true">
-                <font-awesome-icon :icon="['fas', 'bolt']" /> Asana-Aktion hinzufügen
-              </button>
-              <button v-else class="sig-add-submitter" style="color:var(--muted);" type="button" @click="showAsanaBuilder = false; asanaSearchQuery = ''; asanaSearchResults = []">
-                Abbrechen
-              </button>
-
-            </section>
+              </template>
+            </template>
           </div>
+          <AppButton
+            v-if="!form.templateId && !hasFixedSignerSlots"
+            variant="outlined"
+            class="sig-add-submitter"
+            @click="addSubmitter"
+          >
+            <font-awesome-icon :icon="['fas', 'user-plus']" /> Unterzeichner hinzufügen
+          </AppButton>
+        </section>
 
-          <!-- Close confirm overlay -->
-          <div v-if="showCloseConfirm" class="sig-close-confirm">
-            <p class="sig-close-confirm-msg">Entwurf speichern?</p>
-            <div class="sig-close-confirm-actions">
-              <button
-                class="sig-btn sig-btn--primary"
-                type="button"
-                :disabled="savingDraft || !canSaveDraft"
-                @click="saveAsDraft"
+        <!-- ───────── STEP 4: Folgeaktionen ───────── -->
+        <section
+          v-show="currentStep === 3"
+          class="sig-section"
+        >
+          <!-- Ausliefern an -->
+          <label class="sig-field-label">
+            <font-awesome-icon :icon="['fas', 'envelope']" /> Fertig­gestelltes Dokument ausliefern an
+          </label>
+
+          <!-- Kontakt-Vorschläge vom verlinkten Kunden -->
+          <div
+            v-if="linkMode === 'kunde' && kundeContactSuggestions.length"
+            class="sig-follower-suggestions"
+          >
+            <div class="sig-follower-header">
+              <span class="sig-follower-label">
+                <font-awesome-icon :icon="['fas', 'building']" />
+                Kontakte von {{ selectedKunde?.kundName || selectedKunde?.kuerzel }}
+              </span>
+              <span
+                v-if="followerDefaultsLoading"
+                class="sig-follower-loading"
               >
-                <font-awesome-icon :icon="['fas', savingDraft ? 'spinner' : 'floppy-disk']" :spin="savingDraft" />
-                Als Entwurf speichern
+                <font-awesome-icon
+                  :icon="['fas', 'spinner']"
+                  spin
+                /> Laden…
+              </span>
+              <AppButton
+                v-else-if="form.typId"
+                variant="outlined"
+                size="sm"
+                :loading="followerDefaultsSaving"
+                @click="saveFollowerDefaults"
+              >
+                <font-awesome-icon :icon="['fas', 'floppy-disk']" />
+                Als Standard speichern
+              </AppButton>
+            </div>
+            <div class="sig-follower-chips">
+              <button
+                v-for="c in kundeContactSuggestions"
+                :key="c.email"
+                class="sig-follower-chip"
+                :class="{ selected: isFollowerSelected(c.email) }"
+                :style="isFollowerSelected(c.email) ? {} : followerChipColor(c.displayName)"
+                type="button"
+                :aria-pressed="isFollowerSelected(c.email)"
+                :title="c.email"
+                @click="toggleFollower(c)"
+              >
+                <font-awesome-icon
+                  :icon="['fas', isFollowerSelected(c.email) ? 'circle-check' : 'circle']"
+                  class="sig-follower-chip-icon"
+                />
+                <span class="sig-follower-chip-name">{{ c.displayName }}</span>
               </button>
-              <button class="sig-btn sig-btn--ghost" type="button" @click="confirmDiscard">Verwerfen</button>
-              <button class="sig-btn sig-btn--ghost" type="button" @click="showCloseConfirm = false">Weiter bearbeiten</button>
             </div>
           </div>
+          <div class="sig-email-add-row">
+            <ContactSearchPicker
+              :key="deliveryPickerKey"
+              v-model="deliveryRecipient"
+              role-name="Empfänger"
+              :contacts="graphContacts"
+              :mitarbeiter="mitarbeiterList"
+              :kuerzel="selectedKunde?.kuerzel"
+              :removable="false"
+              :show-delivery-method="false"
+              :excluded-emails="folgeaktionen.ausliefernAn.map(recipient => recipient.email)"
+              @selected="addAusliefernEmail"
+            />
+          </div>
+          <p
+            v-if="newEmailError"
+            class="sig-error"
+            style="margin-top:6px;"
+          >
+            {{ newEmailError }}
+          </p>
+          <p
+            class="sig-hint"
+            style="margin-top:0;margin-bottom:10px;"
+          >
+            Nach Abschluss aller Unterschriften wird das signierte PDF an diese Adressen geschickt.
+          </p>
+          <div class="sig-email-chips">
+            <span
+              v-for="(r, i) in folgeaktionen.ausliefernAn"
+              :key="i"
+              class="sig-email-chip"
+            >
+              <span>{{ r.displayName || r.email }}</span>
+              <small v-if="r.displayName">{{ r.email }}</small>
+              <AppIconButton
+                :label="`Empfänger ${r.displayName || r.email} entfernen`"
+                variant="ghost"
+                size="sm"
+                @click="removeAusliefernEmail(i)"
+              >×</AppIconButton>
+            </span>
+          </div>
+
+          <!-- Asana Aktionen -->
+          <label
+            class="sig-field-label"
+            style="margin-top:20px;"
+          >
+            <font-awesome-icon :icon="['fas', 'robot']" /> Asana-Aktionen nach Abschluss
+          </label>
+
+          <!-- Added actions list -->
+          <div
+            v-if="folgeaktionen.asanaActions.length"
+            class="sig-asana-list"
+          >
+            <div
+              v-for="(a, i) in folgeaktionen.asanaActions"
+              :key="i"
+              class="sig-asana-item"
+            >
+              <font-awesome-icon
+                :icon="asanaActionIcons[a.type]"
+                class="sig-asana-type-icon"
+                :class="`sig-asana-type--${a.type}`"
+              />
+              <div class="sig-asana-item-info">
+                <span class="sig-asana-action-label">{{ asanaActionLabels[a.type] }}</span>
+                <span class="sig-asana-task-name">{{ a.taskName || a.taskGid }}</span>
+                <span
+                  v-if="a.type === 'comment' && a.comment"
+                  class="sig-asana-comment-preview"
+                >„{{ a.comment }}"</span>
+              </div>
+              <AppIconButton
+                :label="`${asanaActionLabels[a.type]} für ${a.taskName || a.taskGid} entfernen`"
+                variant="ghost"
+                size="sm"
+                @click="removeAsanaAction(i)"
+              >
+                ×
+              </AppIconButton>
+            </div>
+          </div>
+
+          <!-- Asana action builder -->
+          <div
+            v-if="showAsanaBuilder"
+            class="sig-asana-builder"
+          >
+            <div class="sig-typeahead">
+              <div class="sig-search-input">
+                <font-awesome-icon
+                  :icon="asanaSearching ? ['fas', 'spinner'] : ['fas', 'magnifying-glass']"
+                  :spin="asanaSearching"
+                />
+                <input
+                  v-model="asanaSearchQuery"
+                  type="text"
+                  placeholder="Asana-Task suchen…"
+                >
+              </div>
+              <div
+                v-if="asanaSearchResults.length"
+                class="sig-typeahead-list"
+              >
+                <button
+                  v-for="t in asanaSearchResults"
+                  :key="t.gid"
+                  class="sig-typeahead-item"
+                  type="button"
+                  @click="selectAsanaTask(t)"
+                >
+                  <span class="sig-ta-name">{{ t.name }}</span>
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="pendingAction.taskGid"
+              class="sig-asana-action-row"
+            >
+              <select
+                v-model="pendingAction.type"
+                class="sig-select sig-select--inline"
+              >
+                <option value="complete">
+                  Erledigen
+                </option>
+                <option value="comment">
+                  Kommentieren
+                </option>
+                <option value="delete">
+                  Löschen
+                </option>
+              </select>
+              <textarea
+                v-if="pendingAction.type === 'comment'"
+                v-model="pendingAction.comment"
+                class="sig-input sig-textarea"
+                placeholder="Kommentartext…"
+                rows="2"
+              />
+              <AppButton @click="addAsanaAction">
+                <font-awesome-icon :icon="['fas', 'plus']" /> Aktion hinzufügen
+              </AppButton>
+            </div>
+          </div>
+
+          <AppButton
+            v-if="!showAsanaBuilder"
+            variant="outlined"
+            class="sig-add-submitter"
+            @click="showAsanaBuilder = true"
+          >
+            <font-awesome-icon :icon="['fas', 'bolt']" /> Asana-Aktion hinzufügen
+          </AppButton>
+          <AppButton
+            v-else
+            variant="secondary"
+            class="sig-add-submitter"
+            @click="showAsanaBuilder = false; asanaSearchQuery = ''; asanaSearchResults = []"
+          >
+            Abbrechen
+          </AppButton>
+        </section>
+      </div>
+
+      <!-- Close confirm overlay -->
+      <div
+        v-if="showCloseConfirm"
+        class="sig-close-confirm"
+      >
+        <p class="sig-close-confirm-msg">
+          Entwurf speichern?
+        </p>
+        <div class="sig-close-confirm-actions">
+          <AppButton
+            :loading="savingDraft"
+            :disabled="submitting || !canSaveDraft"
+            @click="saveAsDraft"
+          >
+            <font-awesome-icon :icon="['fas', 'floppy-disk']" />
+            Als Entwurf speichern
+          </AppButton>
+          <AppButton
+            variant="danger"
+            :disabled="busy"
+            @click="confirmDiscard"
+          >
+            Verwerfen
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            :disabled="busy"
+            @click="showCloseConfirm = false"
+          >
+            Weiter bearbeiten
+          </AppButton>
+        </div>
+      </div>
     </div>
 
     <template #footer>
       <div class="sig-footer">
-            <p v-if="error" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
-            <p v-else-if="currentStep >= 2 && submitBlockReason" class="sig-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}</p>            <div class="sig-footer-actions">
-              <button v-if="currentStep > 0" class="sig-btn sig-btn--ghost" type="button" @click="currentStep--">
-                <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
-              </button>
-              <button v-else class="sig-btn sig-btn--ghost" type="button" @click="close">Abbrechen</button>
+        <p
+          v-if="error"
+          class="sig-error"
+        >
+          <font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}
+        </p>
+        <p
+          v-else-if="currentStep >= 2 && submitBlockReason"
+          class="sig-error"
+        >
+          <font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ submitBlockReason }}
+        </p>            <div class="sig-footer-actions">
+          <AppButton
+            v-if="currentStep > 0"
+            variant="secondary"
+            :disabled="busy || showCloseConfirm"
+            @click="currentStep--"
+          >
+            <font-awesome-icon :icon="['fas', 'arrow-left']" /> Zurück
+          </AppButton>
+          <AppButton
+            v-else
+            variant="secondary"
+            :disabled="busy || showCloseConfirm"
+            @click="close"
+          >
+            Abbrechen
+          </AppButton>
 
-              <button
-                v-if="canSaveDraft"
-                class="sig-btn sig-btn--ghost sig-btn--save-draft"
-                type="button"
-                :disabled="savingDraft"
-                @click="saveAsDraft"
-              >
-                <font-awesome-icon :icon="['fas', savingDraft ? 'spinner' : 'floppy-disk']" :spin="savingDraft" />
-                {{ modal.context.draftId ? 'Änderungen speichern' : 'Als Entwurf speichern' }}
-              </button>
+          <AppButton
+            v-if="canSaveDraft"
+            variant="outlined"
+            :loading="savingDraft"
+            :disabled="submitting || showCloseConfirm"
+            @click="saveAsDraft"
+          >
+            <font-awesome-icon :icon="['fas', 'floppy-disk']" />
+            {{ modal.context.draftId ? 'Änderungen speichern' : 'Als Entwurf speichern' }}
+          </AppButton>
 
-              <button
-                v-if="currentStep < steps.length - 1"
-                class="sig-btn sig-btn--primary"
-                type="button"
-                :disabled="!canAdvance"
-                @click="currentStep++"
-              >
-                Weiter <font-awesome-icon :icon="['fas', 'arrow-right']" />
-              </button>
-              <button
-                v-else
-                class="sig-btn sig-btn--primary"
-                type="button"
-                :disabled="!canSubmit || submitting"
-                @click="submit"
-              >
-                <font-awesome-icon :icon="['fas', submitting ? 'spinner' : 'paper-plane']" :spin="submitting" />
-                {{ submitting ? 'Erstelle…' : 'Signatur erstellen' }}
-              </button>
-            </div>
+          <AppButton
+            v-if="currentStep < steps.length - 1"
+            :disabled="!canAdvance || busy || showCloseConfirm"
+            @click="currentStep++"
+          >
+            Weiter <font-awesome-icon :icon="['fas', 'arrow-right']" />
+          </AppButton>
+          <AppButton
+            v-else
+            :loading="submitting"
+            :disabled="!canSubmit || savingDraft || showCloseConfirm"
+            @click="submit"
+          >
+            <font-awesome-icon :icon="['fas', 'paper-plane']" />
+            {{ submitting ? 'Erstelle…' : 'Signatur erstellen' }}
+          </AppButton>
+        </div>
       </div>
     </template>
   </ModalFrame>
 
-  <SignaturTypAnlegenModal v-model="showTypModal" @created="onTypCreated" />
+  <SignaturTypAnlegenModal
+    v-model="showTypModal"
+    @created="onTypCreated"
+  />
   <DocuSealSigningModal
     v-if="inAppSigning"
     :title="inAppSigning.title"
@@ -491,6 +714,10 @@ import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import DocuSealSigningModal from '@/components/Modals/DocuSealSigningModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 
 library.add(
   faFileSignature, faCheck, faPlus, faArrowLeft, faArrowRight, faPaperPlane,
@@ -537,6 +764,7 @@ const linkOptions = [
 const currentStep = ref(0);
 const submitting = ref(false);
 const savingDraft = ref(false);
+const busy = computed(() => submitting.value || savingDraft.value);
 const showCloseConfirm = ref(false);
 const error = ref('');
 
@@ -758,9 +986,8 @@ function followerChipColor(name) {
   for (let i = 0; i < String(name).length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
   return {
-    background: `hsl(${hue}, 55%, 92%)`,
+    background: `color-mix(in srgb, hsl(${hue}, 55%, 55%) 10%, var(--surface))`,
     borderColor: `hsl(${hue}, 45%, 75%)`,
-    color: `hsl(${hue}, 40%, 30%)`,
   };
 }
 
@@ -1032,6 +1259,12 @@ function isLinkAllowed(key) {
   if (key === 'mitarbeiter') return lt === 'Mitarbeiter';
   return true;
 }
+
+const availableLinkOptions = computed(() => linkOptions.map(option => ({
+  ...option,
+  value: option.key,
+  disabled: !isLinkAllowed(option.key),
+})));
 
 function selectTyp(t, clearTemplate = true) {
   form.value.typId = t._id;
@@ -1526,6 +1759,7 @@ async function hydrateFromContext() {
 
 // ── Submit ───────────────────────────────────────────────────────────────────
 async function submit() {
+  if (busy.value || !canSubmit.value) return;
   submitting.value = true;
   error.value = '';
   try {
@@ -1617,7 +1851,7 @@ async function submit() {
 }
 
 async function saveAsDraft() {
-  if (!canSaveDraft.value) return;
+  if (busy.value || !canSaveDraft.value) return;
   savingDraft.value = true;
   error.value = '';
   try {
@@ -1653,6 +1887,7 @@ async function saveAsDraft() {
 }
 
 function close() {
+  if (busy.value) return;
   // Prompt to save only for new non-customEndpoint signatures with filled data
   if (!modal.context.draftId && !modal.context.customEndpoint && canSaveDraft.value && !submitting.value) {
     showCloseConfirm.value = true;
@@ -1662,6 +1897,7 @@ function close() {
 }
 
 function confirmDiscard() {
+  if (busy.value) return;
   showCloseConfirm.value = false;
   modal.closeModal();
 }
@@ -1688,7 +1924,10 @@ const ContactSearchPlaceholder = {
         h('div', { class: 'sig-selected-entity-title' }, props.title),
         h('div', { class: 'sig-selected-entity-sub' }, props.subtitle),
       ]),
-      h('button', { class: 'sig-selected-entity-clear', type: 'button', onClick: () => emit('clear') }, '✕'),
+      h(AppIconButton, {
+        label: `Verknüpfung mit ${props.title || 'Kontakt'} entfernen`,
+        variant: 'ghost', size: 'sm', onClick: () => emit('clear'),
+      }, { default: () => '✕' }),
     ]);
   },
 };
@@ -1706,7 +1945,7 @@ const ContactSearchPlaceholder = {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--primary);
+  color: var(--action-accent-text);
   h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 0; }
 }
 
@@ -1734,8 +1973,9 @@ const ContactSearchPlaceholder = {
   opacity: 0.55;
 
   &.reachable { opacity: 1; }
-  &.active { color: var(--primary); }
+  &.active { color: var(--action-accent-text); }
   &.done { color: var(--text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   &:disabled { cursor: default; }
 }
 
@@ -1750,8 +1990,8 @@ const ContactSearchPlaceholder = {
   font-size: 0.72rem;
   flex-shrink: 0;
 }
-.sig-step.active .sig-step-num { background: var(--primary); color: #fff; border-color: var(--primary); }
-.sig-step.done .sig-step-num { background: #10b981; color: #fff; border-color: #10b981; }
+.sig-step.active .sig-step-num { background: var(--action-primary); color: var(--on-action-primary); border-color: var(--action-primary); }
+.sig-step.done .sig-step-num { background: var(--action-ghost-hover); color: var(--status-success-text); border-color: var(--status-success-text); }
 
 .sig-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1789,7 +2029,7 @@ const ContactSearchPlaceholder = {
   border: 1px solid color-mix(in srgb, var(--primary) 55%, var(--border));
   border-radius: 9px;
   background: color-mix(in srgb, var(--primary) 6%, var(--surface));
-  color: var(--primary);
+  color: var(--action-accent-text);
 
   > svg:first-child { width: 20px; font-size: 1.05rem; }
   > span { flex: 1; min-width: 0; }
@@ -1835,13 +2075,14 @@ const ContactSearchPlaceholder = {
   text-align: center;
 
   &:hover { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); transform: translateY(-1px); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   &.active {
     border-color: var(--primary);
     box-shadow: inset 0 0 0 1px var(--primary);
   }
   &--add { border-style: dashed; color: var(--muted); }
 
-  .sig-type-icon { font-size: 1.3rem; color: var(--primary); }
+  .sig-type-icon { font-size: 1.3rem; color: var(--action-accent-text); }
   &--add .sig-type-icon { color: var(--muted); }
   .sig-type-label { font-size: 0.85rem; font-weight: 600; color: var(--text); }
   .sig-type-link { font-size: 0.68rem; color: var(--muted); }
@@ -1859,30 +2100,11 @@ const ContactSearchPlaceholder = {
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
-  &:focus { border-color: var(--primary); }
+  &:focus { border-color: var(--primary); outline: 2px solid var(--control-focus-ring); outline-offset: 1px; }
 }
 
 /* Link toggle */
-.sig-link-toggle { display: flex; gap: 8px; }
-.sig-link-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1.5px solid var(--border);
-  border-radius: 9px;
-  background: var(--tile-bg, var(--surface));
-  color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  &:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
-  &.active { border-color: var(--primary); color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
-}
+.sig-link-toggle { width: 100%; }
 
 .sig-link-search { margin-top: 14px; }
 
@@ -1896,6 +2118,7 @@ const ContactSearchPlaceholder = {
   border-radius: 9px;
   background: var(--bg, var(--surface));
   color: var(--muted);
+  &:focus-within { outline: 2px solid var(--control-focus-ring); outline-offset: 1px; }
   input { flex: 1; border: none; outline: none; background: transparent; color: var(--text); font-size: 0.9rem; font-family: inherit; }
 }
 
@@ -1924,9 +2147,10 @@ const ContactSearchPlaceholder = {
   cursor: pointer;
   text-align: left;
   &:hover { background: var(--hover); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
   .sig-ta-name { flex: 1; font-size: 0.86rem; font-weight: 600; color: var(--text); }
   .sig-ta-kuerzel { font-size: 0.76rem; color: var(--muted); }
-  .sig-ta-warn { font-size: 0.72rem; color: #f59e0b; font-weight: 600; }
+  .sig-ta-warn { font-size: 0.72rem; color: var(--status-warning-text); font-weight: 600; }
 }
 
 .sig-selected-entity {
@@ -1937,20 +2161,16 @@ const ContactSearchPlaceholder = {
   border: 1.5px solid var(--primary);
   border-radius: 10px;
   background: color-mix(in srgb, var(--primary) 6%, transparent);
-  &.warn { border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 8%, transparent); }
+  &.warn { border-color: var(--status-warning); background: color-mix(in srgb, var(--status-warning) 8%, transparent); }
   :deep(.sig-selected-entity-info) { flex: 1; }
   :deep(.sig-selected-entity-title) { font-size: 0.92rem; font-weight: 700; color: var(--text); }
   :deep(.sig-selected-entity-sub) { font-size: 0.78rem; color: var(--muted); }
-  :deep(.sig-selected-entity-clear) {
-    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.95rem;
-    &:hover { color: #ef4444; }
-  }
 }
 
 .sig-warn {
   margin-top: 10px;
   font-size: 0.8rem;
-  color: #f59e0b;
+  color: var(--status-warning-text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1984,11 +2204,12 @@ const ContactSearchPlaceholder = {
   font-size: 0.85rem;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
-  &:hover { border-color: var(--primary); color: var(--primary); }
+  &:hover { border-color: var(--primary); color: var(--action-accent-text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   &.active {
     border-color: var(--primary);
     background: color-mix(in srgb, var(--primary) 10%, transparent);
-    color: var(--primary);
+    color: var(--action-accent-text);
     font-weight: 600;
   }
 }
@@ -2004,7 +2225,7 @@ const ContactSearchPlaceholder = {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--text);
   font-size: 0.86rem;
-  svg { color: var(--primary); }
+  svg { color: var(--action-accent-text); }
 }
 
 .sig-submitters { display: flex; flex-direction: column; gap: 10px; }
@@ -2019,7 +2240,7 @@ const ContactSearchPlaceholder = {
 }
 
 .sig-entleiher-recipients-label {
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2031,18 +2252,6 @@ const ContactSearchPlaceholder = {
 .sig-add-submitter {
   margin-top: 12px;
   align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border: 1.5px dashed var(--border);
-  border-radius: 9px;
-  background: none;
-  color: var(--primary);
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, transparent); }
 }
 
 .sig-loading-inline { color: var(--muted); font-size: 0.85rem; display: flex; gap: 8px; align-items: center; padding: 12px 0; }
@@ -2057,7 +2266,7 @@ const ContactSearchPlaceholder = {
 }
 .sig-error {
   font-size: 0.82rem;
-  color: #ef4444;
+  color: var(--status-danger-text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2066,33 +2275,7 @@ const ContactSearchPlaceholder = {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-}
-
-.sig-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 9px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  font-family: inherit;
-  transition: background 0.15s, border-color 0.15s;
-
-  &--primary {
-    background: var(--primary);
-    color: #fff;
-    &:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 88%, #000); }
-    &:disabled { opacity: 0.5; cursor: not-allowed; }
-  }
-  &--ghost {
-    background: none;
-    border-color: var(--border);
-    color: var(--text);
-    &:hover { background: var(--hover); }
-  }
+  flex-wrap: wrap;
 }
 
 /* Close confirm overlay */
@@ -2111,13 +2294,6 @@ const ContactSearchPlaceholder = {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* Save-draft ghost button variant */
-.sig-btn--save-draft {
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
-  &:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); border-color: var(--primary); }
 }
 
 /* ── Folgeaktionen — Ausliefern an ──────────────────────────── */
@@ -2139,16 +2315,6 @@ const ContactSearchPlaceholder = {
   color: var(--text);
 }
 .sig-email-chip small { color: var(--muted); font-size: 0.72rem; }
-.sig-chip-remove {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0;
-  &:hover { color: #ef4444; }
-}
 .sig-email-add-row {
   display: flex;
   gap: 8px;
@@ -2174,9 +2340,9 @@ const ContactSearchPlaceholder = {
 }
 .sig-asana-type-icon {
   font-size: 0.9rem;
-  &.sig-asana-type--complete { color: #10b981; }
-  &.sig-asana-type--comment  { color: var(--primary); }
-  &.sig-asana-type--delete   { color: #ef4444; }
+  &.sig-asana-type--complete { color: var(--status-success-text); }
+  &.sig-asana-type--comment  { color: var(--action-accent-text); }
+  &.sig-asana-type--delete   { color: var(--status-danger-text); }
 }
 .sig-asana-item-info {
   flex: 1;
@@ -2218,6 +2384,7 @@ const ContactSearchPlaceholder = {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -2230,7 +2397,7 @@ const ContactSearchPlaceholder = {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--primary);
+  color: var(--action-accent-text);
 
   svg { font-size: 0.8rem; }
 }
@@ -2241,23 +2408,6 @@ const ContactSearchPlaceholder = {
   display: flex;
   align-items: center;
   gap: 5px;
-}
-
-.sig-follower-save-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid color-mix(in oklab, var(--primary) 35%, var(--border));
-  border-radius: 7px;
-  background: transparent;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  &:hover { background: color-mix(in oklab, var(--primary) 10%, transparent); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 .sig-follower-chips {
@@ -2277,18 +2427,19 @@ const ContactSearchPlaceholder = {
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--text);
+  color: var(--action-secondary-text);
   white-space: nowrap;
   transition: opacity 0.12s, transform 0.1s;
 
   &:hover { opacity: 0.85; transform: scale(1.03); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
   &.selected {
     border-color: var(--primary) !important;
     background: color-mix(in oklab, var(--primary) 15%, transparent) !important;
-    color: var(--primary) !important;
+    color: var(--action-accent-text);
 
-    .sig-follower-chip-icon { color: var(--primary); }
+    .sig-follower-chip-icon { color: var(--action-accent-text); }
   }
 
   .sig-follower-chip-icon {

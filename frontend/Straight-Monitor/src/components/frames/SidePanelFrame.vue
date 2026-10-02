@@ -8,26 +8,47 @@
       role="complementary"
       :aria-labelledby="title ? titleId : undefined"
       tabindex="-1"
-        v-bind="$attrs"
+      v-bind="$attrs"
     >
-      <header v-if="hasHeader" class="sp-panel__header">
+      <header
+        v-if="hasHeader"
+        class="sp-panel__header"
+      >
         <div class="sp-panel__heading">
-          <slot name="header">
-            <h2 v-if="title" :id="titleId" class="sp-panel__title">{{ title }}</h2>
-            <p v-if="subtitle" class="sp-panel__subtitle">{{ subtitle }}</p>
+          <slot
+            name="header"
+            :title-id="titleId"
+          >
+            <h2
+              v-if="title"
+              :id="titleId"
+              class="sp-panel__title"
+            >
+              {{ title }}
+            </h2>
+            <p
+              v-if="subtitle"
+              class="sp-panel__subtitle"
+            >
+              {{ subtitle }}
+            </p>
           </slot>
         </div>
         <div class="sp-panel__actions">
           <slot name="actions" />
-          <CustomTooltip v-if="showClose" text="Schließen">
-            <button
-              type="button"
+          <CustomTooltip
+            v-if="showClose"
+            text="Schließen"
+          >
+            <AppIconButton
+              variant="ghost"
+              size="sm"
               class="sp-panel__close"
-              aria-label="Schließen"
+              label="Schließen"
               @click="close"
             >
               <font-awesome-icon icon="fa-solid fa-xmark" />
-            </button>
+            </AppIconButton>
           </CustomTooltip>
         </div>
       </header>
@@ -41,30 +62,56 @@
     v-if="modelValue && presentation === 'modal'"
     :model-value="modelValue"
     :size="modalSize"
+    :title="modalTitle || title"
+    :aria-labelledby="modalTitle || title ? titleId : undefined"
     :show-close="showClose"
     :close-on-backdrop="closeOnBackdrop"
     :close-on-escape="closeOnEscape"
     :minimizable="modalMinimizable"
     :minimize-title="modalTitle || title"
-      v-bind="$attrs"
+    v-bind="$attrs"
     @update:model-value="emit('update:modelValue', $event)"
     @close="emit('close')"
   >
     <template #header>
-      <slot name="header">
-        <h2 v-if="title" :id="titleId" class="sp-panel__title">{{ title }}</h2>
-        <p v-if="subtitle" class="sp-panel__subtitle">{{ subtitle }}</p>
+      <slot
+        name="header"
+        :title-id="titleId"
+      >
+        <h2
+          v-if="modalTitle || title"
+          :id="titleId"
+          class="sp-panel__title"
+        >
+          {{ modalTitle || title }}
+        </h2>
+        <p
+          v-if="subtitle"
+          class="sp-panel__subtitle"
+        >
+          {{ subtitle }}
+        </p>
       </slot>
     </template>
-    <template #actions><slot name="actions" /></template>
+    <template #actions>
+      <slot name="actions" />
+    </template>
     <slot />
-    <template v-if="$slots['modal-footer']" #footer>
+    <template
+      v-if="$slots['modal-footer']"
+      #footer
+    >
       <slot name="modal-footer" />
     </template>
   </ModalFrame>
 
   <Teleport to="body">
-    <div v-if="modelValue && presentation === 'panel'" class="sp-panel__backdrop" aria-hidden="true" @click="onBackdrop" />
+    <div
+      v-if="modelValue && presentation === 'panel'"
+      class="sp-panel__backdrop"
+      aria-hidden="true"
+      @click="onBackdrop"
+    />
   </Teleport>
 </template>
 
@@ -72,6 +119,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, useSlots } from 'vue';
 import ModalFrame from './ModalFrame.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
   defineOptions({ inheritAttrs: false });
 
@@ -109,6 +157,7 @@ function onBackdrop() {
 }
 
 function onKeydown(event) {
+  if (Array.from(document.querySelectorAll('.mf-overlay')).some(overlay => overlay.getClientRects().length)) return;
   if (event.key === 'Escape' && props.closeOnEscape && props.modelValue && props.presentation === 'panel') close();
 }
 
@@ -163,21 +212,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 .sp-panel__actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
 .sp-panel__close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
+  --app-button-icon-size: 32px;
+  min-height: 32px;
   height: 32px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
 }
-
-.sp-panel__close:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
-.sp-panel__close:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
 .sp-panel__body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; }
 .sp-panel__backdrop { display: none; }

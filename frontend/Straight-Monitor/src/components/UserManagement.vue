@@ -278,7 +278,7 @@
               <td>{{ lohnart.equalPayRelevanz || '-' }}</td>
               <td class="lohn__kunden">
                 <div v-if="lohnart.lohnartNummer !== '100' && lohnart.kunden?.length" class="lohn__kunden-list">
-                  <button v-for="kunde in lohnart.kunden" :key="kunde._id" type="button" class="lohn__kunde-link" @click="openKundenLohn(kunde)">
+                  <button v-for="kunde in lohnart.kunden" :key="kunde._id" type="button" class="lohn__kunde-link" @click="openKundenPreise(kunde)">
                     {{ kunde.kuerzel || kunde.kundName || kunde.kundenNr }}
                   </button>
                 </div>
@@ -912,8 +912,8 @@ function sortLohnarten(field) {
   lohnartSortDirection.value = 'asc';
 }
 
-function openKundenLohn(kunde) {
-  openCustomer(kunde, { initialTab: 'lohn' });
+function openKundenPreise(kunde) {
+  openCustomer(kunde, { initialTab: 'preise' });
 }
 
 async function fetchLohnarten() {

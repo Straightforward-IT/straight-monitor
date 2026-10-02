@@ -1,16 +1,12 @@
 <template>
   <DashboardWidget>
     <template #title>
-      <div class="tab-titles">
-        <button
-          :class="['tab-title', { active: activeTab === 'released' }]"
-          @click="activeTab = 'released'"
-        >Veröffentlicht</button>
-        <button
-          :class="['tab-title', { active: activeTab === 'wip' }]"
-          @click="activeTab = 'wip'"
-        >In Entwicklung</button>
-      </div>
+      <AppSegmentedControl
+        v-model="activeTab"
+        label="Änderungsstatus"
+        size="sm"
+        :options="[{ value: 'released', label: 'Veröffentlicht' }, { value: 'wip', label: 'In Entwicklung' }]"
+      />
     </template>
 
     <div class="changelog">
@@ -23,14 +19,18 @@
         <span>{{ item.text }}</span>
       </div>
 
-      <button
+      <AppButton
         v-if="currentList.length > defaultCount"
         class="changelog__toggle"
+        variant="secondary"
+        size="sm"
+        block
+        :aria-expanded="showAll"
         @click="showAll = !showAll"
       >
         <font-awesome-icon :icon="['fas', showAll ? 'chevron-up' : 'chevron-down']" />
         {{ showAll ? "Weniger" : `${currentList.length - defaultCount} weitere` }}
-      </button>
+      </AppButton>
     </div>
   </DashboardWidget>
 </template>
@@ -39,6 +39,8 @@
 import { ref, computed, watch } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 
 const activeTab = ref("released");
 const showAll = ref(false);
@@ -83,34 +85,6 @@ const visibleItems = computed(() =>
 </script>
 
 <style scoped lang="scss">
-.tab-titles {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.tab-title {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--muted);
-  transition: color 0.12s;
-  font-family: inherit;
-  line-height: 1;
-
-  &:hover {
-    color: var(--text);
-  }
-
-  &.active {
-    font-weight: 600;
-    color: var(--text);
-  }
-}
-
 .changelog {
   display: flex;
   flex-direction: column;
@@ -132,24 +106,7 @@ const visibleItems = computed(() =>
   }
 
   &__toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--hover);
-    color: var(--muted);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-
-    &:hover {
-      color: var(--primary);
-      border-color: var(--primary);
-    }
-
+    --action-secondary-text: var(--muted);
     svg { font-size: 10px; }
   }
 }

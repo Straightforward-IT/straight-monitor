@@ -1,11 +1,12 @@
 <template>
   <ModalFrame
     :model-value="modelValue"
+    title="Hilfe"
     style="--mf-max-width: 520px; --mf-max-height: 85vh; --mf-body-padding: 0; --mf-body-overflow: hidden"
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <template #header>
-      <h3 class="help-title"><slot name="title">Hilfe</slot></h3>
+    <template #header="{ titleId }">
+      <h3 :id="titleId" class="help-title"><slot name="title">Hilfe</slot></h3>
     </template>
 
     <div v-if="$slots.toc" ref="tocRef" class="help-modal-toc">
@@ -132,7 +133,7 @@ onUnmounted(teardown);
       white-space: nowrap;
     }
 
-    button {
+    button:not(.app-button) {
       background: none;
       border: 1px solid var(--border);
       border-radius: 20px;
@@ -147,13 +148,28 @@ onUnmounted(teardown);
 
       &:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--action-accent-text);
       }
 
       &.toc-active {
         border-color: var(--primary);
-        color: var(--primary);
-        background: rgba(253, 126, 20, 0.12);
+        color: var(--action-accent-text);
+        background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+      }
+    }
+
+    .app-button {
+      min-height: 28px;
+      padding: 3px 11px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+
+      &.toc-active {
+        --app-button-background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+        --app-button-border: var(--primary);
+        --app-button-color: var(--action-accent-text);
       }
     }
   }

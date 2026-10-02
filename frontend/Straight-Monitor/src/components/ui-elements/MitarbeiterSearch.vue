@@ -7,7 +7,7 @@
     <div v-if="!multiple && selected" class="ma-search__chips">
       <button type="button" class="ma-chip ma-chip--single" @click="clearSingle">
         <span v-if="selected.personalnr" class="ma-chip__nr">{{ selected.personalnr }}</span>
-        {{ selected.vorname }} {{ selected.nachname }}
+        {{ formatName(selected) }}
         <font-awesome-icon :icon="['fas', 'times']" class="ma-chip__x" />
       </button>
     </div>
@@ -35,10 +35,10 @@
         :key="ma._id"
         type="button"
         class="ma-chip"
-        :aria-label="`${ma.vorname} ${ma.nachname} entfernen`"
+        :aria-label="`${formatName(ma)} entfernen`"
         @click="deselect(ma)"
       >
-        {{ ma.vorname }} {{ ma.nachname }}
+        {{ formatName(ma) }}
         <font-awesome-icon :icon="['fas', 'times']" class="ma-chip__x" />
       </button>
       <input
@@ -88,7 +88,7 @@
             <font-awesome-icon v-if="isSelected(suggestion.employee)" :icon="['fas', 'check']" class="ma-search__check" />
             <span class="ma-search__item-name">
               <span v-if="suggestion.employee.personalnr" class="ma-search__nr">{{ suggestion.employee.personalnr }}</span>
-              {{ suggestion.employee.vorname }} {{ suggestion.employee.nachname }}
+              {{ formatName(suggestion.employee) }}
             </span>
             <span v-if="suggestion.employee.email" class="ma-search__email">{{ suggestion.employee.email }}</span>
           </template>
@@ -112,6 +112,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import { useToolbarLocationContext } from '@/composables/useToolbarLocationContext';
 import { useDataCache } from '@/stores/dataCache';
+import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
 
 const PERSGRUPPEN = [
   { value: 101, label: 'Festangestellt', aliases: 'festi fest festanstellung' },
@@ -163,6 +164,7 @@ const props = defineProps({
   simple: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'update:searchValue', 'select', 'filters-change']);
+const { formatName } = useMitarbeiterNameFormatter();
 const toolbarLocation = useToolbarLocationContext();
 const effectiveLocationV2 = computed(() => props.locationV2 || toolbarLocation?.locationV2?.value || null);
 const dataCache = useDataCache();

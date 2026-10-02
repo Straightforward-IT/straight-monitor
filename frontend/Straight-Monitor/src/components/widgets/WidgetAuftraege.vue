@@ -7,22 +7,22 @@
   >
     <template #actions>
       <div class="wa-date-nav">
-        <button class="wa-nav-btn" @click="shiftDay(-1)" title="Vorheriger Tag">
+        <AppIconButton class="wa-nav-btn" variant="secondary" size="sm" label="Vorheriger Tag" @click="shiftDay(-1)">
           <font-awesome-icon :icon="['fas', 'chevron-left']" />
-        </button>
-        <button class="wa-date-label" @click="resetToToday" :title="isToday ? '' : 'Zurück zu Heute'">
+        </AppIconButton>
+        <AppButton class="wa-date-label" variant="ghost" size="sm" :aria-label="isToday ? 'Heute' : 'Zurück zu Heute'" @click="resetToToday">
           {{ dateLabel }}
-        </button>
-        <button class="wa-nav-btn" @click="shiftDay(1)" title="Nächster Tag">
+        </AppButton>
+        <AppIconButton class="wa-nav-btn" variant="secondary" size="sm" label="Nächster Tag" @click="shiftDay(1)">
           <font-awesome-icon :icon="['fas', 'chevron-right']" />
-        </button>
+        </AppIconButton>
       </div>
-      <select v-model="selectedLocation" class="wa-select">
+      <AppSelect v-model="selectedLocation" size="sm" aria-label="Aufträge nach Standort filtern">
         <option value="">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="wa-list">
@@ -62,6 +62,9 @@ import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const cache = useDataCache();
 const auth  = useAuth();
@@ -142,17 +145,6 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-.wa-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
-}
-
 .wa-date-nav {
   display: flex;
   align-items: center;
@@ -160,40 +152,17 @@ onMounted(async () => {
 }
 
 .wa-nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 9px;
-  transition: color 0.12s, border-color 0.12s;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-  }
+  --app-button-icon-size: 24px;
+  --action-secondary-text: var(--muted);
+  min-height: 24px;
+  font-size: 10px;
 }
 
 .wa-date-label {
+  --action-ghost-text: var(--muted);
+  min-height: 24px;
   padding: 2px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  background: none;
-  border: none;
-  cursor: pointer;
   white-space: nowrap;
-  transition: color 0.12s;
-
-  &:hover {
-    color: var(--primary);
-  }
 }
 
 .wa-list {

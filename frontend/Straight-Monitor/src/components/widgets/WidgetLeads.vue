@@ -11,12 +11,10 @@
 
     <ul class="wld-list">
       <li v-for="lead in visibleLeads" :key="lead._id" class="wld-item">
-        <div
+        <button
+          type="button"
           class="wld-link"
-          role="button"
-          tabindex="0"
           @click="goToLead(lead)"
-          @keydown.enter="goToLead(lead)"
         >
           <span class="wld-stage-dot" :style="{ background: stufeColor(lead.stufe) }" />
           <div class="wld-body">
@@ -37,7 +35,7 @@
             :icon="['fas', 'star']"
             class="wld-fav"
           />
-        </div>
+        </button>
       </li>
       <li v-if="!loading && !visibleLeads.length" class="wld-empty">
         <font-awesome-icon :icon="['fas', 'bullseye']" class="wld-empty-icon" />
@@ -130,9 +128,9 @@ onMounted(fetchLeads);
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 20px;
-  background: rgba(var(--primary-rgb, 238 175 103) / 0.18);
-  color: var(--primary);
-  border: 1px solid rgba(var(--primary-rgb, 238 175 103) / 0.35);
+  background: rgba(var(--primary-rgb, 238, 175, 103), 0.18);
+  color: var(--action-accent-text, var(--text));
+  border: 1px solid rgba(var(--primary-rgb, 238, 175, 103), 0.35);
   white-space: nowrap;
 }
 
@@ -152,9 +150,14 @@ onMounted(fetchLeads);
 
 .wld-link {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   border-radius: 8px;
   cursor: pointer;
   color: var(--text);
@@ -162,6 +165,11 @@ onMounted(fetchLeads);
 
   &:hover {
     background: var(--hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 1px;
   }
 }
 

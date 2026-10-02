@@ -11,7 +11,7 @@
             <label>Standort
               <select v-model="locationId"><option v-for="location in availableLocations" :key="location._id" :value="location._id">{{ location.nameFull }} ({{ location.shortName }})</option></select>
             </label>
-            <label>Mitarbeiter<MitarbeiterSearch v-model="mitarbeiterId" include-inactive /></label>
+            <label>Mitarbeiter<MitarbeiterSelect v-model="mitarbeiterId" include-inactive /></label>
           </div>
 
           <div class="mode-switch">
@@ -81,7 +81,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { useDataCache } from '@/stores/dataCache';
 import { useAuth } from '@/stores/auth';
-import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
+import MitarbeiterSelect from '@/components/ui-elements/MitarbeiterSelect.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 library.add(faCheck, faPlus, faSpinner, faTrash);

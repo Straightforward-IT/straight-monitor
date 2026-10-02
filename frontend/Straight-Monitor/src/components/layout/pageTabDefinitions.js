@@ -17,6 +17,12 @@ export const dashboardTabs = [
   { id: 'spaces', label: 'Spaces', icon: ['fas', 'folder-open'], to: queryTarget('/dashboard', 'spaces', 'widgets'), isActive: queryMatch('Dashboard', 'spaces', 'widgets') },
 ];
 
+export const settingsTabs = [
+  { id: 'account', label: 'Konto', icon: ['fas', 'user'], to: queryTarget('/einstellungen', 'account', 'account'), isActive: queryMatch('UserSettings', 'account', 'account') },
+  { id: 'appearance', label: 'Darstellung', icon: ['fas', 'palette'], to: queryTarget('/einstellungen', 'appearance', 'account'), isActive: queryMatch('UserSettings', 'appearance', 'account') },
+  { id: 'dashboard', label: 'Dashboard', icon: ['fas', 'table-cells-large'], to: queryTarget('/einstellungen', 'dashboard', 'account'), isActive: queryMatch('UserSettings', 'dashboard', 'account') },
+];
+
 export const signatureTabs = [
   { id: 'signaturen', label: 'Signaturen', icon: ['fas', 'list-check'], to: queryTarget('/signaturen', 'signaturen', 'signaturen'), isActive: queryMatch('SignaturenPage', 'signaturen', 'signaturen') },
   { id: 'templates', label: 'Templates', icon: ['fas', 'file-lines'], to: queryTarget('/signaturen', 'templates', 'signaturen'), isActive: queryMatch('SignaturenPage', 'templates', 'signaturen') },

@@ -75,6 +75,14 @@ const MonitoringSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
+      bestandVorher: {
+        type: Number,
+        required: false,
+      },
+      bestandNachher: {
+        type: Number,
+        required: false,
+      },
       soll: {
         type: Number,
         required: false,

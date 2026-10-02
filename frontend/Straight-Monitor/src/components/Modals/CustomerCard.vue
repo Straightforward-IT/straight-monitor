@@ -2,12 +2,13 @@
   <ModalFrame
     minimizable
     size="xl"
+    :title="kunde.kundName || 'Kundenkarte'"
     style="--mf-max-width: min(1120px, 94vw); --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
     :data-theme="effectiveTheme"
     :close-on-escape="false"
-    @close="emit('close')"
+    @close="requestCloseCustomer"
   >
-    <template #header>
+    <template #header="{ titleId }">
       <div class="card-header">
       <div class="left">
         <div class="icon-box">
@@ -16,32 +17,37 @@
         <div class="title">
           <span class="kunden-nr">Kunden-Nr. {{ kunde.kundenNr }}</span>
           <div class="name-row">
-            <span class="name">{{ kunde.kundName || 'Unbenannt' }}</span>
+            <h2 :id="titleId" class="name">{{ kunde.kundName || 'Unbenannt' }}</h2>
             <!-- Kuerzel -->
             <template v-if="!editingKuerzel">
-              <span v-if="kunde.kuerzel" class="kuerzel-badge" @click="startEditKuerzel" title="Kürzel bearbeiten">{{ kunde.kuerzel }}</span>
-              <button v-else class="kuerzel-add-btn" @click="startEditKuerzel" title="Kürzel festlegen">
+              <AppButton v-if="kunde.kuerzel" class="kuerzel-badge" size="sm" variant="outlined" :aria-label="`Kürzel ${kunde.kuerzel} bearbeiten`" @click="startEditKuerzel">{{ kunde.kuerzel }}</AppButton>
+              <AppButton v-else class="kuerzel-add-btn" size="sm" variant="secondary" @click="startEditKuerzel">
                 <font-awesome-icon :icon="['fas', 'tag']" /> Kürzel
-              </button>
+              </AppButton>
             </template>
             <template v-else>
-              <div class="kuerzel-edit-row" @keydown.enter="saveKuerzel" @keydown.esc="cancelEditKuerzel">
-                <input
+              <div class="kuerzel-edit-row">
+                <AppTextInput
                   ref="kuerzelInputRef"
                   v-model="kuerzelInput"
                   class="kuerzel-input"
                   placeholder="z.B. ABB"
                   maxlength="20"
+                  :disabled="kuerzelSaving"
+                  aria-label="Kürzel"
+                  @keydown.enter.prevent="saveKuerzel"
+                  @keydown.esc.prevent="cancelEditKuerzel"
                 />
-                <button class="kuerzel-save-btn" @click="saveKuerzel" :disabled="kuerzelSaving">
-                  <font-awesome-icon :icon="['fas', kuerzelSaving ? 'spinner' : 'check']" :spin="kuerzelSaving" />
-                </button>
-                <button class="kuerzel-cancel-btn" @click="cancelEditKuerzel">
+                <AppIconButton class="kuerzel-save-btn" size="sm" label="Kürzel speichern" :loading="kuerzelSaving" @click="saveKuerzel">
+                  <font-awesome-icon v-if="!kuerzelSaving" :icon="['fas', 'check']" />
+                </AppIconButton>
+                <AppIconButton class="kuerzel-cancel-btn" size="sm" variant="ghost" label="Kürzelbearbeitung abbrechen" :disabled="kuerzelSaving" @click="cancelEditKuerzel">
                   <font-awesome-icon :icon="['fas', 'times']" />
-                </button>
+                </AppIconButton>
               </div>
             </template>
           </div>
+          <span v-if="kuerzelError" class="kuerzel-error" role="alert">{{ kuerzelError }}</span>
         </div>
       </div>
       </div>
@@ -54,15 +60,21 @@
     </template>
 
     <article class="customer-card" :data-theme="effectiveTheme">
-      <nav class="customer-tabs" aria-label="Kundendetails">
+      <nav class="customer-tabs" role="tablist" aria-label="Kundendetails">
         <button
           v-for="tab in visibleTabs"
           :key="tab.id"
           type="button"
+          role="tab"
           class="customer-tab"
           :class="{ active: activeTab === tab.id }"
+          :id="customerTabId(tab.id)"
+          :aria-controls="customerPanelId"
           :aria-selected="activeTab === tab.id"
+          :tabindex="activeTab === tab.id ? 0 : -1"
+          :disabled="customerWritePending || showAddQualifikationDialog || showSignatureContactCollapseDialog"
           @click="activeTab = tab.id"
+          @keydown="navigateCustomerTab($event, tab.id)"
         >
           <font-awesome-icon :icon="['fas', tab.icon]" />
           <span>{{ tab.label }}</span>
@@ -70,7 +82,7 @@
       </nav>
 
     <!-- Body -->
-    <div class="card-body">
+    <div :id="customerPanelId" class="card-body" role="tabpanel" :aria-labelledby="customerTabId(activeTab)" tabindex="0">
       
       <!-- General Info -->
       <section v-if="activeTab === 'allgemein'" class="section info-section">
@@ -112,56 +124,59 @@
       <section v-if="activeTab === 'allgemein'" class="section remarks-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'clipboard']" /> Bemerkungen
-          <button class="btn-add-contact remarks-add-btn" type="button" title="Bemerkung hinzufügen" @click="startAddRemark">
+          <AppButton class="remarks-add-btn" size="sm" variant="secondary" :disabled="remarksSaving" @click="startAddRemark">
             <font-awesome-icon :icon="['fas', 'plus']" /> Bemerkung hinzufügen
-          </button>
+          </AppButton>
         </h4>
-        <div v-if="remarkDraft !== null" class="remark-editor">
-          <input
-            ref="remarkInputRef"
+        <div v-if="remarkDraft !== null && editingRemarkIndex === null" class="remark-editor">
+          <AppTextInput
+            :ref="setRemarkInputRef"
             v-model="remarkDraft"
-            type="text"
             maxlength="1000"
             placeholder="Bemerkung eingeben"
-            @keyup.enter="saveRemark"
-            @keyup.escape="cancelRemarkEdit"
+            aria-label="Bemerkung"
+            :disabled="remarksSaving"
+            @keyup.enter.prevent="saveRemark"
+            @keyup.esc.prevent="cancelRemarkEdit"
           />
-          <button type="button" class="remark-action remark-action--save" title="Speichern" :disabled="remarksSaving" @click="saveRemark">
-            <font-awesome-icon :icon="['fas', 'check']" />
-          </button>
-          <button type="button" class="remark-action" title="Abbrechen" :disabled="remarksSaving" @click="cancelRemarkEdit">
+          <AppIconButton class="remark-action" size="sm" label="Bemerkung speichern" :loading="remarksSaving" @click="saveRemark">
+            <font-awesome-icon v-if="!remarksSaving" :icon="['fas', 'check']" />
+          </AppIconButton>
+          <AppIconButton class="remark-action" size="sm" variant="ghost" label="Bemerkung abbrechen" :disabled="remarksSaving" @click="cancelRemarkEdit">
             <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
+          </AppIconButton>
         </div>
+        <p v-if="remarkError" class="remark-error" role="alert">{{ remarkError }}</p>
         <ul v-if="remarks.length" class="remarks-list">
           <li v-for="(rem, index) in remarks" :key="`${index}-${rem}`" class="remark-item">
             <template v-if="editingRemarkIndex === index">
               <div class="remark-editor">
-                <input
-                  ref="remarkInputRef"
+                <AppTextInput
+                  :ref="setRemarkInputRef"
                   v-model="remarkDraft"
-                  type="text"
                   maxlength="1000"
-                  @keyup.enter="saveRemark"
-                  @keyup.escape="cancelRemarkEdit"
+                  :aria-label="`Bemerkung ${index + 1}`"
+                  :disabled="remarksSaving"
+                  @keyup.enter.prevent="saveRemark"
+                  @keyup.esc.prevent="cancelRemarkEdit"
                 />
-                <button type="button" class="remark-action remark-action--save" title="Speichern" :disabled="remarksSaving" @click="saveRemark">
-                  <font-awesome-icon :icon="['fas', 'check']" />
-                </button>
-                <button type="button" class="remark-action" title="Abbrechen" :disabled="remarksSaving" @click="cancelRemarkEdit">
+                <AppIconButton class="remark-action" size="sm" :label="`Bemerkung ${index + 1} speichern`" :loading="remarksSaving" @click="saveRemark">
+                  <font-awesome-icon v-if="!remarksSaving" :icon="['fas', 'check']" />
+                </AppIconButton>
+                <AppIconButton class="remark-action" size="sm" variant="ghost" :label="`Bemerkung ${index + 1} abbrechen`" :disabled="remarksSaving" @click="cancelRemarkEdit">
                   <font-awesome-icon :icon="['fas', 'xmark']" />
-                </button>
+                </AppIconButton>
               </div>
             </template>
             <template v-else>
               <span>{{ rem }}</span>
               <span class="remark-actions">
-                <button type="button" class="remark-action" title="Bemerkung bearbeiten" @click="startEditRemark(index)">
+                <AppIconButton class="remark-action" size="sm" variant="ghost" :label="`Bemerkung ${index + 1} bearbeiten`" :disabled="remarksSaving" @click="startEditRemark(index)">
                   <font-awesome-icon :icon="['fas', 'pen']" />
-                </button>
-                <button type="button" class="remark-action remark-action--delete" title="Bemerkung löschen" @click="deleteRemark(index)">
+                </AppIconButton>
+                <AppIconButton class="remark-action" size="sm" variant="ghost" :label="`Bemerkung ${index + 1} löschen`" :disabled="remarksSaving" @click="deleteRemark(index)">
                   <font-awesome-icon :icon="['fas', 'trash']" />
-                </button>
+                </AppIconButton>
               </span>
             </template>
           </li>
@@ -200,12 +215,12 @@
             >
               <div class="top-ma-row">
                 <span class="top-ma-rank">#{{ idx + 1 }}</span>
-                <button class="top-ma-name" @click.stop="openEmployeeCard(ma._id)" title="Mitarbeiterprofil öffnen">{{ ma.vorname }} {{ ma.nachname }}</button>
+                <AppButton class="top-ma-name" size="sm" variant="ghost" :aria-label="`Mitarbeiterprofil von ${ma.vorname} ${ma.nachname} öffnen`" @click.stop="openEmployeeCard(ma._id)">{{ ma.vorname }} {{ ma.nachname }}</AppButton>
                 <span class="top-ma-nr" v-if="ma.personalnr">Nr. {{ ma.personalnr }}</span>
                 <span class="top-ma-count">{{ ma.count }} Einsatz{{ ma.count !== 1 ? 'e' : '' }}</span>
-                <button class="top-ma-expand-btn" @click="toggleMaExpand(ma)" :title="expandedMaIds.has(String(ma._id)) ? 'Einklappen' : 'Einsätze anzeigen'">
+                <AppIconButton class="top-ma-expand-btn" size="sm" variant="ghost" :label="`Einsätze von ${ma.vorname} ${ma.nachname} ${expandedMaIds.has(String(ma._id)) ? 'einklappen' : 'anzeigen'}`" :active="expandedMaIds.has(String(ma._id))" @click="toggleMaExpand(ma)">
                   <font-awesome-icon :icon="['fas', expandedMaIds.has(String(ma._id)) ? 'chevron-up' : 'chevron-down']" />
-                </button>
+                </AppIconButton>
               </div>
               <div v-if="expandedMaIds.has(String(ma._id))" class="top-ma-einsatz-expand">
                 <div v-if="maEinsaetzeMap[String(ma._id)]?.loading" class="top-ma-einsatz-loading">
@@ -234,14 +249,16 @@
               </div>
             </div>
           </div>
-          <button
+          <AppButton
             v-if="topMaAll.length > 3"
             class="top-ma-toggle"
+            size="sm"
+            variant="ghost"
             @click="topMaExpanded = !topMaExpanded"
           >
             <font-awesome-icon :icon="['fas', topMaExpanded ? 'chevron-up' : 'chevron-down']" />
             {{ topMaExpanded ? 'Weniger anzeigen' : `Alle ${topMaAll.length} anzeigen` }}
-          </button>
+          </AppButton>
         </div>
       </section>
 
@@ -250,22 +267,25 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
           <span class="badge">{{ linkedContacts.length }}</span>
-          <button
+          <AppButton
             v-if="inactiveContacts.length"
-            class="btn-add-contact"
+            class="section-action-btn--push"
+            size="sm"
+            variant="secondary"
             @click="showInactiveContacts = !showInactiveContacts"
           >
             <font-awesome-icon :icon="['fas', showInactiveContacts ? 'eye-slash' : 'eye']" />
             {{ showInactiveContacts ? 'Inaktive ausblenden' : `Inaktive (${inactiveContacts.length})` }}
-          </button>
-          <button
+          </AppButton>
+          <AppButton
             v-if="kunde.kuerzel"
-            class="btn-add-contact"
+            :class="{ 'section-action-btn--push': !inactiveContacts.length }"
+            size="sm"
+            variant="secondary"
             @click="showKontaktAnlegenModal = true"
-            title="Neuen Microsoft-Kontakt anlegen"
           >
             <font-awesome-icon :icon="['fas', 'plus']" /> Anlegen
-          </button>
+          </AppButton>
         </h4>
 
         <div v-if="!kunde.kuerzel" class="empty-contacts">
@@ -308,13 +328,15 @@
             </template>
             <template #title>{{ contact.displayName }}</template>
             <template #actions>
-              <button
+              <AppIconButton
                 class="contact-menu-btn"
-                title="Kontaktoptionen"
+                size="sm"
+                variant="ghost"
+                :label="`Optionen für ${contact.displayName || 'Kontakt'}`"
                 @click.stop="openContactMenu(contact, $event)"
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </template>
             <div v-if="contact.jobTitle" class="detail-row contact-position">
               <font-awesome-icon :icon="['fas', 'briefcase']" />
@@ -341,9 +363,9 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'location-dot']" /> Adressen
           <span class="badge">{{ kundenAdressen.length }}</span>
-          <button class="btn-add-contact" type="button" @click="openCreateAdresse">
+          <AppButton class="section-action-btn--push" size="sm" variant="secondary" @click="openCreateAdresse">
             <font-awesome-icon :icon="['fas', 'plus']" /> Adresse anlegen
-          </button>
+          </AppButton>
         </h4>
         <div v-if="kundenAdressen.length" class="addresses-list">
           <InformationCard v-for="(adr, index) in kundenAdressen" :key="adr.nummer || index">
@@ -351,13 +373,15 @@
             <template #icon><font-awesome-icon :icon="['fas', 'location-dot']" /></template>
             <template #title>{{ formatAddressName(adr, 'Adresse ' + (index + 1)) }}</template>
             <template #actions>
-              <button
+              <AppIconButton
                 class="address-menu-btn"
-                title="Adressoptionen"
+                size="sm"
+                variant="ghost"
+                :label="`Optionen für ${formatAddressName(adr, 'Adresse ' + (index + 1))}`"
                 @click.stop="openAdresseMenu(adr, $event)"
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </template>
             <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
               <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
@@ -388,13 +412,15 @@
             <template #icon><font-awesome-icon :icon="['fas', 'user-tie']" /></template>
             <template #title>{{ formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1) }}</template>
             <template #actions>
-              <button
+              <AppIconButton
                 class="address-menu-btn"
-                title="Ansprechpartneroptionen"
+                size="sm"
+                variant="ghost"
+                :label="`Optionen für ${formatAnsprechpartnerName(adr.name) || 'Ansprechpartner ' + (index + 1)}`"
                 @click.stop="openAdresseMenu(adr, $event)"
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </template>
             <span v-if="adr.branche" class="address-branche">{{ adr.branche }}</span>
             <div v-if="adr.strasse || adr.plz || adr.ort" class="address-row">
@@ -413,10 +439,7 @@
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'map-location-dot']" /> Einsatzorte
           <span class="badge">{{ visibleEinsatzorte.length }}</span>
-          <div class="address-sort" aria-label="Einsatzortsortierung">
-            <button type="button" :class="{ active: einsatzortSort === 'name' }" @click="einsatzortSort = 'name'">Name</button>
-            <button type="button" :class="{ active: einsatzortSort === 'address' }" @click="einsatzortSort = 'address'">Adresse</button>
-          </div>
+          <AppSegmentedControl v-model="einsatzortSort" class="address-sort" size="sm" label="Einsatzortsortierung" :options="einsatzortSortOptions" />
           <FilterChip
             class="einsatzorte-inactive-toggle"
             :active="showInactiveEinsatzorte"
@@ -426,9 +449,9 @@
             <font-awesome-icon :icon="['fas', showInactiveEinsatzorte ? 'eye' : 'eye-slash']" />
             Inaktive{{ inactiveEinsatzorte.length ? ` (${inactiveEinsatzorte.length})` : '' }}
           </FilterChip>
-          <button class="btn-add-contact" type="button" @click="openCreateEinsatzort">
+          <AppButton class="section-action-btn--push" size="sm" variant="secondary" @click="openCreateEinsatzort">
             <font-awesome-icon :icon="['fas', 'plus']" /> Einsatzort anlegen
-          </button>
+          </AppButton>
         </h4>
         <div v-if="sortedEinsatzorte.length" class="addresses-list">
           <div v-for="einsatzort in sortedEinsatzorte" :key="einsatzort._id" class="address-card" :class="{ 'address-card--inactive': einsatzort.isActive === false }">
@@ -439,9 +462,9 @@
                   <span v-if="einsatzort.isActive === false" class="address-postal-badge">Inaktiv</span>
                 </div>
               </div>
-              <button class="address-menu-btn" title="Einsatzortoptionen" @click.stop="openEinsatzortMenu(einsatzort, $event)">
+              <AppIconButton class="address-menu-btn" size="sm" variant="ghost" :label="`Optionen für ${einsatzort.bezeichnung}`" @click.stop="openEinsatzortMenu(einsatzort, $event)">
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </div>
             <div class="address-body">
               <div v-if="einsatzort.adresse?.strasse || einsatzort.adresse?.plz || einsatzort.adresse?.ort" class="address-row">
@@ -494,7 +517,7 @@
             </span>
             <font-awesome-icon v-if="stundenlisteSettingSaving" :icon="['fas', 'spinner']" spin />
           </label>
-          <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error">{{ stundenlisteSettingError }}</p>
+          <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error" role="alert">{{ stundenlisteSettingError }}</p>
         </section>
       </section>
 
@@ -614,31 +637,31 @@
         <form class="erechnung-settings" @submit.prevent="saveERechnungSettings">
           <label>
             <span>Leitweg-ID</span>
-            <input v-model.trim="eRechnungForm.leitwegId" type="text" autocomplete="off" placeholder="z. B. 991-..." />
+            <AppTextInput v-model.trim="eRechnungForm.leitwegId" autocomplete="off" placeholder="z. B. 991-..." :disabled="eRechnungSaving" />
           </label>
           <label>
             <span>Bevorzugtes Format</span>
-            <select v-model="eRechnungForm.eRechnungFormat">
+            <AppSelect v-model="eRechnungForm.eRechnungFormat" :disabled="eRechnungSaving">
               <option value="">Nicht festgelegt</option>
               <option value="ZUGFERD">ZUGFeRD</option>
               <option value="XRECHNUNG">XRechnung</option>
-            </select>
+            </AppSelect>
           </label>
           <label>
             <span>Mehrwertsteuer</span>
-            <select v-model.number="eRechnungForm.mwst">
+            <AppSelect v-model="eRechnungForm.mwst" :disabled="eRechnungSaving">
               <option :value="null">Nicht festgelegt</option>
               <option :value="0">MWST-frei</option>
               <option :value="1">MWST-pflichtig</option>
               <option :value="2">Steuerfreie EG-Umsätze</option>
               <option :value="3">MWST-frei gem. § 13b UStG</option>
-            </select>
+            </AppSelect>
           </label>
-          <button class="erechnung-save-btn" type="submit" :disabled="eRechnungSaving">
-            <font-awesome-icon :icon="['fas', eRechnungSaving ? 'spinner' : 'floppy-disk']" :spin="eRechnungSaving" />
+          <AppButton class="erechnung-save-btn" size="sm" type="submit" :loading="eRechnungSaving">
+            <font-awesome-icon :icon="['fas', 'floppy-disk']" />
             Speichern
-          </button>
-          <p v-if="eRechnungError" class="erechnung-error">{{ eRechnungError }}</p>
+          </AppButton>
+          <p v-if="eRechnungError" class="erechnung-error" role="alert">{{ eRechnungError }}</p>
         </form>
 
         <div v-if="rechnungsanschrift" class="addresses-list">
@@ -647,13 +670,15 @@
             <template #icon><font-awesome-icon :icon="['fas', 'location-dot']" /></template>
             <template #title>{{ formatAddressName(rechnungsanschrift, 'Rechnungsanschrift') }}</template>
             <template #actions>
-              <button
+              <AppIconButton
                 class="address-menu-btn"
-                title="Adressoptionen"
+                size="sm"
+                variant="ghost"
+                :label="`Optionen für ${formatAddressName(rechnungsanschrift, 'Rechnungsanschrift')}`"
                 @click.stop="openAdresseMenu(rechnungsanschrift, $event)"
               >
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </template>
             <div v-if="rechnungsanschrift.strasse || rechnungsanschrift.plz || rechnungsanschrift.ort" class="address-row">
               <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
@@ -677,7 +702,7 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'lohn'" class="section kundenpreise-section">
+      <section v-if="activeTab === 'preise'" class="section kundenpreise-section">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'percent']" /> Zuschlagskonditionen
         </h4>
@@ -685,8 +710,9 @@
         <div v-if="konditionenLoading" class="empty-contacts">
           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Konditionen werden geladen…
         </div>
-        <div v-else-if="konditionenError" class="preise-message preise-message--error">
+        <div v-else-if="konditionenError" class="preise-message preise-message--error" role="alert">
           {{ konditionenError }}
+          <AppButton size="sm" variant="secondary" @click="loadKundenkonditionen(true)">Erneut laden</AppButton>
         </div>
         <div v-else-if="kundenkonditionen.length === 0" class="konditionen-empty">
           Keine Zuschlagskonditionen aus Zvoove hinterlegt.
@@ -737,15 +763,16 @@
         <div v-if="preiseLoading" class="empty-contacts">
           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Preise werden geladen…
         </div>
-        <div v-else-if="preiseError" class="preise-message preise-message--error">
+        <div v-else-if="preiseError" class="preise-message preise-message--error" role="alert">
           {{ preiseError }}
+          <AppButton size="sm" variant="secondary" @click="loadKundenpreise(true)">Erneut laden</AppButton>
         </div>
         <div v-else-if="preisBerufe.length === 0" class="empty-tab-state">
           <font-awesome-icon :icon="['fas', 'coins']" />
           <p>Für diesen Kunden sind noch keine Qualifikationspreise hinterlegt.</p>
-          <button class="preise-add-btn" type="button" @click="openAddQualifikationDialog">
-            <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation Hinzufügen
-          </button>
+          <AppButton class="preise-add-btn" size="sm" variant="outlined" @click="openAddQualifikationDialog">
+            <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation hinzufügen
+          </AppButton>
         </div>
         <template v-else>
           <div class="preise-selector">
@@ -763,13 +790,14 @@
           </div>
 
           <div class="preise-add-btn-row">
-            <button
+            <AppButton
               class="preise-add-btn"
-              type="button"
+              size="sm"
+              variant="outlined"
               @click="openAddQualifikationDialog"
             >
-              <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation Hinzufügen
-            </button>
+              <font-awesome-icon :icon="['fas', 'plus']" /> Qualifikation hinzufügen
+            </AppButton>
           </div>
 
           <div class="preise-table-wrap">
@@ -801,9 +829,9 @@
                       <span v-else class="muted-cell">—</span>
                     </td>
                     <td class="preise-actions-cell">
-                      <button class="preise-new-btn" type="button" @click="openNewPrice(entry)">
+                      <AppButton class="preise-new-btn" size="sm" variant="secondary" :disabled="preiseSaving" @click="openNewPrice(entry)">
                         <font-awesome-icon :icon="['fas', 'plus']" /> Neuer Preis
-                      </button>
+                      </AppButton>
                     </td>
                   </tr>
                   <tr v-if="newPriceQualificationId === entry.qualifikation._id" class="preise-form-row">
@@ -812,22 +840,22 @@
                         <label>
                           Preis pro Stunde
                           <div class="preise-input-unit">
-                            <input v-model.trim="newPriceAmount" inputmode="decimal" placeholder="0,00" required />
+                            <AppTextInput v-model.trim="newPriceAmount" inputmode="decimal" placeholder="0,00" :disabled="preiseSaving" required />
                             <span>€</span>
                           </div>
                         </label>
                         <label>
                           Gültig ab
-                          <input v-model="newPriceValidFrom" type="date" required />
+                          <AppTextInput v-model="newPriceValidFrom" type="date" :disabled="preiseSaving" required />
                         </label>
                         <div class="preise-form-actions">
-                          <button type="button" class="preise-cancel-btn" @click="closeNewPrice">Abbrechen</button>
-                          <button type="submit" class="preise-save-btn" :disabled="preiseSaving">
-                            <font-awesome-icon :icon="['fas', preiseSaving ? 'spinner' : 'check']" :spin="preiseSaving" />
+                          <AppButton size="sm" variant="secondary" :disabled="preiseSaving" @click="closeNewPrice">Abbrechen</AppButton>
+                          <AppButton size="sm" type="submit" :loading="preiseSaving">
+                            <font-awesome-icon :icon="['fas', 'check']" />
                             Speichern
-                          </button>
+                          </AppButton>
                         </div>
-                        <p v-if="newPriceError" class="preise-form-error">{{ newPriceError }}</p>
+                        <p v-if="newPriceError" class="preise-form-error" role="alert">{{ newPriceError }}</p>
                       </form>
                     </td>
                   </tr>
@@ -850,24 +878,27 @@
         </template>
 
         <!-- Add Qualification Dialog -->
-        <div v-if="showAddQualifikationDialog" class="modal-overlay" @click.self="closeAddQualifikationDialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>Neue Qualifikation hinzufügen</h3>
-              <button class="close-btn" type="button" @click="closeAddQualifikationDialog">
-                <font-awesome-icon :icon="['fas', 'xmark']" />
-              </button>
-            </div>
-            <div class="modal-body">
-              <form class="add-quali-form" @submit.prevent="saveNewQualifikation">
+        <ModalFrame
+          v-if="showAddQualifikationDialog"
+          layer="elevated"
+          size="sm"
+          title="Neue Qualifikation hinzufügen"
+          style="--mf-max-width: min(500px, calc(100vw - 2rem))"
+          :show-close="!addPriceSaving"
+          :close-on-escape="false"
+          :close-on-backdrop="!addPriceSaving"
+          @close="closeAddQualifikationDialog"
+        >
+          <form class="add-quali-form" @submit.prevent="saveNewQualifikation">
                 <div class="search-select">
                   <label for="add-price-beruf">Beruf</label>
-                  <input
+                  <AppTextInput
                     id="add-price-beruf"
                     v-model="berufSearchQuery"
                     type="search"
                     autocomplete="off"
                     placeholder="Beruf oder Schlüssel suchen"
+                    :disabled="addPriceSaving"
                     @focus="showBerufResults = true"
                     @input="showBerufResults = true"
                   />
@@ -877,6 +908,7 @@
                       :key="beruf._id"
                       type="button"
                       class="search-select-option"
+                      :disabled="addPriceSaving"
                       @click="selectAddBeruf(beruf)"
                     >
                       <span>{{ beruf.designation }}</span><small>{{ beruf.jobKey }}</small>
@@ -886,12 +918,12 @@
                 </div>
                 <div class="search-select">
                   <label for="add-price-qualifikation">Qualifikation</label>
-                  <input
+                  <AppTextInput
                     id="add-price-qualifikation"
                     v-model="qualifikationSearchQuery"
                     type="search"
                     autocomplete="off"
-                    :disabled="!addQualifikationBerufId"
+                    :disabled="!addQualifikationBerufId || addPriceSaving"
                     placeholder="Qualifikation oder Schlüssel suchen"
                     @focus="showQualifikationResults = true"
                     @input="showQualifikationResults = true"
@@ -902,6 +934,7 @@
                       :key="qualifikation._id"
                       type="button"
                       class="search-select-option"
+                      :disabled="addPriceSaving"
                       @click="selectAddQualifikation(qualifikation)"
                     >
                       <span>{{ qualifikation.designation }}</span><small>{{ qualifikation.qualificationKey }}</small>
@@ -912,28 +945,24 @@
                 <label>
                   Preis pro Stunde (€)
                   <div class="preise-input-unit">
-                    <input v-model.trim="addPriceAmount" inputmode="decimal" placeholder="0,00" required />
+                    <AppTextInput v-model.trim="addPriceAmount" inputmode="decimal" placeholder="0,00" :disabled="addPriceSaving" required />
                     <span>€</span>
                   </div>
                 </label>
                 <label>
                   Gültig ab
-                  <input v-model="addPriceValidFrom" type="date" required />
+                  <AppTextInput v-model="addPriceValidFrom" type="date" :disabled="addPriceSaving" required />
                 </label>
-                <p v-if="addPriceError" class="preise-form-error">{{ addPriceError }}</p>
+                <p v-if="addPriceError" class="preise-form-error" role="alert">{{ addPriceError }}</p>
                 <div class="preise-form-actions">
-                  <button type="button" class="preise-cancel-btn" @click="closeAddQualifikationDialog">
-                    Abbrechen
-                  </button>
-                  <button type="submit" class="preise-save-btn" :disabled="addPriceSaving">
-                    <font-awesome-icon :icon="['fas', addPriceSaving ? 'spinner' : 'check']" :spin="addPriceSaving" />
+                  <AppButton size="sm" variant="secondary" :disabled="addPriceSaving" @click="closeAddQualifikationDialog">Abbrechen</AppButton>
+                  <AppButton size="sm" type="submit" :loading="addPriceSaving">
+                    <font-awesome-icon :icon="['fas', 'check']" />
                     Speichern
-                  </button>
+                  </AppButton>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
+          </form>
+        </ModalFrame>
       </section>
 
     </div>
@@ -1002,32 +1031,37 @@
       @close="closeContactMenu"
       @select="handleContactMenuAction"
     />
-    <div v-if="showSignatureContactCollapseDialog" class="modal-overlay" @click.self="cancelSignatureContactCollapse">
-      <section class="modal-content signature-contact-collapse-dialog" role="dialog" aria-modal="true" aria-labelledby="signature-contact-collapse-title">
-        <header class="modal-header">
-          <h3 id="signature-contact-collapse-title">Signatur-Standard auswählen</h3>
-          <button class="close-btn" type="button" aria-label="Schließen" @click="cancelSignatureContactCollapse"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
-        </header>
-        <div class="modal-body">
-          <p>Für diesen Kunden bleibt ein einzelner Signatur-Standard bestehen.</p>
-          <label v-for="contact in selectedSignatureContacts" :key="contact.id" class="signature-contact-choice">
-            <input v-model="signatureContactCollapseId" type="radio" :value="contact.id" name="signature-contact-collapse" />
-            <span>{{ contact.name || contact.email }}</span>
-            <small>{{ contact.email }}</small>
-          </label>
+    <ModalFrame
+      v-if="showSignatureContactCollapseDialog"
+      layer="elevated"
+      size="sm"
+      title="Signatur-Standard auswählen"
+      style="--mf-max-width: min(420px, calc(100vw - 2rem))"
+      :show-close="!stundenlisteSettingSaving"
+      :close-on-escape="false"
+      :close-on-backdrop="!stundenlisteSettingSaving"
+      @close="cancelSignatureContactCollapse"
+    >
+      <div class="signature-contact-collapse-dialog">
+        <p>Für diesen Kunden bleibt ein einzelner Signatur-Standard bestehen.</p>
+        <label v-for="contact in selectedSignatureContacts" :key="contact.id" class="signature-contact-choice">
+          <input v-model="signatureContactCollapseId" type="radio" :value="contact.id" name="signature-contact-collapse" :disabled="stundenlisteSettingSaving" />
+          <span>{{ contact.name || contact.email }}</span>
+          <small>{{ contact.email }}</small>
+        </label>
+        <p v-if="stundenlisteSettingError" class="stundenliste-double-copy-error" role="alert">{{ stundenlisteSettingError }}</p>
+        <div class="signature-contact-collapse-actions">
+          <AppButton size="sm" variant="secondary" :disabled="stundenlisteSettingSaving" @click="cancelSignatureContactCollapse">Abbrechen</AppButton>
+          <AppButton size="sm" :loading="stundenlisteSettingSaving" :disabled="!signatureContactCollapseId" @click="confirmSignatureContactCollapse">Übernehmen</AppButton>
         </div>
-        <footer class="signature-contact-collapse-actions">
-          <button class="preise-cancel-btn" type="button" @click="cancelSignatureContactCollapse">Abbrechen</button>
-          <button class="preise-save-btn" type="button" :disabled="stundenlisteSettingSaving || !signatureContactCollapseId" @click="confirmSignatureContactCollapse">Übernehmen</button>
-        </footer>
-      </section>
-    </div>
+      </div>
+    </ModalFrame>
     </article>
   </ModalFrame>
 </template>
 
 <script setup>
-import { computed, ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, nextTick, watch, onMounted, onBeforeUnmount, useId } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useAuth } from '@/stores/auth';
@@ -1043,6 +1077,11 @@ import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
 import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import InformationCard from '@/components/ui-elements/InformationCard.vue';
 import CustomerSignaturesPanel from '@/components/customer/CustomerSignaturesPanel.vue';
@@ -1057,6 +1096,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+function applyCustomerPatch(update) {
+  // This card receives the shared cached customer object; keep sibling views in sync after successful writes.
+  // eslint-disable-next-line vue/no-mutating-props
+  Object.assign(props.kunde, update);
+}
+
 const auth = useAuth();
 
 const tabs = [
@@ -1066,10 +1111,13 @@ const tabs = [
   { id: 'einsaetze', label: 'Einsätze', icon: 'calendar-days' },
   { id: 'signatur', label: 'Signatur', icon: 'file-signature' },
   { id: 'einsatzinfos', label: 'Vorlagen', icon: 'envelope-open-text' },
-  { id: 'lohn', label: 'Lohn', icon: 'coins' },
+  { id: 'preise', label: 'Preise', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
   { id: 'einstellungen', label: 'Einstellungen', icon: 'gear' },
 ];
+const customerTabsId = useId();
+const customerTabId = (tab) => `${customerTabsId}-tab-${tab}`;
+const customerPanelId = `${customerTabsId}-panel`;
 const canSeeSensitiveKpi = computed(() => {
   const primaryRole = String(auth.user?.role || '').toUpperCase();
   const roles = Array.isArray(auth.user?.roles)
@@ -1084,14 +1132,30 @@ const canSeeSensitiveKpi = computed(() => {
 const visibleTabs = computed(() => tabs.filter((tab) =>
   tab.id !== 'statistik' || canSeeSensitiveKpi.value
 ));
-const activeTab = ref(visibleTabs.value.some((tab) => tab.id === props.initialTab) ? props.initialTab : 'allgemein');
+const normalizeCustomerTab = (tab) => tab === 'lohn' ? 'preise' : tab;
+const activeTab = ref(visibleTabs.value.some((tab) => tab.id === normalizeCustomerTab(props.initialTab))
+  ? normalizeCustomerTab(props.initialTab) : 'allgemein');
 
 watch(() => props.initialTab, (tab) => {
-  if (visibleTabs.value.some((item) => item.id === tab)) activeTab.value = tab;
+  const normalized = normalizeCustomerTab(tab);
+  if (visibleTabs.value.some((item) => item.id === normalized)) activeTab.value = normalized;
 });
 watch(canSeeSensitiveKpi, (canSee) => {
   if (!canSee && activeTab.value === 'statistik') activeTab.value = 'allgemein';
 });
+
+function navigateCustomerTab(event, currentTab) {
+  const key = event.key;
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key) || customerWritePending.value
+    || showAddQualifikationDialog.value || showSignatureContactCollapseDialog.value) return;
+  event.preventDefault();
+  const items = visibleTabs.value;
+  const current = items.findIndex((tab) => tab.id === currentTab);
+  const index = key === 'Home' ? 0 : key === 'End' ? items.length - 1
+    : (current + (key === 'ArrowRight' ? 1 : -1) + items.length) % items.length;
+  activeTab.value = items[index].id;
+  event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[index]?.focus();
+}
 
 const adressen = ref([]);
 const adresseDeletingId = ref(null);
@@ -1155,6 +1219,7 @@ watch(() => props.kunde.stundenlisteMehrereEinladungen, (value) => {
 });
 
 async function saveStundenlisteSetting() {
+  if (stundenlisteSettingSaving.value) return;
   const previousValue = props.kunde.stundenlisteSignaturDoppelt === true;
   const previousDuAnrede = props.kunde.stundenlisteSignaturDuAnrede === true;
   const previousMehrereEinladungen = props.kunde.stundenlisteMehrereEinladungen === true;
@@ -1166,9 +1231,11 @@ async function saveStundenlisteSetting() {
       stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
       stundenlisteMehrereEinladungen: stundenlisteMehrereEinladungen.value,
     });
-    props.kunde.stundenlisteSignaturDoppelt = stundenlisteSignaturDoppelt.value;
-    props.kunde.stundenlisteSignaturDuAnrede = stundenlisteSignaturDuAnrede.value;
-    props.kunde.stundenlisteMehrereEinladungen = stundenlisteMehrereEinladungen.value;
+    applyCustomerPatch({
+      stundenlisteSignaturDoppelt: stundenlisteSignaturDoppelt.value,
+      stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
+      stundenlisteMehrereEinladungen: stundenlisteMehrereEinladungen.value,
+    });
     await dataCache.updateCachedKunde({ ...props.kunde, ...updatedKunde });
   } catch (error) {
     stundenlisteSignaturDoppelt.value = previousValue;
@@ -1191,6 +1258,7 @@ function handleMehrereEinladungenChange() {
 }
 
 async function saveERechnungSettings() {
+  if (eRechnungSaving.value) return;
   eRechnungSaving.value = true;
   eRechnungError.value = '';
   const update = {
@@ -1200,7 +1268,7 @@ async function saveERechnungSettings() {
   };
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, update);
-    Object.assign(props.kunde, update);
+    applyCustomerPatch(update);
     const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
     if (cached) Object.assign(cached, update);
   } catch (error) {
@@ -1214,36 +1282,48 @@ const remarks = computed(() => (Array.isArray(props.kunde.bemerkung) ? props.kun
 const editingRemarkIndex = ref(null);
 const remarkDraft = ref(null);
 const remarksSaving = ref(false);
+const remarkError = ref('');
 const remarkInputRef = ref(null);
 
+function setRemarkInputRef(instance) {
+  if (instance) remarkInputRef.value = instance;
+}
+
 function startAddRemark() {
+  if (remarksSaving.value) return;
+  remarkError.value = '';
   editingRemarkIndex.value = null;
   remarkDraft.value = '';
   nextTick(() => remarkInputRef.value?.focus());
 }
 
 function startEditRemark(index) {
+  if (remarksSaving.value) return;
+  remarkError.value = '';
   editingRemarkIndex.value = index;
   remarkDraft.value = remarks.value[index];
   nextTick(() => remarkInputRef.value?.focus());
 }
 
 function cancelRemarkEdit() {
+  if (remarksSaving.value) return;
   editingRemarkIndex.value = null;
   remarkDraft.value = null;
+  remarkError.value = '';
 }
 
 async function persistRemarks(nextRemarks) {
   const bemerkung = nextRemarks.map((remark) => String(remark || '').trim()).filter(Boolean);
   remarksSaving.value = true;
+  remarkError.value = '';
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, { bemerkung });
-    props.kunde.bemerkung = bemerkung;
+    applyCustomerPatch({ bemerkung });
     const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
     if (cached) cached.bemerkung = bemerkung;
   } catch (error) {
     console.error('Fehler beim Speichern der Bemerkungen:', error);
-    alert(error.response?.data?.message || 'Die Bemerkungen konnten nicht gespeichert werden.');
+    remarkError.value = error?.response?.data?.message || 'Die Bemerkungen konnten nicht gespeichert werden.';
     throw error;
   } finally {
     remarksSaving.value = false;
@@ -1251,6 +1331,7 @@ async function persistRemarks(nextRemarks) {
 }
 
 async function saveRemark() {
+  if (remarksSaving.value) return;
   const text = String(remarkDraft.value || '').trim();
   if (!text) return;
   const nextRemarks = [...remarks.value];
@@ -1264,6 +1345,7 @@ async function saveRemark() {
 }
 
 async function deleteRemark(index) {
+  if (remarksSaving.value) return;
   if (!confirm('Bemerkung wirklich löschen?')) return;
   try {
     await persistRemarks(remarks.value.filter((_, remarkIndex) => remarkIndex !== index));
@@ -1272,6 +1354,10 @@ async function deleteRemark(index) {
 
 const einsatzorte = ref([]);
 const einsatzortSort = ref('name');
+const einsatzortSortOptions = [
+  { value: 'name', label: 'Name' },
+  { value: 'address', label: 'Adresse' },
+];
 const showInactiveEinsatzorte = ref(false);
 const einsatzortMenuEinsatzort = ref(null);
 const einsatzortMenuPosition = ref({ x: 0, y: 0 });
@@ -1678,6 +1764,7 @@ function selectPreisBeruf(berufId) {
 }
 
 function openNewPrice(entry) {
+  if (preiseSaving.value) return;
   newPriceQualificationId.value = String(entry.qualifikation._id);
   newPriceAmount.value = entry.next?.hourlyRateCents != null
     ? (entry.next.hourlyRateCents / 100).toFixed(2).replace('.', ',')
@@ -1696,6 +1783,7 @@ function closeNewPrice() {
 }
 
 async function saveNewPrice(entry) {
+  if (preiseSaving.value) return;
   const normalizedAmount = newPriceAmount.value.replace(/\s/g, '').replace(',', '.');
   const amount = Number(normalizedAmount);
   if (!Number.isFinite(amount) || amount < 0 || !newPriceValidFrom.value) {
@@ -1725,6 +1813,7 @@ function formatPriceCents(value) {
 }
 
 async function openAddQualifikationDialog() {
+  if (addPriceSaving.value) return;
   showAddQualifikationDialog.value = true;
   addPriceError.value = '';
   try {
@@ -1744,6 +1833,11 @@ async function openAddQualifikationDialog() {
 }
 
 function closeAddQualifikationDialog() {
+  if (addPriceSaving.value) return;
+  resetAddQualifikationDialog();
+}
+
+function resetAddQualifikationDialog() {
   showAddQualifikationDialog.value = false;
   addQualifikationBerufId.value = '';
   addQualifikationId.value = '';
@@ -1772,6 +1866,7 @@ function selectAddQualifikation(qualifikation) {
 }
 
 async function saveNewQualifikation() {
+  if (addPriceSaving.value) return;
   if (!addQualifikationId.value) {
     addPriceError.value = 'Bitte eine Qualifikation wählen.';
     return;
@@ -1791,7 +1886,7 @@ async function saveNewQualifikation() {
       hourlyRateCents: Math.round(amount * 100),
       validFrom: addPriceValidFrom.value,
     });
-    closeAddQualifikationDialog();
+    resetAddQualifikationDialog();
     await loadKundenpreise(true);
   } catch (error) {
     addPriceError.value = error.response?.data?.message || 'Die Qualifikation konnte nicht hinzugefügt werden.';
@@ -1801,11 +1896,11 @@ async function saveNewQualifikation() {
 }
 
 watch(activeTab, (tab) => {
-  if (tab === 'lohn') {
+  if (tab === 'preise') {
     loadKundenpreise();
     loadKundenkonditionen();
   }
-});
+}, { immediate: true });
 
 const dataCache = useDataCache();
 const router = useRouter();
@@ -1996,13 +2091,10 @@ async function toggleMicrosoftContactInactive(contact) {
 
   try {
     await api.put(`/api/kunden/${props.kunde._id}`, update);
-    props.kunde.inactiveMicrosoftContactIds = update.inactiveMicrosoftContactIds;
+    applyCustomerPatch(update);
     if (update.signaturKontaktId !== undefined) {
       signaturKontaktIds.value = update.signaturKontakte.map((entry) => entry.id);
       signaturKontaktId.value = update.signaturKontaktId || '';
-      props.kunde.signaturKontaktId = update.signaturKontaktId;
-      props.kunde.signaturKontaktEmail = update.signaturKontaktEmail;
-      props.kunde.signaturKontakte = update.signaturKontakte;
     }
     const cached = dataCache.kunden?.find((kunde) => kunde._id === props.kunde._id);
     if (cached) Object.assign(cached, update);
@@ -2032,9 +2124,11 @@ async function toggleSignaturKontakt(contact) {
     });
     signaturKontaktIds.value = newIds;
     signaturKontaktId.value = newId;
-    props.kunde.signaturKontaktId = newId || null;
-    props.kunde.signaturKontaktEmail = contacts.find((entry) => entry.id === newId)?.email || null;
-    props.kunde.signaturKontakte = contacts;
+    applyCustomerPatch({
+      signaturKontaktId: newId || null,
+      signaturKontaktEmail: contacts.find((entry) => entry.id === newId)?.email || null,
+      signaturKontakte: contacts,
+    });
     const cached = dataCache.kunden?.find(k => k._id === props.kunde._id);
     if (cached) {
       cached.signaturKontaktId = props.kunde.signaturKontaktId;
@@ -2052,11 +2146,17 @@ async function toggleSignaturKontakt(contact) {
 }
 
 function cancelSignatureContactCollapse() {
+  if (stundenlisteSettingSaving.value) return;
+  dismissSignatureContactCollapse();
+}
+
+function dismissSignatureContactCollapse() {
   showSignatureContactCollapseDialog.value = false;
   signatureContactCollapseId.value = '';
 }
 
 async function confirmSignatureContactCollapse() {
+  if (stundenlisteSettingSaving.value) return;
   const selected = selectedSignatureContacts.value.find((contact) => contact.id === signatureContactCollapseId.value);
   if (!selected) return;
   stundenlisteSettingSaving.value = true;
@@ -2069,12 +2169,12 @@ async function confirmSignatureContactCollapse() {
       signaturKontakte: [selected],
     };
     const { data: updatedKunde } = await api.put(`/api/kunden/${props.kunde._id}`, update);
-    Object.assign(props.kunde, update, updatedKunde);
+    applyCustomerPatch({ ...update, ...updatedKunde });
     signaturKontaktIds.value = [selected.id];
     signaturKontaktId.value = selected.id;
     stundenlisteMehrereEinladungen.value = false;
     await dataCache.updateCachedKunde({ ...props.kunde });
-    cancelSignatureContactCollapse();
+    dismissSignatureContactCollapse();
   } catch (error) {
     stundenlisteSettingError.value = error.response?.data?.message || 'Einstellung konnte nicht gespeichert werden.';
   } finally {
@@ -2163,9 +2263,11 @@ function onContactCardUpdated(updatedContact) {
 const editingKuerzel = ref(false);
 const kuerzelInput = ref('');
 const kuerzelSaving = ref(false);
+const kuerzelError = ref('');
 const kuerzelInputRef = ref(null);
 
 function startEditKuerzel() {
+  kuerzelError.value = '';
   kuerzelInput.value = props.kunde.kuerzel || '';
   editingKuerzel.value = true;
   nextTick(() => kuerzelInputRef.value?.focus());
@@ -2174,21 +2276,26 @@ function startEditKuerzel() {
 async function saveKuerzel() {
   if (kuerzelSaving.value) return;
   kuerzelSaving.value = true;
+  kuerzelError.value = '';
   try {
     const val = kuerzelInput.value.trim() || null;
     await api.put(`/api/kunden/${props.kunde._id}`, { kuerzel: val });
     // Update in-place in the cache so the list also reflects the change
     const cached = dataCache.kunden.find(k => k._id === props.kunde._id);
     if (cached) cached.kuerzel = val;
-    props.kunde.kuerzel = val;
+    applyCustomerPatch({ kuerzel: val });
     editingKuerzel.value = false;
+  } catch (error) {
+    kuerzelError.value = error?.response?.data?.message || 'Kürzel konnte nicht gespeichert werden.';
   } finally {
     kuerzelSaving.value = false;
   }
 }
 
 function cancelEditKuerzel() {
+  if (kuerzelSaving.value) return;
   editingKuerzel.value = false;
+  kuerzelError.value = '';
 }
 
 const theme = useTheme();
@@ -2260,6 +2367,15 @@ function closeSatelliteDialogs() {
   showKontaktAnlegenModal.value = false;
   closeAdresseForm();
   editingKuerzel.value = false;
+  if (!addPriceSaving.value) resetAddQualifikationDialog();
+  if (!stundenlisteSettingSaving.value) dismissSignatureContactCollapse();
+}
+
+const customerWritePending = computed(() => kuerzelSaving.value || remarksSaving.value || eRechnungSaving.value
+  || preiseSaving.value || addPriceSaving.value || stundenlisteSettingSaving.value);
+
+function requestCloseCustomer() {
+  if (!customerWritePending.value && !showAddQualifikationDialog.value && !showSignatureContactCollapseDialog.value) emit('close');
 }
 
 function handleEscape(event) {
@@ -2269,6 +2385,17 @@ function handleEscape(event) {
   // Capture mode prevents page-level handlers from closing UI underneath it.
   event.preventDefault();
   event.stopImmediatePropagation();
+
+  if (customerWritePending.value) return;
+
+  if (showAddQualifikationDialog.value) {
+    closeAddQualifikationDialog();
+    return;
+  }
+  if (showSignatureContactCollapseDialog.value) {
+    cancelSignatureContactCollapse();
+    return;
+  }
 
   if (showAdresseFormModal.value) {
     closeAdresseForm();
@@ -2290,8 +2417,12 @@ function handleEscape(event) {
     cancelEditKuerzel();
     return;
   }
+  if (remarkDraft.value !== null) {
+    cancelRemarkEdit();
+    return;
+  }
 
-  emit('close');
+  requestCloseCustomer();
 }
 
 watch(isMinimized, (minimized) => {
@@ -2356,14 +2487,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .customer-tab.active {
-  color: var(--accent, var(--primary));
+  color: var(--action-accent-text);
   border-bottom-color: var(--accent, var(--primary));
 }
 
 .customer-tab:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--control-focus-ring);
   outline-offset: -2px;
 }
+
+.customer-tab:disabled { cursor: not-allowed; opacity: .65; }
 
 /* Header */
 .card-header {
@@ -2386,7 +2519,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   border-radius: 8px;
   display: grid;
   place-items: center;
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 18px;
 }
 
@@ -2405,42 +2538,24 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .kuerzel-badge {
-  display: inline-flex;
-  align-items: center;
+  --app-button-background: color-mix(in srgb, var(--primary) 12%, transparent);
+  --app-button-color: var(--action-accent-text);
+  min-height: 26px;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgba(249, 115, 22, 0.15);
-  color: var(--primary);
-  border: 1px solid var(--primary);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.kuerzel-badge:hover {
-  background: rgba(249, 115, 22, 0.25);
 }
 
 .kuerzel-add-btn {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
+  min-height: 26px;
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.kuerzel-add-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-style: dashed;
 }
 
 .kuerzel-edit-row {
@@ -2452,41 +2567,20 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .kuerzel-input {
   font-size: 12px;
   padding: 3px 8px;
-  border: 1px solid var(--primary);
   border-radius: 4px;
-  background: var(--tile-bg);
-  color: var(--text);
   width: 90px;
-  outline: none;
+  min-height: 26px;
 }
 
 .kuerzel-save-btn,
 .kuerzel-cancel-btn {
-  width: 26px;
-  height: 26px;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   border-radius: 4px;
-  border: none;
-  cursor: pointer;
   font-size: 12px;
-  display: grid;
-  place-items: center;
-  transition: background 0.15s;
 }
 
-.kuerzel-save-btn {
-  background: var(--primary);
-  color: #fff;
-}
-
-.kuerzel-save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.kuerzel-cancel-btn {
-  background: var(--hover);
-  color: var(--muted);
-}
+.kuerzel-error { color: var(--status-danger-text); font-size: 0.74rem; }
 
 .kunden-nr {
   font-size: 12px;
@@ -2496,6 +2590,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .name {
+  margin: 0;
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
@@ -2511,9 +2606,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   font-weight: 600;
   text-transform: uppercase;
 }
-.status-active { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-.status-inactive { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
-.status-lead { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.status-active { background: color-mix(in srgb, var(--status-success-text) 15%, transparent); color: var(--status-success-text); }
+.status-inactive { background: var(--hover); color: var(--text); }
+.status-lead { background: color-mix(in srgb, var(--status-warning-text) 15%, transparent); color: var(--status-warning-text); }
 
 /* Body */
 .card-body {
@@ -2684,7 +2779,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .preise-current {
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -2705,56 +2800,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   text-align: right !important;
 }
 
-.preise-new-btn,
-.preise-cancel-btn,
-.preise-save-btn {
-  border-radius: 6px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-
-.preise-new-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.preise-new-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
-}
-
 .preise-add-btn-row {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
-}
-
-.preise-add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--primary);
-  background: transparent;
-  color: var(--primary);
-  border-radius: 6px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.preise-add-btn:hover {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .preise-form-row td {
@@ -2778,22 +2827,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   font-weight: 600;
 }
 
-.preise-new-form input {
-  height: 34px;
-  box-sizing: border-box;
-  padding: 6px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.preise-new-form input:focus {
-  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  border-color: var(--primary);
-}
+.preise-new-form input { min-height: 34px; }
 
 .preise-input-unit {
   position: relative;
@@ -2818,36 +2852,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   gap: 7px;
 }
 
-.preise-cancel-btn,
-.preise-save-btn {
-  min-height: 34px;
-  padding: 6px 10px;
-}
-
-.preise-cancel-btn {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.preise-save-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
-.preise-save-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .preise-form-error {
   align-self: center;
   margin: 0;
-  color: #dc3545;
+  color: var(--status-danger-text);
   font-size: 12px;
 }
 
@@ -2878,9 +2886,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .preise-message--error {
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  background: rgba(220, 53, 69, 0.08);
-  color: #dc3545;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--status-danger-text) 30%, var(--border));
+  background: color-mix(in srgb, var(--status-danger-text) 8%, var(--surface));
+  color: var(--status-danger-text);
 }
 
 .sr-only {
@@ -2893,67 +2905,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* Modal Dialog */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 18px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: var(--text);
-}
-
-.modal-body {
-  padding: 20px;
-  overflow-y: auto;
 }
 
 .add-quali-form {
@@ -2973,24 +2924,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
-}
-
-.add-quali-form select,
-.add-quali-form input {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.add-quali-form select:focus,
-.add-quali-form input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .search-select-results {
@@ -3030,6 +2963,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .search-select-option:hover {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.search-select-option:focus-visible,
+.top-ma-einsatz-row:focus-visible,
+.address-map-link:focus-visible {
+  outline: 2px solid var(--control-focus-ring);
+  outline-offset: 2px;
 }
 
 .search-select-option small {
@@ -3075,8 +3015,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   align-items: center;
   gap: 8px;
   
-  svg { color: var(--muted); }
+  > svg { color: var(--muted); }
 }
+
+.section-action-btn--push { margin-left: auto; }
 
 .customer-settings-section { display: grid; gap: .45rem; max-width: 500px; }
 .customer-settings-section .section-title { margin-bottom: 0; }
@@ -3090,63 +3032,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .stundenliste-double-copy-toggle small { color: var(--muted); font-size: .76rem; }
 .stundenliste-double-copy-toggle > svg { color: var(--primary); }
 .stundenliste-double-copy-toggle:has(input:disabled) { cursor: wait; opacity: .75; }
-.stundenliste-double-copy-error { margin: 0; color: #e6584f; font-size: .8rem; }
-.signature-contact-collapse-dialog { width: min(420px, calc(100vw - 2rem)); }
-.signature-contact-collapse-dialog .modal-body { display: grid; gap: .65rem; }
-.signature-contact-collapse-dialog .modal-body > p { color: var(--muted); font-size: .86rem; }
+.stundenliste-double-copy-error { margin: 0; color: var(--status-danger-text); font-size: .8rem; }
+.signature-contact-collapse-dialog { display: grid; gap: .65rem; }
+.signature-contact-collapse-dialog > p:first-child { margin: 0; color: var(--muted); font-size: .86rem; }
 .signature-contact-choice { display: grid; grid-template-columns: auto 1fr; column-gap: .55rem; align-items: center; padding: .45rem .5rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
 .signature-contact-choice input { grid-row: span 2; accent-color: var(--primary); }
 .signature-contact-choice span { color: var(--text); font-size: .88rem; }
 .signature-contact-choice small { color: var(--muted); font-size: .78rem; }
-.signature-contact-collapse-actions { display: flex; justify-content: flex-end; gap: .5rem; padding: 0 1rem 1rem; }
+.signature-contact-collapse-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 
-.btn-add-contact {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 9px;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 6%, transparent);
-  }
-}
-
-.address-sort {
-  display: inline-flex;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-
-  button {
-    padding: 3px 8px;
-    border: 0;
-    border-right: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    font-size: 11px;
-    cursor: pointer;
-
-    &:last-child { border-right: 0; }
-
-    &:hover { background: var(--soft); color: var(--text); }
-
-    &.active {
-      background: color-mix(in srgb, var(--primary) 12%, transparent);
-      color: var(--primary);
-      font-weight: 600;
-    }
-  }
-}
+.address-sort { flex-shrink: 0; }
 
 :deep(.einsatzorte-inactive-toggle.filter-chip) {
   height: 24px;
@@ -3217,51 +3112,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   font-weight: 600;
 }
 
-.erechnung-settings input,
-.erechnung-settings select {
+.erechnung-settings :is(input, select) {
   width: 100%;
   min-width: 0;
-  height: 34px;
-  box-sizing: border-box;
-  padding: 6px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.erechnung-settings input:focus,
-.erechnung-settings select:focus {
-  outline: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  border-color: var(--primary);
+  min-height: 34px;
 }
 
 .erechnung-save-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid var(--primary);
-  border-radius: 6px;
-  background: var(--primary);
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.erechnung-save-btn:disabled {
-  cursor: wait;
-  opacity: 0.6;
 }
 
 .erechnung-error {
-  color: #dc3545;
+  color: var(--status-danger-text);
 }
 
 .kv-item {
@@ -3301,7 +3163,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   min-height: 28px;
   padding-left: 16px;
   margin-bottom: 8px;
-  color: #b42318;
+  color: var(--text);
   font-size: 14px;
 
   > span:first-child {
@@ -3314,7 +3176,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   content: "•";
   position: absolute;
   left: 0;
-  color: var(--accent);
+  color: var(--action-accent-text);
   font-weight: bold;
 }
 
@@ -3328,17 +3190,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   input {
     flex: 1;
     min-width: 0;
+    min-height: 30px;
     padding: 7px 9px;
-    border: 1px solid var(--border);
     border-radius: 5px;
-    background: var(--tile-bg);
-    color: var(--text);
     font-size: 13px;
-
-    &:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
   }
 }
 
@@ -3354,37 +3209,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .remark-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid transparent;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: var(--border);
-    background: var(--soft);
-    color: var(--text);
-  }
-
-  &:disabled {
-    cursor: wait;
-    opacity: 0.55;
-  }
 }
 
-.remark-action--save {
-  color: var(--success, #10b981);
-}
-
-.remark-action--delete:hover:not(:disabled) {
-  color: #dc3545;
-}
+.remark-error { margin: 0 0 8px; color: var(--status-danger-text); font-size: 0.82rem; }
 
 .remarks-empty {
   color: var(--muted);
@@ -3454,10 +3284,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .address-postal-badge {
   flex: 0 0 auto;
   padding: 2px 7px;
-  border: 1px solid color-mix(in srgb, #3b82f6 35%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 5px;
-  background: color-mix(in srgb, #3b82f6 10%, transparent);
-  color: #3b82f6;
+  background: var(--hover);
+  color: var(--text);
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
@@ -3469,24 +3299,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .address-menu-btn {
-  display: grid;
-  width: 26px;
-  height: 26px;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   flex: 0 0 auto;
-  place-items: center;
   transform: translate(4px, -5px);
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.address-menu-btn:hover {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  color: var(--primary);
 }
 
 .address-body {
@@ -3526,7 +3342,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 
 .address-map-link:hover {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary) !important;
+  color: var(--action-accent-text) !important;
   text-decoration: none !important;
 }
 
@@ -3702,24 +3518,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .contact-menu-btn {
-  display: grid;
-  width: 26px;
-  height: 26px;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   flex: 0 0 auto;
-  place-items: center;
   margin: -5px -5px 0 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.contact-menu-btn:hover {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  color: var(--primary);
 }
 
 .contact-name {
@@ -3767,7 +3569,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
   
   svg { width: 14px; color: var(--muted); }
   
-  a { color: var(--primary); text-decoration: none; }
+  a { color: var(--action-accent-text); text-decoration: none; }
   a:hover { text-decoration: underline; }
 }
 
@@ -3931,7 +3733,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .kpi-value {
   font-size: 20px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--action-accent-text);
 }
 
 .kpi-label {
@@ -4059,40 +3861,23 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .top-ma-rank {
   font-size: 11px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--action-accent-text);
   min-width: 24px;
 }
 
 .top-ma-name {
-  font-weight: 600;
-  color: var(--primary);
   flex: 1;
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 13px;
-  font-family: inherit;
+  justify-content: flex-start;
+  min-height: 24px;
+  padding: 0 2px;
   text-align: left;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  &:hover { opacity: 0.75; text-decoration: underline; }
 }
 
 .top-ma-expand-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: none;
-  color: var(--muted);
   font-size: 10px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-  &:hover { color: var(--primary); border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
 }
 
 .top-ma-einsatz-expand {
@@ -4173,7 +3958,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .tme-link-icon {
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 11px;
   flex-shrink: 0;
   opacity: 0.5;
@@ -4198,20 +3983,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 }
 
 .top-ma-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--primary);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 2px 0;
-  transition: opacity 0.15s;
-}
-
-.top-ma-toggle:hover {
-  opacity: 0.75;
+  align-self: flex-start;
 }
 
 </style>

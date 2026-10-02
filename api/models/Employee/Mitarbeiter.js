@@ -73,6 +73,12 @@ const MitarbeiterSchema = new mongoose.Schema({
     vorarbeitgebertage: {
         year: { type: Number, default: null },
         days: { type: Number, default: 0, min: 0 },
+        correction: {
+            year: { type: Number, default: null },
+            originalDays: { type: Number, default: null },
+            deductedOwnAssignments: { type: Number, default: null },
+            correctedAt: { type: Date, default: null },
+        },
     },
     // Contractual working-time targets and time-account limits imported from Zvoove.
     arbeitszeit: {
@@ -174,6 +180,17 @@ MitarbeiterSchema.pre('validate', function initializeR2Prefix(next) {
     }
     next();
 });
+
+MitarbeiterSchema.methods.formatName = function formatName(format = 'first-last') {
+    const vorname = this.vorname?.trim() || '';
+    const nachname = this.nachname?.trim() || '';
+
+    if (format === 'last-first') {
+        return [nachname, vorname].filter(Boolean).join(', ');
+    }
+
+    return [vorname, nachname].filter(Boolean).join(' ');
+};
 
 
 function autoPopulate(next) {

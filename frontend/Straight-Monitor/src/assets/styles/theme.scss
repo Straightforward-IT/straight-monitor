@@ -9,7 +9,34 @@
   --modal-bg:    #ffffff;    /* modal dialog background – always fully opaque, no transparency */
   --border:      #d1d1d1;
   --hover:       #f7f7f7;
-  --primary:     #eeaf67; /* match $base-primary */
+  --primary:     #{$base-primary};
+  --primary-rgb: 238, 175, 103;
+  --primary-contrast: #2a2118;
+  --primary-text: #c87c35;
+  --action-accent-text: var(--primary-text);
+  --action-primary: var(--primary);
+  --on-action-primary: var(--primary-contrast);
+  --action-primary-hover: color-mix(in srgb, var(--primary) 88%, #000);
+  --action-secondary: var(--tile-bg);
+  --action-secondary-border: var(--border);
+  --action-secondary-text: var(--text);
+  --action-secondary-hover: var(--hover);
+  --action-ghost-text: var(--action-accent-text);
+  --action-ghost-hover: color-mix(in srgb, var(--primary) 12%, transparent);
+  --action-danger: #c43d3d;
+  --on-action-danger: #fff;
+  --action-danger-hover: #a92f2f;
+  --status-danger-text: #b02e2e;
+  --status-success-text: #26733e;
+  --status-warning: #d78a00;
+  --status-warning-text: #ffb03a;
+  --control-radius: 8px;
+  --control-input-bg: var(--panel);
+  --control-input-border: var(--border);
+  --control-focus-ring: var(--action-accent-text);
+  --control-disabled-bg: var(--hover);
+  --control-disabled-border: var(--border);
+  --control-disabled-text: var(--muted);
   --overlay:     rgba(0,0,0,.45);
   --scrollbar-track: rgba(0, 0, 0, 0.04);
   --scrollbar-thumb: rgba(0, 0, 0, 0.25);
@@ -22,6 +49,10 @@
 
 /* Dark */
 [data-theme="dark"]{
+  --primary-text: var(--primary);
+  --status-danger-text: #ff9393;
+  --status-success-text: #82d69a;
+  --status-warning-text: #ffcb70;
   --bg:          #1d1d1d;
   --text:        #eaeaea;
   --muted:       #a6a6a6;
@@ -31,7 +62,6 @@
   --modal-bg:    #2a2a2e;    /* modal dialog background – always fully opaque, no transparency */
   --border:      #a4a4a470;
   --hover:       #202226;
-  --primary:     #eeaf67;
   --overlay:     rgba(0,0,0,.6);
   --scrollbar-track: rgba(255, 255, 255, 0.04);
   --scrollbar-thumb: rgba(255, 255, 255, 0.18);

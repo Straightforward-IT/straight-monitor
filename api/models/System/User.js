@@ -1,6 +1,28 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const UserPreferencesSchema = new mongoose.Schema({
+  appearance: {
+    theme: {
+      type: String,
+      enum: ['light', 'dark'],
+      default: null
+    },
+    accentColor: {
+      type: String,
+      enum: ['orange', 'baby-blue', 'pink', 'ac-dc'],
+      default: 'orange'
+    }
+  },
+  display: {
+    employeeNameFormat: {
+      type: String,
+      enum: ['first-last', 'last-first'],
+      default: 'first-last'
+    }
+  }
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -52,6 +74,10 @@ const UserSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null
   },
+  preferences: {
+    type: UserPreferencesSchema,
+    default: () => ({})
+  },
   mitarbeiter: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Mitarbeiter',
@@ -73,6 +99,13 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: null
   }
+});
+
+UserSchema.pre('validate', function normalizeRemovedPreferences(next) {
+  if (this.preferences?.appearance?.accentColor === 'lime') {
+    this.preferences.appearance.accentColor = 'orange';
+  }
+  next();
 });
 
 // Hash password before saving the user model

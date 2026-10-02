@@ -1,73 +1,143 @@
 <template>
-  <Teleport to="body">
-    <div v-if="modelValue" class="backdrop" @mousedown.self="close">
-      <section class="dialog" role="dialog" aria-modal="true" :aria-label="isEditing ? 'Artikel bearbeiten' : 'Artikel anlegen'">
-        <header class="dialog__header">
-          <div>
-            <p>Bestand</p>
-            <h3>{{ isEditing ? 'Artikel bearbeiten' : 'Artikel anlegen' }}</h3>
-          </div>
-          <button type="button" class="icon-button" title="Schließen" @click="close">
-            <font-awesome-icon :icon="['fas', 'xmark']" />
-          </button>
-        </header>
+  <ModalFrame
+    :model-value="modelValue"
+    :title="isEditing ? 'Artikel bearbeiten' : 'Artikel anlegen'"
+    subtitle="Bestand"
+    size="xl"
+    class="inventory-item-modal"
+    @close="close"
+  >
+    <div class="dialog__body">
+      <div class="base-grid">
+        <label>Grundbezeichnung<AppTextInput
+          v-model="form.bezeichnung"
+          placeholder="z. B. T-Shirt"
+        /></label>
+        <label>Shop-Link<AppTextInput
+          v-model="form.shopUrl"
+          type="url"
+          placeholder="https://…"
+        /></label>
+        <label>Variationen<span>Kommagetrennt, optional</span><AppTextInput
+          v-model="form.variationen"
+          placeholder="Schwarz, Weiß"
+        /></label>
+        <label>Größen<span>Kommagetrennt, optional</span><AppTextInput
+          v-model="form.groessen"
+          placeholder="S, M, L"
+        /></label>
+      </div>
 
-        <div class="dialog__body">
-          <div class="base-grid">
-            <label>Grundbezeichnung<input v-model="form.bezeichnung" type="text" placeholder="z. B. T-Shirt" /></label>
-            <label>Shop-Link<input v-model="form.shopUrl" type="url" placeholder="https://…" /></label>
-            <label>Variationen<span>Kommagetrennt, optional</span><input v-model="form.variationen" type="text" placeholder="Schwarz, Weiß" /></label>
-            <label>Größen<span>Kommagetrennt, optional</span><input v-model="form.groessen" type="text" placeholder="S, M, L" /></label>
-          </div>
-
-          <section class="location-section">
-            <div class="section-heading"><h4>Standorte</h4><span>{{ selectedLocationIds.length }} gewählt</span></div>
-            <div v-if="locations.length" class="location-chips">
-              <label v-for="location in locations" :key="location._id" class="location-chip">
-                <input v-model="selectedLocationIds" type="checkbox" :value="location._id" />
-                <b>{{ location.shortName }}</b> {{ location.nameFull }}
-              </label>
-            </div>
-            <p v-else class="hint">Noch keine Standorte vorhanden. Diese werden in der Monitor Verwaltung angelegt.</p>
-          </section>
-
-          <section class="matrix-section">
-            <div class="section-heading"><h4>Bestandskombinationen</h4><span>{{ stockRows.length }} Zeilen</span></div>
-            <p v-if="!stockRows.length" class="hint">Wähle mindestens einen Standort aus.</p>
-            <div v-else class="matrix">
-              <div v-for="row in stockRows" :key="row.key" class="matrix-row">
-                <label class="matrix-row__toggle"><input v-model="row.isActive" type="checkbox" /><span>{{ row.locationShort }}</span></label>
-                <span>{{ row.variationLabel || 'Standard' }}</span>
-                <span>{{ row.groesseLabel }}</span>
-                <label>Bestand<input v-model.number="row.bestand" type="number" min="0" /></label>
-                <label>Soll<input v-model.number="row.soll" type="number" min="0" /></label>
-                <label class="matrix-row__url">Shop-Link<input v-model="row.shopUrl" type="url" placeholder="Standard-Link" /></label>
-              </div>
-            </div>
-          </section>
+      <section class="location-section">
+        <div class="section-heading">
+          <h4>Standorte</h4><span>{{ selectedLocationIds.length }} gewählt</span>
         </div>
+        <div
+          v-if="locations.length"
+          class="location-chips"
+        >
+          <label
+            v-for="location in locations"
+            :key="location._id"
+            class="location-chip"
+          >
+            <input
+              v-model="selectedLocationIds"
+              type="checkbox"
+              :value="location._id"
+            >
+            <b>{{ location.shortName }}</b> {{ location.nameFull }}
+          </label>
+        </div>
+        <p
+          v-else
+          class="hint"
+        >
+          Noch keine Standorte vorhanden. Diese werden in der Monitor Verwaltung angelegt.
+        </p>
+      </section>
 
-        <footer class="dialog__footer">
-          <p v-if="error" class="error">{{ error }}</p>
-          <button type="button" class="secondary" @click="close">Abbrechen</button>
-          <button type="button" class="primary" :disabled="saving || !canSave" @click="save">
-            <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
-            {{ isEditing ? 'Speichern' : 'Anlegen' }}
-          </button>
-        </footer>
+      <section class="matrix-section">
+        <div class="section-heading">
+          <h4>Bestandskombinationen</h4><span>{{ stockRows.length }} Zeilen</span>
+        </div>
+        <p
+          v-if="!stockRows.length"
+          class="hint"
+        >
+          Wähle mindestens einen Standort aus.
+        </p>
+        <div
+          v-else
+          class="matrix"
+        >
+          <div
+            v-for="row in stockRows"
+            :key="row.key"
+            class="matrix-row"
+          >
+            <label class="matrix-row__toggle"><input
+              v-model="row.isActive"
+              type="checkbox"
+            ><span>{{ row.locationShort }}</span></label>
+            <span>{{ row.variationLabel || 'Standard' }}</span>
+            <span>{{ row.groesseLabel }}</span>
+            <label>Bestand<AppTextInput
+              v-model.number="row.bestand"
+              type="number"
+              min="0"
+            /></label>
+            <label>Soll<AppTextInput
+              v-model.number="row.soll"
+              type="number"
+              min="0"
+            /></label>
+            <label class="matrix-row__url">Shop-Link<AppTextInput
+              v-model="row.shopUrl"
+              type="url"
+              placeholder="Standard-Link"
+            /></label>
+          </div>
+        </div>
       </section>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <p
+        v-if="error"
+        class="error"
+      >
+        {{ error }}
+      </p>
+      <AppButton
+        variant="secondary"
+        @click="close"
+      >
+        Abbrechen
+      </AppButton>
+      <AppButton
+        :disabled="!canSave"
+        :loading="saving"
+        @click="save"
+      >
+        <font-awesome-icon :icon="['fas', 'check']" />
+        {{ isEditing ? 'Speichern' : 'Anlegen' }}
+      </AppButton>
+    </template>
+  </ModalFrame>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCheck, faSpinner, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCheck } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 
-library.add(faCheck, faSpinner, faXmark);
+library.add(faCheck);
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -145,8 +215,8 @@ async function save() {
       shopUrl: form.value.shopUrl,
       variationen: variationOptions.value,
       groessen: sizeOptions.value,
-          bestaende: stockRows.value.filter((row) => row.isActive).map((row) => ({
-            stockId: row.stockId,
+      bestaende: stockRows.value.filter((row) => row.isActive).map((row) => ({
+        stockId: row.stockId,
         location: row.locationId,
         variationKey: row.variationKey,
         groesseKey: row.groesseKey,
@@ -204,8 +274,8 @@ function populateItem(item) {
     groesseLabel: stock.groesse || 'onesize',
     bestand: Number(stock.bestand ?? stock.anzahl ?? 0),
     soll: Number(stock.soll ?? 0),
-      stockId: stock._id,
-      shopUrl: stock.shopUrl || '',
+    stockId: stock._id,
+    shopUrl: stock.shopUrl || '',
     isActive: true,
   }));
 }
@@ -219,24 +289,19 @@ watch(() => props.modelValue, async (open) => {
     await loadLocations();
     if (props.item) populateItem(props.item);
   } catch { error.value = 'Standorte konnten nicht geladen werden.'; }
-});
+}, { immediate: true });
 watch([selectedLocationIds, variationOptions, sizeOptions], rebuildMatrix, { deep: true });
 </script>
 
 <style scoped lang="scss">
-.backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: var(--overlay); }
-.dialog { width: min(920px, 100%); max-height: min(88vh, 800px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); }
-.dialog__header, .dialog__footer { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
-.dialog__header { justify-content: space-between; }
-.dialog__header p, .dialog__header h3 { margin: 0; } .dialog__header p { color: var(--primary); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; } .dialog__header h3 { font-size: 1.08rem; }
-.dialog__body { overflow: auto; padding: 18px; display: grid; gap: 22px; }
+:global(.inventory-item-modal) { --mf-max-width: min(920px, 94vw); --mf-max-height: min(88vh, 800px); --mf-border: 1px solid var(--border); --mf-radius: 8px; --mf-surface: var(--tile-bg); --mf-body-padding: 18px; --mf-footer-padding: 15px 18px; }
+.dialog__body { display: grid; gap: 22px; }
 .base-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
 label { display: grid; gap: 5px; color: var(--text); font-size: 0.8rem; font-weight: 600; } label span, .hint, .section-heading span { color: var(--muted); font-size: 0.72rem; font-weight: 400; }
-input { min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; font-weight: 400; } input:focus { border-color: var(--primary); outline: none; }
+input[type='checkbox'] { accent-color: var(--primary); }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; } .section-heading h4 { margin: 0; font-size: 0.9rem; }
-.location-chips { display: flex; flex-wrap: wrap; gap: 7px; } .location-chip { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-weight: 400; } .location-chip b { color: var(--primary); }
-.matrix { display: grid; gap: 6px; } .matrix-row { display: grid; grid-template-columns: 82px 1fr 1fr 82px 70px minmax(140px, 1.5fr); gap: 7px; align-items: end; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem; } .matrix-row > span { padding: 8px 0; color: var(--muted); } .matrix-row label { font-size: 0.68rem; } .matrix-row__toggle { display: flex; align-items: center; gap: 5px; padding-bottom: 8px; color: var(--primary); }
-.dialog__footer { justify-content: end; border-bottom: none; border-top: 1px solid var(--border); } .error { margin: 0 auto 0 0; color: #c3423f; font-size: 0.78rem; }
-button { border: none; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; padding: 8px 12px; } .icon-button, .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); } .primary { background: var(--primary); color: #fff; } button:disabled { cursor: not-allowed; opacity: 0.55; }
+.location-chips { display: flex; flex-wrap: wrap; gap: 7px; } .location-chip { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-weight: 400; } .location-chip b { color: var(--action-accent-text); }
+.matrix { display: grid; gap: 6px; } .matrix-row { display: grid; grid-template-columns: 82px 1fr 1fr 82px 70px minmax(140px, 1.5fr); gap: 7px; align-items: end; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem; } .matrix-row > span { padding: 8px 0; color: var(--muted); } .matrix-row label { font-size: 0.68rem; } .matrix-row__toggle { display: flex; align-items: center; gap: 5px; padding-bottom: 8px; color: var(--action-accent-text); }
+.error { margin: 0 auto 0 0; color: var(--status-danger-text); font-size: 0.78rem; }
 @media (max-width: 720px) { .base-grid { grid-template-columns: 1fr; } .matrix-row { grid-template-columns: 70px 1fr 1fr; } .matrix-row label { grid-column: span 1; } .matrix-row__url { grid-column: 1 / -1; } }
 </style>

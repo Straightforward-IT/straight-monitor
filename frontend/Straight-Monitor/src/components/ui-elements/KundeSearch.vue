@@ -29,7 +29,9 @@
       <input
         ref="inputEl"
         v-model="query"
+        :id="inputId || undefined"
         type="text"
+        :disabled="disabled"
         :placeholder="placeholder"
         class="kunde-search__input"
         autocomplete="off"
@@ -45,7 +47,7 @@
 
     <!-- Dropdown — teleported to body to escape any parent stacking context -->
     <teleport to="body">
-      <ul v-if="showDropdown && results.length" :class="['kunde-search__dropdown', { 'kunde-search__dropdown--dropup': dropup }]" :style="dropdownStyle">
+      <ul v-if="!disabled && showDropdown && results.length" :class="['kunde-search__dropdown', { 'kunde-search__dropdown--dropup': dropup }]" :style="dropdownStyle">
         <li
           v-for="(k, i) in results"
           :key="k._id"
@@ -68,7 +70,7 @@
         </li>
       </ul>
 
-      <p v-if="showDropdown && !results.length && !loading && query.length >= 2" class="kunde-search__empty" :style="dropdownStyle">
+      <p v-if="!disabled && showDropdown && !results.length && !loading && query.length >= 2" class="kunde-search__empty" :style="dropdownStyle">
         Keine Treffer
       </p>
     </teleport>
@@ -90,6 +92,8 @@ const props = defineProps({
   dropup:      { type: Boolean, default: false },
   locationV2:  { type: String,  default: null },
   mitarbeiterId: { type: String, default: null },
+  inputId: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -129,6 +133,7 @@ function sortResults(list) {
 }
 
 async function fetchResults(searchText = query.value) {
+  if (props.disabled) return;
   const trimmed = String(searchText || '').trim();
   if (trimmed.length < 2 && !props.mitarbeiterId) {
     results.value = [];
@@ -143,6 +148,7 @@ async function fetchResults(searchText = query.value) {
     if (props.mitarbeiterId) params.mitarbeiterId = props.mitarbeiterId;
 
     const { data } = await api.get('/api/kunden/search', { params });
+    if (props.disabled) return;
     results.value = sortResults(data || []);
     highlighted.value = 0;
 
@@ -161,6 +167,7 @@ async function fetchResults(searchText = query.value) {
 }
 
 function maybeLoadSuggestions(force = false) {
+  if (props.disabled) return;
   if (!props.mitarbeiterId || query.value.trim().length >= 2) return;
   if (!force && results.value.length > 0) return;
   fetchResults('');
@@ -188,6 +195,7 @@ function updateDropdownPosition() {
 }
 
 function onInput() {
+  if (props.disabled) return;
   clearTimeout(debounceTimer);
   if (query.value.trim().length < 2 && !props.mitarbeiterId) {
     results.value = [];
@@ -201,6 +209,7 @@ function onInput() {
 }
 
 function handleFocus() {
+  if (props.disabled) return;
   if (results.value.length > 0) {
     updateDropdownPosition();
     showDropdown.value = true;
@@ -216,6 +225,7 @@ function isSelected(k) {
 }
 
 function select(k) {
+  if (props.disabled) return;
   if (props.multiple) {
     const idx = selectedList.value.findIndex(s => s._id === k._id);
     if (idx === -1) selectedList.value.push(k);
@@ -252,6 +262,7 @@ function moveUp()   { if (highlighted.value > 0) highlighted.value--; }
 function selectHighlighted() { if (results.value[highlighted.value]) select(results.value[highlighted.value]); }
 
 function focus() {
+  if (props.disabled) return;
   inputEl.value?.focus();
   maybeLoadSuggestions(true);
 }
@@ -283,6 +294,12 @@ watch(() => props.mitarbeiterId, () => {
   results.value = [];
   showDropdown.value = false;
   highlighted.value = 0;
+});
+
+watch(() => props.disabled, (disabled) => {
+  if (!disabled) return;
+  clearTimeout(debounceTimer);
+  showDropdown.value = false;
 });
 
 defineExpose({ focus, clearSingle });

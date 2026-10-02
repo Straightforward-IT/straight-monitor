@@ -29,14 +29,115 @@ router.get(
   })
 );
 
+// PATCH /api/users/me/preferences
+router.patch(
+  "/me/preferences",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { preferences } = req.body;
+    if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)) {
+      return res.status(400).json({ msg: "preferences must be an object" });
+    }
+
+    const allowedSections = new Set(["appearance", "display"]);
+    if (Object.keys(preferences).some((key) => !allowedSections.has(key))) {
+      return res.status(400).json({ msg: "Unknown preference section" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    if (preferences.appearance !== undefined) {
+      const appearance = preferences.appearance;
+      if (!appearance || typeof appearance !== "object" || Array.isArray(appearance)
+        || Object.keys(appearance).some((key) => !["theme", "accentColor"].includes(key))
+        || (appearance.theme !== undefined && !["light", "dark"].includes(appearance.theme))
+        || (appearance.accentColor !== undefined && !["orange", "baby-blue", "pink", "ac-dc"].includes(appearance.accentColor))) {
+        return res.status(400).json({ msg: "Invalid appearance preferences" });
+      }
+      if (appearance.theme !== undefined) user.set("preferences.appearance.theme", appearance.theme);
+      if (appearance.accentColor !== undefined) user.set("preferences.appearance.accentColor", appearance.accentColor);
+    }
+
+    if (preferences.display !== undefined) {
+      const display = preferences.display;
+      if (!display || typeof display !== "object" || Array.isArray(display)
+        || Object.keys(display).some((key) => key !== "employeeNameFormat")
+        || !["first-last", "last-first"].includes(display.employeeNameFormat)) {
+        return res.status(400).json({ msg: "Invalid display preferences" });
+      }
+      user.set("preferences.display.employeeNameFormat", display.employeeNameFormat);
+    }
+
+    await user.save();
+    res.status(200).json({ preferences: user.preferences });
+  })
+);
+
+// PATCH /api/users/me/profile
+router.patch(
+  "/me/profile",
+  auth,
+  asyncHandler(async (req, res) => {
+    const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+    if (name.length < 2 || name.length > 100) {
+      return res.status(400).json({ msg: "Der Anzeigename muss zwischen 2 und 100 Zeichen lang sein" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { name },
+      { new: true, runValidators: true }
+    ).select("-password");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    res.status(200).json({ user });
+  })
+);
+
+// PUT /api/users/me/password
+router.put(
+  "/me/password",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      return res.status(400).json({ msg: "Aktuelles und neues Passwort sind erforderlich" });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: "Das neue Passwort muss mindestens 8 Zeichen lang sein" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    if (!await user.comparePassword(currentPassword)) {
+      return res.status(400).json({ msg: "Das aktuelle Passwort ist nicht korrekt" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    res.status(200).json({ msg: "Passwort aktualisiert" });
+  })
+);
+
 // PUT /api/users/me/dashboard-prefs
 router.put(
   "/me/dashboard-prefs",
   auth,
   asyncHandler(async (req, res) => {
     const { prefs } = req.body;
-    if (!Array.isArray(prefs)) return res.status(400).json({ msg: "prefs must be an array" });
-    await User.findByIdAndUpdate(req.user.id, { dashboardPrefs: prefs });
+    const valid = Array.isArray(prefs)
+      && prefs.length <= 100
+      && prefs.every((entry) => entry
+        && typeof entry === "object"
+        && !Array.isArray(entry)
+        && typeof entry.id === "string"
+        && entry.id.trim().length > 0
+        && entry.id.length <= 100
+        && typeof entry.visible === "boolean")
+      && new Set(prefs.map((entry) => entry.id)).size === prefs.length;
+    if (!valid) return res.status(400).json({ msg: "prefs must contain unique id/visible entries" });
+    const sanitizedPrefs = prefs.map(({ id, visible }) => ({ id: id.trim(), visible }));
+    await User.findByIdAndUpdate(req.user.id, { dashboardPrefs: sanitizedPrefs });
     res.status(200).json({ msg: "Dashboard preferences saved" });
   })
 );
@@ -47,7 +148,9 @@ router.put(
   auth,
   asyncHandler(async (req, res) => {
     const { prefs } = req.body;
-    if (!prefs || typeof prefs !== 'object') return res.status(400).json({ msg: "prefs must be an object" });
+    if (!prefs || typeof prefs !== 'object' || Array.isArray(prefs)) {
+      return res.status(400).json({ msg: "prefs must be an object" });
+    }
     await User.findByIdAndUpdate(req.user.id, { dispoPrefs: prefs });
     res.status(200).json({ msg: "Dispo preferences saved" });
   })
@@ -138,34 +241,6 @@ router.put(
     else user.highlightedInventoryItems.splice(index, 1);
     await user.save();
     res.status(200).json({ highlightedInventoryItems: user.highlightedInventoryItems });
-  })
-);
-
-// GET /api/users/:id
-router.get(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ msg: "User not found" });
-    res.status(200).json(user);
-  })
-);
-
-// PUT /api/users/:id
-router.put(
-  "/update/:id",
-  asyncHandler(async (req, res) => {
-    const { name, email, password } = req.body;
-    let user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ msg: "User not found" });
-    user.name = name || user.name;
-    user.email = email || user.email;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
-    }
-    await user.save();
-    res.status(200).json(user);
   })
 );
 

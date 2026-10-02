@@ -1,9 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 import CustomTooltip from '../src/components/CustomTooltip.vue';
 import Stundenschnellerfassung from '../src/components/ui-elements/Stundenschnellerfassung.vue';
 
 let wrapper;
+
+beforeEach(() => setActivePinia(createPinia()));
 
 afterEach(() => {
   wrapper?.unmount();
@@ -26,7 +29,7 @@ describe('Stundenschnellerfassung row handoff', () => {
     expect(action.text()).toBe('30 Min. Pause eintragen');
     await action.trigger('click');
 
-    expect(wrapper.get('select[aria-label="Pause in Minuten – Pause, Anna"]').element.value).toBe('30');
+    expect(wrapper.get('select[aria-label="Pause in Minuten – Anna Pause"]').element.value).toBe('30');
     expect(wrapper.find('.quick-time__warning-row').exists()).toBe(false);
   });
 
@@ -42,13 +45,13 @@ describe('Stundenschnellerfassung row handoff', () => {
 
     const tooltips = wrapper.findAllComponents(CustomTooltip);
     expect(tooltips.map(tooltip => tooltip.props('text'))).toEqual([
-      'Soll-Zeiten übernehmen – Offen, Anna',
-      'Zurücksetzen – Offen, Anna',
-      'Zeile leeren – Offen, Anna',
+      'Soll-Zeiten übernehmen – Anna Offen',
+      'Zurücksetzen – Anna Offen',
+      'Zeile leeren – Anna Offen',
       'Übertragen in die Stundenerfassung',
-      'Soll-Zeiten übernehmen – Übergeben, Ben',
-      'Zurücksetzen – Übergeben, Ben',
-      'Zeile leeren – Übergeben, Ben',
+      'Soll-Zeiten übernehmen – Ben Übergeben',
+      'Zurücksetzen – Ben Übergeben',
+      'Zeile leeren – Ben Übergeben',
       'Rücknahme aus der Stundenerfassung',
     ]);
 

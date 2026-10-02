@@ -2,10 +2,10 @@
   <section class="dash">
     <TransitionGroup name="widget-anim" tag="div" class="widget-grid">
       <component v-for="widget in activeWidgets" :key="widget.id" :is="widget.component" />
-      <button key="__add__" class="add-widget-tile" type="button" title="Dashboard anpassen" @click="showConfigurator = true">
+      <AppButton key="__add__" class="add-widget-tile" variant="outlined" aria-label="Dashboard-Widgets anpassen" @click="showConfigurator = true">
         <font-awesome-icon :icon="['fas', 'plus']" />
         <span>Anpassen</span>
-      </button>
+      </AppButton>
     </TransitionGroup>
     <WidgetConfigurator :visible="showConfigurator" @close="showConfigurator = false" />
   </section>
@@ -15,6 +15,7 @@
 import { ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import WidgetConfigurator from '@/components/widgets/WidgetConfigurator.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 defineProps({ activeWidgets: { type: Array, default: () => [] } });
 const showConfigurator = ref(false);
@@ -34,9 +35,10 @@ const showConfigurator = ref(false);
   border-radius: 12px;
   background: transparent;
   color: var(--muted);
-  cursor: pointer;
   transition: all 0.2s ease;
-  &:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 4%, transparent); color: var(--primary); transform: translateY(-2px); }
+  :deep(.app-button__content) { flex-direction: column; gap: 12px; }
+  &:hover:not(:disabled) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 4%, transparent); color: var(--action-accent-text); transform: translateY(-2px); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 3px; }
   :deep(svg) { font-size: 32px; opacity: 0.4; transition: opacity 0.2s ease; }
   &:hover :deep(svg) { opacity: 0.8; }
   span { font-size: 13px; font-weight: 500; }

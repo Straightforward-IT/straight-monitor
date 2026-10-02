@@ -233,7 +233,7 @@
               
               <div class="list-col list-col--name">
                 <div class="name">
-                  {{ ma.vorname }} {{ ma.nachname }}
+                  {{ formatEmployeeName(ma) }}
                   <span v-if="isTeamleiter(ma)" class="teamleiter-badge-inline" title="Teamleiter">
                     <font-awesome-icon icon="fa-solid fa-user-tie" />
                     TL
@@ -460,6 +460,7 @@ import SortMenu from "@/components/ui-elements/SortMenu.vue";
 import ToolbarPageControls from "@/components/ui-elements/ToolbarPageControls.vue";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
+import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
 
 import {  
   faMagnifyingGlass,
@@ -556,8 +557,9 @@ export default {
   setup() {
     const flip = useFlipAll();
     const dataCache = useDataCache();
+    const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
     
-    return { flip, dataCache };
+    return { flip, dataCache, formatEmployeeName };
   },
 
   data() {
@@ -1275,8 +1277,7 @@ export default {
         cleanNumber = '+49' + cleanNumber.substring(1);
       }
       
-      // Sipgate Desktop App URL-Schema
-      return `sipgate://phone/call?number=${cleanNumber}`;
+      return `tel:${cleanNumber}`;
     },
 
     getPhotoUrl(ma) {
@@ -3616,8 +3617,8 @@ html {
   align-items: center;
   gap: 4px;
   padding: 2px 6px 2px 8px;
-  background: rgba(var(--primary-rgb, 253 126 20) / 0.12);
-  border: 1px solid rgba(var(--primary-rgb, 253 126 20) / 0.35);
+  background: rgba(var(--primary-rgb, 253, 126, 20), 0.12);
+  border: 1px solid rgba(var(--primary-rgb, 253, 126, 20), 0.35);
   border-radius: 20px;
   font-size: 11px;
   color: var(--primary);
@@ -3627,9 +3628,9 @@ html {
   overflow: visible;
 
   &.is-focused {
-    background: rgba(var(--primary-rgb, 253 126 20) / 0.22);
+    background: rgba(var(--primary-rgb, 253, 126, 20), 0.22);
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 253 126 20) / 0.3);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 253, 126, 20), 0.3);
   }
 }
 

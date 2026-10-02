@@ -1,6 +1,12 @@
+import { formatMitarbeiterName } from '@/utils/mitarbeiterName';
+
 const dayOf = value => String(value || '').slice(0, 10);
 const refId = value => String(value?._id ?? value ?? '');
 const orderMatches = (item, auftragNr) => String(item.auftragNr) === String(auftragNr);
+const employeeSortName = (einsatz) => {
+  const employee = einsatz.mitarbeiterData || {};
+  return [employee.nachname, employee.vorname].filter(Boolean).join(' ');
+};
 
 /** Read-only projection of Auftrag → Einsatz; imported Einsatz fields are authoritative. */
 export function buildQuickEntryRows(auftrag, einsaetze = []) {
@@ -10,13 +16,13 @@ export function buildQuickEntryRows(auftrag, einsaetze = []) {
     .toSorted((left, right) => [
       dayOf(left.detailDatumVon || left.datumVon).localeCompare(dayOf(right.detailDatumVon || right.datumVon)),
       String(left.uhrzeitVon || '').localeCompare(String(right.uhrzeitVon || '')),
-      employeeName(left).localeCompare(employeeName(right), 'de'),
+      employeeSortName(left).localeCompare(employeeSortName(right), 'de'),
     ].find(result => result !== 0) || 0);
 }
 
-export function employeeName(einsatz) {
+export function employeeName(einsatz, format = 'first-last') {
   const employee = einsatz.mitarbeiterData || {};
-  return [employee.nachname, employee.vorname].filter(Boolean).join(', ') || `Mitarbeiter ${einsatz.personalNr ?? 'ohne Nummer'}`;
+  return formatMitarbeiterName(employee, format) || `Mitarbeiter ${einsatz.personalNr ?? 'ohne Nummer'}`;
 }
 
 export function plannedTimes(einsatz) {

@@ -5,9 +5,9 @@
     :loading="loading"
   >
     <template #actions>
-      <button class="wpb-refresh" :class="{ spinning: refreshing }" @click="refresh" :disabled="refreshing" title="Aktualisieren">
-        <font-awesome-icon :icon="['fas', 'rotate-right']" />
-      </button>
+      <AppIconButton variant="ghost" size="sm" label="Profilbild-Quote aktualisieren" :loading="refreshing" @click="refresh">
+        <font-awesome-icon v-if="!refreshing" :icon="['fas', 'rotate-right']" />
+      </AppIconButton>
     </template>
     <div class="wpb-body">
       <!-- Overall hero -->
@@ -24,7 +24,7 @@
             <div class="wpb-loc-bar" :style="{ width: s.quote + '%', background: quoteColor(s.quote) }" />
           </div>
           <span class="wpb-loc-stat">
-            <span :style="{ color: quoteColor(s.quote) }">{{ s.quote }}%</span>
+            <span :style="{ color: quoteTextColor(s.quote) }">{{ s.quote }}%</span>
             <span class="wpb-loc-frac">{{ s.with }}/{{ s.total }}</span>
           </span>
         </li>
@@ -48,6 +48,7 @@ import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
 import { useFlipAll } from "@/stores/flipAll";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const flip = useFlipAll();
 const cache = useDataCache();
@@ -99,7 +100,13 @@ const quoteColor = (q) => {
   return "#fb2a2a";                 // rot
 };
 
-const totalQuoteColor = computed(() => quoteColor(totalQuote.value));
+const quoteTextColor = (q) => {
+  if (q >= 75) return 'var(--status-success-text)';
+  if (q >= 25) return 'var(--status-warning-text)';
+  return 'var(--status-danger-text)';
+};
+
+const totalQuoteColor = computed(() => quoteTextColor(totalQuote.value));
 
 const refreshing = ref(false);
 const refresh = async () => {
@@ -236,33 +243,4 @@ onMounted(async () => {
 }
 
 /* ── Refresh Button ─────────────────────────────────────── */
-.wpb-refresh {
-  background: none;
-  border: none;
-  padding: 4px 6px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-
-  &:hover:not(:disabled) {
-    color: var(--text);
-    background: var(--hover);
-  }
-
-  &:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-
-  &.spinning svg {
-    animation: wpb-spin 0.7s linear infinite;
-  }
-}
-
-@keyframes wpb-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
 </style>

@@ -6,10 +6,10 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="selectedLocation" class="wt-select">
+      <AppSelect v-model="selectedLocation" size="sm" aria-label="Teamleiter nach Standort filtern">
         <option value="">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="wt-list">
@@ -37,6 +37,7 @@ import { RouterLink } from "vue-router";
 import { useAuth } from "@/stores/auth";
 import api from "@/utils/api";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const auth    = useAuth();
 const list    = ref([]);
@@ -125,17 +126,6 @@ watch(selectedLocation, async () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.wt-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
 }
 
 .wt-list {

@@ -64,6 +64,11 @@ function buildInventoryHistoryEvents(item, logs) {
             groesseKey,
             groesse: optionLabel(item.groessen, groesseKey, groesseKey),
             quantity,
+            delta: line.bestandVorher == null || line.bestandNachher == null
+              ? 0
+              : Number(line.bestandNachher) - Number(line.bestandVorher),
+            bestandVorher: line.bestandVorher == null ? null : Number(line.bestandVorher),
+            bestandNachher: line.bestandNachher == null ? null : Number(line.bestandNachher),
             soll: line.soll == null ? null : Number(line.soll),
             cancelled,
           };
@@ -78,6 +83,7 @@ function buildInventoryHistoryEvents(item, logs) {
         art: log.art,
         quantity: lines.reduce((total, line) => total + (line.cancelled ? 0 : line.quantity), 0),
         recordedQuantity: lines.reduce((total, line) => total + line.quantity, 0),
+        delta: lines.reduce((total, line) => total + (line.cancelled ? 0 : line.delta), 0),
         standort: log.standort || '',
         locationId: idString(log.locationV2 || log.locationId) || null,
         benutzer: {

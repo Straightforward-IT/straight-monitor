@@ -6,16 +6,16 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="sortMode" class="wb-select">
+      <AppSelect v-model="sortMode" size="sm" aria-label="Bestand sortieren">
         <option value="percent">% Soll</option>
         <option value="anzahl">Anzahl</option>
-      </select>
-      <select v-model="selectedLocation" class="wb-select">
+      </AppSelect>
+      <AppSelect v-model="selectedLocation" size="sm" aria-label="Bestand nach Standort filtern">
         <option value="">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <div class="wb-body">
@@ -57,6 +57,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import api from "@/utils/api";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const auth    = useAuth();
 const locations = ref([]);
@@ -133,17 +134,6 @@ onMounted(loadData);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.wb-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
 }
 
 .wb-body {

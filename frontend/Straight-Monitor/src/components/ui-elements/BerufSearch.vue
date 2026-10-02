@@ -1,17 +1,35 @@
 <template>
-  <div ref="container" class="beruf-search">
-    <div v-if="selected.length" class="beruf-search__chips">
-      <button v-for="beruf in selected" :key="beruf.jobKey" type="button" class="beruf-search__chip" @click="remove(beruf.jobKey)">
+  <div
+    ref="container"
+    class="beruf-search"
+  >
+    <div
+      v-if="selected.length"
+      class="beruf-search__chips"
+    >
+      <button
+        v-for="beruf in selected"
+        :key="beruf.jobKey"
+        type="button"
+        class="beruf-search__chip"
+        :disabled="disabled"
+        @click="remove(beruf.jobKey)"
+      >
         <span>{{ beruf.designation }}</span>
         <small>{{ beruf.jobKey }}</small>
         <font-awesome-icon :icon="['fas', 'times']" />
       </button>
     </div>
     <div class="beruf-search__input-wrap">
-      <font-awesome-icon :icon="['fas', 'magnifying-glass']" class="beruf-search__icon" />
+      <font-awesome-icon
+        :icon="['fas', 'magnifying-glass']"
+        class="beruf-search__icon"
+      />
       <input
+        :id="inputId || undefined"
         ref="input"
         v-model="query"
+        :disabled="disabled"
         type="search"
         :placeholder="placeholder"
         autocomplete="off"
@@ -21,11 +39,20 @@
         @keydown.up.prevent="move(-1)"
         @keydown.enter.prevent="selectHighlighted"
         @keydown.escape="close"
+      >
+      <font-awesome-icon
+        v-if="loading"
+        icon="fa-solid fa-spinner"
+        spin
+        class="beruf-search__spinner"
       />
-      <font-awesome-icon v-if="loading" icon="fa-solid fa-spinner" spin class="beruf-search__spinner" />
     </div>
     <Teleport to="body">
-      <ul v-if="open && results.length" class="beruf-search__dropdown" :style="dropdownStyle">
+      <ul
+        v-if="open && results.length"
+        class="beruf-search__dropdown"
+        :style="dropdownStyle"
+      >
         <li
           v-for="(beruf, index) in results"
           :key="beruf.jobKey"
@@ -45,6 +72,8 @@ import { ref, watch, onBeforeUnmount, onMounted } from 'vue';
 import api from '@/utils/api';
 
 const props = defineProps({
+  inputId: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
   modelValue: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Beruf suchen...' },
 });
@@ -68,6 +97,7 @@ function updatePosition() {
 }
 
 async function fetchResults() {
+  if (props.disabled) return;
   const currentRequest = ++request;
   loading.value = true;
   try {
@@ -85,11 +115,13 @@ async function fetchResults() {
 }
 
 function onInput() {
+  if (props.disabled) return;
   clearTimeout(timer);
   timer = setTimeout(fetchResults, 220);
 }
 function isSelected(jobKey) { return selected.value.some(beruf => beruf.jobKey === jobKey); }
 function toggle(beruf) {
+  if (props.disabled) return;
   selected.value = isSelected(beruf.jobKey)
     ? selected.value.filter(item => item.jobKey !== beruf.jobKey)
     : [...selected.value, beruf];
@@ -98,12 +130,20 @@ function toggle(beruf) {
   fetchResults();
 }
 function remove(jobKey) {
+  if (props.disabled) return;
   selected.value = selected.value.filter(beruf => beruf.jobKey !== jobKey);
   emit('update:modelValue', selected.value.map(item => item.jobKey));
 }
 function move(direction) { highlighted.value = Math.max(0, Math.min(results.value.length - 1, highlighted.value + direction)); }
 function selectHighlighted() { if (results.value[highlighted.value]) toggle(results.value[highlighted.value]); }
 function close() { open.value = false; }
+watch(() => props.disabled, disabled => {
+  if (!disabled) return;
+  ++request;
+  clearTimeout(timer);
+  close();
+  loading.value = false;
+});
 function onClickOutside(event) { if (container.value && !container.value.contains(event.target)) close(); }
 
 watch(() => props.modelValue, async (keys) => {

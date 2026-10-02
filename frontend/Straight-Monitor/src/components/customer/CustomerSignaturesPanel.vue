@@ -5,15 +5,15 @@
     </h4>
 
     <nav class="signature-sections" aria-label="Signaturbereiche">
-      <button type="button" :class="{ active: section === 'overview' }" @click="section = 'overview'">
+      <button type="button" :class="{ active: section === 'overview' }" :aria-current="section === 'overview' ? 'page' : undefined" @click="section = 'overview'">
         <font-awesome-icon :icon="['fas', 'file-signature']" />
         <span><strong>Signaturen</strong><small>{{ vorgaenge.length }} Vorgänge dieses Kunden</small></span>
       </button>
-      <button type="button" :class="{ active: section === 'email' }" @click="section = 'email'">
+      <button type="button" :class="{ active: section === 'email' }" :aria-current="section === 'email' ? 'page' : undefined" @click="section = 'email'">
         <font-awesome-icon :icon="['fas', 'envelope-open-text']" />
         <span><strong>E-Mail-Vorlage</strong><small>Ansprache für Stundenlisten-Signaturen</small></span>
       </button>
-      <button type="button" :class="{ active: section === 'delivery' }" @click="section = 'delivery'">
+      <button type="button" :class="{ active: section === 'delivery' }" :aria-current="section === 'delivery' ? 'page' : undefined" @click="section = 'delivery'">
         <font-awesome-icon :icon="['fas', 'paper-plane']" />
         <span><strong>Auslieferung</strong><small>Empfänger für vollständig signierte Dokumente</small></span>
       </button>
@@ -40,7 +40,7 @@
           :active="statuses.includes(option.key)"
           @click="toggleStatus(option.key)"
         >{{ option.label }}</FilterChip>
-        <button v-if="!hasDefaultStatuses" type="button" class="filter-reset" @click="resetStatuses">Zurücksetzen</button>
+        <AppButton v-if="!hasDefaultStatuses" size="sm" variant="ghost" @click="resetStatuses">Zurücksetzen</AppButton>
       </div>
 
       <div v-if="availableTypes.length > 1" class="signature-filters signature-filters--types">
@@ -61,7 +61,7 @@
       <div v-else-if="error" class="signature-state signature-state--error">
         <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
         <span>{{ error }}</span>
-        <button type="button" @click="loadVorgaenge">Erneut versuchen</button>
+        <AppButton size="sm" variant="secondary" @click="loadVorgaenge">Erneut versuchen</AppButton>
       </div>
       <div v-else-if="filteredVorgaenge.length === 0" class="signature-empty">
         <span class="empty-icon"><font-awesome-icon :icon="['fas', 'file-signature']" /></span>
@@ -108,10 +108,10 @@
     <section v-else class="delivery-defaults">
       <label>
         <span>Dokumenttyp</span>
-        <select v-model="deliveryTypId" :disabled="deliveryTypesLoading">
+        <AppSelect v-model="deliveryTypId" :disabled="deliveryTypesLoading">
           <option value="">Dokumenttyp auswählen</option>
           <option v-for="type in deliveryTypes" :key="type._id" :value="type._id">{{ type.label }}</option>
-        </select>
+        </AppSelect>
       </label>
       <div v-if="deliveryTypId" class="delivery-defaults__content">
         <ContactSearchPicker
@@ -130,7 +130,7 @@
           <span v-for="(recipient, index) in deliveryRecipients" :key="recipient.email" class="delivery-recipient">
             {{ recipient.displayName || recipient.email }}
             <small v-if="recipient.displayName">{{ recipient.email }}</small>
-            <button type="button" title="Empfänger entfernen" @click="deliveryRecipients.splice(index, 1)">×</button>
+            <AppIconButton class="delivery-recipient__remove" size="sm" variant="ghost" :label="`${recipient.displayName || recipient.email} entfernen`" @click="deliveryRecipients.splice(index, 1)">×</AppIconButton>
           </span>
           <p v-if="!deliveryRecipients.length">Keine Standardempfänger festgelegt.</p>
         </div>
@@ -158,6 +158,9 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 library.add(faEnvelopeOpenText, faFileSignature, faFloppyDisk, faPaperPlane, faPlus, faSpinner, faTriangleExclamation);
 
@@ -208,6 +211,8 @@ async function saveStundenlisteDuAnrede() {
     await api.put(`/api/kunden/${props.kunde._id}`, {
       stundenlisteSignaturDuAnrede: stundenlisteSignaturDuAnrede.value,
     });
+    // Keep the shared customer object in sync for sibling settings after a successful save.
+    // eslint-disable-next-line vue/no-mutating-props
     props.kunde.stundenlisteSignaturDuAnrede = stundenlisteSignaturDuAnrede.value;
   } catch (requestError) {
     stundenlisteSignaturDuAnrede.value = previousValue;
@@ -426,14 +431,14 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-sections button > span { display:grid; gap:.15rem; }
 .signature-sections small { color:var(--muted); }
 .signature-sections button:hover { border-color:color-mix(in srgb,var(--primary) 55%,var(--border)); }
+.signature-sections button:focus-visible { outline:2px solid var(--control-focus-ring); outline-offset:2px; }
 .signature-sections button.active { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 7%,var(--surface)); box-shadow:inset 0 0 0 1px var(--primary); }
-.signature-sections button.active > svg { color:var(--primary); }
+.signature-sections button.active > svg { color:var(--action-accent-text); }
 .signature-toolbar { margin:0; }
 .signature-search { min-width:min(340px,40vw); }
 .signature-filters { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; padding:.15rem .15rem 0; }
 .signature-filters--types { padding-top:0; }
 .filter-label { margin-right:.15rem; color:var(--muted); font-size:.68rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-.filter-reset { padding:.25rem .4rem; border:0; color:var(--primary); background:transparent; font-size:.72rem; cursor:pointer; }
 .signature-list { display:grid; gap:.6rem; }
 .signature-email-settings { display:grid; gap:.6rem; }
 .signature-du-greeting-toggle { display:flex; align-items:center; gap:.65rem; max-width:720px; padding:.7rem .8rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--panel); cursor:pointer; }
@@ -442,26 +447,24 @@ onBeforeUnmount(() => eventSource?.close());
 .signature-du-greeting-toggle strong { font-size:.84rem; }
 .signature-du-greeting-toggle small { color:var(--muted); font-size:.76rem; }
 .signature-du-greeting-toggle:has(input:disabled) { cursor:wait; opacity:.75; }
-.signature-du-greeting-error { margin:0; color:#e6584f; font-size:.8rem; }
+.signature-du-greeting-error { margin:0; color:var(--status-danger-text); font-size:.8rem; }
 .signature-state,.signature-empty { display:flex; align-items:center; justify-content:center; gap:.75rem; min-height:150px; padding:1rem; border:1px dashed var(--border); border-radius:10px; color:var(--muted); background:var(--panel); }
-.signature-state > svg { color:var(--primary); font-size:1.2rem; }
-.signature-state button { padding:.4rem .65rem; border:1px solid var(--border); border-radius:7px; color:var(--text); background:var(--surface); cursor:pointer; }
-.signature-state--error { color:#e6584f; border-color:color-mix(in srgb,#e6584f 35%,var(--border)); background:color-mix(in srgb,#e6584f 6%,var(--surface)); }
+.signature-state > svg { color:var(--action-accent-text); font-size:1.2rem; }
+.signature-state--error { color:var(--status-danger-text); border-color:color-mix(in srgb,var(--status-danger-text) 35%,var(--border)); background:color-mix(in srgb,var(--status-danger-text) 6%,var(--surface)); }
 .empty-icon { display:grid; flex:0 0 2.5rem; width:2.5rem; height:2.5rem; place-items:center; border-radius:9px; color:var(--primary); background:color-mix(in srgb,var(--primary) 12%,var(--surface)); }
 .signature-empty > div { display:grid; flex:1; gap:.15rem; }
 .signature-empty strong { color:var(--text); }
 .signature-empty small { color:var(--muted); }
 .delivery-defaults { display:grid; gap:.9rem; max-width:720px; padding:1rem; border:1px solid var(--border); border-radius:9px; background:var(--panel); }
 .delivery-defaults > label { display:grid; gap:.35rem; color:var(--muted); font-size:.74rem; font-weight:700; }
-.delivery-defaults select { min-height:40px; padding:.5rem .65rem; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface); font:inherit; }
+.delivery-defaults .app-select { width:100%; }
 .delivery-defaults__content { display:grid; gap:.7rem; }
 .delivery-defaults__recipients { display:flex; flex-wrap:wrap; gap:.45rem; }
 .delivery-defaults__recipients > p { width:100%; margin:0; color:var(--muted); font-size:.82rem; }
 .delivery-recipient { display:inline-flex; align-items:center; gap:.35rem; padding:.35rem .55rem; border:1px solid color-mix(in srgb,var(--primary) 35%,var(--border)); border-radius:999px; color:var(--text); background:var(--surface); font-size:.8rem; }
 .delivery-recipient small { color:var(--muted); }
-.delivery-recipient button { padding:0; border:0; color:var(--muted); background:transparent; font-size:1rem; cursor:pointer; }
-.delivery-recipient button:hover { color:#e6584f; }
-.delivery-defaults__error { margin:0; color:#e6584f; font-size:.82rem; }
+.delivery-recipient__remove { --app-button-icon-size:22px; min-height:22px; font-size:1rem; }
+.delivery-defaults__error { margin:0; color:var(--status-danger-text); font-size:.82rem; }
 @media (max-width:760px) {
   .signature-sections { grid-template-columns:1fr; }
   .signature-sections button { min-height:48px; }

@@ -29,16 +29,15 @@
         </ToolbarFilter>
         <div class="sig-inner">
           <SearchBar v-model="search" placeholder="Suchen…" class="toolbar-search" />
-          <button
+          <AppIconButton
             v-if="targetVorgangId"
-            class="sig-clear-target-filter"
-            type="button"
-            title="Signaturfilter löschen"
-            aria-label="Signaturfilter löschen"
+            size="sm"
+            variant="ghost"
+            label="Signaturfilter löschen"
             @click="clearTargetFilter"
           >
             <font-awesome-icon :icon="['fas', 'times']" />
-          </button>
+          </AppIconButton>
           <ToolbarLabel>{{ filteredVorgaenge.length }} {{ filteredVorgaenge.length === 1 ? 'Eintrag' : 'Einträge' }}</ToolbarLabel>
         </div>
         <template #actions>
@@ -70,9 +69,9 @@
           :active="filters.typKey === t.key"
           @click="filters.typKey = filters.typKey === t.key ? null : t.key"
         >{{ t.label }}</FilterChip>
-        <button v-if="isAdmin" class="type-pill-add" type="button" title="Neuen Typ anlegen" @click="showTypModal = true">
+        <AppIconButton v-if="isAdmin" class="type-pill-add" size="sm" variant="outlined" label="Neuen Typ anlegen" @click="showTypModal = true">
           <font-awesome-icon :icon="['fas', 'plus']" />
-        </button>
+        </AppIconButton>
       </div>
 
       <!-- Grid -->
@@ -83,9 +82,9 @@
       <div v-else-if="filteredVorgaenge.length === 0" class="state">
         <font-awesome-icon :icon="['fas', 'file-signature']" size="2x" />
         <p>Keine Signaturen gefunden.</p>
-        <button class="btn-primary" type="button" @click="openNewSignature">
+        <AppButton @click="openNewSignature">
           <font-awesome-icon :icon="['fas', 'plus']" /> Neue Signatur
-        </button>
+        </AppButton>
       </div>
       <div v-else class="sig-grid">
         <SignaturCard
@@ -123,16 +122,21 @@
       <div v-else-if="filteredTemplates.length === 0" class="state">
         <font-awesome-icon :icon="['fas', 'file-lines']" size="2x" />
         <p>Keine Vorlagen vorhanden.</p>
-        <button class="btn-primary" type="button" @click="createTemplate">
+        <AppButton @click="createTemplate">
           <font-awesome-icon :icon="['fas', 'plus']" /> Neue Vorlage
-        </button>
+        </AppButton>
       </div>
       <div v-else class="template-grid">
         <div
           v-for="t in filteredTemplates"
           :key="t.id"
           class="template-card"
+          role="button"
+          tabindex="0"
+          :aria-label="`Vorlage ${t.name} bearbeiten`"
           @click="editTemplate(t)"
+          @keydown.enter.self.prevent="editTemplate(t)"
+          @keydown.space.self.prevent="editTemplate(t)"
         >
           <div class="tc-icon"><font-awesome-icon :icon="['fas', 'file-lines']" /></div>
           <div class="tc-info">
@@ -156,9 +160,9 @@
           </div>
           <!-- Context menu trigger -->
           <div class="tc-menu-wrap" @click.stop>
-            <button class="tc-menu-btn" type="button" title="Optionen" @click.stop="toggleMenu(t.id, $event)">
+            <AppIconButton class="tc-menu-btn" size="sm" variant="secondary" :label="`Optionen für ${t.name}`" @click.stop="toggleMenu(t.id, $event)">
               <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-            </button>
+            </AppIconButton>
           </div>
         </div>
       </div>
@@ -195,7 +199,7 @@
       <form id="template-create-form" @submit.prevent="confirmCreateTemplate">
         <div class="template-create-body">
           <label for="template-create-name">Bezeichnung</label>
-          <input
+          <AppTextInput
             id="template-create-name"
             v-model="newTemplate.name"
             name="name"
@@ -204,17 +208,17 @@
             autocomplete="off"
           />
           <label for="template-create-typ">Dokumenttyp</label>
-          <select id="template-create-typ" v-model="newTemplate.defaultTypId" name="defaultTypId">
+          <AppSelect id="template-create-typ" v-model="newTemplate.defaultTypId" name="defaultTypId">
             <option value="" disabled>Dokumenttyp auswählen</option>
             <option v-for="typ in typen" :key="typ._id" :value="typ._id">{{ typ.label }}</option>
-          </select>
+          </AppSelect>
         </div>
       </form>
 
       <template #footer>
         <div class="template-create-actions">
-          <button class="template-create-cancel" type="button" @click="closeCreateTemplateModal">Abbrechen</button>
-          <button class="btn-primary" type="submit" form="template-create-form">Weiter</button>
+          <AppButton variant="secondary" @click="closeCreateTemplateModal">Abbrechen</AppButton>
+          <AppButton type="submit" form="template-create-form">Weiter</AppButton>
         </div>
       </template>
     </ModalFrame>
@@ -280,6 +284,10 @@ import SignaturCard from '@/components/SignaturCard.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
 import R2FileBrowser from '@/components/R2FileBrowser.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 
 library.add(faFileSignature, faPlus, faSpinner, faFileLines, faPenRuler, faListCheck, faBoxArchive, faEllipsisVertical, faPencil, faFolderOpen, faClone);
 
@@ -772,22 +780,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  border: none;
-  border-radius: 9px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.86rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  &:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
-}
-
 .type-pills {
   display: flex;
   flex-wrap: wrap;
@@ -796,17 +788,8 @@ onUnmounted(() => {
   margin-bottom: 18px;
 }
 .type-pill-add {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 1.5px dashed var(--border);
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  &:hover { border-color: var(--primary); color: var(--primary); }
+  --app-button-icon-size: 32px;
+  border-style: dashed;
 }
 
 .sig-grid {
@@ -906,26 +889,6 @@ onUnmounted(() => {
   &::-webkit-scrollbar { display: none; }
 }
 
-.sig-clear-target-filter {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-}
-
 .state {
   display: flex;
   flex-direction: column;
@@ -943,32 +906,9 @@ onUnmounted(() => {
   padding: 20px;
 
   label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
-  input, select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 9px 11px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    outline: none;
-    background: var(--bg, var(--surface));
-    color: var(--text);
-    font: inherit;
-    &:focus { border-color: var(--primary); }
-  }
-  select { margin-bottom: 8px; cursor: pointer; }
+  .app-select { margin-bottom: 8px; }
 }
 .template-create-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.template-create-cancel {
-  padding: 9px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.86rem;
-  cursor: pointer;
-  &:hover { border-color: var(--primary); color: var(--primary); }
-}
 
 .template-grid {
   display: grid;
@@ -986,12 +926,13 @@ onUnmounted(() => {
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
   &:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
   .tc-icon {
     width: 42px; height: 42px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
     background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary); font-size: 1.1rem; flex-shrink: 0;
+    color: var(--action-accent-text); font-size: 1.1rem; flex-shrink: 0;
   }
   .tc-info { flex: 1; min-width: 0; }
   .tc-name { font-size: 0.9rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1007,7 +948,7 @@ onUnmounted(() => {
     padding: 2px 7px;
     border-radius: 5px;
     background: color-mix(in srgb, var(--primary) 14%, transparent);
-    color: var(--primary);
+    color: var(--action-accent-text);
     font-size: 0.72rem;
     font-weight: 600;
   }
@@ -1017,10 +958,7 @@ onUnmounted(() => {
     flex-shrink: 0;
   }
   .tc-menu-btn {
-    background: none; border: 1px solid var(--border); border-radius: 8px;
-    width: 34px; height: 34px; color: var(--muted); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    &:hover { border-color: var(--primary); color: var(--primary); }
+    --app-button-icon-size: 34px;
   }
   .tc-edit, .tc-archive {
     background: none; border: 1px solid var(--border); border-radius: 8px;

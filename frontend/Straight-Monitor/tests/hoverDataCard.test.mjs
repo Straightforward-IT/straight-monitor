@@ -22,7 +22,14 @@ test('prior-employer days consume the same annual allowance as current assignmen
   const card = buildHoverDataCard({ type: 'days', priorEmployerDays: 10, workedDays: 18, plannedDays: 7 });
   assert.equal(card.metric.value, 35);
   assert.equal(card.segments.find(segment => segment.id === 'remaining').value, 35);
+  assert.equal(card.segments.find(segment => segment.id === 'prior-employer').color, '#c58a29');
+  assert.notEqual(card.segments.find(segment => segment.id === 'prior-employer').color, card.segments.find(segment => segment.id === 'worked').color);
   assert.equal(card.sections[0].rows.find(row => row.label === 'Vorarbeitgeber').value, '10 Tage');
+});
+
+test('short-term card identifies an entry-based reporting period', () => {
+  const card = buildHoverDataCard({ type: 'days', periodLabel: 'seit Eintritt am 15.11.2025' });
+  assert.equal(card.sections[0].label, 'Arbeitstage seit Eintritt am 15.11.2025');
 });
 
 test('earnings card calculates a monthly estimate from hours times hourly rate', () => {

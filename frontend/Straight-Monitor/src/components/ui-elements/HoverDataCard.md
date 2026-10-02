@@ -40,7 +40,7 @@ const overview = {
 ```
 
 - `hours` is for hour-based employment. Required facts are `monthlyHours`, `workedHours`, and `plannedHours`; `hourlyRate` is optional and shown as context.
-- `days` is for short-term employment. Set `workedDays`, `plannedDays`, and optional `dayLimit` (default: 70). The card compares all days used or planned in the calendar year with the limit.
+- `days` is for short-term employment. Set `workedDays`, `plannedDays`, and optional `dayLimit` (default: 70). Use optional `periodLabel` when the counting period starts at an entry date; otherwise the card labels the values as calendar-year days.
 - `earnings` is for marginal employment. Set `workedHours`, `plannedHours`, `hourlyRate`, and optional `earningsLimit` (default: 603). It calculates worked and planned earnings from hours × hourly rate for the displayed month.
 - Negative, missing, and non-finite values are treated as zero. An overage is shown in red. Earnings figures are a front-end estimate only: premiums, allowances, variable wage types, payroll rules, and statutory decisions are not included.
 - Existing presentation data with `segments` and no `type` remains supported during migration. Segments get a `role`: `remaining` (ids `remaining`) is drawn faint, `over` (ids `over`, `over-limit`) only feeds the legend and the outer overage arc, everything else fills the ring. Very small slices are widened to a minimum so every hour type stays visible.

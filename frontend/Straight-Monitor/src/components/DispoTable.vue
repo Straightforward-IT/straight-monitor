@@ -12,16 +12,17 @@
       <!-- Left: filter toggle + filters overlay anchor -->
       <div class="fs-toolbar-left">
         <!-- Filter toggle button -->
-        <button
+        <AppIconButton
           class="fs-filter-toggle"
-          :class="{ 'fs-filter-toggle--active': fsFilterExpanded }"
-          type="button"
-          :title="fsFilterExpanded ? 'Filter schließen' : 'Filter'"
+          variant="secondary"
+          size="sm"
+          :label="fsFilterExpanded ? 'Filter schließen' : 'Filter öffnen'"
+          :active="fsFilterExpanded"
           @click="fsFilterExpanded = !fsFilterExpanded"
         >
           <span v-if="activeFilterCount > 0" class="fs-filter-count">{{ activeFilterCount }}</span>
           <font-awesome-icon :icon="fsFilterExpanded ? 'fa-solid fa-xmark' : 'fa-solid fa-filter'" />
-        </button>
+        </AppIconButton>
 
         <!-- Filters panel (drop-down overlay, only filter controls) -->
         <transition name="fs-filter-expand">
@@ -64,15 +65,15 @@
                   placeholder="Kunde…"
                   @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
                 />
-                <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
+                <AppIconButton v-if="filters.kundeFilter" class="fs-kunde-filter-clear" variant="ghost" size="sm" label="Kundenfilter entfernen" @click="clearKundeFilter">
                   <font-awesome-icon icon="fa-solid fa-xmark" />
-                </button>
+                </AppIconButton>
               </div>
 
               <!-- Reset -->
-              <button class="fs-reset-btn" @click="resetFilters" title="Zurücksetzen">
+              <AppIconButton class="fs-reset-btn" variant="secondary" size="sm" label="Filter zurücksetzen" @click="resetFilters">
                 <font-awesome-icon icon="fa-solid fa-rotate-left" />
-              </button>
+              </AppIconButton>
             </div>
           </div>
         </transition>
@@ -83,9 +84,9 @@
         <!-- KW Chips -->
         <div class="kw-chips">
           <span class="kw-label">KW</span>
-          <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+          <AppIconButton class="kw-nav-btn" variant="secondary" size="sm" label="Vorherige Wochen" @click="kwChipOffset--">
             <font-awesome-icon icon="fa-solid fa-chevron-left" />
-          </button>
+          </AppIconButton>
           <CustomTooltip
             v-for="chip in kwChips"
             :key="`${chip.year}-${chip.kw}`"
@@ -95,12 +96,15 @@
             <button
               class="kw-chip"
               :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
+              type="button"
+              :aria-label="`Kalenderwoche ${chip.kw}, ${chip.year}`"
+              :aria-pressed="selectedKw?.kw === chip.kw && selectedKw?.year === chip.year"
               @click="toggleKw(chip)"
             >{{ chip.kw }}</button>
           </CustomTooltip>
-          <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
+          <AppIconButton class="kw-nav-btn" variant="secondary" size="sm" label="Nächste Wochen" @click="kwChipOffset++">
             <font-awesome-icon icon="fa-solid fa-chevron-right" />
-          </button>
+          </AppIconButton>
         </div>
 
         <!-- Search -->
@@ -121,16 +125,20 @@
         </CustomTooltip>
 
         <!-- Hidden employees -->
-        <button
+        <AppButton
           v-if="hiddenCount > 0"
           class="show-hidden-btn show-hidden-btn--topline"
           :class="{ active: showHidden }"
+          variant="secondary"
+          size="sm"
+          :aria-pressed="showHidden"
+          :aria-label="showHidden ? 'Zur normalen Dispo-Ansicht zurück' : `${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
           @click="toggleHiddenView"
           :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
         >
           <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
           {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </button>
+        </AppButton>
         <FilterChip :active="sortField === 'letzterEinsatz'" @click="toggleLetzterEinsatzColumn">
           Letzter Einsatz
         </FilterChip>
@@ -142,31 +150,31 @@
           <font-awesome-icon icon="fa-solid fa-table-cells" />
           <strong>{{ selectedCells.size }}</strong> ausgewählt
           <template v-if="selectionMaCount > 1"> · {{ selectionMaCount }} MA</template>
-          <button class="sel-chip-clear" @click="clearSelection" title="Auswahl aufheben">
+          <AppIconButton class="sel-chip-clear" variant="ghost" size="sm" label="Auswahl aufheben" @click="clearSelection">
             <font-awesome-icon icon="fa-solid fa-xmark" />
-          </button>
+          </AppIconButton>
         </span>
 
         <!-- Zoom -->
         <div class="zoom-controls">
           <CustomTooltip text="Verkleinern (-)" position="bottom">
-            <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
+            <AppIconButton class="zoom-btn" variant="secondary" size="sm" label="Dispo-Tabelle verkleinern" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
               <font-awesome-icon icon="fa-solid fa-minus" />
-            </button>
+            </AppIconButton>
           </CustomTooltip>
-          <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick := 100%">{{ tableZoom }}%</span>
+          <span class="zoom-label" role="button" tabindex="0" aria-label="Tabellenzoom auf 100 Prozent zurücksetzen" title="Doppelklick oder Enter: 100 %" @dblclick="tableZoom = 100" @keydown.enter.prevent="tableZoom = 100" @keydown.space.prevent="tableZoom = 100">{{ tableZoom }}%</span>
           <CustomTooltip text="Vergrößern (+)" position="bottom">
-            <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
+            <AppIconButton class="zoom-btn" variant="secondary" size="sm" label="Dispo-Tabelle vergrößern" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
               <font-awesome-icon icon="fa-solid fa-plus" />
-            </button>
+            </AppIconButton>
           </CustomTooltip>
         </div>
 
         <!-- Exit fullscreen -->
         <CustomTooltip text="Vollbild beenden (Esc)" position="bottom">
-          <button class="help-btn fs-exit-btn" @click="toggleFullscreen">
+          <AppIconButton class="help-btn fs-exit-btn" variant="outlined" size="sm" label="Vollbild beenden" @click="toggleFullscreen">
             <font-awesome-icon icon="fa-solid fa-compress-alt" />
-          </button>
+          </AppIconButton>
         </CustomTooltip>
       </div>
     </div>
@@ -202,9 +210,9 @@
               placeholder="Kunde…"
               @select="(k) => { filterKunde = k; filters.kundeFilter = k?._id || null; }"
             />
-            <button v-if="filters.kundeFilter" class="fs-kunde-filter-clear" @click="clearKundeFilter">
+            <AppIconButton v-if="filters.kundeFilter" class="fs-kunde-filter-clear" variant="ghost" size="sm" label="Kundenfilter entfernen" @click="clearKundeFilter">
               <font-awesome-icon icon="fa-solid fa-xmark" />
-            </button>
+            </AppIconButton>
           </div>
       </ToolbarFilter>
       <!-- Left: SearchBar + cell selection chip -->
@@ -222,24 +230,28 @@
           @select="onEmployeeSearchSelect"
           @filters-change="onEmployeeSearchFiltersChange"
         />
-        <button
+        <AppButton
           v-if="hiddenCount > 0"
           class="show-hidden-btn show-hidden-btn--topline"
           :class="{ active: showHidden }"
+          variant="secondary"
+          size="sm"
+          :aria-pressed="showHidden"
+          :aria-label="showHidden ? 'Zur normalen Dispo-Ansicht zurück' : `${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
           @click="toggleHiddenView"
           :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
         >
           <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
           {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </button>
+        </AppButton>
         <transition name="sel-chip">
           <span v-if="selectedCells.size > 0" class="selection-chip">
             <font-awesome-icon icon="fa-solid fa-table-cells" />
             <strong>{{ selectedCells.size }}</strong> ausgewählt
             <template v-if="selectionMaCount > 1"> · {{ selectionMaCount }} MA</template>
-            <button class="sel-chip-clear" @click="clearSelection" title="Auswahl aufheben">
+            <AppIconButton class="sel-chip-clear" variant="ghost" size="sm" label="Auswahl aufheben" @click="clearSelection">
               <font-awesome-icon icon="fa-solid fa-xmark" />
-            </button>
+            </AppIconButton>
           </span>
         </transition>
       </div>
@@ -257,9 +269,9 @@
           </FilterDropdown>
           <div class="kw-chips">
             <span class="kw-label">KW</span>
-            <button class="kw-nav-btn" @click="kwChipOffset--" title="Vorherige Wochen">
+            <AppIconButton class="kw-nav-btn" variant="secondary" size="sm" label="Vorherige Wochen" @click="kwChipOffset--">
               <font-awesome-icon icon="fa-solid fa-chevron-left" />
-            </button>
+            </AppIconButton>
             <CustomTooltip
               v-for="chip in kwChips"
               :key="`${chip.year}-${chip.kw}`"
@@ -269,35 +281,38 @@
               <button
                 class="kw-chip"
                 :class="{ 'kw-chip--active': selectedKw?.kw === chip.kw && selectedKw?.year === chip.year, 'kw-chip--current': chip.isCurrent }"
+                type="button"
+                :aria-label="`Kalenderwoche ${chip.kw}, ${chip.year}`"
+                :aria-pressed="selectedKw?.kw === chip.kw && selectedKw?.year === chip.year"
                 @click="toggleKw(chip)"
               >{{ chip.kw }}</button>
             </CustomTooltip>
-            <button class="kw-nav-btn" @click="kwChipOffset++" title="Nächste Wochen">
+            <AppIconButton class="kw-nav-btn" variant="secondary" size="sm" label="Nächste Wochen" @click="kwChipOffset++">
               <font-awesome-icon icon="fa-solid fa-chevron-right" />
-            </button>
+            </AppIconButton>
           </div>
           <div class="zoom-controls">
             <CustomTooltip text="Verkleinern (-)" position="top">
-              <button class="zoom-btn" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
+              <AppIconButton class="zoom-btn" variant="secondary" size="sm" label="Dispo-Tabelle verkleinern" @click="tableZoom = Math.max(60, tableZoom - 10)" :disabled="tableZoom <= 60">
                 <font-awesome-icon icon="fa-solid fa-minus" />
-              </button>
+              </AppIconButton>
             </CustomTooltip>
-            <span class="zoom-label" @dblclick="tableZoom = 100" title="Doppelklick zum Zurücksetzen">{{ tableZoom }}%</span>
+            <span class="zoom-label" role="button" tabindex="0" aria-label="Tabellenzoom auf 100 Prozent zurücksetzen" title="Doppelklick oder Enter: 100 %" @dblclick="tableZoom = 100" @keydown.enter.prevent="tableZoom = 100" @keydown.space.prevent="tableZoom = 100">{{ tableZoom }}%</span>
             <CustomTooltip text="Vergrößern (+)" position="top">
-              <button class="zoom-btn" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
+              <AppIconButton class="zoom-btn" variant="secondary" size="sm" label="Dispo-Tabelle vergrößern" @click="tableZoom = Math.min(150, tableZoom + 10)" :disabled="tableZoom >= 150">
                 <font-awesome-icon icon="fa-solid fa-plus" />
-              </button>
+              </AppIconButton>
             </CustomTooltip>
           </div>
           <CustomTooltip text="Vollbild (V)" position="top">
-            <button class="zoom-btn" @click="toggleFullscreen">
+            <AppIconButton class="zoom-btn" variant="secondary" size="sm" label="Vollbild öffnen" @click="toggleFullscreen">
               <font-awesome-icon icon="fa-solid fa-expand" />
-            </button>
+            </AppIconButton>
           </CustomTooltip>
           <CustomTooltip text="Hilfe [H]" position="top">
-            <button class="help-btn" @click="showHelp = true">
+            <AppIconButton class="help-btn" variant="secondary" size="sm" label="Dispo-Hilfe öffnen" @click="showHelp = true">
               <font-awesome-icon icon="fa-solid fa-circle-question" />
-            </button>
+            </AppIconButton>
           </CustomTooltip>
         </div>
       </template>
@@ -992,7 +1007,7 @@
       <!-- Mobile Action Sheet (status setter) -->
       <BottomSheetFrame
         v-model="mobileContextMenuOpen"
-        :title="`${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()"
+        :title="formatEmployeeName(ctxMenu.ma)"
         :subtitle="formatIsoDate(ctxMenu.day)"
       >
                 <!-- Existing entries -->
@@ -1111,18 +1126,18 @@
       <template #title>Dispo-Tabelle — Hilfe</template>
 
       <template #toc>
-        <nav class="help-toc">
+        <nav class="help-toc" aria-label="Inhalt der Dispo-Hilfe">
           <span class="help-toc-label">Inhalt</span>
-          <button data-section="help-s-shortcuts"    @click="scrollToHelpSection('help-s-shortcuts')">Shortcuts</button>
-          <button data-section="help-s-filter"       @click="scrollToHelpSection('help-s-filter')">Filter &amp; Ansicht</button>
-          <button data-section="help-s-favoriten"    @click="scrollToHelpSection('help-s-favoriten')">Favoriten</button>
-          <button data-section="help-s-notizen"      @click="scrollToHelpSection('help-s-notizen')">Notiz</button>
-          <button data-section="help-s-kundenwunsch" @click="scrollToHelpSection('help-s-kundenwunsch')">Kundenwünsche</button>
-          <button data-section="help-s-chronik"      @click="scrollToHelpSection('help-s-chronik')">Chronik</button>
-          <button data-section="help-s-status"       @click="scrollToHelpSection('help-s-status')">Zellen-Status</button>
-          <button data-section="help-s-comments"     @click="scrollToHelpSection('help-s-comments')">Kommentare</button>
-          <button data-section="help-s-multiselect"  @click="scrollToHelpSection('help-s-multiselect')">Mehrfachauswahl</button>
-          <button data-section="help-s-legende"      @click="scrollToHelpSection('help-s-legende')">Legende</button>
+          <AppButton variant="secondary" size="sm" data-section="help-s-shortcuts" @click="scrollToHelpSection('help-s-shortcuts')">Shortcuts</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-filter" @click="scrollToHelpSection('help-s-filter')">Filter &amp; Ansicht</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-favoriten" @click="scrollToHelpSection('help-s-favoriten')">Favoriten</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-notizen" @click="scrollToHelpSection('help-s-notizen')">Notiz</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-kundenwunsch" @click="scrollToHelpSection('help-s-kundenwunsch')">Kundenwünsche</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-chronik" @click="scrollToHelpSection('help-s-chronik')">Chronik</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-status" @click="scrollToHelpSection('help-s-status')">Zellen-Status</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-comments" @click="scrollToHelpSection('help-s-comments')">Kommentare</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-multiselect" @click="scrollToHelpSection('help-s-multiselect')">Mehrfachauswahl</AppButton>
+          <AppButton variant="secondary" size="sm" data-section="help-s-legende" @click="scrollToHelpSection('help-s-legende')">Legende</AppButton>
         </nav>
       </template>
 
@@ -1235,7 +1250,7 @@
       v-if="nameMenu.open"
       :x="nameMenu.x"
       :y="nameMenu.y"
-      :title="nameMenu.ma ? `${nameMenu.ma.vorname} ${nameMenu.ma.nachname}` : ''"
+      :title="formatEmployeeName(nameMenu.ma)"
       :options="nameMenuItems"
       @close="closeNameMenu"
       @select="handleNameMenuAction"
@@ -1248,32 +1263,42 @@
     />
 
     <!-- Verfügbarkeiten Bulk Modal -->
-    <teleport to="body">
-      <div v-if="verfModal.open" class="modal-overlay" @click="closeVerfModal">
-        <div class="verf-modal" @click.stop>
-          <!-- Header -->
-          <div class="verf-modal-header">
-            <div class="verf-modal-title">
-              <font-awesome-icon icon="fa-solid fa-calendar-plus" />
-              Verfügbarkeiten — {{ verfModal.ma?.vorname }} {{ verfModal.ma?.nachname }}
-            </div>
-            <button class="close-btn" @click="closeVerfModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-          </div>
+    <ModalFrame
+      :model-value="verfModal.open"
+      :title="`Verfügbarkeiten — ${formatEmployeeName(verfModal.ma)}`"
+      size="lg"
+      class="verf-modal"
+      style="--mf-max-width: min(900px, 97vw); --mf-max-height: 88vh; --mf-body-padding: 0; --mf-body-overflow: hidden; --mf-footer-padding: 0; --mf-footer-border: none"
+      :show-close="!verfModal.saving"
+      :close-on-backdrop="!verfModal.saving"
+      :close-on-escape="!verfModal.saving"
+      @close="closeVerfModal"
+    >
+      <template #header="{ titleId }">
+        <h3 :id="titleId" class="verf-modal-title">
+          <font-awesome-icon icon="fa-solid fa-calendar-plus" />
+          Verfügbarkeiten — {{ formatEmployeeName(verfModal.ma) }}
+        </h3>
+      </template>
 
           <!-- Two-column layout -->
-          <div class="verf-modal-layout">
+          <div class="verf-modal-layout" :inert="verfModal.saving">
 
             <!-- Left: form -->
             <div class="verf-form-pane">
               <div class="verf-type-row">
-                <button
+                <AppButton
                   v-for="t in verfTypOptions" :key="t.value"
                   class="verf-type-btn"
                   :class="['verf-type-btn--' + t.value, { active: verfModal.typ === t.value }]"
+                  variant="secondary"
+                  size="sm"
+                  :aria-pressed="verfModal.typ === t.value"
+                  :disabled="verfModal.saving"
                   @click="verfModal.typ = t.value"
                 >
                   <font-awesome-icon :icon="t.icon" /> {{ t.label }}
-                </button>
+                </AppButton>
               </div>
 
               <div class="verf-rows">
@@ -1281,38 +1306,38 @@
                   <div class="verf-row-main">
                     <div class="verf-row-dates">
                       <div class="verf-row-field">
-                        <label>Von</label>
-                        <input type="date" v-model="row.von" :class="{ 'has-error': row.error }" />
+                        <label :for="`verf-von-${i}`">Von</label>
+                        <input :id="`verf-von-${i}`" v-model="row.von" type="date" :class="{ 'has-error': row.error }" :disabled="verfModal.saving" :aria-invalid="!!row.error" :aria-describedby="row.error ? `verf-row-error-${i}` : undefined" />
                       </div>
                       <span class="verf-row-sep">–</span>
                       <div class="verf-row-field">
-                        <label>Bis</label>
-                        <input type="date" v-model="row.bis" :class="{ 'has-error': row.error }" />
+                        <label :for="`verf-bis-${i}`">Bis</label>
+                        <input :id="`verf-bis-${i}`" v-model="row.bis" type="date" :class="{ 'has-error': row.error }" :disabled="verfModal.saving" :aria-invalid="!!row.error" :aria-describedby="row.error ? `verf-row-error-${i}` : undefined" />
                       </div>
                     </div>
                     <div v-if="!isVerfAbsence" class="verf-row-times">
                       <div class="verf-row-field verf-row-field--time">
-                        <label>Zeit von</label>
-                        <input type="time" v-model="row.zeitVon" placeholder="–" />
+                        <label :for="`verf-zeit-von-${i}`">Zeit von</label>
+                        <input :id="`verf-zeit-von-${i}`" v-model="row.zeitVon" type="time" placeholder="–" :disabled="verfModal.saving" />
                       </div>
                       <div class="verf-row-field verf-row-field--time">
-                        <label>Zeit bis</label>
-                        <input type="time" v-model="row.zeitBis" placeholder="–" />
+                        <label :for="`verf-zeit-bis-${i}`">Zeit bis</label>
+                        <input :id="`verf-zeit-bis-${i}`" v-model="row.zeitBis" type="time" placeholder="–" :disabled="verfModal.saving" />
                       </div>
                     </div>
-                    <button class="verf-row-remove" @click="removeVerfRow(i)" title="Entfernen">
+                    <AppIconButton class="verf-row-remove" variant="ghost" size="sm" :label="`Zeitraum ${i + 1} entfernen`" :disabled="verfModal.saving" @click="removeVerfRow(i)">
                       <font-awesome-icon icon="fa-solid fa-times" />
-                    </button>
+                    </AppIconButton>
                   </div>
-                  <div v-if="row.error" class="verf-row-error">
+                  <div v-if="row.error" :id="`verf-row-error-${i}`" class="verf-row-error" role="alert">
                     <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ row.error }}
                   </div>
                 </div>
               </div>
 
-              <button class="verf-add-row-btn" @click="addVerfRow">
+              <AppButton class="verf-add-row-btn" variant="outlined" size="sm" :disabled="verfModal.saving" @click="addVerfRow">
                 <font-awesome-icon icon="fa-solid fa-plus" /> Zeitraum hinzufügen
-              </button>
+              </AppButton>
 
               <!-- Conflict warnings -->
               <div v-if="verfHasHardConflict" class="verf-conflict-banner verf-conflict-banner--hard">
@@ -1330,7 +1355,7 @@
                 </div>
               </div>
 
-              <div v-if="verfModal.globalError" class="verf-global-error">
+              <div v-if="verfModal.globalError" class="verf-global-error" role="alert">
                 <font-awesome-icon icon="fa-solid fa-triangle-exclamation" /> {{ verfModal.globalError }}
               </div>
             </div>
@@ -1338,29 +1363,32 @@
             <!-- Right: mini calendar -->
             <div class="verf-cal-pane">
               <div class="verf-cal-nav">
-                <button class="verf-cal-nav-btn" @click="prevVerfCalMonth">
+                <AppIconButton class="verf-cal-nav-btn" variant="ghost" size="sm" label="Vorheriger Monat" :disabled="verfModal.saving" @click="prevVerfCalMonth">
                   <font-awesome-icon icon="fa-solid fa-chevron-left" />
-                </button>
+                </AppIconButton>
                 <span class="verf-cal-month-label">
                   {{ verfCalMonthName }}
                   <font-awesome-icon v-if="verfCalLoading" icon="fa-solid fa-spinner" spin class="verf-cal-spin" />
                 </span>
-                <button class="verf-cal-nav-btn" @click="nextVerfCalMonth">
+                <AppIconButton class="verf-cal-nav-btn" variant="ghost" size="sm" label="Nächster Monat" :disabled="verfModal.saving" @click="nextVerfCalMonth">
                   <font-awesome-icon icon="fa-solid fa-chevron-right" />
-                </button>
+                </AppIconButton>
               </div>
               <div class="verf-cal-grid" @mouseleave="verfCalHoverDay = null">
                 <div v-for="wd in ['Mo','Di','Mi','Do','Fr','Sa','So']" :key="wd" class="verf-cal-wd">{{ wd }}</div>
-                <div
+                <button
                   v-for="(day, i) in verfCalDays"
                   :key="i"
                   class="verf-cal-day"
                   :class="verfDayCls(day)"
+                  type="button"
+                  :aria-label="`Zeitraumdatum ${formatIsoDate(day.iso)}`"
+                  :disabled="!day.isCurrentMonth || verfModal.saving"
                   @click="onVerfCalDayClick(day)"
                   @mouseenter="onVerfCalDayHover(day)"
                 >
                   <span class="verf-cal-day-num">{{ day.number }}</span>
-                </div>
+                </button>
               </div>
               <p v-if="verfCalSelecting.active" class="verf-cal-hint">Bis-Datum wählen…</p>
               <div class="verf-cal-legend">
@@ -1374,62 +1402,44 @@
             </div>
           </div>
 
-          <!-- Footer -->
+      <template #footer>
           <div class="verf-modal-footer">
-            <button class="verf-cancel-btn" @click="closeVerfModal">Abbrechen</button>
+            <AppButton class="verf-cancel-btn" variant="secondary" :disabled="verfModal.saving" @click="closeVerfModal">Abbrechen</AppButton>
             <div class="verf-footer-actions">
-              <button
+              <AppButton
                 v-if="verfHasHardConflict || verfHasSoftConflict"
                 class="verf-split-btn"
+                variant="outlined"
+                :disabled="verfModal.saving"
                 @click="splitVerfAroundConflicts"
               >
                 <font-awesome-icon icon="fa-solid fa-scissors" /> Verfügbarkeit splitten
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 class="verf-submit-btn"
                 :disabled="verfModal.saving || !verfModal.rows.length || verfHasHardConflict"
+                :loading="verfModal.saving"
                 @click="submitVerfModal"
               >
-                <font-awesome-icon v-if="verfModal.saving" icon="fa-solid fa-spinner" spin />
-                <font-awesome-icon v-else icon="fa-solid fa-check" />
+                <font-awesome-icon v-if="!verfModal.saving" icon="fa-solid fa-check" />
                 {{ verfModal.rows.length }} Zeitraum{{ verfModal.rows.length !== 1 ? 'e' : '' }} speichern
-              </button>
+              </AppButton>
             </div>
           </div>
-        </div>
-      </div>
-    </teleport>
+      </template>
+    </ModalFrame>
 
     <!-- Kundenwunsch Modal -->
-    <teleport to="body">
-      <div v-if="kwModal.open" class="modal-overlay" @click="closeKwModal">
-        <div class="kw-modal" @click.stop>
-          <div class="kw-modal-header">
-            <span class="kw-modal-title">Kundenwunsch hinzufügen</span>
-            <button class="close-btn" @click="closeKwModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-          </div>
-          <div class="kw-modal-body">
-            <div class="kw-modal-typ">
-              <button
-                class="kw-typ-btn"
-                :class="{ active: kwModal.typ === 'positiv' }"
-                @click="kwModal.typ = 'positiv'"
-              >
-                🤝
-              </button>
-              <button
-                class="kw-typ-btn kw-typ-btn--neg"
-                :class="{ active: kwModal.typ === 'negativ' }"
-                @click="kwModal.typ = 'negativ'"
-              >
-                🚫
-              </button>
-            </div>
-            <KundeSearch ref="kwSearchRef" :location-v2="filters.locationV2" :mitarbeiter-id="kwModal.maId" @select="addKundenwunsch" />
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <KundenwunschModal
+      :open="kwModal.open"
+      :mitarbeiter-id="kwModal.maId"
+      :location-v2="filters.locationV2"
+      :saving="kwModal.saving"
+      :error="kwModal.error"
+      @close="closeKwModal"
+      @submit="addKundenwunsch"
+      @clear-error="kwModal.error = ''"
+    />
 
     <!-- Comment Thread Modal -->
     <teleport to="body">
@@ -1438,7 +1448,7 @@
           <div class="chat-modal-header">
             <div class="chat-modal-title">
               <font-awesome-icon icon="fa-solid fa-comments" />
-              <span>{{ chatModal.ma?.vorname }} {{ chatModal.ma?.nachname }} · {{ formatIsoDate(chatModal.day) }}</span>
+              <span>{{ formatEmployeeName(chatModal.ma) }} · {{ formatIsoDate(chatModal.day) }}</span>
             </div>
             <button class="close-btn" @click="closeChatModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
           </div>
@@ -1483,7 +1493,7 @@
       :x="ctxMenu.x"
       :y="ctxMenu.y"
       :width="220"
-      :title="ctxMenu.isMulti ? (selectionMaCount > 1 ? `${selectionMaCount} Mitarbeiter` : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()) : `${ctxMenu.ma?.vorname || ''} ${ctxMenu.ma?.nachname || ''}`.trim()"
+      :title="ctxMenu.isMulti && selectionMaCount > 1 ? `${selectionMaCount} Mitarbeiter` : formatEmployeeName(ctxMenu.ma)"
       @close="closeCtxMenu"
     >
       <div v-if="ctxMenu.isMulti" class="ctx-multi-label">
@@ -1660,15 +1670,21 @@ import FilterPanel from '@/components/FilterPanel.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import flipIconUrl from '@/assets/flip.png';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
+import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
+import { shortTermEmploymentWindow } from '@/utils/shortTermEmployment';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import HelpModal from '@/components/Modals/HelpModal.vue';
+import KundenwunschModal from '@/components/Modals/KundenwunschModal.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import CommentBubbleBadge from '@/components/CommentBubbleBadge.vue';
 import KommentarFeed from '@/components/KommentarFeed.vue';
@@ -1687,6 +1703,7 @@ const comments = useComments();
 const ui = useUi();
 const router = useRouter();
 const route = useRoute();
+const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
 
 // ─── State ───
 const loading = ref(true);
@@ -2072,9 +2089,9 @@ const nameMenuItems = computed(() => {
     { label: 'Verfügbarkeiten eintragen', icon: 'fa-solid fa-calendar-plus', action: 'verf' },
     ...(phone
       ? [{
-          label: phone,
+          label: `${phone}`,
           icon: 'fa-solid fa-phone',
-          action: 'copyPhone',
+          action: 'dialPhone',
         }]
       : []),
     {
@@ -2101,6 +2118,9 @@ function handleNameMenuAction(action) {
       break;
     case 'verf':
       openVerfModal();
+      break;
+    case 'dialPhone':
+      dialPhoneFromNameMenu();
       break;
     case 'copyPhone':
       copyPhoneFromNameMenu();
@@ -2134,6 +2154,16 @@ function closeNameMenu() {
     clearTimeout(_copiedPhoneTimer);
     _copiedPhoneTimer = null;
   }
+}
+
+function dialPhoneFromNameMenu() {
+  let telefon = (nameMenu.ma?.telefon || '').trim().replace(/[^\d+]/g, '');
+  if (!telefon) return;
+  if (telefon.startsWith('0') && !telefon.startsWith('+')) {
+    telefon = `+49${telefon.slice(1)}`;
+  }
+  closeNameMenu();
+  window.location.href = `tel:${telefon}`;
 }
 
 async function copyPhoneFromNameMenu() {
@@ -2176,38 +2206,47 @@ function openCardModal(maId) {
 }
 
 // ─── Kundenwunsch Modal ───
-const kwModal = reactive({ open: false, maId: null, typ: 'positiv' });
-const kwSearchRef = ref(null);
+const kwModal = reactive({ open: false, maId: null, saving: false, error: '' });
 
 function openKwModal(maId) {
+  if (kwModal.saving) return;
   kwModal.maId = maId;
-  kwModal.typ = 'positiv';
+  kwModal.saving = false;
+  kwModal.error = '';
   kwModal.open = true;
-  nextTick(() => kwSearchRef.value?.focus());
 }
 
 function closeKwModal() {
+  if (kwModal.saving) return;
   kwModal.open = false;
   kwModal.maId = null;
+  kwModal.error = '';
 }
 
-async function addKundenwunsch(kunde) {
-  if (!kunde || !kwModal.maId) return;
+async function addKundenwunsch({ kunde, typ } = {}) {
+  if (!kwModal.open || kwModal.saving || !kunde?._id || !kwModal.maId || !['positiv', 'negativ'].includes(typ)) return;
+  kwModal.saving = true;
+  kwModal.error = '';
+  const maId = kwModal.maId;
   try {
-    const { data } = await api.post(`/api/personal/${kwModal.maId}/kundenwuensche`, {
+    const { data } = await api.post(`/api/personal/${maId}/kundenwuensche`, {
       kunde: kunde._id,
-      typ: kwModal.typ,
+      typ,
     });
     // Update local mitarbeiter data
     const list = mitarbeiter.value;
-    const ma = list.find(m => m._id === kwModal.maId);
+    const ma = list.find(m => m._id === maId);
     if (ma) {
       ma.kundenwuensche = data;
       mitarbeiter.value = [...list];
     }
+    kwModal.saving = false;
     closeKwModal();
   } catch (err) {
     console.error('Kundenwunsch hinzufügen fehlgeschlagen:', err);
+    kwModal.error = 'Kundenwunsch konnte nicht gespeichert werden. Bitte erneut versuchen.';
+  } finally {
+    kwModal.saving = false;
   }
 }
 
@@ -2326,7 +2365,7 @@ const verfCalSelecting = reactive({ active: false, rowIdx: -1 });
 const verfCalHoverDay  = ref(null);
 
 function onVerfCalDayClick(day) {
-  if (!day.isCurrentMonth) return;
+  if (!day.isCurrentMonth || verfModal.saving) return;
   if (!verfCalSelecting.active) {
     // First click — set von on last row (or new row)
     let idx = verfModal.rows.length - 1;
@@ -2492,6 +2531,11 @@ function openVerfModal() {
 }
 
 function closeVerfModal() {
+  if (verfModal.saving) return;
+  resetVerfModal();
+}
+
+function resetVerfModal() {
   verfModal.open = false;
   verfModal.ma = null;
   verfModal.rows = [];
@@ -2506,15 +2550,18 @@ function _createVerfRow() {
 }
 
 function addVerfRow() {
+  if (verfModal.saving) return;
   verfModal.rows.push(_createVerfRow());
 }
 
 function removeVerfRow(i) {
+  if (verfModal.saving) return;
   verfModal.rows.splice(i, 1);
 }
 
 // Split all rows around hard-conflict (einsatz) days
 function splitVerfAroundConflicts() {
+  if (verfModal.saving) return;
   const maId = String(verfModal.ma._id);
   const newRows = [];
   for (const row of verfModal.rows) {
@@ -2567,6 +2614,7 @@ function _validateVerfRows() {
 }
 
 async function submitVerfModal() {
+  if (verfModal.saving || !verfModal.rows.length || verfHasHardConflict.value) return;
   verfModal.globalError = '';
   if (!_validateVerfRows()) return;
   const absence = isVerfAbsence.value;
@@ -2606,7 +2654,7 @@ async function submitVerfModal() {
       created.push(data);
     }
     localAddEntries(created);
-    closeVerfModal();
+    resetVerfModal();
   } catch (err) {
     console.error('Verfügbarkeiten eintragen fehlgeschlagen:', err);
     verfModal.globalError = 'Fehler beim Speichern. Bitte erneut versuchen.';
@@ -2693,6 +2741,10 @@ function onDocMouseUp() {
 }
 
 function onKeyDown(e) {
+  if (verfModal.open || kwModal.open || chatModal.open || showHelp.value) {
+    if (showHelp.value && (e.key === 'h' || e.key === 'H')) showHelp.value = false;
+    return;
+  }
   if (e.key === 'Escape') { clearSelection(); return; }
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
@@ -3039,13 +3091,17 @@ function employeeHoverData(ma) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const analytics = employeeHoverAnalytics[`${ma._id}-${year}`] || { ist: [], forecast: [] };
-  const employeeName = [ma.vorname, ma.nachname].filter(Boolean).join(' ');
+  const employmentWindow = employmentType === 3
+    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
+    : null;
+  if (employmentType === 3 && !employmentWindow) return null;
+  const analyticsKey = `${ma._id}-${employmentWindow?.from.getTime() || year}`;
+  const analytics = employeeHoverAnalytics[analyticsKey] || { ist: [], forecast: [] };
+  const employeeName = formatEmployeeName(ma);
   const monthlyRecord = records => records.find(record => record.year === year && record.month === month) || {};
 
   if (employmentType === 3) {
-    const yearlyDays = records => records
-      .filter(record => record.year === year)
+    const reportedDays = records => records
       .reduce((total, record) => total + (Number(record.days) || 0), 0);
     return {
       type: 'days',
@@ -3053,9 +3109,10 @@ function employeeHoverData(ma) {
       employeeName,
       title: 'Kurzfristig beschäftigt',
       priorEmployerDays: ma.vorarbeitgebertage?.year === year ? ma.vorarbeitgebertage.days : 0,
-      workedDays: yearlyDays(analytics.ist),
-      plannedDays: yearlyDays(analytics.forecast),
+      workedDays: reportedDays(analytics.ist),
+      plannedDays: reportedDays(analytics.forecast),
       dayLimit: 70,
+      periodLabel: employmentWindow?.label,
     };
   }
 
@@ -3075,7 +3132,11 @@ function employeeHoverData(ma) {
 }
 
 function isEmployeeHoverLoading(ma) {
-  return Boolean(employeeHoverLoading[`${ma._id}-${new Date().getFullYear()}`]);
+  const year = new Date().getFullYear();
+  const employmentWindow = ma.arbeitsverhaeltnis?.typ === 3
+    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
+    : null;
+  return Boolean(employeeHoverLoading[`${ma._id}-${employmentWindow?.from.getTime() || year}`]);
 }
 
 function openNameHoverCard(ma) {
@@ -3089,13 +3150,17 @@ function onNameRowMouseLeave(maId) {
 
 async function loadEmployeeHoverData(ma) {
   const year = new Date().getFullYear();
-  const key = `${ma._id}-${year}`;
+  const employmentWindow = ma.arbeitsverhaeltnis?.typ === 3
+    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
+    : null;
+  if (ma.arbeitsverhaeltnis?.typ === 3 && !employmentWindow) return;
+  const key = `${ma._id}-${employmentWindow?.from.getTime() || year}`;
   if (employeeHoverAnalytics[key] || employeeHoverLoading[key]) return;
   employeeHoverLoading[key] = true;
   try {
     const { data } = await api.get(`/api/personal/${ma._id}/analytics/einsaetze`, {
       params: {
-        von: new Date(year, 0, 1).toISOString(),
+        von: (employmentWindow?.from || new Date(year, 0, 1)).toISOString(),
         bis: new Date(year, 11, 31, 23, 59, 59).toISOString(),
       },
     });
@@ -4580,8 +4645,8 @@ function onNameTouchEnd() {
     overflow: hidden;
     border-radius: 14px;
     box-shadow:
-      0 0 0 1.5px rgba(var(--primary-rgb, 253 126 20) / 0.30),
-      0 0 60px rgba(var(--primary-rgb, 253 126 20) / 0.07),
+      0 0 0 1.5px rgba(var(--primary-rgb, 253, 126, 20), 0.30),
+      0 0 60px rgba(var(--primary-rgb, 253, 126, 20), 0.07),
       0 32px 100px rgba(0, 0, 0, 0.55);
   }
 }
@@ -4664,57 +4729,17 @@ function onNameTouchEnd() {
 }
 
 .fs-reset-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
+  --app-button-icon-size: 28px;
+  min-height: 28px;
   font-size: 0.85rem;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-  }
-}
-
-.fs-exit-btn {
-  color: var(--primary);
-  border-color: var(--primary);
 }
 
 // ─── Fullscreen Filter Toggle Button ───
 .fs-filter-toggle {
   position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
-    border-color: var(--primary);
-  }
-
-  &--active {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
-  }
+  --app-button-icon-size: 36px;
+  min-height: 36px;
 }
 
 .fs-filter-count {
@@ -4724,7 +4749,7 @@ function onNameTouchEnd() {
   min-width: 20px;
   height: 20px;
   background: var(--primary);
-  color: var(--bg);
+  color: var(--on-action-primary);
   font-size: 11px;
   font-weight: 600;
   border-radius: 10px;
@@ -4884,24 +4909,9 @@ function onNameTouchEnd() {
 }
 
 .help-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
+  --app-button-icon-size: 22px;
+  min-height: 22px;
   font-size: 0.75rem;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-  }
 }
 
 .search-box input {
@@ -5565,8 +5575,8 @@ function onNameTouchEnd() {
   }
 
   @keyframes rowHighlightPulse {
-    0%   { background: rgba(var(--primary-rgb, 238 175 103) / 0.25); }
-    60%  { background: rgba(var(--primary-rgb, 238 175 103) / 0.15); }
+    0%   { background: rgba(var(--primary-rgb, 238, 175, 103), 0.25); }
+    60%  { background: rgba(var(--primary-rgb, 238, 175, 103), 0.15); }
     100% { background: transparent; }
   }
 
@@ -6025,12 +6035,12 @@ function onNameTouchEnd() {
     height: 24px;
     box-sizing: border-box;
     border-radius: 0 0 5px 5px;
-    background: var(--tile-bg);
   }
 
   :deep(.dropdown-trigger) {
     padding-block: 0;
     font-size: 0.72rem;
+    background: var(--tile-bg);
   }
 
   :deep(.filter-chip) {
@@ -6160,38 +6170,21 @@ function onNameTouchEnd() {
 }
 
 .show-hidden-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  min-height: 32px;
   padding: 3px 10px;
   font-size: 0.78rem;
-  font-family: inherit;
-  background: none;
-  border: 1px solid var(--border);
   border-radius: 20px;
-  color: var(--muted);
-  cursor: pointer;
   user-select: none;
-  white-space: nowrap;
-  transition: all 0.15s;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
 
   &.active {
-    background: rgba(238, 175, 103, 0.12);
-    border-color: var(--primary);
-    color: var(--primary);
+    --app-button-background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+    --app-button-border: var(--primary);
+    --app-button-color: var(--action-accent-text);
   }
 }
 
 .show-hidden-btn--topline {
-  height: 32px;
   padding-inline: 10px;
-  background: var(--surface);
-  border-color: var(--border);
 }
 
 // ─── KW Chips ───
@@ -6211,22 +6204,10 @@ function onNameTouchEnd() {
 }
 
 .kw-nav-btn {
-  background: none;
-  border: 1px solid var(--border);
+  --app-button-icon-size: 22px;
+  min-height: 22px;
   border-radius: 5px;
-  color: var(--muted);
   font-size: 10px;
-  padding: 2px 5px;
-  cursor: pointer;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover {
-    color: var(--text);
-    border-color: var(--text);
-  }
 }
 
 .kw-chip {
@@ -6251,7 +6232,7 @@ function onNameTouchEnd() {
   }
 
   &.kw-chip--current {
-    color: var(--primary);
+    color: var(--action-accent-text);
     border-color: var(--primary);
     font-weight: 600;
   }
@@ -6259,9 +6240,11 @@ function onNameTouchEnd() {
   &.kw-chip--active {
     background: var(--primary);
     border-color: var(--primary);
-    color: #fff;
+    color: var(--on-action-primary);
     font-weight: 600;
   }
+
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 }
 
 .zoom-controls {
@@ -6271,28 +6254,9 @@ function onNameTouchEnd() {
 }
 
 .zoom-btn {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
+  --app-button-icon-size: 22px;
+  min-height: 22px;
   font-size: 0.75rem;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover:not(:disabled) {
-    color: var(--text);
-    border-color: var(--text);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
 }
 
 .zoom-label {
@@ -6303,6 +6267,8 @@ function onNameTouchEnd() {
   text-align: center;
   cursor: default;
   user-select: none;
+
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; border-radius: 4px; }
 }
 
 .selection-chip {
@@ -6310,29 +6276,20 @@ function onNameTouchEnd() {
   align-items: center;
   gap: 6px;
   padding: 3px 8px 3px 10px;
-  background: rgba(253, 126, 20, 0.10);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   border: 1px solid var(--primary);
   border-radius: 20px;
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 12px;
   font-weight: 500;
 
   strong { font-weight: 700; }
 
   .sel-chip-clear {
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
+    --app-button-icon-size: 20px;
+    --action-ghost-text: var(--action-accent-text);
+    min-height: 20px;
     font-size: 11px;
-    padding: 0 2px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    opacity: 0.7;
-    transition: opacity 0.15s;
-
-    &:hover { opacity: 1; }
   }
 }
 
@@ -6585,85 +6542,11 @@ function onNameTouchEnd() {
 
 .fs-kunde-filter-clear {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
+  --app-button-icon-size: 20px;
+  --action-ghost-text: var(--muted);
+  --action-accent-text: var(--status-danger-text);
+  min-height: 20px;
   font-size: 10px;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.15s;
-
-  &:hover { color: #ef4444; }
-}
-
-// ─── Kundenwunsch Modal ───
-.kw-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 380px;
-  max-width: 92vw;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-}
-
-.kw-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.kw-modal-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.kw-modal-body {
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.kw-modal-typ {
-  display: flex;
-  gap: 8px;
-}
-
-.kw-typ-btn {
-  flex: 1;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.15s;
-
-  &.active {
-    border-color: #10b981;
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.08);
-  }
-
-  &--neg.active {
-    border-color: #ef4444;
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.08);
-  }
 }
 
 // ─── Chat Modal ───
@@ -7917,35 +7800,15 @@ function onNameTouchEnd() {
 }
 
 // ─── Verfügbarkeiten Bulk Modal ───
-.verf-modal {
-  background: var(--modal-bg, #fff);
-  border-radius: 14px;
-  width: 900px;
-  max-width: 97vw;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-}
-
-.verf-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
 .verf-modal-title {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
-  svg { color: var(--primary); }
+  svg { color: var(--action-accent-text); }
 }
 
 // Two-column body
@@ -8000,19 +7863,9 @@ function onNameTouchEnd() {
 }
 
 .verf-cal-nav-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  --app-button-icon-size: 24px;
+  min-height: 24px;
   font-size: 10px;
-  transition: color 0.15s, background 0.15s;
-  &:hover { color: var(--text); background: var(--hover); }
 }
 
 // Calendar grid
@@ -8036,18 +7889,26 @@ function onNameTouchEnd() {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: 0;
   border-radius: 5px;
   position: relative;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
   cursor: pointer;
 
-  &--other { opacity: 0.2; cursor: default; pointer-events: none; }
+  &--other { opacity: 0.2; cursor: default; }
+
+  &:disabled { cursor: default; }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
   &--today .verf-cal-day-num {
     font-weight: 700;
-    color: var(--primary);
+    color: var(--action-accent-text);
   }
 
-  &:not(.verf-cal-day--other):hover {
+  &:not(:disabled):hover {
     background: var(--hover);
   }
 
@@ -8059,7 +7920,7 @@ function onNameTouchEnd() {
   &--hover-anchor {
     background: var(--primary) !important;
     border-radius: 5px !important;
-    .verf-cal-day-num { color: #fff !important; font-weight: 700; }
+    .verf-cal-day-num { color: var(--on-action-primary) !important; font-weight: 700; }
   }
 
   // Existing entry colors
@@ -8080,7 +7941,7 @@ function onNameTouchEnd() {
     background: #ef4444 !important;
     outline: 2px solid #b91c1c !important;
     outline-offset: -2px;
-    .verf-cal-day-num { color: #fff !important; font-weight: 700; }
+    .verf-cal-day-num { color: var(--on-action-danger) !important; font-weight: 700; }
   }
   &--conflict-soft {
     outline: 2px solid #f59e0b !important;
@@ -8107,7 +7968,7 @@ function onNameTouchEnd() {
 
 .verf-cal-hint {
   font-size: 11px;
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-weight: 600;
   text-align: center;
   animation: verf-hint-pulse 1s ease-in-out infinite alternate;
@@ -8151,14 +8012,14 @@ function onNameTouchEnd() {
   svg { flex-shrink: 0; margin-top: 1px; }
   p { margin: 3px 0 0; font-size: 11px; font-weight: 400; opacity: 0.9; }
   &--hard {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #ef4444;
+    background: color-mix(in srgb, var(--status-danger-text) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--status-danger-text) 35%, var(--surface));
+    color: var(--status-danger-text);
   }
   &--soft {
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    color: #d97706;
+    background: color-mix(in srgb, var(--status-warning-text) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--status-warning-text) 35%, var(--surface));
+    color: var(--status-warning-text);
   }
 }
 
@@ -8169,27 +8030,19 @@ function onNameTouchEnd() {
 }
 
 .verf-type-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding: 6px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
   font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
+  &.active {
+    --app-button-color: var(--text);
+    --app-button-background: color-mix(in srgb, var(--verf-type-accent) 8%, var(--surface));
+    --app-button-border: var(--verf-type-accent);
+  }
 
-  &:hover { border-color: var(--text); color: var(--text); }
-
-  &--available.active  { border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.08); }
-  &--partially.active  { border-color: #f59e0b; color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
-  &--blocked.active    { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.08); }
-  &--urlaub.active     { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
-  &--krank.active      { border-color: #a855f7; color: #a855f7; background: rgba(168, 85, 247, 0.08); }
+  &--available { --verf-type-accent: var(--status-success-text); }
+  &--partially { --verf-type-accent: var(--status-warning-text); }
+  &--blocked { --verf-type-accent: var(--status-danger-text); }
+  &--urlaub { --verf-type-accent: #3b82f6; }
+  &--krank { --verf-type-accent: #a855f7; }
 }
 
 .verf-rows {
@@ -8208,7 +8061,7 @@ function onNameTouchEnd() {
   background: var(--surface);
   transition: border-color 0.15s;
 
-  &:has(.has-error) { border-color: #ef444470; }
+  &:has(.has-error) { border-color: color-mix(in srgb, var(--status-danger-text) 45%, var(--surface)); }
 }
 
 .verf-row-main {
@@ -8255,17 +8108,16 @@ function onNameTouchEnd() {
   input[type="date"],
   input[type="time"] {
     padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
+    border: 1px solid var(--control-input-border);
+    border-radius: var(--control-radius);
+    background: var(--control-input-bg);
     color: var(--text);
     font-size: 13px;
     font-family: inherit;
-    outline: none;
     transition: border-color 0.15s;
 
-    &:focus { border-color: var(--primary); }
-    &.has-error { border-color: #ef4444; }
+    &:focus-visible { border-color: var(--primary); outline: 2px solid var(--control-focus-ring); outline-offset: 1px; }
+    &.has-error { border-color: var(--status-danger-text); }
   }
 
   &--time input { width: 102px; }
@@ -8273,26 +8125,17 @@ function onNameTouchEnd() {
 
 .verf-row-remove {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  --app-button-icon-size: 28px;
+  --action-ghost-text: var(--status-danger-text);
+  --action-accent-text: var(--status-danger-text);
+  min-height: 28px;
   font-size: 12px;
   margin-bottom: 1px;
-  transition: color 0.15s, background 0.15s;
-
-  &:hover { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
 }
 
 .verf-row-error {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--status-danger-text);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -8300,24 +8143,8 @@ function onNameTouchEnd() {
 
 .verf-add-row-btn {
   align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
+  border-style: dashed;
   font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: rgba(238, 175, 103, 0.06);
-  }
 }
 
 .verf-global-error {
@@ -8325,14 +8152,15 @@ function onNameTouchEnd() {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: color-mix(in srgb, var(--status-danger-text) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--status-danger-text) 35%, var(--surface));
   border-radius: 8px;
   font-size: 12px;
-  color: #ef4444;
+  color: var(--status-danger-text);
 }
 
 .verf-modal-footer {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8348,54 +8176,11 @@ function onNameTouchEnd() {
   gap: 8px;
 }
 
-.verf-cancel-btn {
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover { color: var(--text); border-color: var(--text); }
-}
-
-.verf-split-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover { border-color: var(--primary); color: var(--primary); }
-}
-
-.verf-submit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:hover:not(:disabled) { opacity: 0.88; }
+@media (max-width: 720px) {
+  .verf-modal-layout { flex-direction: column; overflow-y: auto; }
+  .verf-form-pane { flex: none; overflow: visible; }
+  .verf-cal-pane { width: auto; border-left: 0; border-top: 1px solid var(--border); overflow: visible; }
+  .verf-modal-footer { flex-wrap: wrap; }
 }
 
 .ctx-item--verfuegbarkeit {

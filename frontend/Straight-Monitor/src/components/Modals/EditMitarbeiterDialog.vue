@@ -75,6 +75,15 @@
             <label>Schuhgröße</label>
             <input v-model.trim="form.schuhgroesse" type="text" class="form-input" />
           </div>
+          <div class="form-group">
+            <label>Staatsangehörigkeit</label>
+            <select v-model="form.nationalitaet" class="form-input">
+              <option value="">— nicht gesetzt —</option>
+              <option v-for="nationalitaet in nationalitaeten" :key="nationalitaet.schluessel" :value="String(nationalitaet.schluessel)">
+                {{ nationalitaetOptionLabel(nationalitaet) }}
+              </option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -287,6 +296,10 @@ const props = defineProps({
     type: Object,
     default: null, // { id, name }
   },
+  nationalitaeten: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
@@ -317,6 +330,7 @@ const form = ref({
   geburtsdatum: "",
   geburtsname: "",
   geburtsort: "",
+  nationalitaet: "",
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
@@ -350,6 +364,7 @@ watch(
         geburtsdatum: toDateInput(newVal.geburtsdatum),
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",
+        nationalitaet: newVal.nationalitaet != null ? String(newVal.nationalitaet) : "",
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: newVal.persgruppe ?? null,
@@ -395,6 +410,11 @@ function removeHistory(index) {
 function formatDate(dateStr) {
   if (!dateStr) return "-";
   return format(new Date(dateStr), "dd.MM.yyyy HH:mm", { locale: de });
+}
+
+function nationalitaetOptionLabel(nationalitaet) {
+  const label = nationalitaet.staatAngehoerigkeit || nationalitaet.natKennz;
+  return label ? `${nationalitaet.staat} (${label})` : nationalitaet.staat;
 }
 
 function archiveOldPersonalnrIfChanged() {

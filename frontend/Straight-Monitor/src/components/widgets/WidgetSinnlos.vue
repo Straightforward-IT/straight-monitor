@@ -2,13 +2,21 @@
   <DashboardWidget title="Sinnloser Knopf" :icon="['fas', 'circle-exclamation']">
     <div class="ws-body">
       <button
+        type="button"
         class="ws-btn"
         :class="{ 'ws-btn--pressed': pressed }"
+        :aria-pressed="pressed"
         @mousedown="onPress"
         @mouseup="onRelease"
         @mouseleave="onRelease"
         @touchstart.prevent="onPress"
         @touchend.prevent="onRelease"
+        @touchcancel="onRelease"
+        @keydown.space.prevent="onPress"
+        @keyup.space.prevent="onRelease"
+        @keydown.enter.prevent="onPress"
+        @keyup.enter.prevent="onRelease"
+        @blur="onRelease"
       >
         <span class="ws-btn-label">DRÜCKEN</span>
       </button>
@@ -70,7 +78,11 @@ const onRelease = () => { pressed.value = false; };
     0 10px 16px rgba(0, 0, 0, 0.4);
   transition: transform 0.06s ease, box-shadow 0.06s ease;
   position: relative;
-  outline: none;
+
+  &:focus-visible {
+    outline: 3px solid var(--control-focus-ring);
+    outline-offset: 5px;
+  }
 
   &::before {
     content: '';

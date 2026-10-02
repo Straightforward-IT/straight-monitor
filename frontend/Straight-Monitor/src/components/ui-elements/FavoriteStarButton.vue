@@ -3,6 +3,8 @@
     class="favorite-star-button"
     :class="{ active }"
     :title="active ? activeTitle : inactiveTitle"
+    :aria-label="active ? activeTitle : inactiveTitle"
+    :aria-pressed="active"
     type="button"
     @click.stop="$emit('toggle', $event)"
   >
@@ -44,7 +46,13 @@ defineEmits(['toggle']);
 
 .favorite-star-button.active,
 .favorite-star-button:hover {
-  color: var(--primary);
+  color: var(--action-accent-text, var(--primary));
+}
+
+.favorite-star-button:focus-visible {
+  outline: 2px solid var(--control-focus-ring, var(--primary));
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .favorite-star-button:hover {

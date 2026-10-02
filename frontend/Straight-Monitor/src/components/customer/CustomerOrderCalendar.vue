@@ -6,7 +6,7 @@
       @previous="moveMonth(-1)" @next="moveMonth(1)" @open="$emit('open', $event)"
     />
     <p v-if="error" role="alert" class="calendar-message">
-      {{ error }} <button type="button" @click="loadOrders">Erneut laden</button>
+      {{ error }} <AppButton size="sm" variant="ghost" @click="loadOrders">Erneut laden</AppButton>
     </p>
     <p v-else-if="!loading && !orders.length" class="calendar-message">Keine Aufträge in diesen beiden Monaten.</p>
   </div>
@@ -15,6 +15,7 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue';
 import AssignmentCalendar from '@/components/ui-elements/AssignmentCalendar.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 import api from '@/utils/api';
 const props = defineProps({ kundenNr: { type: [Number, String], required: true } });
 defineEmits(['open']);
@@ -58,5 +59,5 @@ onBeforeUnmount(() => { requestId++; });
 
 <style scoped>
 .calendar-message { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
-.calendar-message button { color: var(--primary); background: transparent; border: 0; cursor: pointer; }
+.calendar-message button { margin-left: .25rem; }
 </style>

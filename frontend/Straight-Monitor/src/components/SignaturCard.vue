@@ -45,9 +45,16 @@
         </div>
       </div>
 
-      <button class="sc-chevron" type="button">
+      <AppIconButton
+        class="sc-chevron"
+        size="sm"
+        variant="ghost"
+        :label="expanded ? 'Signaturdetails schließen' : 'Signaturdetails öffnen'"
+        :aria-expanded="expanded"
+        @click.stop="toggleExpand"
+      >
         <font-awesome-icon :icon="['fas', expanded ? 'chevron-up' : 'chevron-down']" />
-      </button>
+      </AppIconButton>
     </div>
 
     <!-- Expanded body -->
@@ -92,26 +99,28 @@
                   <span class="sc-sub-role">{{ s.role }}</span>
                 </div>
                 <!-- In-app signing is available only to internal embedded signers. -->
-                <button
+                <AppIconButton
                   v-if="vorgang.status === 'open' && s.embedded && submitterSigningSrc(s) && s.status !== 'completed'"
                   class="sc-sub-link sc-sub-link--sign"
-                  :class="{ active: activeEmbedSrc === submitterSigningSrc(s) }"
-                  type="button"
-                  title="In-App signieren"
+                  size="sm"
+                  variant="outlined"
+                  label="In-App signieren"
+                  :active="activeEmbedSrc === submitterSigningSrc(s)"
                   @click="selectEmbedSubmitter(s)"
                 >
                   <font-awesome-icon :icon="['fas', 'pen-to-square']" />
-                </button>
+                </AppIconButton>
                 <!-- Copy link button always available alongside -->
-                <button
+                <AppIconButton
                   v-if="vorgang.status === 'open' && submitterSigningSrc(s) && s.status !== 'completed'"
                   class="sc-sub-link"
-                  type="button"
-                  title="Signatur-Link kopieren"
+                  size="sm"
+                  variant="ghost"
+                  label="Signatur-Link kopieren"
                   @click="copyText(submitterSigningSrc(s), 'Signatur-Link kopiert')"
                 >
                   <font-awesome-icon :icon="['fas', 'link']" />
-                </button>
+                </AppIconButton>
               </div>
               <div
                 v-for="recipient in vorgang.entleiherInvitationRecipients || []"
@@ -229,24 +238,24 @@
             </div>
 
             <div class="sc-actions">
-              <button v-if="vorgang.status === 'draft'" class="sc-action sc-action--edit" type="button" @click="editDraft">
+              <AppButton v-if="vorgang.status === 'draft'" size="sm" variant="secondary" @click="editDraft">
                 <font-awesome-icon :icon="['fas', 'pen-nib']" /> Bearbeiten
-              </button>
-              <button v-if="hasSignedDoc" class="sc-action" type="button" @click="download">
-                <font-awesome-icon :icon="['fas', downloading ? 'spinner' : 'download']" :spin="downloading" /> Download
-              </button>
-              <button v-if="vorgang.r2KeyAudit" class="sc-action" type="button" @click="openAudit">
+              </AppButton>
+              <AppButton v-if="hasSignedDoc" size="sm" variant="secondary" :loading="downloading" @click="download">
+                <font-awesome-icon v-if="!downloading" :icon="['fas', 'download']" /> Download
+              </AppButton>
+              <AppButton v-if="vorgang.r2KeyAudit" size="sm" variant="secondary" @click="openAudit">
                 <font-awesome-icon :icon="['fas', 'shield-halved']" /> Audit
-              </button>
-              <button v-if="hasSignedDoc" class="sc-action" type="button" @click="copySignedLink">
+              </AppButton>
+              <AppButton v-if="hasSignedDoc" size="sm" variant="secondary" @click="copySignedLink">
                 <font-awesome-icon :icon="['fas', 'copy']" /> Link kopieren
-              </button>
-              <button v-if="vorgang.status === 'open'" class="sc-action" type="button" :disabled="refreshing" @click="refresh">
-                <font-awesome-icon :icon="['fas', 'rotate-right']" :spin="refreshing" /> Aktualisieren
-              </button>
-              <button v-if="vorgang.status !== 'completed' && vorgang.status !== 'cancelled'" class="sc-action sc-action--danger" type="button" @click="cancel">
+              </AppButton>
+              <AppButton v-if="vorgang.status === 'open'" size="sm" variant="secondary" :loading="refreshing" @click="refresh">
+                <font-awesome-icon v-if="!refreshing" :icon="['fas', 'rotate-right']" /> Aktualisieren
+              </AppButton>
+              <AppButton v-if="vorgang.status !== 'completed' && vorgang.status !== 'cancelled'" size="sm" variant="danger" @click="cancel">
                 <font-awesome-icon :icon="['fas', 'ban']" /> Stornieren
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -273,6 +282,8 @@ import { faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotat
 import { DocusealForm } from '@docuseal/vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import api from '@/utils/api';
 
@@ -528,10 +539,10 @@ function onEmbedComplete() {
 
   &:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07); }
   &.expanded { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
-  &.status-completed { border-left: 3px solid #10b981; }
-  &.status-open { border-left: 3px solid #f59e0b; }
+  &.status-completed { border-left: 3px solid var(--status-success-text); }
+  &.status-open { border-left: 3px solid var(--status-warning-text); }
   &.status-draft { border-left: 3px solid var(--muted); }
-  &.status-cancelled { border-left: 3px solid #ef4444; opacity: 0.7; }
+  &.status-cancelled { border-left: 3px solid var(--status-danger-text); opacity: 0.7; }
 }
 
 .sc-head {
@@ -573,8 +584,8 @@ function onEmbedComplete() {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary);
+  background: color-mix(in srgb, var(--action-accent-text) 10%, transparent);
+  color: var(--action-accent-text);
   font-size: 0.68rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -605,17 +616,18 @@ function onEmbedComplete() {
   font-weight: 700;
   padding: 1px 7px;
   border-radius: 10px;
-  &--kunde { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
-  &--ma { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
+  &--kunde { background: color-mix(in srgb, var(--action-accent-text) 14%, transparent); color: var(--action-accent-text); }
+  &--ma { background: color-mix(in srgb, var(--status-success-text) 16%, transparent); color: var(--status-success-text); }
   &--standort { background: var(--hover); color: var(--muted); }
   &--auftrag {
-    background: color-mix(in srgb, #6366f1 14%, transparent);
-    color: #818cf8;
+    background: color-mix(in srgb, var(--action-accent-text) 14%, transparent);
+    color: var(--action-accent-text);
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    &:hover { background: color-mix(in srgb, #6366f1 24%, transparent); }
+    &:hover { background: color-mix(in srgb, var(--action-accent-text) 24%, transparent); }
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   }
 }
 .sc-date { font-size: 0.68rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
@@ -658,19 +670,13 @@ function onEmbedComplete() {
   font-weight: 700;
   flex-shrink: 0;
   white-space: nowrap;
-  &.badge-completed { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
-  &.badge-open { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #f59e0b; }
+  &.badge-completed { background: color-mix(in srgb, var(--status-success-text) 16%, transparent); color: var(--status-success-text); }
+  &.badge-open { background: color-mix(in srgb, var(--status-warning-text) 16%, transparent); color: var(--status-warning-text); }
   &.badge-draft { background: var(--hover); color: var(--muted); }
-  &.badge-cancelled { background: color-mix(in srgb, #ef4444 14%, transparent); color: #ef4444; }
+  &.badge-cancelled { background: color-mix(in srgb, var(--status-danger-text) 14%, transparent); color: var(--status-danger-text); }
 }
 
-.sc-chevron {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-}
+.sc-chevron { flex-shrink: 0; }
 
 /* Body */
 .sc-body {
@@ -688,7 +694,7 @@ function onEmbedComplete() {
   border-radius: 8px;
   font-size: 0.84rem;
   font-weight: 500;
-  color: var(--primary);
+  color: var(--action-accent-text);
 
   svg { flex-shrink: 0; font-size: 0.9rem; }
 }
@@ -758,11 +764,12 @@ function onEmbedComplete() {
   border-radius: 7px;
   font-size: 0.82rem;
   font-weight: 500;
-  color: var(--primary);
+  color: var(--action-accent-text);
   text-decoration: none;
   transition: background 0.12s;
 
   &:hover { background: color-mix(in oklab, var(--primary) 8%, transparent); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
   &.sc-link-row--static {
     color: var(--text);
@@ -791,8 +798,8 @@ function onEmbedComplete() {
   .sc-ts-label { color: var(--muted); min-width: 100px; flex-shrink: 0; }
   .sc-ts-val { color: var(--text); font-weight: 500; }
 
-  &.sc-ts-row--done .sc-link-icon { color: #10b981; }
-  &.sc-ts-row--cancelled .sc-link-icon { color: #ef4444; }
+  &.sc-ts-row--done .sc-link-icon { color: var(--status-success-text); }
+  &.sc-ts-row--cancelled .sc-link-icon { color: var(--status-danger-text); }
   &.sc-ts-row--signer .sc-link-icon { color: var(--primary); }
   &.sc-ts-row--signer .sc-ts-label { font-style: italic; }
 }
@@ -806,23 +813,10 @@ function onEmbedComplete() {
   .sc-sub-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sc-sub-name { font-size: 0.84rem; font-weight: 600; color: var(--text); }
   .sc-sub-role { font-size: 0.72rem; color: var(--muted); }
-  .sc-sub-link {
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    padding: 4px 6px; border-radius: 5px; font-size: 0.85rem;
-    &:hover { color: var(--primary); }
-
-    &.sc-sub-link--sign {
-      color: var(--primary);
-      border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
-      background: color-mix(in oklab, var(--primary) 7%, transparent);
-      font-size: 0.78rem;
-      &:hover, &.active { background: color-mix(in oklab, var(--primary) 14%, transparent); border-color: var(--primary); }
-    }
-  }
-  &.sub-completed .sc-sub-icon { color: #10b981; }
-  &.sub-awaiting .sc-sub-icon { color: #f59e0b; }
-  &.sub-declined .sc-sub-icon { color: #ef4444; }
-  &.sub-invitation-recipient .sc-sub-icon { color: var(--primary); }
+  &.sub-completed .sc-sub-icon { color: var(--status-success-text); }
+  &.sub-awaiting .sc-sub-icon { color: var(--status-warning-text); }
+  &.sub-declined .sc-sub-icon { color: var(--status-danger-text); }
+  &.sub-invitation-recipient .sc-sub-icon { color: var(--action-accent-text); }
 }
 
 .sc-actions {
@@ -831,24 +825,6 @@ function onEmbedComplete() {
   gap: 8px;
   margin-top: 8px;
 }
-.sc-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover { background: var(--hover); border-color: var(--primary); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &--danger:hover { border-color: #ef4444; color: #ef4444; }
-  &--edit:hover { border-color: var(--primary); color: var(--primary); }
-}
-
 .sc-expand-enter-active, .sc-expand-leave-active { transition: opacity 0.18s; }
 .sc-expand-enter-from, .sc-expand-leave-to { opacity: 0; }
 </style>

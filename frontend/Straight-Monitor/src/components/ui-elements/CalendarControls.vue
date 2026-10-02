@@ -1,19 +1,43 @@
 <template>
   <div class="calendar-controls">
     <CustomTooltip :text="previousLabel">
-      <button type="button" class="calendar-controls__nav" :aria-label="previousLabel" @click="shift(-1)">
+      <AppIconButton
+        variant="secondary"
+        size="sm"
+        class="calendar-controls__nav"
+        :label="previousLabel"
+        @click="shift(-1)"
+      >
         <FontAwesomeIcon :icon="faChevronLeft" />
-      </button>
+      </AppIconButton>
     </CustomTooltip>
-    <DatePicker v-model="selectedDate" inline :mode="type">
+    <DatePicker
+      v-model="selectedDate"
+      inline
+      :mode="type"
+    >
       <template #default="{ toggle }">
-        <button type="button" class="calendar-controls__picker" :aria-label="pickerLabel" @click="toggle">{{ label }}</button>
+        <AppButton
+          variant="secondary"
+          size="sm"
+          class="calendar-controls__picker"
+          :aria-label="pickerLabel"
+          @click="toggle"
+        >
+          {{ label }}
+        </AppButton>
       </template>
     </DatePicker>
     <CustomTooltip :text="nextLabel">
-      <button type="button" class="calendar-controls__nav" :aria-label="nextLabel" @click="shift(1)">
+      <AppIconButton
+        variant="secondary"
+        size="sm"
+        class="calendar-controls__nav"
+        :label="nextLabel"
+        @click="shift(1)"
+      >
         <FontAwesomeIcon :icon="faChevronRight" />
-      </button>
+      </AppIconButton>
     </CustomTooltip>
   </div>
 </template>
@@ -24,6 +48,8 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const props = defineProps({
   modelValue: { type: Date, default: () => new Date() },
@@ -33,8 +59,8 @@ const emit = defineEmits(['update:modelValue']);
 const selectedDate = computed({ get: () => props.modelValue || new Date(), set: value => emit('update:modelValue', value) });
 const typeLabel = computed(() => ({ day: 'Tag', week: 'Kalenderwoche', month: 'Monat', year: 'Jahr' })[props.type]);
 const pickerLabel = computed(() => `${typeLabel.value} wählen`);
-const previousLabel = computed(() => `Vorheriger ${typeLabel.value}`);
-const nextLabel = computed(() => `Nächster ${typeLabel.value}`);
+const previousLabel = computed(() => props.type === 'week' ? 'Vorherige Kalenderwoche' : props.type === 'year' ? 'Vorheriges Jahr' : `Vorheriger ${typeLabel.value}`);
+const nextLabel = computed(() => props.type === 'week' ? 'Nächste Kalenderwoche' : props.type === 'year' ? 'Nächstes Jahr' : `Nächster ${typeLabel.value}`);
 const label = computed(() => {
   const date = selectedDate.value;
   if (props.type === 'week') return `KW ${isoWeek(date)} ${isoWeekYear(date)}`;
@@ -68,11 +94,9 @@ function shift(amount) {
 
 <style scoped>
 .calendar-controls { position: absolute; top: 100%; right: 12px; z-index: 5; display: flex; align-items: center; gap: 4px; height: 24px; white-space: nowrap; }
-.calendar-controls__picker, .calendar-controls__nav { height: 24px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 0 0 5px 5px; color: var(--text); background: var(--tile-bg); font: inherit; font-size: 0.72rem; box-shadow: none; }
-.calendar-controls__picker { width: 150px; padding: 0 6px; cursor: pointer; }
+.calendar-controls .calendar-controls__picker, .calendar-controls .calendar-controls__nav { min-height: 24px; height: 24px; border-radius: 0 0 5px 5px; font-size: 0.72rem; }
+.calendar-controls .calendar-controls__picker { width: 150px; padding: 0 6px; }
 .calendar-controls :deep(.dp-layer--inline) { right: -44px; left: auto; }
-.calendar-controls__nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; padding: 0; color: var(--muted); cursor: pointer; }
-.calendar-controls__picker:hover, .calendar-controls__nav:hover { color: var(--primary); border-color: var(--primary); }
-.calendar-controls__nav:focus-visible, .calendar-controls__picker:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.calendar-controls .calendar-controls__nav { --app-button-icon-size: 28px; padding: 0; }
 @media (max-width: 720px) { .calendar-controls { right: 6px; gap: 3px; } }
 </style>

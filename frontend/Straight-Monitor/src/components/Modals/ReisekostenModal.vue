@@ -5,6 +5,9 @@
     subtitle="Einsatzdokument"
     size="lg"
     minimizable
+    :show-close="!interactionBusy"
+    :close-on-backdrop="!interactionBusy"
+    :close-on-escape="!interactionBusy"
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle || defaultMinimizeTitle"
     class="reisekosten-modal"
@@ -19,7 +22,8 @@
             class="rk-step"
             :class="{ active: currentStep === i, done: currentStep > i, reachable: i <= maxReachableStep }"
             type="button"
-            :disabled="i > maxReachableStep"
+            :disabled="interactionBusy || i > maxReachableStep"
+            :aria-current="currentStep === i ? 'step' : undefined"
             @click="i <= maxReachableStep && (currentStep = i)"
           >
             <span class="rk-step-num">
@@ -30,11 +34,11 @@
           </button>
         </nav>
 
-        <div v-if="loading" class="dialog__body dialog__body--center">
+        <div v-if="loading" class="dialog__body dialog__body--center" role="status">
           <font-awesome-icon :icon="['fas', 'spinner']" spin /> Lade…
         </div>
 
-        <div v-else class="dialog__body">
+        <div v-else class="dialog__body" :inert="interactionBusy">
           <!-- ───────── STEP 1: Grunddaten ───────── -->
           <section v-show="currentStep === 0" class="rk-section">
             <div v-if="!isEditing" class="rk-block">
@@ -50,10 +54,10 @@
             <div class="rk-block">
               <div class="section-heading"><h4>Grunddaten</h4></div>
               <div class="base-grid">
-                <label>Name, Vorname<input :value="`${form.kopf.name}${form.kopf.vorname ? ', ' + form.kopf.vorname : ''}`" type="text" disabled /></label>
-                <label>Firma<input v-model="form.kopf.firma" type="text" /></label>
-                <label>Zweck der Reise<input v-model="form.kopf.zweck" type="text" /></label>
-                <label>Nummernschild<input v-model="form.kopf.nummernschild" type="text" placeholder="z. B. HH-AB 123" /></label>
+                <label>Name, Vorname<AppTextInput :model-value="`${form.kopf.name}${form.kopf.vorname ? ', ' + form.kopf.vorname : ''}`" disabled /></label>
+                <label>Firma<AppTextInput v-model="form.kopf.firma" /></label>
+                <label>Zweck der Reise<AppTextInput v-model="form.kopf.zweck" /></label>
+                <label>Nummernschild<AppTextInput v-model="form.kopf.nummernschild" placeholder="z. B. HH-AB 123" /></label>
                 <label>Fahrt erfolgte mit
                   <select v-model="form.kopf.transportmittel">
                     <option value="dienstwagen">Dienstwagen</option>
@@ -63,11 +67,11 @@
                     <option value="flugzeug">Flugzeug</option>
                   </select>
                 </label>
-                <label>Ort (Unterschrift)<input v-model="form.ort" type="text" placeholder="z. B. Hamburg" /></label>
+                <label>Ort (Unterschrift)<AppTextInput v-model="form.ort" placeholder="z. B. Hamburg" /></label>
                 <label>Reisebeginn (Datum)<input v-model="form.kopf.reisebeginn" type="date" /></label>
                 <label>Reiseende (Datum)<input v-model="form.kopf.reiseende" type="date" /></label>
-                <label>Gesamtdauer (Tage)<input v-model.number="form.kopf.tage" type="number" min="0" /></label>
-                <label>Gesamtdauer (Stunden)<input v-model="form.kopf.stunden" type="text" /></label>
+                <label>Gesamtdauer (Tage)<AppTextInput v-model.number="form.kopf.tage" type="number" min="0" /></label>
+                <label>Gesamtdauer (Stunden)<AppTextInput v-model="form.kopf.stunden" /></label>
               </div>
             </div>
           </section>
@@ -77,15 +81,15 @@
             <div class="rk-block">
               <div class="section-heading">
                 <h4>Reisedaten <span>Fahrtstrecke — erscheint als eigene Seite im Dokument</span></h4>
-                <button type="button" class="add-btn" @click="addReiseRow"><font-awesome-icon :icon="['fas','plus']" /> Fahrt</button>
+                <AppButton variant="outlined" size="sm" class="add-btn" @click="addReiseRow"><font-awesome-icon :icon="['fas','plus']" /> Fahrt</AppButton>
               </div>
               <p v-if="!form.reisedaten.length" class="rk-hint">Noch keine Fahrten. Füge Start, Ziel, Datum und Kilometer hinzu.</p>
               <div v-for="(row, i) in form.reisedaten" :key="'r'+i" class="reise-row">
                 <label class="mini">Datum<input v-model="row.datum" type="date" /></label>
-                <label class="mini">Start<AddressAutocomplete v-model="row.start" placeholder="Startadresse" :local-suggestions="addressSuggestions" /></label>
-                <label class="mini">Ziel<AddressAutocomplete v-model="row.ziel" placeholder="Zieladresse" :local-suggestions="addressSuggestions" /></label>
-                <label class="mini">km<input v-model.number="row.kilometer" type="number" step="0.1" min="0" /></label>
-                <button type="button" class="del-btn" @click="form.reisedaten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                <label class="mini">Start<AddressAutocomplete v-model="row.start" placeholder="Startadresse" :local-suggestions="addressSuggestions" :search-suggestions="searchAddressSuggestions" :disabled="interactionBusy" /></label>
+                <label class="mini">Ziel<AddressAutocomplete v-model="row.ziel" placeholder="Zieladresse" :local-suggestions="addressSuggestions" :search-suggestions="searchAddressSuggestions" :disabled="interactionBusy" /></label>
+                <label class="mini">km<AppTextInput v-model.number="row.kilometer" type="number" step="0.1" min="0" /></label>
+                <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Fahrt ${i + 1} entfernen`" @click="form.reisedaten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
               <div v-if="form.reisedaten.length" class="reise-total">
                 <span>Gesamt</span><b>{{ reiseKmTotal.toLocaleString('de-DE', { maximumFractionDigits: 1 }) }} km</b>
@@ -97,25 +101,25 @@
           <section v-show="currentStep === 2" class="rk-section">
             <div class="rk-block rk-block--highlight">
               <div class="section-heading">
-                <button type="button" class="add-btn" @click="addKmRow"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
+                <AppButton variant="outlined" size="sm" class="add-btn" @click="addKmRow"><font-awesome-icon :icon="['fas','plus']" /> Zeile</AppButton>
               </div>
               <p v-if="!form.kilometerpauschale.length" class="rk-hint">Fahrten unter „Reisedaten“ erzeugen hier automatisch je eine Zeile.</p>
               <template v-for="(row, i) in form.kilometerpauschale" :key="row._reiseId ? 'auto'+row._reiseId : 'km'+i">
                 <!-- Trip-linked row: Start & Ziel come from the Fahrt -->
                 <div v-if="row._reiseId" class="betrag-row betrag-row--linked km-linked">
-                  <label class="mini">Start<input :value="row.start" type="text" placeholder="Startadresse" disabled /></label>
-                  <label class="mini">Ziel<input :value="row.ziel" type="text" placeholder="Zieladresse" disabled /></label>
-                  <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" disabled /></label>
-                  <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
+                  <label class="mini">Start<AppTextInput :model-value="row.start" placeholder="Startadresse" disabled /></label>
+                  <label class="mini">Ziel<AppTextInput :model-value="row.ziel" placeholder="Zieladresse" disabled /></label>
+                  <label class="mini">Kilometer<AppTextInput v-model.number="row.kilometer" type="number" step="1" min="0" disabled /></label>
+                  <label class="mini">€ / km<AppTextInput v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
                   <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
                 </div>
                 <!-- Manually added row -->
                 <div v-else class="betrag-row">
-                  <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                  <label class="mini">Kilometer<input v-model.number="row.kilometer" type="number" step="1" min="0" /></label>
-                  <label class="mini">€ / km<input v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
+                  <AppTextInput v-model="row.bezeichnung" :aria-label="`Kilometerpauschale ${i + 1} Bezeichnung`" placeholder="Bezeichnung" />
+                  <label class="mini">Kilometer<AppTextInput v-model.number="row.kilometer" type="number" step="1" min="0" /></label>
+                  <label class="mini">€ / km<AppTextInput v-model.number="row.satzEur" type="number" step="0.01" min="0" /></label>
                   <span class="row-total">{{ centToStr(kmGesamt(row)) }} €</span>
-                  <button type="button" class="del-btn" @click="form.kilometerpauschale.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                  <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Kilometerpauschale ${i + 1} entfernen`" @click="form.kilometerpauschale.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
                 </div>
               </template>
             </div>
@@ -124,12 +128,12 @@
             <div class="rk-block">
               <div class="section-heading">
                 <h4>Fahrtkosten <span>Einzelnachweis mit Anlagen</span></h4>
-                <button type="button" class="add-btn" @click="addBetragRow('fahrtkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
+                <AppButton variant="outlined" size="sm" class="add-btn" @click="addBetragRow('fahrtkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</AppButton>
               </div>
               <div v-for="(row, i) in form.fahrtkosten" :key="'f'+i" class="betrag-row betrag-row--simple">
-                <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <button type="button" class="del-btn" @click="form.fahrtkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                <AppTextInput v-model="row.bezeichnung" :aria-label="`Fahrtkosten ${i + 1} Bezeichnung`" placeholder="Bezeichnung" />
+                <label class="mini">Betrag €<AppTextInput v-model.number="row.betragEur" :aria-label="`Fahrtkosten ${i + 1} Betrag in Euro`" type="number" step="0.01" min="0" /></label>
+                <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Fahrtkosten ${i + 1} entfernen`" @click="form.fahrtkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
             </div>
 
@@ -137,12 +141,12 @@
             <div class="rk-block">
               <div class="section-heading">
                 <h4>Übernachtungskosten <span>ohne Frühstück</span></h4>
-                <button type="button" class="add-btn" @click="addBetragRow('uebernachtung')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
+                <AppButton variant="outlined" size="sm" class="add-btn" @click="addBetragRow('uebernachtung')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</AppButton>
               </div>
               <div v-for="(row, i) in form.uebernachtung" :key="'u'+i" class="betrag-row betrag-row--simple">
-                <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <button type="button" class="del-btn" @click="form.uebernachtung.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                <AppTextInput v-model="row.bezeichnung" :aria-label="`Übernachtungskosten ${i + 1} Bezeichnung`" placeholder="Bezeichnung" />
+                <label class="mini">Betrag €<AppTextInput v-model.number="row.betragEur" :aria-label="`Übernachtungskosten ${i + 1} Betrag in Euro`" type="number" step="0.01" min="0" /></label>
+                <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Übernachtungskosten ${i + 1} entfernen`" @click="form.uebernachtung.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
             </div>
 
@@ -154,19 +158,19 @@
               <div class="pauschal-subsection">
                 <div class="section-heading">
                   <h5>Übernachtungspauschale</h5>
-                  <button type="button" class="add-btn" @click="addPauschUeber"><font-awesome-icon :icon="['fas','plus']" /> Übernachtung</button>
+                  <AppButton variant="outlined" size="sm" class="add-btn" @click="addPauschUeber"><font-awesome-icon :icon="['fas','plus']" /> Übernachtung</AppButton>
                 </div>
                 <div v-for="(row, i) in form.pauschalen.uebernachtungen" :key="'pu'+i" class="betrag-row betrag-row--simple">
                   <span class="row-label">Übernachtung</span>
-                  <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                  <button type="button" class="del-btn" @click="form.pauschalen.uebernachtungen.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                  <label class="mini">Betrag €<AppTextInput v-model.number="row.betragEur" :aria-label="`Übernachtungspauschale ${i + 1} Betrag in Euro`" type="number" step="0.01" min="0" /></label>
+                  <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Übernachtungspauschale ${i + 1} entfernen`" @click="form.pauschalen.uebernachtungen.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
                 </div>
               </div>
               <div class="pauschal-subsection pauschal-subsection--abwesenheit">
                 <h5>Abwesenheitspauschalen</h5>
                 <div v-for="tag in tagKeys" :key="tag.key" class="betrag-row betrag-row--simple">
                   <span class="row-label">{{ tag.label }}</span>
-                  <label class="mini">Betrag €<input v-model.number="form.pauschalen[tag.key].betragEur" type="number" step="0.01" min="0" /></label>
+                  <label class="mini">Betrag €<AppTextInput v-model.number="form.pauschalen[tag.key].betragEur" :aria-label="`${tag.label} Betrag in Euro`" type="number" step="0.01" min="0" /></label>
                 </div>
               </div>
             </div>
@@ -175,18 +179,18 @@
             <div class="rk-block">
               <div class="section-heading">
                 <h4>Nebenkosten</h4>
-                <button type="button" class="add-btn" @click="addBetragRow('nebenkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</button>
+                <AppButton variant="outlined" size="sm" class="add-btn" @click="addBetragRow('nebenkosten')"><font-awesome-icon :icon="['fas','plus']" /> Zeile</AppButton>
               </div>
               <div v-for="(row, i) in form.nebenkosten" :key="'n'+i" class="betrag-row betrag-row--simple">
-                <input v-model="row.bezeichnung" type="text" placeholder="Bezeichnung" />
-                <label class="mini">Betrag €<input v-model.number="row.betragEur" type="number" step="0.01" min="0" /></label>
-                <button type="button" class="del-btn" @click="form.nebenkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                <AppTextInput v-model="row.bezeichnung" :aria-label="`Nebenkosten ${i + 1} Bezeichnung`" placeholder="Bezeichnung" />
+                <label class="mini">Betrag €<AppTextInput v-model.number="row.betragEur" :aria-label="`Nebenkosten ${i + 1} Betrag in Euro`" type="number" step="0.01" min="0" /></label>
+                <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`Nebenkosten ${i + 1} entfernen`" @click="form.nebenkosten.splice(i,1)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
             </div>
 
             <!-- Summen -->
             <div class="rk-block rk-summen">
-              <div class="summen-row"><span>Vorschuß</span><label class="mini"><input v-model.number="form.vorschussEur" type="number" step="0.01" min="0" /> €</label></div>
+              <div class="summen-row"><span>Vorschuß</span><label class="mini"><AppTextInput v-model.number="form.vorschussEur" aria-label="Vorschuss in Euro" type="number" step="0.01" min="0" /> €</label></div>
               <div class="summen-row"><span>Reisekosten brutto</span><b>{{ centToStr(summen.bruttoCent) }} €</b></div>
               <div class="summen-row"><span>Enthaltene Vorsteuer</span><b>{{ centToStr(summen.vorsteuerGesamtCent) }} €</b></div>
               <div class="summen-row"><span>Reisekosten netto</span><b>{{ centToStr(summen.nettoCent) }} €</b></div>
@@ -203,41 +207,38 @@
               <div v-for="a in anlagen" :key="a.key" class="anlage-row">
                 <font-awesome-icon :icon="['fas', a.contentType && a.contentType.includes('pdf') ? 'file-pdf' : 'file-image']" />
                 <span class="anlage-name">{{ a.filename }}</span>
-                <button type="button" class="del-btn" title="Entfernen" @click="deleteAnlage(a)"><font-awesome-icon :icon="['fas','xmark']" /></button>
+                <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`${a.filename} entfernen`" :loading="deletingAnlageKey === a.key" @click="deleteAnlage(a)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
-              <label class="anlage-upload" :class="{ disabled: uploadingAnlage }">
-                <font-awesome-icon :icon="['fas', uploadingAnlage ? 'spinner' : 'upload']" :spin="uploadingAnlage" />
-                {{ uploadingAnlage ? 'Wird hochgeladen…' : 'Belege hinzufügen (Bild / PDF)' }}
-                <input type="file" multiple accept="image/*,application/pdf" class="sr-only" :disabled="uploadingAnlage" @change="uploadAnlagen" />
-              </label>
+              <AppButton variant="outlined" size="sm" class="anlage-upload" :disabled="interactionBusy" :loading="uploadingAnlage" @click="anlageInput?.click()">
+                <font-awesome-icon :icon="['fas','upload']" /> Belege hinzufügen (Bild / PDF)
+              </AppButton>
+              <input ref="anlageInput" type="file" multiple accept="image/*,application/pdf" hidden :disabled="interactionBusy" aria-label="Belege auswählen" @change="uploadAnlagen" />
             </div>
           </section>
         </div>
 
         <template #footer>
           <div class="dialog__footer">
-          <p v-if="error" class="error">{{ error }}</p>
-          <button v-if="currentStep > 0" type="button" class="secondary" @click="currentStep--">
+          <p v-if="error" class="error" role="alert">{{ error }}</p>
+          <AppButton v-if="currentStep > 0" variant="secondary" :disabled="interactionBusy" @click="currentStep--">
             <font-awesome-icon :icon="['fas','arrow-left']" /> Zurück
-          </button>
-          <button v-else type="button" class="secondary" @click="close">Abbrechen</button>
+          </AppButton>
+          <AppButton v-else variant="secondary" :disabled="interactionBusy" @click="close">Abbrechen</AppButton>
 
-          <button type="button" class="secondary" :disabled="busy" @click="preview">
+          <AppButton variant="secondary" :disabled="interactionBusy" :loading="activeAction === 'preview'" @click="preview">
             <font-awesome-icon :icon="['fas','eye']" /> Vorschau
-          </button>
+          </AppButton>
 
-          <button type="button" class="secondary" :disabled="busy || !canSave" @click="save(false)">
-            <font-awesome-icon :icon="['fas', busy ? 'spinner' : 'floppy-disk']" :spin="busy" /> Speichern
-          </button>
+          <AppButton variant="secondary" :disabled="interactionBusy || !canSave" :loading="activeAction === 'save'" @click="save(false)">
+            <font-awesome-icon :icon="['fas','floppy-disk']" /> Speichern
+          </AppButton>
 
-          <button v-if="currentStep < steps.length - 1" type="button" class="primary" :disabled="!canAdvance" @click="currentStep++">
+          <AppButton v-if="currentStep < steps.length - 1" :disabled="interactionBusy || !canAdvance" @click="currentStep++">
             Weiter <font-awesome-icon :icon="['fas','arrow-right']" />
-          </button>
-          <template v-else>
-            <button type="button" class="primary" :disabled="busy || !canSave" @click="save(true)">
-              <font-awesome-icon :icon="['fas','file-signature']" /> Speichern & signieren
-            </button>
-          </template>
+          </AppButton>
+          <AppButton v-else :disabled="interactionBusy || !canSave" :loading="activeAction === 'sign'" @click="save(true)">
+            <font-awesome-icon :icon="['fas','file-signature']" /> Speichern & signieren
+          </AppButton>
           </div>
         </template>
   </ModalFrame>
@@ -250,8 +251,11 @@ import { faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignatu
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { computeSummen, centToStr, kmGesamtCent, pauschalGesamtCent, eurToCent, centToEur } from '@/utils/reisekostenCalc';
-import AddressAutocomplete from '@/components/AddressAutocomplete.vue';
+import AddressAutocomplete from '@/components/ui-elements/AddressAutocomplete.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 
 library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink);
 
@@ -279,6 +283,9 @@ const error = ref('');
 const selectedPersonalNr = ref('');
 const anlagen = ref([]);
 const uploadingAnlage = ref(false);
+const deletingAnlageKey = ref(null);
+const activeAction = ref('');
+const anlageInput = ref(null);
 const serverAddressSuggestions = ref([]);
 // Local id: starts from prop, set after the first (auto-)save so the doc can be edited/attached to.
 const localDocId = ref(props.docId);
@@ -290,6 +297,7 @@ const tagKeys = [
 ];
 
 const isEditing = computed(() => !!localDocId.value);
+const interactionBusy = computed(() => loading.value || busy.value || uploadingAnlage.value || deletingAnlageKey.value !== null);
 const defaultMinimizeTitle = computed(() =>
   props.auftragNr != null
     ? `Reisekosten · Auftrag ${props.auftragNr}`
@@ -383,6 +391,11 @@ const addressSuggestions = computed(() => {
   for (const r of form.reisedaten) { if (r.start) set.add(r.start); if (r.ziel) set.add(r.ziel); }
   return [...set].filter(Boolean);
 });
+
+async function searchAddressSuggestions(query) {
+  const { data } = await api.get('/api/reisekosten/address-search', { params: { q: query } });
+  return data.suggestions || [];
+}
 
 // ── Row helpers ─────────────────────────────────────────────────────────────
 function addBetragRow(section) {
@@ -547,7 +560,7 @@ async function ensureSaved() {
 async function uploadAnlagen(event) {
   const files = Array.from(event.target.files || []);
   event.target.value = '';
-  if (!files.length) return;
+  if (!files.length || interactionBusy.value) return;
   uploadingAnlage.value = true;
   error.value = '';
   try {
@@ -567,17 +580,23 @@ async function uploadAnlagen(event) {
 }
 
 async function deleteAnlage(a) {
-  if (!localDocId.value) return;
+  if (!localDocId.value || interactionBusy.value) return;
+  deletingAnlageKey.value = a.key;
+  error.value = '';
   try {
     const { data } = await api.delete(`/api/reisekosten/${localDocId.value}/anlagen`, { data: { key: a.key } });
     anlagen.value = data.data.anlagen || [];
   } catch (e) {
     error.value = e.response?.data?.message || 'Entfernen fehlgeschlagen.';
+  } finally {
+    deletingAnlageKey.value = null;
   }
 }
 
 async function preview() {
+  if (interactionBusy.value) return;
   busy.value = true;
+  activeAction.value = 'preview';
   error.value = '';
   try {
     const { data } = await api.post('/api/reisekosten/preview', toDoc(), { responseType: 'blob' });
@@ -588,11 +607,14 @@ async function preview() {
     error.value = 'Vorschau fehlgeschlagen.';
   } finally {
     busy.value = false;
+    activeAction.value = '';
   }
 }
 
 async function save(sign) {
+  if (interactionBusy.value || !canSave.value) return;
   busy.value = true;
+  activeAction.value = sign ? 'sign' : 'save';
   error.value = '';
   try {
     const payload = toDoc();
@@ -605,15 +627,17 @@ async function save(sign) {
       saved = data.data;
     }
     emit('saved', { doc: saved, sign: !!sign });
-    close();
+    emit('update:modelValue', false);
   } catch (e) {
     error.value = e.response?.data?.message || 'Speichern fehlgeschlagen.';
   } finally {
     busy.value = false;
+    activeAction.value = '';
   }
 }
 
 function close() {
+  if (interactionBusy.value) return;
   emit('update:modelValue', false);
 }
 
@@ -633,7 +657,7 @@ watch(() => form.reisedaten, syncKmPauschale, { deep: true });
 </script>
 
 <style scoped lang="scss">
-.reisekosten-modal {
+:global(.reisekosten-modal) {
   --mf-max-width: min(960px, 94vw);
   --mf-max-height: 94dvh;
   --mf-body-padding: 0;
@@ -646,12 +670,13 @@ watch(() => form.reisedaten, syncKmPauschale, { deep: true });
 .rk-steps { display: flex; gap: 4px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
 .rk-step { flex: 1; display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 8px; color: var(--muted); font-size: 0.8rem; font-weight: 600; opacity: 0.55; }
 .rk-step.reachable { opacity: 1; }
-.rk-step.active { color: var(--primary); }
+.rk-step.active { color: var(--action-accent-text); }
 .rk-step.done { color: var(--text); }
 .rk-step:disabled { cursor: default; }
+.rk-step:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 .rk-step-num { width: 22px; height: 22px; border-radius: 50%; border: 2px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; }
-.rk-step.active .rk-step-num { background: var(--primary); color: #fff; border-color: var(--primary); }
-.rk-step.done .rk-step-num { background: #10b981; color: #fff; border-color: #10b981; }
+.rk-step.active .rk-step-num { background: var(--primary); color: var(--on-action-primary); border-color: var(--primary); }
+.rk-step.done .rk-step-num { background: color-mix(in srgb, var(--status-success-text) 15%, var(--surface)); color: var(--status-success-text); border-color: var(--status-success-text); }
 .rk-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .dialog__body { flex: 1 1 auto; overflow: auto; padding: 18px; display: grid; gap: 20px; align-content: start; }
@@ -659,19 +684,16 @@ watch(() => form.reisedaten, syncKmPauschale, { deep: true });
 .rk-section { display: grid; gap: 18px; }
 .rk-block { display: grid; gap: 8px; }
 .rk-block--highlight { border: 1px solid var(--primary); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--primary) 6%, transparent); }
-.rk-badge { display: inline-block; background: var(--primary); color: #fff; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
-.betrag-row--linked .row-total { color: var(--primary); }
+.betrag-row--linked .row-total { color: var(--action-accent-text); }
 .km-linked { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 0.8fr 0.8fr auto auto; }
-.linked-badge { align-self: center; display: flex; justify-content: center; color: var(--primary); font-size: 0.78rem; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; }
 .section-heading h4 { margin: 0; font-size: 0.9rem; }
 .section-heading h4 span { color: var(--muted); font-size: 0.72rem; font-weight: 400; margin-left: 6px; }
 .base-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .base-grid .span-2 { grid-column: 1 / -1; }
 label { display: grid; gap: 5px; color: var(--text); font-size: 0.8rem; font-weight: 600; }
-input, select, textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px; background: var(--surface, var(--tile-bg)); color: var(--text); font: inherit; font-weight: 400; }
-input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none; }
-input:disabled { opacity: 0.7; }
+input[type="date"], select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; border: 1px solid var(--control-input-border); border-radius: var(--control-radius); padding: 8px 9px; background: var(--control-input-bg); color: var(--text); font: inherit; font-weight: 400; }
+input[type="date"]:focus-visible, select:focus-visible { border-color: var(--primary); outline: 2px solid var(--control-focus-ring); outline-offset: 1px; }
 .betrag-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 0.9fr 0.9fr 0.6fr auto; gap: 8px; align-items: end; }
 .betrag-row--simple { grid-template-columns: minmax(0, 1fr) 176px 40px; }
 .betrag-row--simple .del-btn { justify-self: end; }
@@ -680,31 +702,24 @@ input:disabled { opacity: 0.7; }
 .reise-row { display: grid; grid-template-columns: 128px minmax(0, 1fr) minmax(0, 1fr) 76px auto; gap: 8px; align-items: end; }
 .reise-row > label { min-width: 0; }
 .reise-total { display: flex; align-items: center; gap: 10px; justify-content: flex-end; font-size: 0.85rem; padding-top: 8px; border-top: 1px solid var(--border); }
-.reise-total b { color: var(--primary); }
+.reise-total b { color: var(--action-accent-text); }
 label.mini { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
 .pauschal-subsection { display: grid; gap: 8px; }
 .pauschal-subsection--abwesenheit { border-top: 1px solid var(--border); padding-top: 12px; }
 .pauschal-subsection h5 { margin: 0; font-size: 0.78rem; color: var(--muted); }
-.add-btn { border: 1px solid var(--border); background: transparent; color: var(--primary); border-radius: 6px; padding: 5px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; }
-.del-btn { border: none; background: transparent; color: #c3423f; cursor: pointer; padding: 8px; align-self: center; }
+.del-btn { --action-ghost-text: var(--status-danger-text); --action-accent-text: var(--status-danger-text); align-self: center; }
 .rk-hint { color: var(--muted); font-size: 0.76rem; font-style: italic; margin: 0; }
 .anlage-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; padding: 4px 0; }
 .anlage-row .anlage-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.anlage-row svg { color: var(--primary); }
-.anlage-upload { display: inline-flex; align-items: center; gap: 8px; border: 1px dashed var(--border); border-radius: 6px; padding: 9px 12px; cursor: pointer; color: var(--primary); font-size: 0.8rem; font-weight: 600; }
-.anlage-upload.disabled { opacity: 0.6; cursor: not-allowed; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.anlage-row svg { color: var(--action-accent-text); }
+.anlage-upload { border-style: dashed; }
 .rk-summen { border-top: 1px solid var(--border); padding-top: 12px; gap: 6px; }
 .summen-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; }
 .summen-row .mini { display: inline-flex; align-items: center; gap: 4px; }
 .summen-row .mini input { width: 100px; text-align: right; }
 .summen-row--total { border-top: 1px solid var(--border); padding-top: 6px; font-size: 0.95rem; }
-.summen-row--total b { color: var(--primary); }
+.summen-row--total b { color: var(--action-accent-text); }
 .dialog__footer { width: 100%; display: flex; align-items: center; justify-content: end; gap: 10px; padding: 15px 18px; flex-wrap: wrap; border-top: 1px solid var(--border); }
-.error { margin: 0 auto 0 0; color: #c3423f; font-size: 0.78rem; }
-button { border: none; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; padding: 8px 12px; }
-.icon-button, .secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
-.primary { background: var(--primary); color: #fff; }
-button:disabled { cursor: not-allowed; opacity: 0.55; }
+.error { margin: 0 auto 0 0; color: var(--status-danger-text); font-size: 0.78rem; }
 @media (max-width: 640px) { .base-grid { grid-template-columns: 1fr; } .betrag-row, .reise-row { grid-template-columns: 1fr 1fr; } }
 </style>

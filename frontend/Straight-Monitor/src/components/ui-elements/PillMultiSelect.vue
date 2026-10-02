@@ -180,9 +180,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding: 1px 5px 1px 7px;
-  border: 1px solid rgba(var(--primary-rgb, 253 126 20) / 0.35);
+  border: 1px solid rgba(var(--primary-rgb, 253, 126, 20), 0.35);
   border-radius: 20px;
-  background: rgba(var(--primary-rgb, 253 126 20) / 0.12);
+  background: rgba(var(--primary-rgb, 253, 126, 20), 0.12);
   color: var(--primary);
   font-size: 10px;
   font-weight: 500;

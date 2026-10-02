@@ -2,66 +2,93 @@
   <ModalFrame
     :model-value="modelValue"
     size="sm"
+    title="Neuer Signaturtyp"
+    :close-on-backdrop="!saving"
+    :close-on-escape="!saving"
     :style="{ '--mf-body-padding': '0' }"
     @update:model-value="close"
   >
-    <template #header>
+    <template #header="{ titleId }">
       <div class="sigt-title">
         <font-awesome-icon :icon="['fas', 'plus']" />
-        <h2>Neuer Signaturtyp</h2>
+        <h2 :id="titleId">
+          Neuer Signaturtyp
+        </h2>
       </div>
     </template>
 
     <div class="sigt-body">
-      <label class="sigt-label" for="sigt-label-input">Bezeichnung</label>
-      <input
+      <label
+        class="sigt-label"
+        for="sigt-label-input"
+      >Bezeichnung</label>
+      <AppTextInput
         id="sigt-label-input"
         v-model="label"
         type="text"
-        class="sigt-input"
         placeholder="z. B. Geheimhaltungsvereinbarung"
-        @input="syncKey"
+        @update:model-value="syncKey"
       />
 
-      <label class="sigt-label" for="sigt-key-input">
+      <label
+        class="sigt-label"
+        for="sigt-key-input"
+      >
         Schlüssel <span class="sigt-hint">(für Dateiablage, automatisch)</span>
       </label>
-      <input
+      <AppTextInput
         id="sigt-key-input"
         v-model="key"
         type="text"
-        class="sigt-input sigt-input--mono"
+        class="sigt-input--mono"
         placeholder="geheimhaltungsvereinbarung"
-        @input="keyEdited = true"
+        @update:model-value="keyEdited = true"
       />
 
       <label class="sigt-label">Verknüpfbar mit</label>
-      <div class="sigt-linked">
-        <button
-          v-for="opt in linkedOptions"
-          :key="opt.value"
-          class="sigt-linked-btn"
-          :class="{ active: linkedTo === opt.value }"
-          type="button"
-          @click="linkedTo = opt.value"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
+      <AppSegmentedControl
+        v-model="linkedTo"
+        :options="linkedOptions"
+        label="Verknüpfbar mit"
+        class="sigt-linked"
+      />
 
-      <label class="sigt-label" for="sigt-order-input">Reihenfolge</label>
-      <input id="sigt-order-input" v-model.number="order" type="number" class="sigt-input" min="0" />
+      <label
+        class="sigt-label"
+        for="sigt-order-input"
+      >Reihenfolge</label>
+      <AppTextInput
+        id="sigt-order-input"
+        v-model.number="order"
+        type="number"
+        min="0"
+      />
     </div>
 
     <template #footer>
       <div class="sigt-footer">
-        <p v-if="error" class="sigt-error"><font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}</p>
+        <p
+          v-if="error"
+          class="sigt-error"
+        >
+          <font-awesome-icon :icon="['fas', 'triangle-exclamation']" /> {{ error }}
+        </p>
         <div class="sigt-actions">
-          <button class="sigt-btn sigt-btn--ghost" type="button" @click="close">Abbrechen</button>
-          <button class="sigt-btn sigt-btn--primary" type="button" :disabled="!canSave || saving" @click="save">
-            <font-awesome-icon :icon="['fas', saving ? 'spinner' : 'check']" :spin="saving" />
+          <AppButton
+            variant="secondary"
+            :disabled="saving"
+            @click="close"
+          >
+            Abbrechen
+          </AppButton>
+          <AppButton
+            :disabled="!canSave"
+            :loading="saving"
+            @click="save"
+          >
+            <font-awesome-icon :icon="['fas', 'check']" />
             Anlegen
-          </button>
+          </AppButton>
         </div>
       </div>
     </template>
@@ -75,6 +102,9 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faPlus, faCheck, faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 
 library.add(faPlus, faCheck, faSpinner, faTriangleExclamation);
 
@@ -113,6 +143,7 @@ function syncKey() {
 }
 
 async function save() {
+  if (saving.value || !canSave.value) return;
   saving.value = true;
   error.value = '';
   try {
@@ -123,7 +154,7 @@ async function save() {
       order: order.value || 0,
     });
     emit('created', data);
-    close();
+    emit('update:modelValue', false);
   } catch (e) {
     console.error('Typ anlegen fehlgeschlagen', e);
     error.value = e?.response?.data?.message || 'Der Typ konnte nicht angelegt werden.';
@@ -133,6 +164,7 @@ async function save() {
 }
 
 function close() {
+  if (saving.value) return;
   emit('update:modelValue', false);
 }
 
@@ -153,7 +185,7 @@ watch(() => props.modelValue, (open) => {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--primary);
+  color: var(--action-accent-text);
 
   h2 { font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 0; }
 }
@@ -167,53 +199,21 @@ watch(() => props.modelValue, (open) => {
   .sigt-hint { text-transform: none; font-weight: 500; letter-spacing: 0; }
 }
 
-.sigt-input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg, var(--surface));
-  color: var(--text);
-  font-size: 0.88rem;
-  font-family: inherit;
-  outline: none;
-  &:focus { border-color: var(--primary); }
-  &--mono { font-family: ui-monospace, monospace; font-size: 0.82rem; }
-}
+.sigt-input--mono { font-family: ui-monospace, monospace; }
 
-.sigt-linked { display: flex; flex-wrap: wrap; gap: 6px; }
-.sigt-linked-btn {
-  padding: 7px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  background: var(--tile-bg, var(--surface));
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  &.active { border-color: var(--primary); color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.sigt-linked {
+  width: 100%;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.sigt-linked :deep(.app-segmented-control__option) { white-space: normal; }
 
 .sigt-footer {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.sigt-error { font-size: 0.8rem; color: #ef4444; display: flex; gap: 6px; align-items: center; }
-.sigt-actions { display: flex; justify-content: flex-end; gap: 10px; }
-
-.sigt-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; border-radius: 8px; font-size: 0.86rem; font-weight: 600;
-  cursor: pointer; border: 1px solid transparent; font-family: inherit;
-  &--primary {
-    background: var(--primary); color: #fff;
-    &:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 88%, #000); }
-    &:disabled { opacity: 0.5; cursor: not-allowed; }
-  }
-  &--ghost { background: none; border-color: var(--border); color: var(--text); &:hover { background: var(--hover); } }
-}
+.sigt-error { font-size: 0.8rem; color: var(--status-danger-text); display: flex; gap: 6px; align-items: center; }
+.sigt-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 
 </style>

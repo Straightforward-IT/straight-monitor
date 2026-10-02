@@ -1,5 +1,5 @@
 <template>
-  <article class="dash-widget">
+  <article class="dash-widget" :aria-busy="loading">
     <header class="dash-widget__header">
       <slot name="title">
         <div class="dash-widget__title-group">
@@ -15,7 +15,7 @@
 
     <div class="dash-widget__body">
       <!-- Loading skeleton -->
-      <div v-if="loading" class="dash-widget__skeleton">
+      <div v-if="loading" class="dash-widget__skeleton" role="status" :aria-label="`${title || 'Widget'} wird geladen`">
         <div class="skel skel--line" />
         <div class="skel skel--line skel--short" />
         <div class="skel skel--line" />
@@ -90,8 +90,10 @@ defineProps({
     transition: color 0.15s ease;
 
     &:hover h3 {
-      color: var(--primary);
+      color: var(--action-accent-text, var(--text));
     }
+
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   }
 
   &__icon {
@@ -128,12 +130,14 @@ defineProps({
     transition: color 0.15s ease;
 
     &:hover {
-      color: var(--primary);
+      color: var(--action-accent-text, var(--text));
 
       .dash-widget__link-arrow {
         transform: translateX(3px);
       }
     }
+
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   }
 
   &__link-arrow {

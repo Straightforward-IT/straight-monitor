@@ -1,55 +1,119 @@
 <template>
-  <article class="bewerber-detail" :class="{ 'bewerber-detail--embedded': embedded }">
-    <div v-if="loading" class="detail-state">Bewerber wird geladen ...</div>
-    <div v-else-if="loadError" class="detail-state detail-state--error">{{ loadError }}</div>
+  <article
+    class="bewerber-detail"
+    :class="{ 'bewerber-detail--embedded': embedded }"
+  >
+    <div
+      v-if="loading"
+      class="detail-state"
+    >
+      Bewerber wird geladen ...
+    </div>
+    <div
+      v-else-if="loadError"
+      class="detail-state detail-state--error"
+    >
+      {{ loadError }}
+    </div>
 
     <template v-else>
-      <header v-if="!embedded" class="detail-header">
+      <header
+        v-if="!embedded"
+        class="detail-header"
+      >
         <div class="identity">
-          <div class="avatar">{{ initials }}</div>
+          <div class="avatar">
+            {{ initials }}
+          </div>
           <div class="identity-copy">
             <h2>{{ form.vorname }} {{ form.nachname }}</h2>
             <p>{{ form.email || 'Keine E-Mail hinterlegt' }}</p>
             <div class="badges">
               <span :class="['status', `status--${bewerber.status}`]">{{ statusLabel }}</span>
-              <span v-if="bewerber.asana_id" class="badge">Asana verknüpft</span>
-              <span v-if="bewerber.submittedAt" class="badge badge--ok">Eingereicht am {{ formatDate(bewerber.submittedAt) }}</span>
+              <span
+                v-if="bewerber.asana_id"
+                class="badge"
+              >Asana verknüpft</span>
+              <span
+                v-if="bewerber.submittedAt"
+                class="badge badge--ok"
+              >Eingereicht am {{ formatDate(bewerber.submittedAt) }}</span>
               <span class="badge badge--muted">läuft ab {{ formatDate(bewerber.expiresAt) }}</span>
             </div>
           </div>
         </div>
         <div class="header-actions">
-          <a v-if="bewerber.asana_permalink" :href="bewerber.asana_permalink" target="_blank" rel="noopener" class="ghost-button">Asana öffnen</a>
-          <button type="button" class="ghost-button" @click="$emit('invite', bewerber)">Einladung senden</button>
+          <a
+            v-if="bewerber.asana_permalink"
+            :href="bewerber.asana_permalink"
+            target="_blank"
+            rel="noopener"
+            class="asana-link"
+          >Asana öffnen</a>
+          <AppButton
+            variant="secondary"
+            @click="$emit('invite', bewerber)"
+          >
+            Einladung senden
+          </AppButton>
         </div>
       </header>
 
-      <form class="detail-form" @submit.prevent="save">
+      <form
+        class="detail-form"
+        @submit.prevent="save"
+      >
         <section class="detail-section">
           <h3>Persönliche Daten</h3>
           <div class="form-grid">
             <label>Anrede<select v-model="form.anrede"><option value="">Keine Angabe</option><option>Frau</option><option>Herr</option></select></label>
             <label>Familienstand<select v-model="form.familienstand"><option value="">Keine Angabe</option><option>ledig</option><option>verheiratet</option><option>eingetragene Lebenspartnerschaft</option><option>getrennt lebend</option><option>geschieden</option><option>verwitwet</option></select></label>
-            <label>Vorname<input v-model.trim="form.vorname" required /></label>
-            <label>Nachname<input v-model.trim="form.nachname" required /></label>
-            <label>E-Mail<input v-model.trim="form.email" type="email" required /></label>
-            <label>Telefon<input v-model.trim="form.telefon" type="tel" /></label>
-            <label>Geburtsdatum<input v-model="form.geburtsdatum" type="date" /></label>
-            <label>Staatsangehörigkeit<input v-model.trim="form.staatsangehoerigkeit" /></label>
-            <label>Standort<select v-model="form.locationV2"><option value="">Nicht zugeordnet</option><option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull || location.shortName }}</option></select></label>
+            <label>Vorname<input
+              v-model.trim="form.vorname"
+              required
+            ></label>
+            <label>Nachname<input
+              v-model.trim="form.nachname"
+              required
+            ></label>
+            <label>E-Mail<input
+              v-model.trim="form.email"
+              type="email"
+              required
+            ></label>
+            <label>Telefon<input
+              v-model.trim="form.telefon"
+              type="tel"
+            ></label>
+            <label>Geburtsdatum<input
+              v-model="form.geburtsdatum"
+              type="date"
+            ></label>
+            <label>Staatsangehörigkeit<input v-model.trim="form.staatsangehoerigkeit"></label>
+            <label>Standort<select v-model="form.locationV2"><option value="">Nicht zugeordnet</option><option
+              v-for="location in locations"
+              :key="location._id"
+              :value="location._id"
+            >{{ location.nameFull || location.shortName }}</option></select></label>
           </div>
         </section>
 
         <section class="detail-section">
           <h3>Adresse</h3>
           <div class="form-grid address-grid">
-            <label class="address-street">Straße<input v-model.trim="form.strasse" /></label>
-            <label class="address-number">Hausnummer<input v-model.trim="form.hausnummer" /></label>
-            <label class="address-plz">PLZ<input v-model.trim="form.plz" inputmode="numeric" /></label>
-            <label class="address-city">Ort<input v-model.trim="form.ort" /></label>
+            <label class="address-street">Straße<input v-model.trim="form.strasse"></label>
+            <label class="address-number">Hausnummer<input v-model.trim="form.hausnummer"></label>
+            <label class="address-plz">PLZ<input
+              v-model.trim="form.plz"
+              inputmode="numeric"
+            ></label>
+            <label class="address-city">Ort<input v-model.trim="form.ort"></label>
           </div>
           <div class="form-grid">
-            <label class="full">Wohnsitz<input v-model.trim="form.wohnsitz" placeholder="z. B. Deutschland" /></label>
+            <label class="full">Wohnsitz<input
+              v-model.trim="form.wohnsitz"
+              placeholder="z. B. Deutschland"
+            ></label>
           </div>
         </section>
 
@@ -57,11 +121,24 @@
           <h3>Einsatz und Verfügbarkeit</h3>
           <div class="form-grid">
             <label>Bevorzugter Bereich<select v-model="form.bevorzugterBereich"><option value="">Keine Angabe</option><option value="service">Service</option><option value="logistik">Logistik</option><option value="beides">Service und Logistik</option></select></label>
-            <label>Aktuelles Anstellungsverhältnis<input v-model.trim="form.aktuellesAnstellungsverhaeltnis" /></label>
-            <label>Verfügbar ab<input v-model="form.verfuegbarAb" type="date" /></label>
-            <label>Verfügbar bis<input v-model="form.verfuegbarBis" type="date" /></label>
-            <label class="full">Verfügbarkeit<textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Wochentage, Schichten oder Sperrzeiten" /></label>
-            <label class="full">Erfahrung Gastronomie / Logistik<textarea v-model.trim="form.erfahrungGastronomieLogistik" rows="3" /></label>
+            <label>Aktuelles Anstellungsverhältnis<input v-model.trim="form.aktuellesAnstellungsverhaeltnis"></label>
+            <label>Verfügbar ab<input
+              v-model="form.verfuegbarAb"
+              type="date"
+            ></label>
+            <label>Verfügbar bis<input
+              v-model="form.verfuegbarBis"
+              type="date"
+            ></label>
+            <label class="full">Verfügbarkeit<textarea
+              v-model.trim="form.verfuegbarkeit"
+              rows="3"
+              placeholder="Wochentage, Schichten oder Sperrzeiten"
+            /></label>
+            <label class="full">Erfahrung Gastronomie / Logistik<textarea
+              v-model.trim="form.erfahrungGastronomieLogistik"
+              rows="3"
+            /></label>
           </div>
         </section>
 
@@ -70,45 +147,99 @@
           <fieldset>
             <legend>Führerscheinklassen</legend>
             <div class="chip-grid">
-              <label v-for="license in licenseClasses" :key="license"><input v-model="form.fuehrerscheine" type="checkbox" :value="license" /> {{ license }}</label>
+              <label
+                v-for="license in licenseClasses"
+                :key="license"
+              ><input
+                v-model="form.fuehrerscheine"
+                type="checkbox"
+                :value="license"
+              > {{ license }}</label>
             </div>
           </fieldset>
           <div class="chip-grid toggle-grid">
-            <label><input v-model="form.eigenesAuto" type="checkbox" /> Eigenes Auto vorhanden</label>
-            <label v-if="form.eigenesAuto"><input v-model="form.nutzungsberechtigung" type="checkbox" /> Nutzung für Einsätze möglich</label>
-            <label><input v-model="form.reisebereitschaft" type="checkbox" /> Reisebereitschaft</label>
-            <label><input v-model="form.deutschlandticket" type="checkbox" /> Deutschlandticket vorhanden</label>
-            <label><input v-model="form.hat70TageGearbeitet" type="checkbox" /> Bereits nach 70-Tage-Regelung gearbeitet</label>
+            <label><input
+              v-model="form.eigenesAuto"
+              type="checkbox"
+            > Eigenes Auto vorhanden</label>
+            <label v-if="form.eigenesAuto"><input
+              v-model="form.nutzungsberechtigung"
+              type="checkbox"
+            > Nutzung für Einsätze möglich</label>
+            <label><input
+              v-model="form.reisebereitschaft"
+              type="checkbox"
+            > Reisebereitschaft</label>
+            <label><input
+              v-model="form.deutschlandticket"
+              type="checkbox"
+            > Deutschlandticket vorhanden</label>
+            <label><input
+              v-model="form.hat70TageGearbeitet"
+              type="checkbox"
+            > Bereits nach 70-Tage-Regelung gearbeitet</label>
           </div>
           <div class="form-grid extras">
-            <label v-if="form.hat70TageGearbeitet">Bereits gearbeitete Tage<input v-model.number="form.tage70Regelung" type="number" min="0" max="366" /></label>
+            <label v-if="form.hat70TageGearbeitet">Bereits gearbeitete Tage<input
+              v-model.number="form.tage70Regelung"
+              type="number"
+              min="0"
+              max="366"
+            ></label>
             <label>Studium<select v-model="form.studiumStatus"><option value="">Keine Angabe</option><option value="eingeschrieben">Eingeschrieben</option><option value="studienabsicht">Studienabsicht</option><option value="nein">Kein Studium</option></select></label>
           </div>
         </section>
 
         <section class="detail-section">
           <h3>Nachweise</h3>
-          <ul v-if="bewerber.documents?.length" class="documents">
-            <li v-for="document in bewerber.documents" :key="document._id">
+          <ul
+            v-if="bewerber.documents?.length"
+            class="documents"
+          >
+            <li
+              v-for="document in bewerber.documents"
+              :key="document._id"
+            >
               <span>
                 <strong>{{ document.name }}</strong>
                 <small>{{ document.category === 'studienbescheinigung' ? 'Studienbescheinigung' : 'Sonstiger Nachweis' }} · {{ formatFileSize(document.size) }}</small>
               </span>
-              <button type="button" class="ghost-button ghost-button--small" @click="downloadDocument(document)">Öffnen</button>
+              <AppButton
+                variant="secondary"
+                size="sm"
+                :aria-label="`Nachweis ${document.name} öffnen`"
+                @click="downloadDocument(document)"
+              >
+                Öffnen
+              </AppButton>
             </li>
           </ul>
-          <p v-else class="empty-hint">Keine Nachweise hochgeladen.</p>
+          <p
+            v-else
+            class="empty-hint"
+          >
+            Keine Nachweise hochgeladen.
+          </p>
         </section>
 
         <section class="detail-section">
           <h3>Bemerkungen</h3>
-          <textarea v-model.trim="form.bemerkungen" rows="4" />
+          <textarea
+            v-model.trim="form.bemerkungen"
+            rows="4"
+          />
         </section>
 
-        <section v-if="bewerber.invitations?.length" class="detail-section">
+        <section
+          v-if="bewerber.invitations?.length"
+          class="detail-section"
+        >
           <h3>Einladungen</h3>
           <ul class="invitations">
-            <li v-for="invitation in sortedInvitations" :key="invitation._id">
+            <li
+              v-for="invitation in sortedInvitations"
+              :key="invitation._id"
+            >
               <div class="invitation-copy">
                 <strong>{{ invitationLabel(invitation.type) }}</strong>
                 <small>Termin: {{ formatDateTime(invitation.appointmentAt) }} · gesendet {{ formatDate(invitation.sentAt) }}</small>
@@ -120,11 +251,31 @@
       </form>
 
       <footer class="detail-footer">
-        <p v-if="saveError" class="save-error">{{ saveError }}</p>
-        <p v-else-if="savedNotice" class="save-ok">{{ savedNotice }}</p>
+        <p
+          v-if="saveError"
+          class="save-error"
+        >
+          {{ saveError }}
+        </p>
+        <p
+          v-else-if="savedNotice"
+          class="save-ok"
+        >
+          {{ savedNotice }}
+        </p>
         <div class="footer-actions">
-          <button type="button" class="secondary-button" @click="$emit('close')">Schließen</button>
-          <button type="button" class="primary-button" :disabled="saving" @click="save">{{ saving ? 'Speichert ...' : 'Änderungen speichern' }}</button>
+          <AppButton
+            variant="secondary"
+            @click="$emit('close')"
+          >
+            Schließen
+          </AppButton>
+          <AppButton
+            :loading="saving"
+            @click="save"
+          >
+            {{ saving ? 'Speichert ...' : 'Änderungen speichern' }}
+          </AppButton>
         </div>
       </footer>
     </template>
@@ -133,6 +284,7 @@
 
 <script>
 import api from '@/utils/api';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 const DATE_FIELDS = ['geburtsdatum', 'verfuegbarAb', 'verfuegbarBis'];
 const EDITABLE_FIELDS = [
@@ -149,6 +301,7 @@ const EDITABLE_FIELDS = [
 
 export default {
   name: 'BewerberDetailCard',
+  components: { AppButton },
   props: {
     bewerberId: { type: String, required: true },
     embedded: { type: Boolean, default: false },
@@ -180,6 +333,9 @@ export default {
   },
   watch: {
     bewerberId: 'loadBewerber',
+  },
+  mounted() {
+    this.loadBewerber();
   },
   methods: {
     async loadBewerber() {
@@ -271,9 +427,6 @@ export default {
       return `${(size / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`;
     },
   },
-  mounted() {
-    this.loadBewerber();
-  },
 };
 </script>
 
@@ -281,28 +434,27 @@ export default {
 .bewerber-detail { background: var(--surface); color: var(--text); display: flex; flex-direction: column; max-height: calc(100vh - 80px); }
 .bewerber-detail--embedded { background: transparent; max-height: none; }
 .detail-state { color: var(--muted); padding: 48px; text-align: center; }
-.detail-state--error { color: var(--danger, #b91c1c); }
+.detail-state--error { color: var(--status-danger-text); }
 
 .detail-header { align-items: flex-start; background: var(--tile-bg); border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; padding: 22px 24px; }
 .identity { align-items: center; display: flex; gap: 14px; min-width: 0; }
-.avatar { align-items: center; background: var(--primary); border-radius: 10px; color: #fff; display: flex; flex: 0 0 52px; font-size: 1.15rem; font-weight: 700; height: 52px; justify-content: center; }
+.avatar { align-items: center; background: var(--action-primary); border-radius: 10px; color: var(--on-action-primary); display: flex; flex: 0 0 52px; font-size: 1.15rem; font-weight: 700; height: 52px; justify-content: center; }
 .identity-copy { min-width: 0; }
 .identity-copy h2 { font-size: 1.2rem; font-weight: 600; margin: 0; }
 .identity-copy p { color: var(--muted); font-size: .85rem; margin: 2px 0 0; }
 .badges { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .status, .badge { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .72rem; font-weight: 600; padding: 3px 9px; white-space: nowrap; }
-.status--eingereicht { border-color: var(--success, #15803d); color: var(--success, #15803d); }
-.status--eingeladen, .status--formular_geoeffnet { border-color: var(--primary); color: var(--primary); }
-.status--abgelaufen { border-color: var(--danger, #b91c1c); color: var(--danger, #b91c1c); }
-.badge--ok { border-color: var(--success, #15803d); color: var(--success, #15803d); }
-.badge--primary { border-color: var(--primary); color: var(--primary); }
-.badge--danger { border-color: var(--danger, #b91c1c); color: var(--danger, #b91c1c); }
+.status--eingereicht { border-color: var(--status-success-text); color: var(--status-success-text); }
+.status--eingeladen, .status--formular_geoeffnet { border-color: var(--primary); color: var(--action-accent-text); }
+.status--abgelaufen { border-color: var(--status-danger-text); color: var(--status-danger-text); }
+.badge--ok { border-color: var(--status-success-text); color: var(--status-success-text); }
+.badge--primary { border-color: var(--primary); color: var(--action-accent-text); }
+.badge--danger { border-color: var(--status-danger-text); color: var(--status-danger-text); }
 .badge--muted { color: var(--muted); }
-.header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
-.ghost-button { background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; font: inherit; font-size: .82rem; padding: 8px 12px; text-decoration: none; transition: border-color .15s, color .15s; }
-.ghost-button:hover { border-color: var(--primary); color: var(--primary); }
-.ghost-button--small { font-size: .78rem; padding: 6px 10px; }
+.asana-link { color: var(--action-accent-text); font-size: .82rem; }
+.asana-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
 .detail-form { display: grid; gap: 22px; overflow-y: auto; padding: 22px 24px; }
 .bewerber-detail--embedded .detail-form { overflow-y: visible; padding: 18px 16px; }
@@ -339,17 +491,14 @@ fieldset { border: 0; margin: 0 0 16px; padding: 0; }
 
 .detail-footer { align-items: center; background: var(--tile-bg); border-top: 1px solid var(--border); display: flex; gap: 16px; justify-content: space-between; padding: 16px 24px; }
 .bewerber-detail--embedded .detail-footer { background: transparent; padding: 4px 16px 16px; }
-.save-error { color: var(--danger, #b91c1c); font-size: .84rem; margin: 0; }
-.save-ok { color: var(--success, #15803d); font-size: .84rem; margin: 0; }
-.footer-actions { display: flex; gap: 10px; margin-left: auto; }
-.primary-button, .secondary-button { border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; padding: 10px 16px; }
-.primary-button { background: var(--primary); border: 1px solid var(--primary); color: #fff; }
-.primary-button:disabled { cursor: not-allowed; opacity: .6; }
-.secondary-button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.save-error { color: var(--status-danger-text); font-size: .84rem; margin: 0; }
+.save-ok { color: var(--status-success-text); font-size: .84rem; margin: 0; }
+.footer-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
 
 @media (max-width: 640px) {
   .form-grid, .address-grid { grid-template-columns: 1fr; }
   .address-street, .address-number, .address-plz, .address-city, .full { grid-column: auto; }
   .detail-header, .detail-form, .detail-footer { padding-inline: 16px; }
+  .detail-footer { flex-wrap: wrap; }
 }
 </style>

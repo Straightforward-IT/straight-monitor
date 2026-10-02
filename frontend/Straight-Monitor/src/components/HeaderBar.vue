@@ -151,7 +151,7 @@
             </router-link>
           </div>
         </div>
-        <div v-if="canSeeKunden" class="nav-group nav-group--kunden">
+        <div class="nav-group nav-group--kunden">
           <router-link :to="kundenNavTarget" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
             @click="handleNewPageClick($event, kundenNavTarget)"
             >{{ kundenNavLabel }}</router-link
@@ -204,6 +204,16 @@
           <button class="icon-btn kf-btn" @click="ui.toggle('kommentare')">
             <font-awesome-icon :icon="['fas', 'comments']" />
             <CommentBubbleBadge :count="comments.unreadCount" class="kf-badge" />
+          </button>
+        </custom-tooltip>
+        <custom-tooltip text="Einstellungen" position="bottom" :delay-in="150">
+          <button
+            class="icon-btn"
+            :class="{ active: $route.name === 'UserSettings' }"
+            aria-label="Einstellungen"
+            @click="$router.push('/einstellungen')"
+          >
+            <font-awesome-icon :icon="['fas', 'gear']" />
           </button>
         </custom-tooltip>
         <!-- Theme Toggle -->
@@ -468,7 +478,7 @@
             </router-link>
           </div>
         </div>
-        <div v-if="canSeeKunden" class="mobile-menu-group">
+        <div class="mobile-menu-group">
           <button
             class="mobile-menu-btn mobile-menu-toggle"
             :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen, 'dev-role--vertrieb': isDev }"
@@ -595,6 +605,16 @@
           <font-awesome-icon :icon="['fas', 'tools']" />
           Tools
         </button>
+
+        <router-link
+          to="/einstellungen"
+          class="mobile-menu-btn"
+          :class="{ active: $route.name === 'UserSettings' }"
+          @click="closeMobileMenu"
+        >
+          <font-awesome-icon :icon="['fas', 'gear']" />
+          Einstellungen
+        </router-link>
         
         <button class="mobile-menu-btn" @click="showSupportModal = true; showMobileMenu = false">
           <font-awesome-icon :icon="['fas', 'ticket-alt']" />
@@ -888,7 +908,6 @@ watch(
 const newPagesEnabled = computed(() => !!auth.user);
 
 const isAdmin = computed(() => auth.user?.roles?.includes('ADMIN'));
-const canSeeKunden = computed(() => isAdmin.value || auth.user?.roles?.includes('VERTRIEB'));
 const canSeePayroll = computed(() => isAdmin.value);
 const isPayrollSectionActive = computed(() => route.name === 'Payroll');
 const isKundenSectionActive = computed(() => route.name === 'Kunden');
@@ -1090,8 +1109,12 @@ const submitSupportRequest = async () => {
 const toggleTheme = async () => {
   const newTheme = theme.isDark ? 'light' : 'dark';
   
-  // Toggle local theme store
-  theme.toggle();
+  try {
+    await theme.setForUser(newTheme);
+  } catch (error) {
+    console.error('Theme preference could not be saved:', error);
+    return;
+  }
   
   // Try to sync with Flip Bridge (may not be supported in all contexts)
   try {

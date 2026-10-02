@@ -2,11 +2,17 @@
   <component
     :is="localMinimizable ? MinimizableRegion : PassThrough"
     v-if="!minimizable || open"
-    v-bind="regionProps"
     v-slot="region"
+    v-bind="regionProps"
   >
-    <Teleport to="body" :disabled="canMinimize && !teleport">
-      <Transition name="mf" :appear="minimizable">
+    <Teleport
+      to="body"
+      :disabled="canMinimize && !teleport"
+    >
+      <Transition
+        name="mf"
+        :appear="minimizable"
+      >
         <div
           v-if="open && !region?.minimized"
           ref="overlayRef"
@@ -23,42 +29,70 @@
             :aria-labelledby="title ? titleId : undefined"
             v-bind="$attrs"
           >
-            <header v-if="hasHeader" class="mf-header">
+            <header
+              v-if="hasHeader"
+              class="mf-header"
+            >
               <div class="mf-header-main">
                 <slot
                   name="header"
                   :title-id="titleId"
                 >
                   <div class="mf-titles">
-                    <p v-if="subtitle" class="mf-subtitle">{{ subtitle }}</p>
-                    <h3 v-if="title" :id="titleId" class="mf-title">{{ title }}</h3>
+                    <p
+                      v-if="subtitle"
+                      class="mf-subtitle"
+                    >
+                      {{ subtitle }}
+                    </p>
+                    <h3
+                      v-if="title"
+                      :id="titleId"
+                      class="mf-title"
+                    >
+                      {{ title }}
+                    </h3>
                   </div>
                 </slot>
               </div>
-              <div class="mf-controls" data-pdf-ignore>
+              <div
+                class="mf-controls"
+                data-pdf-ignore
+              >
                 <slot name="actions" />
-                <CustomTooltip v-if="pdfExport" text="Als PDF exportieren">
-                  <button
-                    type="button"
+                <CustomTooltip
+                  v-if="pdfExport"
+                  text="Als PDF exportieren"
+                >
+                  <AppIconButton
                     class="mf-pdf"
-                    aria-label="Als PDF exportieren"
+                    variant="ghost"
+                    size="sm"
+                    label="Als PDF exportieren"
                     @click="exportToPdf()"
                   >
                     <font-awesome-icon icon="fa-solid fa-file-pdf" />
-                  </button>
+                  </AppIconButton>
                 </CustomTooltip>
-                <CustomTooltip v-if="canMinimize" text="Minimieren">
+                <CustomTooltip
+                  v-if="canMinimize"
+                  text="Minimieren"
+                >
                   <MinimizeButton class="mf-minimize" />
                 </CustomTooltip>
-                <CustomTooltip v-if="showClose" text="Schließen">
-                  <button
-                    type="button"
+                <CustomTooltip
+                  v-if="showClose"
+                  text="Schließen"
+                >
+                  <AppIconButton
                     class="mf-close"
-                    aria-label="Schließen"
+                    variant="ghost"
+                    size="sm"
+                    label="Schließen"
                     @click="requestClose"
                   >
                     <font-awesome-icon icon="fa-solid fa-xmark" />
-                  </button>
+                  </AppIconButton>
                 </CustomTooltip>
               </div>
             </header>
@@ -73,7 +107,10 @@
               <slot />
             </div>
 
-            <footer v-if="$slots.footer" class="mf-footer">
+            <footer
+              v-if="$slots.footer"
+              class="mf-footer"
+            >
               <slot name="footer" />
             </footer>
           </section>
@@ -116,6 +153,7 @@ import {
 } from 'vue';
 import { exportElementToPdf } from '@/utils/htmlToPdfService';
 import CustomTooltip from '@/components/CustomTooltip.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 defineOptions({ inheritAttrs: false });
 
@@ -363,7 +401,34 @@ onBeforeUnmount(deactivateFrame);
 }
 
 .mf-close,
-.mf-pdf,
+.mf-pdf {
+  --app-button-icon-size: 32px;
+  --action-ghost-text: var(--mf-text-muted, var(--muted, #666));
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  font-size: 1rem;
+}
+
+.mf-close {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--mf-text-muted, var(--muted, #666));
+
+  &:hover:not(:disabled) {
+    color: var(--action-accent-text, var(--text));
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary) 48%, transparent);
+    outline-offset: 2px;
+  }
+}
+
 .mf-controls .mf-minimize {
   display: inline-grid;
   place-items: center;
@@ -381,7 +446,7 @@ onBeforeUnmount(deactivateFrame);
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &:hover {
-    color: var(--primary);
+    color: var(--action-accent-text, var(--text));
     background: color-mix(in srgb, var(--primary) 10%, transparent);
     border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
@@ -400,7 +465,7 @@ onBeforeUnmount(deactivateFrame);
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 
   &:hover {
-    color: var(--primary);
+    color: var(--action-accent-text, var(--text));
     background: color-mix(in srgb, var(--primary) 10%, transparent);
     border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }

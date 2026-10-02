@@ -3,44 +3,92 @@
     <section class="form-panel">
       <header class="panel-header">
         <div>
-          <p class="eyebrow">Hamburg</p>
+          <p class="eyebrow">
+            Hamburg
+          </p>
           <h1>Bewerber erstellen</h1>
           <p>Die Asana-Aufgabe wird mit einem eigenständigen Bewerber verknüpft. Es wird kein Mitarbeiter- oder Flip-Konto angelegt.</p>
         </div>
-        <a v-if="form.asana_permalink" :href="form.asana_permalink" target="_blank" rel="noopener" class="asana-link">
+        <a
+          v-if="form.asana_permalink"
+          :href="form.asana_permalink"
+          target="_blank"
+          rel="noopener"
+          class="asana-link"
+        >
           Asana öffnen
         </a>
       </header>
 
-      <div v-if="loading" class="state">Asana-Aufgabe wird geladen ...</div>
-      <div v-else-if="existingApplicant" class="state state--info">
+      <div
+        v-if="loading"
+        class="state"
+      >
+        Asana-Aufgabe wird geladen ...
+      </div>
+      <div
+        v-else-if="existingApplicant"
+        class="state state--info"
+      >
         Für diese Asana-Aufgabe besteht bereits ein Bewerber.
-        <button type="button" class="link-button" @click="openExisting">Bewerber öffnen</button>
+        <AppButton
+          variant="ghost"
+          size="sm"
+          @click="openExisting"
+        >
+          Bewerber öffnen
+        </AppButton>
       </div>
       <div v-else>
-        <p v-if="error" class="state state--error">{{ error }}</p>
+        <p
+          v-if="error"
+          class="state state--error"
+        >
+          {{ error }}
+        </p>
 
         <form @submit.prevent="createApplicant">
           <div class="form-grid">
             <label>
               Vorname
-              <input v-model.trim="form.vorname" required autocomplete="given-name" />
+              <input
+                v-model.trim="form.vorname"
+                required
+                autocomplete="given-name"
+              >
             </label>
             <label>
               Nachname
-              <input v-model.trim="form.nachname" required autocomplete="family-name" />
+              <input
+                v-model.trim="form.nachname"
+                required
+                autocomplete="family-name"
+              >
             </label>
             <label>
               E-Mail
-              <input v-model.trim="form.email" required type="email" autocomplete="email" />
+              <input
+                v-model.trim="form.email"
+                required
+                type="email"
+                autocomplete="email"
+              >
             </label>
             <label>
               Telefon
-              <input v-model.trim="form.telefon" type="tel" autocomplete="tel" />
+              <input
+                v-model.trim="form.telefon"
+                type="tel"
+                autocomplete="tel"
+              >
             </label>
             <label>
               Geburtsdatum
-              <input v-model="form.geburtsdatum" type="date" autocomplete="bday" />
+              <input
+                v-model="form.geburtsdatum"
+                type="date"
+                autocomplete="bday"
+              >
             </label>
             <label>
               Bevorzugter Bereich
@@ -53,58 +101,116 @@
             </label>
             <label>
               Führerschein
-              <select :value="form.fuehrerscheine[0] || ''" @change="setLicense($event.target.value)">
+              <select
+                :value="form.fuehrerscheine[0] || ''"
+                @change="setLicense($event.target.value)"
+              >
                 <option value="">Kein Führerschein angegeben</option>
-                <option v-for="license in licenseClasses" :key="license" :value="license">Klasse {{ license }}</option>
+                <option
+                  v-for="license in licenseClasses"
+                  :key="license"
+                  :value="license"
+                >Klasse {{ license }}</option>
               </select>
               <span class="field-hint">Klasse B ist der normale Standard-Führerschein.</span>
             </label>
             <label>
               Verfügbar ab
-              <input v-model="form.verfuegbarAb" type="date" />
+              <input
+                v-model="form.verfuegbarAb"
+                type="date"
+              >
             </label>
             <label>
               Verfügbar bis
-              <input v-model="form.verfuegbarBis" type="date" />
+              <input
+                v-model="form.verfuegbarBis"
+                type="date"
+              >
             </label>
             <label class="form-field--full">
               Verfügbarkeit
-              <textarea v-model.trim="form.verfuegbarkeit" rows="3" placeholder="Zum Beispiel Wochentage, Schichten oder Sperrzeiten" />
+              <textarea
+                v-model.trim="form.verfuegbarkeit"
+                rows="3"
+                placeholder="Zum Beispiel Wochentage, Schichten oder Sperrzeiten"
+              />
             </label>
             <label class="form-field--full">
               Aktueller Job / Anstellungsverhältnis
-              <input v-model.trim="form.aktuellesAnstellungsverhaeltnis" type="text" />
+              <input
+                v-model.trim="form.aktuellesAnstellungsverhaeltnis"
+                type="text"
+              >
             </label>
             <label class="form-field--full">
               Erfahrung in Gastronomie / Logistik
-              <textarea v-model.trim="form.erfahrungGastronomieLogistik" rows="3" />
+              <textarea
+                v-model.trim="form.erfahrungGastronomieLogistik"
+                rows="3"
+              />
             </label>
             <label class="form-field--full">
               Bemerkungen
-              <textarea v-model.trim="form.bemerkungen" rows="3" />
+              <textarea
+                v-model.trim="form.bemerkungen"
+                rows="3"
+              />
             </label>
           </div>
 
           <div class="actions">
-            <button type="button" class="secondary-button" @click="$router.back()">Abbrechen</button>
-            <button type="submit" class="primary-button" :disabled="submitting">
+            <AppButton
+              variant="secondary"
+              @click="$router.back()"
+            >
+              Abbrechen
+            </AppButton>
+            <AppButton
+              type="submit"
+              :loading="submitting"
+            >
               {{ submitting ? "Wird erstellt ..." : "Bewerber erstellen" }}
-            </button>
+            </AppButton>
           </div>
         </form>
       </div>
     </section>
 
-    <aside v-if="task" class="task-panel">
-      <p class="eyebrow">Asana-Aufgabe</p>
+    <aside
+      v-if="task"
+      class="task-panel"
+    >
+      <p class="eyebrow">
+        Asana-Aufgabe
+      </p>
       <h2>{{ task.name }}</h2>
-      <div v-if="taskContent" class="task-content">{{ taskContent }}</div>
+      <div
+        v-if="taskContent"
+        class="task-content"
+      >
+        {{ taskContent }}
+      </div>
 
       <section class="task-comments">
         <h3>Kommentare</h3>
-        <p v-if="loadingComments" class="task-panel-state">Kommentare werden geladen ...</p>
-        <p v-else-if="!comments.length" class="task-panel-state">Keine Kommentare vorhanden.</p>
-        <article v-for="comment in comments" :key="comment.gid" class="task-comment">
+        <p
+          v-if="loadingComments"
+          class="task-panel-state"
+        >
+          Kommentare werden geladen ...
+        </p>
+        <p
+          v-else-if="!comments.length"
+          class="task-panel-state"
+        >
+          Keine Kommentare vorhanden.
+        </p>
+        <article
+          v-for="comment in comments"
+          :key="comment.gid"
+          class="task-comment"
+        >
           <header>
             <strong>{{ comment.created_by?.name || 'Asana' }}</strong>
             <time v-if="comment.created_at">{{ formatCommentDate(comment.created_at) }}</time>
@@ -118,6 +224,7 @@
 
 <script>
 import api from "@/utils/api";
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 function parseTaskName(name = "") {
   const cleaned = name
@@ -164,6 +271,7 @@ function htmlToPlainText(html = "") {
 
 export default {
   name: "BewerberCreate",
+  components: { AppButton },
   data() {
     return {
       task: null,
@@ -200,6 +308,9 @@ export default {
     taskContent() {
       return removeMonitorLinks(this.task?.notes || this.task?.html_notes || "");
     },
+  },
+  mounted() {
+    this.loadTask();
   },
   methods: {
     setLicense(value) {
@@ -280,9 +391,6 @@ export default {
       });
     },
   },
-  mounted() {
-    this.loadTask();
-  },
 };
 </script>
 
@@ -356,7 +464,7 @@ h2 {
 .task-comment p { line-height: 1.45; white-space: pre-wrap; }
 
 .eyebrow {
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -364,20 +472,13 @@ h2 {
   margin-bottom: 4px;
 }
 
-.asana-link,
-.link-button {
-  color: var(--primary);
+.asana-link {
+  color: var(--action-accent-text);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.link-button {
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-}
+.asana-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 
 .form-grid {
   display: grid;
@@ -433,36 +534,10 @@ textarea:focus {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 24px;
-}
-
-.primary-button,
-.secondary-button {
-  border-radius: 6px;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  min-height: 40px;
-  padding: 8px 14px;
-}
-
-.primary-button {
-  background: var(--primary);
-  border: 1px solid var(--primary);
-  color: #fff;
-}
-
-.secondary-button {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.primary-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
 }
 
 .state {
@@ -471,7 +546,7 @@ textarea:focus {
 }
 
 .state--error {
-  color: var(--danger, #b91c1c);
+  color: var(--status-danger-text);
   margin-bottom: 16px;
 }
 

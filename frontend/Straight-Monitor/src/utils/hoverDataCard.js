@@ -83,14 +83,14 @@ function hoursView(data) {
 function daysView(data) {
   const { priorEmployerDays, workedDays, plannedDays, dayLimit } = values(data);
   const result = capacitySegments({ worked: priorEmployerDays + workedDays, planned: plannedDays, limit: dayLimit, unit: 'Tage', remainingLabel: 'Verbleibend' });
-  result.segments.splice(0, 1, { id: 'prior-employer', label: 'Vorarbeitgeber', value: priorEmployerDays, color: '#7c8aa0' }, { id: 'worked', label: 'Eingesetzt', value: workedDays, color: '#94a3b8' });
+  result.segments.splice(0, 1, { id: 'prior-employer', label: 'Vorarbeitgeber', value: priorEmployerDays, color: '#c58a29' }, { id: 'worked', label: 'Eingesetzt', value: workedDays, color: '#94a3b8' });
   return {
     type: HOVER_DATA_CARD_TYPES.DAYS,
     ...common(data, 'Kurzfristig beschäftigt'),
     metric: { value: result.used, limit: dayLimit, unit: 'Tage' },
     metadata: [{ label: 'Jahresgrenze', value: `${formatHoverNumber(dayLimit, 0)} Arbeitstage` }],
     segments: result.segments,
-    sections: [{ label: 'Arbeitstage im Kalenderjahr', rows: [
+    sections: [{ label: data.periodLabel ? `Arbeitstage ${data.periodLabel}` : 'Arbeitstage im Kalenderjahr', rows: [
       { label: 'Vorarbeitgeber', value: `${formatHoverNumber(priorEmployerDays, 0)} Tage`, segment: 'prior-employer' },
       { label: 'Eingesetzt', value: `${formatHoverNumber(workedDays, 0)} Tage`, segment: 'worked' },
       { label: 'Geplant', value: `${formatHoverNumber(plannedDays, 0)} Tage`, segment: 'planned' },

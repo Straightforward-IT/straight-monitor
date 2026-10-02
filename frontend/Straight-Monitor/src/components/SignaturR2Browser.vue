@@ -6,12 +6,12 @@
       placeholder="Ablage durchsuchen"
       aria-label="Ablage durchsuchen"
     />
-    <button class="icon-button" type="button" title="Ablage aktualisieren" :disabled="loading" @click="loadFiles">
-      <font-awesome-icon :icon="['fas', 'rotate']" :spin="loading" />
-    </button>
-    <button v-if="isAdmin && allowUpload" class="icon-button" type="button" title="Dateien hochladen" :disabled="uploading" @click="uploadInput?.click()">
-      <font-awesome-icon :icon="['fas', uploading ? 'spinner' : 'upload']" :spin="uploading" />
-    </button>
+    <AppIconButton size="sm" variant="secondary" label="Ablage aktualisieren" :loading="loading" @click="loadFiles">
+      <font-awesome-icon v-if="!loading" :icon="['fas', 'rotate']" />
+    </AppIconButton>
+    <AppIconButton v-if="isAdmin && allowUpload" size="sm" variant="secondary" label="Dateien hochladen" :loading="uploading" @click="uploadInput?.click()">
+      <font-awesome-icon v-if="!uploading" :icon="['fas', 'upload']" />
+    </AppIconButton>
     <input ref="uploadInput" class="upload-input" type="file" multiple @change="uploadSelectedFiles" />
   </Toolbar>
 
@@ -34,7 +34,7 @@
     </div>
     <div v-else-if="error" class="storage-state storage-state--error">
       <span>{{ error }}</span>
-      <button type="button" @click="loadFiles">Erneut versuchen</button>
+      <AppButton size="sm" variant="secondary" @click="loadFiles">Erneut versuchen</AppButton>
     </div>
     <div v-else class="storage-layout">
       <aside class="folder-panel" aria-label="Ordnerstruktur">
@@ -127,9 +127,9 @@
             <span class="file-meta">{{ formatSize(file.size) }}</span>
             <span class="file-meta file-meta--date">{{ formatDate(file.lastModified) }}</span>
             <div class="file-actions">
-              <button type="button" title="Dateiaktionen" aria-label="Dateiaktionen" @click="openFileMenu(file, $event)">
+              <AppIconButton size="sm" variant="ghost" :label="`Dateiaktionen für ${file.name}`" @click="openFileMenu(file, $event)">
                 <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-              </button>
+              </AppIconButton>
             </div>
           </div>
         </div>
@@ -171,6 +171,8 @@ import { useAuth } from '@/stores/auth';
 import ContextMenu from '@/components/ContextMenu.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const EmployeeCardModal = defineAsyncComponent(() => import('@/components/Modals/EmployeeCardModal.vue'));
 
@@ -568,22 +570,12 @@ onMounted(loadFiles);
     font-size: 0.84rem;
     white-space: nowrap;
     cursor: pointer;
-    &:hover { color: var(--primary); }
+    &:hover { color: var(--action-accent-text); }
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   }
 }
 
 .breadcrumb-separator { color: var(--muted); font-size: 0.62rem; margin: 0 5px; }
-.icon-button, .file-actions button {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  &:hover { border-color: var(--primary); color: var(--primary); }
-}
-
 .storage-layout { display: grid; grid-template-columns: minmax(210px, 280px) minmax(0, 1fr); min-height: 430px; }
 .folder-panel { padding: 8px 0; border-right: 1px solid var(--border); overflow-x: hidden; overflow-y: auto; }
 .folder-row {
@@ -594,8 +586,8 @@ onMounted(loadFiles);
   background: transparent;
   color: var(--text);
   &:hover { background: color-mix(in srgb, var(--primary) 7%, transparent); }
-  &.active { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
-  &.active svg { color: var(--primary); }
+  &.active { color: var(--action-accent-text); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  &.active svg { color: var(--action-accent-text); }
 }
 .folder-toggle {
   width: 22px;
@@ -608,6 +600,7 @@ onMounted(loadFiles);
   font-size: 0.6rem;
   &.invisible { visibility: hidden; }
   &:disabled { cursor: default; }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 }
 .folder-select {
   height: 100%;
@@ -624,6 +617,7 @@ onMounted(loadFiles);
   font-size: 0.8rem;
   text-align: left;
   cursor: pointer;
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
   span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   svg { color: var(--muted); flex-shrink: 0; }
 }
@@ -638,7 +632,7 @@ onMounted(loadFiles);
   place-content: center;
   gap: 8px;
   background: color-mix(in srgb, var(--tile-bg) 88%, var(--primary));
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 0.84rem;
   font-weight: 600;
   pointer-events: none;
@@ -681,8 +675,9 @@ onMounted(loadFiles);
   font: inherit;
   cursor: pointer;
   svg { color: var(--muted); font-size: 0.72rem; }
-  &:hover { color: var(--primary); }
-  &:hover svg { color: var(--primary); }
+  &:hover { color: var(--action-accent-text); }
+  &:hover svg { color: var(--action-accent-text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
   &:disabled { cursor: wait; opacity: 0.65; }
 }
 
@@ -708,6 +703,7 @@ onMounted(loadFiles);
   text-align: left;
   cursor: pointer;
   &:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 }
 .file-icon { color: #d39a37; font-size: 1rem; text-align: center; }
 .file-icon--pdf { color: #c94141; }
@@ -721,7 +717,8 @@ onMounted(loadFiles);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  &:hover, &:focus-visible { color: var(--primary); text-decoration: underline; }
+  &:hover, &:focus-visible { color: var(--action-accent-text); text-decoration: underline; }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 }
 .file-kind, .file-meta, .row-chevron { color: var(--muted); }
 .row-chevron { font-size: 0.65rem; }
@@ -735,9 +732,9 @@ onMounted(loadFiles);
   gap: 10px;
   color: var(--muted);
   font-size: 0.84rem;
-  button { border: 0; background: transparent; color: var(--primary); cursor: pointer; }
+  button { flex-shrink: 0; }
 }
-.storage-state--error { color: #c94141; }
+.storage-state--error { color: var(--status-danger-text); }
 
 @media (max-width: 760px) {
   .storage-layout { grid-template-columns: 1fr; }

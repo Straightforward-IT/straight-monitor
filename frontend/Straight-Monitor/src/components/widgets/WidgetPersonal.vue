@@ -6,12 +6,12 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="selectedLocation" class="wp-select">
+      <AppSelect v-model="selectedLocation" size="sm" aria-label="Mitarbeiter nach Standort filtern">
         <option value="Alle">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="wp-list">
@@ -50,6 +50,7 @@ import { useFlipAll } from "@/stores/flipAll";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const cache = useDataCache();
 const flip  = useFlipAll();
@@ -118,21 +119,6 @@ onMounted(async () => {
 // Override icon color to muted (not primary/orange)
 :deep(.dash-widget__icon) {
   color: var(--muted);
-}
-
-.wp-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
-
-  &:focus {
-    border-color: var(--border);
-  }
 }
 
 .wp-list {

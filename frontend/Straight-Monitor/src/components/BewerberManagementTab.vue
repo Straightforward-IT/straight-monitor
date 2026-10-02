@@ -1,25 +1,43 @@
 <template>
   <section class="bewerber-management">
-    <nav class="subtabs" aria-label="Bewerbermanagement">
-      <button type="button" :class="{ active: view === 'documents' }" @click="view = 'documents'">
-        <font-awesome-icon icon="fa-solid fa-paperclip" /> Anhangsbibliothek
-      </button>
-      <button type="button" :class="{ active: view === 'templates' }" @click="view = 'templates'">
-        <font-awesome-icon icon="fa-solid fa-envelope" /> E-Mail-Vorlagen
-      </button>
-    </nav>
+    <div class="view-switcher">
+      <AppSegmentedControl
+        v-model="view"
+        :options="managementViews"
+        label="Bewerbermanagement"
+      >
+        <template #option="{ option }">
+          <font-awesome-icon :icon="option.icon" /> {{ option.label }}
+        </template>
+      </AppSegmentedControl>
+    </div>
 
-    <section v-if="view === 'documents'" class="workspace">
+    <section
+      v-if="view === 'documents'"
+      class="workspace"
+    >
       <header class="workspace-header">
         <div>
           <h2>Anhangsbibliothek</h2>
           <p>Diese Dateien werden beim Versand einer Bewerbereinladung vorgeschlagen.</p>
         </div>
-        <label class="upload-action">
-          <font-awesome-icon :icon="uploading ? 'fa-solid fa-spinner' : 'fa-solid fa-upload'" :spin="uploading" />
-          Datei hochladen
-          <input type="file" accept=".pdf,.doc,.docx" :disabled="uploading" @change="uploadDocument" />
-        </label>
+        <div class="upload-control">
+          <AppButton
+            :loading="uploading"
+            @click="uploadInput?.click()"
+          >
+            <font-awesome-icon icon="fa-solid fa-upload" /> Datei hochladen
+          </AppButton>
+          <input
+            ref="uploadInput"
+            type="file"
+            hidden
+            aria-label="Datei für Anhangsbibliothek auswählen"
+            accept=".pdf,.doc,.docx"
+            :disabled="uploading"
+            @change="uploadDocument"
+          >
+        </div>
       </header>
 
       <div class="filters">
@@ -27,57 +45,136 @@
           <select v-model="documentScope">
             <option value="all">Alle</option>
             <option value="global">Global</option>
-            <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+            <option
+              v-for="location in locations"
+              :key="location._id"
+              :value="location._id"
+            >{{ location.nameFull }}</option>
           </select>
         </label>
         <label>Dateien durchsuchen
-          <input v-model.trim="documentSearch" type="search" placeholder="Dateiname" />
+          <AppTextInput
+            v-model.trim="documentSearch"
+            type="search"
+            placeholder="Dateiname"
+          />
         </label>
         <span class="count">{{ filteredDocuments.length }} Dateien</span>
       </div>
 
-      <p v-if="documentError" class="error">{{ documentError }}</p>
-      <p v-else-if="documentsLoading" class="state">Dateien werden geladen ...</p>
-      <div v-else class="table-wrap">
+      <p
+        v-if="documentError"
+        class="error"
+      >
+        {{ documentError }}
+      </p>
+      <p
+        v-else-if="documentsLoading"
+        class="state"
+      >
+        Dateien werden geladen ...
+      </p>
+      <div
+        v-else
+        class="table-wrap"
+      >
         <table>
-          <thead><tr><th>Datei</th><th>Geltungsbereich</th><th>Format</th><th>Größe</th><th>Geändert</th><th class="actions-cell">Aktionen</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Datei</th><th>Geltungsbereich</th><th>Format</th><th>Größe</th><th>Geändert</th><th class="actions-cell">
+                Aktionen
+              </th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="document in filteredDocuments" :key="document._id">
+            <tr
+              v-for="document in filteredDocuments"
+              :key="document._id"
+            >
               <td><strong>{{ document.name }}</strong></td>
-              <td><span class="scope-badge" :style="scopeStyle(document)">{{ document.locationV2?.nameFull || 'Global' }}</span></td>
+              <td>
+                <span
+                  class="scope-badge"
+                  :style="scopeStyle(document)"
+                >{{ document.locationV2?.nameFull || 'Global' }}</span>
+              </td>
               <td>{{ fileType(document.contentType) }}</td>
               <td>{{ formatFileSize(document.size) }}</td>
               <td>{{ formatDate(document.updatedAt) }}</td>
               <td class="actions-cell">
-                <button type="button" title="Herunterladen" @click="downloadDocument(document)"><font-awesome-icon icon="fa-solid fa-download" /></button>
-                <button type="button" title="Bearbeiten oder ersetzen" @click="openDocumentEdit(document)"><font-awesome-icon icon="fa-solid fa-pen" /></button>
-                <button type="button" class="danger" title="Löschen" @click="deleteDocument(document)"><font-awesome-icon icon="fa-solid fa-trash" /></button>
+                <div class="row-actions">
+                  <AppIconButton
+                    size="sm"
+                    :label="`Datei ${document.name} herunterladen`"
+                    @click="downloadDocument(document)"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-download" />
+                  </AppIconButton>
+                  <AppIconButton
+                    size="sm"
+                    :label="`Datei ${document.name} bearbeiten oder ersetzen`"
+                    @click="openDocumentEdit(document)"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-pen" />
+                  </AppIconButton>
+                  <AppIconButton
+                    size="sm"
+                    variant="danger"
+                    :label="`Datei ${document.name} löschen`"
+                    @click="deleteDocument(document)"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-trash" />
+                  </AppIconButton>
+                </div>
               </td>
             </tr>
-            <tr v-if="!filteredDocuments.length"><td colspan="6" class="empty">Keine passenden Dateien vorhanden.</td></tr>
+            <tr v-if="!filteredDocuments.length">
+              <td
+                colspan="6"
+                class="empty"
+              >
+                Keine passenden Dateien vorhanden.
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <section v-else class="workspace">
+    <section
+      v-else
+      class="workspace"
+    >
       <header class="workspace-header">
         <div>
           <h2>E-Mail-Vorlagen</h2>
           <p>Standortvorlagen überschreiben die globale Vorlage; anschließend gilt der Systemstandard.</p>
         </div>
-        <span class="source" :class="`source--${templateSource}`">{{ sourceLabel }}</span>
+        <span
+          class="source"
+          :class="`source--${templateSource}`"
+        >{{ sourceLabel }}</span>
       </header>
 
       <div class="template-selectors">
         <label>Standort
-          <select v-model="templateLocationId" @change="loadTemplate">
+          <select
+            v-model="templateLocationId"
+            @change="loadTemplate"
+          >
             <option value="">Global</option>
-            <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+            <option
+              v-for="location in locations"
+              :key="location._id"
+              :value="location._id"
+            >{{ location.nameFull }}</option>
           </select>
         </label>
         <label>Einladungstyp
-          <select v-model="templateType" @change="loadTemplate">
+          <select
+            v-model="templateType"
+            @change="loadTemplate"
+          >
             <option value="vertrag">Vertragsunterschrift</option>
             <option value="vertrag_service">Vertrag und Service-Schulung</option>
             <option value="vertrag_logistik">Vertrag und Logistik-Schulung</option>
@@ -85,58 +182,166 @@
         </label>
       </div>
 
-      <p v-if="templateError" class="error">{{ templateError }}</p>
-      <p v-if="templateLoading" class="state">Vorlage wird geladen ...</p>
-      <form v-else class="template-editor" @submit.prevent="saveTemplate">
+      <p
+        v-if="templateError"
+        class="error"
+      >
+        {{ templateError }}
+      </p>
+      <p
+        v-if="templateLoading"
+        class="state"
+      >
+        Vorlage wird geladen ...
+      </p>
+      <form
+        v-else
+        class="template-editor"
+        @submit.prevent="saveTemplate"
+      >
         <label>Betreff
-          <input v-model="templateForm.subjectTemplate" required maxlength="250" />
+          <AppTextInput
+            v-model="templateForm.subjectTemplate"
+            required
+            maxlength="250"
+          />
         </label>
         <label>HTML-Inhalt
-          <textarea v-model="templateForm.htmlTemplate" required rows="18" spellcheck="false" />
+          <textarea
+            v-model="templateForm.htmlTemplate"
+            required
+            rows="18"
+            spellcheck="false"
+          />
         </label>
         <section class="placeholders">
           <h3>Sichere Platzhalter</h3>
-          <button v-for="(label, key) in placeholders" :key="key" type="button" :title="label" @click="insertPlaceholder(key)">{{ placeholderToken(key) }}</button>
+          <AppButton
+            v-for="(label, key) in placeholders"
+            :key="key"
+            variant="secondary"
+            size="sm"
+            class="placeholder-action"
+            :title="label"
+            @click="insertPlaceholder(key)"
+          >
+            {{ placeholderToken(key) }}
+          </AppButton>
         </section>
         <footer class="editor-actions">
-          <button type="button" class="secondary" @click="previewTemplate"><font-awesome-icon icon="fa-solid fa-eye" /> Vorschau</button>
-          <button v-if="canResetTemplate" type="button" class="secondary danger-text" @click="resetTemplate"><font-awesome-icon icon="fa-solid fa-rotate-left" /> Auf Standard zurücksetzen</button>
-          <button type="submit" class="primary" :disabled="templateSaving"><font-awesome-icon :icon="templateSaving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="templateSaving" /> Speichern</button>
+          <AppButton
+            variant="secondary"
+            @click="previewTemplate"
+          >
+            <font-awesome-icon icon="fa-solid fa-eye" /> Vorschau
+          </AppButton>
+          <AppButton
+            v-if="canResetTemplate"
+            variant="danger"
+            @click="resetTemplate"
+          >
+            <font-awesome-icon icon="fa-solid fa-rotate-left" /> Auf Standard zurücksetzen
+          </AppButton>
+          <AppButton
+            type="submit"
+            :loading="templateSaving"
+          >
+            <font-awesome-icon icon="fa-solid fa-floppy-disk" /> Speichern
+          </AppButton>
         </footer>
       </form>
     </section>
 
-    <div v-if="documentModal.open" class="modal-backdrop" @click.self="closeDocumentEdit">
-      <form class="modal" @submit.prevent="saveDocument">
-        <header><h3>Datei bearbeiten</h3><button type="button" title="Schließen" @click="closeDocumentEdit"><font-awesome-icon icon="fa-solid fa-times" /></button></header>
-        <label>Name<input v-model.trim="documentModal.name" required /></label>
+    <ModalFrame
+      v-if="documentModal.open"
+      title="Datei bearbeiten"
+      size="md"
+      class="document-edit-modal"
+      @close="closeDocumentEdit"
+    >
+      <form
+        :id="documentFormId"
+        class="document-edit-form"
+        @submit.prevent="saveDocument"
+      >
+        <label>Name<AppTextInput
+          v-model.trim="documentModal.name"
+          required
+        /></label>
         <label>Geltungsbereich
           <select v-model="documentModal.locationId">
             <option value="">Global</option>
-            <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
+            <option
+              v-for="location in locations"
+              :key="location._id"
+              :value="location._id"
+            >{{ location.nameFull }}</option>
           </select>
         </label>
-        <label>Datei ersetzen <input type="file" accept=".pdf,.doc,.docx" @change="documentModal.file = $event.target.files?.[0] || null" /></label>
-        <p v-if="documentModal.error" class="error">{{ documentModal.error }}</p>
-        <footer><button type="button" class="secondary" @click="closeDocumentEdit">Abbrechen</button><button type="submit" class="primary" :disabled="documentModal.saving">Speichern</button></footer>
+        <label>Datei ersetzen <input
+          type="file"
+          accept=".pdf,.doc,.docx"
+          @change="documentModal.file = $event.target.files?.[0] || null"
+        ></label>
+        <p
+          v-if="documentModal.error"
+          class="error"
+        >
+          {{ documentModal.error }}
+        </p>
       </form>
-    </div>
+      <template #footer>
+        <AppButton
+          variant="secondary"
+          @click="closeDocumentEdit"
+        >
+          Abbrechen
+        </AppButton>
+        <AppButton
+          type="submit"
+          :form="documentFormId"
+          :loading="documentModal.saving"
+        >
+          Speichern
+        </AppButton>
+      </template>
+    </ModalFrame>
 
-    <div v-if="preview.open" class="modal-backdrop" @click.self="preview.open = false">
-      <section class="modal preview-modal">
-        <header><div><h3>{{ preview.subject }}</h3><small>Serverseitig bereinigte Vorschau</small></div><button type="button" title="Schließen" @click="preview.open = false"><font-awesome-icon icon="fa-solid fa-times" /></button></header>
-        <iframe title="E-Mail-Vorschau" sandbox :srcdoc="preview.html" />
-      </section>
-    </div>
+    <ModalFrame
+      v-if="preview.open"
+      :title="preview.subject || 'E-Mail-Vorschau'"
+      subtitle="Serverseitig bereinigte Vorschau"
+      size="lg"
+      class="bewerber-template-preview-modal"
+      @close="preview.open = false"
+    >
+      <iframe
+        class="template-preview-frame"
+        title="E-Mail-Vorschau"
+        sandbox
+        :srcdoc="preview.html"
+      />
+    </ModalFrame>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, getCurrentInstance, onMounted, reactive, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 
 const props = defineProps({ locations: { type: Array, default: () => [] } });
+const documentFormId = `bewerber-document-edit-${getCurrentInstance().uid}`;
+const uploadInput = ref(null);
+const managementViews = [
+  { value: 'documents', label: 'Anhangsbibliothek', icon: 'fa-solid fa-paperclip' },
+  { value: 'templates', label: 'E-Mail-Vorlagen', icon: 'fa-solid fa-envelope' },
+];
 const view = ref('documents');
 const documents = ref([]);
 const documentsLoading = ref(false);
@@ -301,45 +506,36 @@ function scopeStyle(document) { return document.locationV2 ? { '--scope-color': 
 
 <style scoped lang="scss">
 .bewerber-management { display: grid; gap: 20px; }
-.subtabs { border-bottom: 1px solid var(--border); display: flex; gap: 4px; }
-.subtabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; display: flex; gap: 7px; padding: 9px 12px; }
-.subtabs button.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 700; }
+.view-switcher { display: flex; overflow-x: auto; padding: 2px; }
+.view-switcher :deep(.app-segmented-control) { flex-shrink: 0; }
 .workspace { display: grid; gap: 18px; }
 .workspace-header { align-items: end; display: flex; gap: 20px; justify-content: space-between; }
 h2, h3, p { margin: 0; }
 h2 { color: var(--text); font-size: 1.1rem; }
 .workspace-header p { color: var(--muted); font-size: .82rem; margin-top: 5px; }
-.upload-action, .primary, .secondary { align-items: center; border-radius: 6px; cursor: pointer; display: inline-flex; font: inherit; font-weight: 600; gap: 7px; min-height: 38px; padding: 7px 12px; }
-.upload-action, .primary { background: var(--primary); border: 1px solid var(--primary); color: #fff; }
-.upload-action input { display: none; }
-.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .filters, .template-selectors { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr) auto; }
 label { color: var(--text); display: grid; font-size: .82rem; font-weight: 600; gap: 6px; }
-input, select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font: inherit; min-height: 40px; padding: 8px 10px; }
+input[type='file']:not([hidden]), select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: var(--control-radius); color: var(--text); font: inherit; min-height: 40px; padding: 8px 10px; }
 textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; resize: vertical; }
 .count, .source { border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .75rem; padding: 7px 10px; }
-.source--location { border-color: var(--primary); color: var(--primary); }
+.source--location { border-color: var(--primary); color: var(--action-accent-text); }
 .table-wrap { border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; }
 table { border-collapse: collapse; color: var(--text); width: 100%; }
 th, td { border-bottom: 1px solid var(--border); font-size: .8rem; padding: 10px 12px; text-align: left; }
 th { background: var(--hover); color: var(--muted); font-weight: 700; }
 .actions-cell { text-align: right; white-space: nowrap; }
-.actions-cell button, .modal header button { background: transparent; border: 0; color: var(--muted); cursor: pointer; height: 32px; width: 32px; }
-.danger, .danger-text { color: var(--danger, #b91c1c) !important; }
-.scope-badge { border: 1px solid var(--scope-color, var(--border)); border-radius: 999px; color: var(--scope-color, var(--muted)); padding: 3px 7px; }
+.row-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.scope-badge { border: 1px solid var(--scope-color, var(--border)); border-radius: 999px; color: var(--text); padding: 3px 7px; }
 .empty, .state { color: var(--muted); padding: 18px; text-align: center; }
-.error { color: var(--danger, #b91c1c); font-size: .82rem; }
+.error { color: var(--status-danger-text); font-size: .82rem; }
 .template-editor { display: grid; gap: 14px; }
 .placeholders { display: flex; flex-wrap: wrap; gap: 6px; }
 .placeholders h3 { flex-basis: 100%; font-size: .82rem; }
-.placeholders button { background: var(--hover); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; padding: 5px 7px; }
-.editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.modal-backdrop { align-items: center; background: rgba(0,0,0,.45); display: flex; inset: 0; justify-content: center; padding: 20px; position: fixed; z-index: 1000; }
-.modal { background: var(--tile-bg); border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 16px; max-width: 520px; padding: 20px; width: 100%; }
-.modal header, .modal footer { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
-.modal footer { justify-content: flex-end; }
-.preview-modal { height: min(760px, 90vh); max-width: 760px; }
-.preview-modal small { color: var(--muted); }
-.preview-modal iframe { background: #fff; border: 1px solid var(--border); height: 100%; width: 100%; }
+.placeholder-action { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.editor-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+:global(.document-edit-modal) { --mf-max-width: min(520px, 94vw); --mf-surface: var(--tile-bg); }
+.document-edit-form { display: grid; gap: 16px; }
+:global(.bewerber-template-preview-modal) { --mf-max-width: min(760px, 94vw); --mf-max-height: min(760px, 90vh); --mf-body-overflow: hidden; height: var(--mf-max-height); }
+.template-preview-frame { background: #fff; border: 1px solid var(--border); box-sizing: border-box; flex: 1; min-height: 0; width: 100%; }
 @media (max-width: 700px) { .workspace-header, .editor-actions { align-items: stretch; flex-direction: column; } .filters, .template-selectors { grid-template-columns: 1fr; } }
 </style>

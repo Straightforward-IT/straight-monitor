@@ -60,24 +60,18 @@
       />
       <span class="order-count">{{ sortedOrders.length }} Aufträge</span>
       <template #bottom-actions>
-        <div
+        <AppSegmentedControl
           class="toolbar-period-controls"
-          role="group"
-          aria-label="Aktuellen Zeitraum auswählen"
-        >
-          <button
-            v-for="option in CURRENT_PERIOD_OPTIONS"
-            :key="option.value"
-            type="button"
-            class="toolbar-period-controls__button"
-            :class="{ 'is-active': period === option.value }"
-            :aria-pressed="period === option.value"
-            @click="$emit('update:period', option.value)"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-        <CalendarControls v-model="referenceDateModel" :type="period" />
+          :model-value="period"
+          :options="CURRENT_PERIOD_OPTIONS"
+          size="sm"
+          label="Aktuellen Zeitraum auswählen"
+          @update:model-value="$emit('update:period', $event)"
+        />
+        <CalendarControls
+          v-model="referenceDateModel"
+          :type="period"
+        />
       </template>
     </Toolbar>
 
@@ -166,6 +160,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
+import AppSegmentedControl from "@/components/ui-elements/AppSegmentedControl.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
@@ -373,39 +368,20 @@ watch(sortedOrders, queueScrollToCurrentPeriod);
 .order-list-view { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .order-list-toolbar { margin-bottom: 29px; overflow: visible; }
 .order-count { flex: 0 0 auto; color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
-.toolbar-period-controls {
+.order-list-view .toolbar-period-controls {
   position: absolute;
   z-index: 5;
   top: 100%;
   left: 12px;
-  display: flex;
-  height: 24px;
-  align-items: center;
-  gap: 4px;
+  padding: 0;
+  border-radius: 0 0 5px 5px;
   white-space: nowrap;
 }
-.toolbar-period-controls__button {
-  height: 24px;
-  box-sizing: border-box;
-  padding: 0 10px;
-  border: 1px solid var(--border);
+.order-list-view .toolbar-period-controls :deep(.app-segmented-control__option) {
+  min-height: 22px;
+  padding: 2px 8px;
   border-radius: 0 0 5px 5px;
-  background: var(--tile-bg);
-  color: var(--text);
-  font: inherit;
   font-size: .72rem;
-  cursor: pointer;
-}
-.toolbar-period-controls__button:hover,
-.toolbar-period-controls__button:focus-visible,
-.toolbar-period-controls__button.is-active {
-  border-color: var(--primary);
-  color: var(--primary);
-  outline: none;
-}
-.toolbar-period-controls__button.is-active {
-  background: color-mix(in srgb, var(--primary) 8%, var(--tile-bg));
-  font-weight: 700;
 }
 .order-list-table {
   max-height: calc(100dvh - var(--header-h, 56px) - 190px);
@@ -427,16 +403,16 @@ watch(sortedOrders, queueScrollToCurrentPeriod);
 }
 .order-list-head { position: sticky; z-index: 2; top: 0; border-bottom: 1px solid var(--border); background: var(--hover); color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .sort-header { display: inline-flex; min-width: 0; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; cursor: pointer; }
-.sort-header:hover,
-.sort-header:focus-visible { color: var(--primary); outline: none; }
+.sort-header:hover { color: var(--action-accent-text); }
+.sort-header:focus-visible { color: var(--action-accent-text); outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 .sort-indicator { opacity: 0; font-size: .55rem; transition: opacity .15s; }
 .sort-header:hover .sort-indicator,
 .sort-header:focus-visible .sort-indicator,
 .sort-indicator.is-active { opacity: 1; }
 .order-list-row { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .15s; }
 .order-list-row:last-child { border-bottom: 0; }
-.order-list-row:hover,
-.order-list-row:focus-visible { background: color-mix(in srgb, var(--primary) 7%, transparent); outline: none; }
+.order-list-row:hover { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.order-list-row:focus-visible { background: color-mix(in srgb, var(--primary) 7%, transparent); outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 .order-list-row.is-selected { background: color-mix(in srgb, var(--primary) 12%, transparent); box-shadow: inset 3px 0 var(--primary); }
 .order-list-row.is-current-single,
 .order-list-row.is-current-first,
@@ -480,7 +456,7 @@ watch(sortedOrders, queueScrollToCurrentPeriod);
 
 @media (max-width: 768px) {
   .order-count { display: none; }
-  .toolbar-period-controls { left: 6px; gap: 3px; }
+  .order-list-view .toolbar-period-controls { left: 6px; }
 }
 
 @media (max-width: 420px) {

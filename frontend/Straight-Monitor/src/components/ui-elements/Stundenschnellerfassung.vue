@@ -414,6 +414,7 @@ import MinuteSelect from '@/components/ui-elements/MinuteSelect.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import TimeSelect from '@/components/ui-elements/TimeSelect.vue';
 import { analyzeQuickEntry, buildQuickEntryRows, createQuickEntry, employeeName, formatHours, plannedTimes } from '@/utils/stundenschnellerfassung';
+import { useAuth } from '@/stores/auth';
 
 const props = defineProps({
   contained: { type: Boolean, default: false },
@@ -428,6 +429,7 @@ const props = defineProps({
   showPayrollLink: { type: Boolean, default: false },
 });
 const emit = defineEmits(['submit', 'cancel', 'dirty-change', 'open-payroll']);
+const auth = useAuth();
 const instanceId = `quick-time-${getCurrentInstance().uid}`;
 const entries = ref({});
 const baseline = ref({});
@@ -452,7 +454,7 @@ const rows = computed(() => sourceRows.value.map(einsatz => {
     const key = String(einsatz._id);
     const entry = entries.value[key];
     const date = einsatz.detailDatumVon || einsatz.datumVon;
-    return { key, einsatz, entry, date, name: employeeName(einsatz), planned: plannedTimes(einsatz), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]), locked: props.connected && !!einsatz.timeReleased, submitted: !!einsatz.timeSubmitted };
+    return { key, einsatz, entry, date, name: employeeName(einsatz, auth.employeeNameFormat), planned: plannedTimes(einsatz), analysis: analyzeQuickEntry(entry, props.connected && date ? String(date).slice(0, 10) : null), dirty: JSON.stringify(entry) !== JSON.stringify(baseline.value[key]), locked: props.connected && !!einsatz.timeReleased, submitted: !!einsatz.timeSubmitted };
 }));
 const matchesFilters = row => (!props.employeeSearch || `${row.name} ${row.einsatz.mitarbeiterData?.vorname || ''} ${row.einsatz.mitarbeiterData?.nachname || ''} ${row.einsatz.personalNr || ''}`.toLocaleLowerCase('de-DE').includes(props.employeeSearch.trim().toLocaleLowerCase('de-DE')))
   && (props.submissionFilter === 'all' || (props.submissionFilter === 'submitted') === row.submitted);

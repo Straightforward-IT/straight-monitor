@@ -42,11 +42,16 @@
         <SearchBar v-model="searchQuery" class="toolbar-search" placeholder="Leads durchsuchen…" aria-label="Leads suchen" />
         <template #actions>
           <ToolbarGroup>
-            <ToolbarIconButton title="Spalten / Eigene Felder verwalten" @click="showFieldManager = true">
+            <ToolbarIconButton
+              label="Spalten und eigene Felder verwalten"
+              title="Spalten / Eigene Felder verwalten"
+              @click="showFieldManager = true"
+            >
               <font-awesome-icon :icon="['fas', 'sliders']" />
             </ToolbarIconButton>
             <ToolbarIconButton
               :active="showColPanel || colConfig.some(c => !c.visible)"
+              label="Spalten anpassen"
               title="Spalten anpassen"
               @click="openColPanel($event)"
             >

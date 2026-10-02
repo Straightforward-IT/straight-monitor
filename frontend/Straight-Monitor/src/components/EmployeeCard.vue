@@ -49,7 +49,7 @@
         />
 
         <div class="title">
-          <div class="name">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }}</div>
+          <div class="name">{{ formattedName }}</div>
           <div class="meta">
             <span
               class="pill"
@@ -97,26 +97,29 @@
         </div>
       </div>
 
-      <button
+      <AppIconButton
         v-if="expanded && !showClose"
-        type="button"
-        class="employee-card-open-profile"
-        aria-label="Mitarbeiterprofil in Fenster öffnen"
-        title="Mitarbeiterprofil in Fenster öffnen"
+        class="employee-card-header-action"
+        variant="ghost"
+        size="sm"
+        label="Mitarbeiterprofil in Fenster öffnen"
+        :disabled="showReaktivierungModal"
         @click.stop="$emit('open-profile-modal', resolvedMa._id)"
       >
         <font-awesome-icon icon="fa-solid fa-up-right-from-square" />
-      </button>
+      </AppIconButton>
 
-      <button
+      <AppIconButton
         v-if="showClose"
-        type="button"
-        class="employee-card-close"
-        aria-label="Schließen"
+        class="employee-card-header-action"
+        variant="ghost"
+        size="sm"
+        label="Schließen"
+        :disabled="showReaktivierungModal"
         @click.stop="$emit('close')"
       >
         <font-awesome-icon icon="fa-solid fa-xmark" />
-      </button>
+      </AppIconButton>
 
     </header>
 
@@ -1660,6 +1663,7 @@
       <EditMitarbeiterDialog
         v-if="showEditModal"
         :mitarbeiter="resolvedMa"
+        :nationalitaeten="nationalitaeten"
         :saving="savingEdit"
         :conflict-info="editConflictInfo"
         @close="closeEditModal"
@@ -1688,61 +1692,69 @@
     </teleport>
 
     <!-- Reaktivierungs-Modal -->
-    <teleport to="body">
-      <div v-if="showReaktivierungModal" class="reaktiv-overlay" @click.self="showReaktivierungModal = false">
-        <div class="reaktiv-modal">
-          <div class="reaktiv-header">
-            <font-awesome-icon icon="fa-solid fa-circle-check" class="reaktiv-icon" />
-            <h3>{{ resolvedMa.vorname }} {{ resolvedMa.nachname }} reaktivieren</h3>
+    <ModalFrame
+      v-if="showReaktivierungModal"
+      :title="`${resolvedMa.vorname} ${resolvedMa.nachname} reaktivieren`"
+      size="sm"
+      layer="elevated"
+      class="reaktiv-modal"
+      style="--mf-max-width: 440px; --mf-body-padding: 0; --mf-header-padding: 18px 20px 14px"
+      :show-close="!reaktivierungLoading"
+      :close-on-backdrop="!reaktivierungLoading"
+      :close-on-escape="!reaktivierungLoading"
+      @close="closeReaktivierungModal"
+    >
+      <template #header="{ titleId }">
+        <div class="reaktiv-header">
+          <font-awesome-icon icon="fa-solid fa-circle-check" class="reaktiv-icon" />
+          <h3 :id="titleId">{{ resolvedMa.vorname }} {{ resolvedMa.nachname }} reaktivieren</h3>
+        </div>
+      </template>
+
+      <div class="reaktiv-body">
+        <!-- Flip Status -->
+        <div class="reaktiv-section">
+          <div class="reaktiv-section-title">
+            <font-awesome-icon icon="fa-solid fa-mobile-screen" />
+            Flip-Account
           </div>
-
-          <div class="reaktiv-body">
-            <!-- Flip Status -->
-            <div class="reaktiv-section">
-              <div class="reaktiv-section-title">
-                <font-awesome-icon icon="fa-solid fa-mobile-screen" />
-                Flip-Account
-              </div>
-              <div v-if="resolvedMa.flip?.id" class="reaktiv-status reaktiv-status--ok">
-                <font-awesome-icon icon="fa-solid fa-circle-check" />
-                Verbunden mit {{ resolvedMa.flip.firstName }} {{ resolvedMa.flip.lastName }}
-                <span class="reaktiv-hint">Stelle sicher, dass der Flip-Account wieder aktiv ist.</span>
-              </div>
-              <div v-else class="reaktiv-status reaktiv-status--warn">
-                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
-                Kein Flip-Account verknüpft
-                <span class="reaktiv-hint">Nach dem Reaktivieren bitte in der Flip-Ansicht einen Account erstellen oder verknüpfen.</span>
-              </div>
-            </div>
-
-            <!-- Asana Status -->
-            <div class="reaktiv-section">
-              <div class="reaktiv-section-title">
-                <font-awesome-icon icon="fa-solid fa-diagram-project" />
-                Asana
-              </div>
-              <div v-if="resolvedMa.asana_id" class="reaktiv-status reaktiv-status--warn">
-                <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
-                Asana-Task Status prüfen
-                <span class="reaktiv-hint">Falls der Asana-Task noch auf "Erledigt" steht, bitte manuell in Asana wieder öffnen.</span>
-              </div>
-              <div v-else class="reaktiv-status reaktiv-status--muted">
-                <font-awesome-icon icon="fa-solid fa-circle-minus" />
-                Kein Asana-Task verknüpft
-              </div>
-            </div>
+          <div v-if="resolvedMa.flip?.id" class="reaktiv-status reaktiv-status--ok">
+            <font-awesome-icon icon="fa-solid fa-circle-check" />
+            Verbunden mit {{ resolvedMa.flip.firstName }} {{ resolvedMa.flip.lastName }}
+            <span class="reaktiv-hint">Stelle sicher, dass der Flip-Account wieder aktiv ist.</span>
           </div>
+          <div v-else class="reaktiv-status reaktiv-status--warn">
+            <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+            Kein Flip-Account verknüpft
+            <span class="reaktiv-hint">Nach dem Reaktivieren bitte in der Flip-Ansicht einen Account erstellen oder verknüpfen.</span>
+          </div>
+        </div>
 
-          <div class="reaktiv-actions">
-            <button class="btn btn-ghost" @click="showReaktivierungModal = false">Abbrechen</button>
-            <button class="btn" :disabled="reaktivierungLoading" @click="confirmReaktivierung">
-              <font-awesome-icon v-if="reaktivierungLoading" icon="fa-solid fa-spinner" spin />
-              Jetzt reaktivieren
-            </button>
+        <!-- Asana Status -->
+        <div class="reaktiv-section">
+          <div class="reaktiv-section-title">
+            <font-awesome-icon icon="fa-solid fa-diagram-project" />
+            Asana
+          </div>
+          <div v-if="resolvedMa.asana_id" class="reaktiv-status reaktiv-status--warn">
+            <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
+            Asana-Task Status prüfen
+            <span class="reaktiv-hint">Falls der Asana-Task noch auf "Erledigt" steht, bitte manuell in Asana wieder öffnen.</span>
+          </div>
+          <div v-else class="reaktiv-status reaktiv-status--muted">
+            <font-awesome-icon icon="fa-solid fa-circle-minus" />
+            Kein Asana-Task verknüpft
           </div>
         </div>
       </div>
-    </teleport>
+
+      <p v-if="reaktivierungError" class="reaktiv-error" role="alert">{{ reaktivierungError }}</p>
+
+      <template #footer>
+        <AppButton variant="secondary" size="sm" :disabled="reaktivierungLoading" @click="closeReaktivierungModal">Abbrechen</AppButton>
+        <AppButton size="sm" :loading="reaktivierungLoading" @click="confirmReaktivierung">Jetzt reaktivieren</AppButton>
+      </template>
+    </ModalFrame>
 
   </template>
 
@@ -1763,12 +1775,17 @@ import TlBadge from "./ui-elements/TlBadge.vue";
 import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
 import HoverDataCard from "./ui-elements/HoverDataCard.vue";
+import AppButton from "./ui-elements/AppButton.vue";
+import AppIconButton from "./ui-elements/AppIconButton.vue";
+import ModalFrame from "./frames/ModalFrame.vue";
+import { shortTermEmploymentWindow } from "@/utils/shortTermEmployment";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useFlipAll } from "@/stores/flipAll";
 import { useDataCache } from "@/stores/dataCache";
 import { useSignaturModal } from "@/stores/signaturModal";
+import { formatMitarbeiterName } from "@/utils/mitarbeiterName";
 import api from "@/utils/api";
 import FlipMappings from "@/assets/FlipMappings.json";
 
@@ -1795,7 +1812,7 @@ const fetchNationalitaeten = async () => {
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, ModalFrame },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1820,6 +1837,10 @@ export default {
     const selfLoading = ref(false);
     // Resolves to the passed ma prop, or the self-loaded one
     const resolvedMaSetup = computed(() => props.ma || selfLoadedMa.value);
+    const formattedName = computed(() => formatMitarbeiterName(
+      resolvedMaSetup.value,
+      auth.employeeNameFormat,
+    ));
 
     const effectiveTheme = computed(() => (theme.isDark ? "dark" : "light"));
 
@@ -1939,6 +1960,7 @@ export default {
       dataCache,
       selfLoadedMa,
       selfLoading,
+      formattedName,
       flip,
       openDocumentModal,
       openTimeCapture,
@@ -2030,6 +2052,7 @@ export default {
       // Reaktivierungs-Modal
       showReaktivierungModal: false,
       reaktivierungLoading: false,
+      reaktivierungError: '',
 
       // Dispo / Chronik
       einsatzContext: { last: null, next: null },
@@ -2121,12 +2144,14 @@ export default {
       const employeeName = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
       const selectedYear = this.calendarYear;
       const selectedMonth = this.calendarMonth + 1;
+      const employmentWindow = employmentType === 3
+        ? shortTermEmploymentWindow(employee?.eintrittsdatum, selectedYear)
+        : null;
       const monthlyHours = Number(employee?.arbeitszeit?.monat);
       const monthlyRecords = (records) => records.find(record =>
         record.year === selectedYear && record.month === selectedMonth
       )?.hours || 0;
-      const yearlyCount = (records) => records
-        .filter(record => record.year === selectedYear)
+      const reportedDays = (records) => records
         .reduce((total, record) => total + (Number(record.days) || 0), 0);
       const workedHours = monthlyRecords(this.einsatzAnalytics.ist);
       const plannedHours = monthlyRecords(this.einsatzAnalytics.forecast);
@@ -2134,6 +2159,7 @@ export default {
         .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
       if (employmentType === 3) {
+        if (!employmentWindow) return null;
         const priorEmployerDays = employee?.vorarbeitgebertage?.year === selectedYear
           ? Number(employee.vorarbeitgebertage.days) || 0
           : 0;
@@ -2143,9 +2169,10 @@ export default {
           employeeName,
           title: 'Kurzfristig beschäftigt',
           priorEmployerDays,
-          workedDays: yearlyCount(this.einsatzAnalytics.ist),
-          plannedDays: yearlyCount(this.einsatzAnalytics.forecast),
+          workedDays: reportedDays(this.einsatzAnalytics.ist),
+          plannedDays: reportedDays(this.einsatzAnalytics.forecast),
           dayLimit: 70,
+          periodLabel: employmentWindow.label,
         };
       }
 
@@ -2388,6 +2415,7 @@ export default {
       }
     },
     toggle() {
+      if (this.showReaktivierungModal) return;
       this.expanded = !this.expanded;
 
       if (this.expanded) {
@@ -2426,7 +2454,7 @@ export default {
       try {
         this.nationalitaeten = await fetchNationalitaeten();
       } catch (error) {
-        console.error('[EmployeeCard] nationalities could not be loaded:', error);
+        console.error('[EmployeeCard] Nationalitäten konnten nicht geladen werden:', error);
       }
     },
 
@@ -2973,7 +3001,14 @@ export default {
       if (!this.resolvedMa?._id) return;
       this.loadingEinsatzAnalytics = true;
       try {
-        const from = new Date(this.calendarYear, 0, 1).toISOString();
+        const employmentWindow = this.resolvedMa.arbeitsverhaeltnis?.typ === 3
+          ? shortTermEmploymentWindow(this.resolvedMa.eintrittsdatum, this.calendarYear)
+          : null;
+        if (this.resolvedMa.arbeitsverhaeltnis?.typ === 3 && !employmentWindow) {
+          this.einsatzAnalytics = { ist: [], forecast: [] };
+          return;
+        }
+        const from = (employmentWindow?.from || new Date(this.calendarYear, 0, 1)).toISOString();
         const bis = new Date(this.calendarYear, 11, 31, 23, 59, 59).toISOString();
         const { data } = await api.get(
           `/api/personal/${this.resolvedMa._id}/analytics/einsaetze`,
@@ -3631,7 +3666,7 @@ export default {
       if (cleanNumber.startsWith('0') && !cleanNumber.startsWith('+')) {
         cleanNumber = '+49' + cleanNumber.substring(1);
       }
-      return `sipgate://phone/call?number=${cleanNumber}`;
+      return `tel:${cleanNumber}`;
     },
 
     executeQuickAction(action) {
@@ -3672,6 +3707,7 @@ export default {
           break;
         case 'toggle-active':
           if (this.resolvedMa?.isActive === false) {
+            this.reaktivierungError = '';
             this.showReaktivierungModal = true;
           } else {
             this.toggleActiveStatus();
@@ -3721,21 +3757,36 @@ export default {
       });
     },
 
+    closeReaktivierungModal() {
+      if (this.reaktivierungLoading) return;
+      this.showReaktivierungModal = false;
+      this.reaktivierungError = '';
+    },
+
     async confirmReaktivierung() {
+      if (this.reaktivierungLoading) return;
       const hasFlip = !!this.resolvedMa?.flip?.id;
       this.reaktivierungLoading = true;
-      await this.toggleActiveStatus();
-      this.reaktivierungLoading = false;
-      this.showReaktivierungModal = false;
-      this.$emit('reactivated');
-      if (!hasFlip) {
-        // Karte expandieren und zur Flip-Ansicht wechseln
-        if (!this.expanded) this.toggle();
-        this.$nextTick(() => { this.view = 'links'; });
+      this.reaktivierungError = '';
+      try {
+        const success = await this.toggleActiveStatus({ silent: true });
+        if (!success) {
+          this.reaktivierungError = 'Mitarbeiter konnte nicht reaktiviert werden. Bitte erneut versuchen.';
+          return;
+        }
+        this.showReaktivierungModal = false;
+        this.$emit('reactivated');
+        if (!hasFlip) {
+          // Karte expandieren und zur Flip-Ansicht wechseln
+          if (!this.expanded) this.toggle();
+          this.$nextTick(() => { this.view = 'links'; });
+        }
+      } finally {
+        this.reaktivierungLoading = false;
       }
     },
 
-    async toggleActiveStatus() {
+    async toggleActiveStatus({ silent = false } = {}) {
       try {
         const newStatus = !this.resolvedMa?.isActive;
         const response = await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}`, {
@@ -3745,11 +3796,13 @@ export default {
         if (response.data?.success) {
           this.resolvedMa.isActive = newStatus;
           this.dataCache.updateOneMitarbeiter(this.resolvedMa);
+          return true;
         }
       } catch (error) {
         console.error("❌ Fehler beim Ändern des Status:", error);
-        alert("Fehler beim Ändern des Status.");
+        if (!silent) alert("Fehler beim Ändern des Status.");
       }
+      return false;
     },
 
     async openQualificationPicker() {
@@ -3815,6 +3868,7 @@ export default {
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
+          nationalitaet: formData.nationalitaet,
           additionalEmails: formData.additionalEmails,
           personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
@@ -3862,6 +3916,7 @@ export default {
           geburtsdatum: formData.geburtsdatum || null,
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
+          nationalitaet: formData.nationalitaet,
           additionalEmails: formData.additionalEmails,
           personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
@@ -4420,54 +4475,11 @@ export default {
   z-index: 11;
 }
 
-.employee-card-close {
-  width: 32px;
-  height: 32px;
+.employee-card-header-action {
+  --app-button-icon-size: 32px;
+  --action-ghost-text: var(--muted);
   flex: 0 0 auto;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 16px;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  }
-
-  &:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
-    outline-offset: 2px;
-  }
-}
-
-.employee-card-open-profile {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  }
-
-  &:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
-    outline-offset: 2px;
-  }
+  min-height: 32px;
 }
 
 /* Linke Seite (Avatar + Titel) füllt, damit Actions rechts andocken */
@@ -7232,33 +7244,10 @@ export default {
 }
 
 // ─── Reaktivierungs-Modal ─────────────────────────────────────────────────────
-.reaktiv-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  z-index: 200000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.reaktiv-modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
-  width: 100%;
-  max-width: 440px;
-  overflow: hidden;
-}
-
 .reaktiv-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--border);
 
   h3 {
     font-size: 15px;
@@ -7268,7 +7257,7 @@ export default {
   }
 
   .reaktiv-icon {
-    color: #1f8e5d;
+    color: var(--status-success-text);
     font-size: 18px;
     flex-shrink: 0;
   }
@@ -7279,6 +7268,12 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.reaktiv-error {
+  margin: 0 20px 16px;
+  color: var(--status-danger-text);
+  font-size: 0.8rem;
 }
 
 .reaktiv-section {
@@ -7333,14 +7328,6 @@ export default {
   font-weight: 400;
   opacity: 0.85;
   margin-top: 2px;
-}
-
-.reaktiv-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 14px 20px 18px;
-  border-top: 1px solid var(--border);
 }
 
 /* ── Expanded employee layout: full-width tabs, no permanent aside ───────── */

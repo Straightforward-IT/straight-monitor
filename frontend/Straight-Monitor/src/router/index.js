@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import '../assets/styles/main.scss';
 import { useAuth } from '@/stores/auth';
+import { useTheme } from '@/stores/theme';
 import { jwtDecode } from 'jwt-decode';
 
 // Eager: first paint for unauthenticated users
@@ -40,6 +41,7 @@ const SignaturenPage = () => import('@/components/SignaturenPage.vue');
 const PdfMitarbeiterForm = () => import('@/components/PdfMitarbeiterForm.vue');
 const DispoTable = () => import('@/components/DispoTable.vue');
 const UserManagement = () => import('@/components/UserManagement.vue');
+const UserSettings = () => import('@/components/UserSettings.vue');
 const NotFound = () => import('@/components/NotFound.vue');
 const PayrollPage = () => import('@/components/PayrollPage.vue');
 const MitarbeiterEinsatzortMapPage = () => import('@/components/MitarbeiterEinsatzortMapPage.vue');
@@ -91,6 +93,7 @@ const routes = [
       { path: 'signaturen-legacy', name: 'DocuSealVorgaenge', component: DocuSealVorgaenge, meta: { roles: ['ADMIN'] } },
       { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
       { path: 'dispo', name: 'Dispo', component: DispoTable },
+      { path: 'einstellungen', name: 'UserSettings', component: UserSettings },
       { path: 'benutzer-verwaltung', name: 'BenutzerVerwaltung', component: UserManagement, meta: { roles: ['ADMIN'] } },
       { path: 'mailbox-explorer', name: 'MailboxExplorer', component: () => import('@/components/GraphMailboxDashboard.vue'), meta: { roles: ['ADMIN'] } },
       { path: 'onedrive-explorer', name: 'OneDriveExplorer', component: () => import('@/components/OneDriveDashboard.vue'), meta: { roles: ['ADMIN'] } },
@@ -153,6 +156,7 @@ router.beforeEach(async (to, from, next) => {
     if (token && !auth.user) {
       try {
         await auth.fetchMe();
+        useTheme().hydrateFromUser(auth.user);
       } catch (e) {
         console.error("Failed to fetch user in router", e);
       }

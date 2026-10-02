@@ -1,8 +1,14 @@
 <template>
   <section class="inventory-page inventory-overview-tab">
-
-    <Toolbar wrap class="inventory-toolbar">
-      <ToolbarFilter v-model="filterOpen" :active-count="activeFilterCount" @reset="resetFilters">
+    <Toolbar
+      wrap
+      class="inventory-toolbar"
+    >
+      <ToolbarFilter
+        v-model="filterOpen"
+        :active-count="activeFilterCount"
+        @reset="resetFilters"
+      >
         <FilterGroup label="Standort">
           <FilterChip
             v-for="location in locations"
@@ -16,28 +22,59 @@
           </FilterChip>
         </FilterGroup>
         <FilterGroup label="Bestand">
-          <FilterChip :active="stockState === 'under-target'" @click="stockState = stockState === 'under-target' ? 'all' : 'under-target'">Unter Soll</FilterChip>
-          <FilterChip :active="stockState === 'empty'" @click="stockState = stockState === 'empty' ? 'all' : 'empty'">Leer</FilterChip>
+          <FilterChip
+            :active="stockState === 'under-target'"
+            @click="stockState = stockState === 'under-target' ? 'all' : 'under-target'"
+          >
+            Unter Soll
+          </FilterChip>
+          <FilterChip
+            :active="stockState === 'empty'"
+            @click="stockState = stockState === 'empty' ? 'all' : 'empty'"
+          >
+            Leer
+          </FilterChip>
         </FilterGroup>
         <FilterGroup label="Merkmale">
-          <FilterChip :active="variationOnly" @click="variationOnly = !variationOnly">Mit Variation</FilterChip>
-          <FilterChip :active="sizeOnly" @click="sizeOnly = !sizeOnly">Mit Größe</FilterChip>
+          <FilterChip
+            :active="variationOnly"
+            @click="variationOnly = !variationOnly"
+          >
+            Mit Variation
+          </FilterChip>
+          <FilterChip
+            :active="sizeOnly"
+            @click="sizeOnly = !sizeOnly"
+          >
+            Mit Größe
+          </FilterChip>
         </FilterGroup>
       </ToolbarFilter>
 
-      <SearchBar v-model="search" class="toolbar-search" placeholder="Bezeichnung, Variante, Größe oder Standort" />
+      <SearchBar
+        v-model="search"
+        class="toolbar-search"
+        placeholder="Bezeichnung, Variante, Größe oder Standort"
+      />
 
       <template #actions>
-      <ToolbarGroup push-right>
-        <ToolbarButton variant="menu" title="Bestandsaktionen" @click="openActionMenu">
-          <font-awesome-icon :icon="['fas', 'ellipsis']" />
-          Aktionen
-        </ToolbarButton>
-        <ToolbarButton variant="secondary" @click="openItemCreate">
-          <font-awesome-icon :icon="['fas', 'plus']" />
-          Neu
-        </ToolbarButton>
-      </ToolbarGroup>
+        <ToolbarGroup push-right>
+          <ToolbarButton
+            variant="menu"
+            title="Bestandsaktionen"
+            @click="openActionMenu"
+          >
+            <font-awesome-icon :icon="['fas', 'ellipsis']" />
+            Aktionen
+          </ToolbarButton>
+          <ToolbarButton
+            variant="secondary"
+            @click="openItemCreate"
+          >
+            <font-awesome-icon :icon="['fas', 'plus']" />
+            Neu
+          </ToolbarButton>
+        </ToolbarGroup>
       </template>
       <template #bottom-actions>
         <ToolbarPageControls
@@ -48,39 +85,90 @@
           items-per-page-label="Artikel pro Seite"
         >
           <template #sort>
-            <SortMenu v-model="sortBy" v-model:ascending="sortAscending" :options="sortOptions" />
+            <SortMenu
+              v-model="sortBy"
+              v-model:ascending="sortAscending"
+              :options="sortOptions"
+            />
           </template>
         </ToolbarPageControls>
       </template>
     </Toolbar>
 
-    <p v-if="error" class="state state--error">{{ error }}</p>
-    <p v-else-if="loading && !stocks.length" class="state">Bestand wird geladen…</p>
-    <p v-else-if="!filteredStocks.length" class="state">Keine Bestandskombinationen gefunden.</p>
+    <p
+      v-if="error"
+      class="state state--error"
+    >
+      {{ error }}
+    </p>
+    <p
+      v-else-if="loading && !stocks.length"
+      class="state"
+    >
+      Bestand wird geladen…
+    </p>
+    <p
+      v-else-if="!filteredStocks.length"
+      class="state"
+    >
+      Keine Bestandskombinationen gefunden.
+    </p>
 
-    <div v-else class="inventory-list">
-      <article v-for="item in paginatedItems" :key="item.id" class="item-card">
-        <header class="item-card__header" @click="toggleItemDetails(item)">
+    <div
+      v-else
+      class="inventory-list"
+    >
+      <article
+        v-for="item in paginatedItems"
+        :key="item.id"
+        class="item-card"
+      >
+        <header
+          class="item-card__header"
+          @click="toggleItemDetails(item)"
+        >
           <div class="item-card__summary">
-            <button type="button" class="item-card__details-trigger" :aria-expanded="isItemExpanded(item.id)" @click.stop="toggleItemDetails(item)">
-              <span class="item-card__title-row">
-                <FavoriteStarButton
-                  :active="isItemHighlighted(item)"
-                  active-title="Favorit entfernen"
-                  inactive-title="Als Favorit markieren"
-                  @toggle="toggleItemHighlight(item)"
-                />
-                <h3>{{ item.bezeichnung }}</h3>
-                <span v-if="!item.totalTarget" class="item-card__no-target">Kein Soll</span>
-              </span>
-              <span class="item-card__meta">{{ item.locations.length }} {{ item.locations.length === 1 ? 'Standort' : 'Standorte' }} · {{ item.stocks.length }} Kombinationen</span>
-            </button>
-            <a v-if="item.shopUrl" :href="item.shopUrl" target="_blank" rel="noopener noreferrer" class="shop-link" @click.stop>
+            <div class="item-card__title-row">
+              <FavoriteStarButton
+                :active="isItemHighlighted(item)"
+                active-title="Favorit entfernen"
+                inactive-title="Als Favorit markieren"
+                @toggle="toggleItemHighlight(item)"
+              />
+              <h3>
+                <AppButton
+                  variant="ghost"
+                  size="sm"
+                  class="item-card__details-trigger"
+                  :aria-expanded="isItemExpanded(item.id)"
+                  :aria-controls="`inventory-item-details-${item.id}`"
+                  @click.stop="toggleItemDetails(item)"
+                >
+                  {{ item.bezeichnung }}
+                </AppButton>
+              </h3>
+              <span
+                v-if="!item.totalTarget"
+                class="item-card__no-target"
+              >Kein Soll</span>
+            </div>
+            <span class="item-card__meta">{{ item.locations.length }} {{ item.locations.length === 1 ? 'Standort' : 'Standorte' }} · {{ item.stocks.length }} Kombinationen</span>
+            <a
+              v-if="item.shopUrl"
+              :href="item.shopUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="shop-link"
+              @click.stop
+            >
               <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" /> Shop
             </a>
           </div>
           <div class="item-card__actions">
-            <span class="item-card__totals" aria-label="Bestand nach Standort">
+            <span
+              class="item-card__totals"
+              aria-label="Bestand nach Standort"
+            >
               <span
                 v-for="location in item.locationTotals"
                 :key="location.id"
@@ -89,35 +177,64 @@
                 :title="`${location.name}: ${location.anzahl}`"
               >{{ location.shortName || location.name }} {{ location.anzahl }}</span>
             </span>
-            <button type="button" class="item-card__edit" title="Bestandsverlauf als Graph öffnen" @click.stop="openItemHistory(item)">
+            <AppIconButton
+              size="sm"
+              :label="`Bestandsverlauf für ${item.bezeichnung} als Graph öffnen`"
+              @click.stop="openItemHistory(item)"
+            >
               <font-awesome-icon :icon="['fas', 'chart-line']" />
-            </button>
-            <button type="button" class="item-card__edit" title="Artikel bearbeiten" @click.stop="openItemEdit(item)">
+            </AppIconButton>
+            <AppIconButton
+              size="sm"
+              :label="`Artikel ${item.bezeichnung} bearbeiten`"
+              @click.stop="openItemEdit(item)"
+            >
               <font-awesome-icon :icon="['fas', 'pen']" />
-            </button>
-            <button v-if="isAdmin" type="button" class="item-card__edit item-card__delete" title="Artikel löschen" @click.stop="deleteItem(item)">
+            </AppIconButton>
+            <AppIconButton
+              v-if="isAdmin"
+              size="sm"
+              variant="danger"
+              :label="`Artikel ${item.bezeichnung} löschen`"
+              @click.stop="deleteItem(item)"
+            >
               <font-awesome-icon :icon="['fas', 'trash']" />
-            </button>
-            <button type="button" class="item-card__edit" :title="isItemExpanded(item.id) ? 'Details schließen' : 'Details anzeigen'" @click.stop="toggleItemDetails(item)">
+            </AppIconButton>
+            <AppIconButton
+              size="sm"
+              :label="`Details für ${item.bezeichnung} ${isItemExpanded(item.id) ? 'schließen' : 'anzeigen'}`"
+              :aria-expanded="isItemExpanded(item.id)"
+              :aria-controls="`inventory-item-details-${item.id}`"
+              @click.stop="toggleItemDetails(item)"
+            >
               <font-awesome-icon :icon="['fas', isItemExpanded(item.id) ? 'chevron-up' : 'chevron-down']" />
-            </button>
+            </AppIconButton>
           </div>
         </header>
 
-        <div v-if="isItemExpanded(item.id)" class="item-card__details">
-          <div v-if="item.locations.length > 1" class="location-tabs" role="tablist" aria-label="Standort auswählen">
-            <button
-              v-for="location in item.locations"
-              :key="location.id"
-              type="button"
-              :class="{ active: selectedItemLocation(item) === location.id }"
-              @click="selectItemLocation(item.id, location.id)"
-            >
-              {{ location.shortName || location.name }}
-            </button>
+        <div
+          v-if="isItemExpanded(item.id)"
+          :id="`inventory-item-details-${item.id}`"
+          class="item-card__details"
+        >
+          <div
+            v-if="item.locations.length > 1"
+            class="location-tabs"
+          >
+            <AppSegmentedControl
+              :model-value="selectedItemLocation(item)"
+              :options="item.locations.map(location => ({ value: location.id, label: location.shortName || location.name }))"
+              :label="`Standort für ${item.bezeichnung} auswählen`"
+              size="sm"
+              @update:model-value="selectItemLocation(item.id, $event)"
+            />
           </div>
 
-          <section v-for="location in visibleItemLocations(item)" :key="location.id" class="stock-matrix-section">
+          <section
+            v-for="location in visibleItemLocations(item)"
+            :key="location.id"
+            class="stock-matrix-section"
+          >
             <div class="stock-matrix-section__header">
               <h4>{{ location.name }}</h4>
               <span>{{ location.shortName }}</span>
@@ -126,14 +243,30 @@
               <table class="stock-matrix">
                 <thead>
                   <tr>
-                    <th scope="col">Variation</th>
-                    <th v-for="size in item.sizes" :key="size.key" scope="col">{{ size.label }}</th>
+                    <th scope="col">
+                      Variation
+                    </th>
+                    <th
+                      v-for="size in item.sizes"
+                      :key="size.key"
+                      scope="col"
+                    >
+                      {{ size.label }}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="variation in item.variations" :key="variation.key">
-                    <th scope="row">{{ variation.label }}</th>
-                    <td v-for="size in item.sizes" :key="size.key">
+                  <tr
+                    v-for="variation in item.variations"
+                    :key="variation.key"
+                  >
+                    <th scope="row">
+                      {{ variation.label }}
+                    </th>
+                    <td
+                      v-for="size in item.sizes"
+                      :key="size.key"
+                    >
                       <button
                         v-if="matrixStock(item, location.id, variation.key, size.key)"
                         type="button"
@@ -144,7 +277,10 @@
                         <b>{{ matrixStock(item, location.id, variation.key, size.key).anzahl }}</b>
                         <small>/ {{ matrixStock(item, location.id, variation.key, size.key).soll }}</small>
                       </button>
-                      <span v-else class="matrix-cell--empty">—</span>
+                      <span
+                        v-else
+                        class="matrix-cell--empty"
+                      >—</span>
                     </td>
                   </tr>
                 </tbody>
@@ -152,7 +288,10 @@
             </div>
           </section>
 
-          <section v-if="isAdmin && item.createdAt" class="item-creation-info">
+          <section
+            v-if="isAdmin && item.createdAt"
+            class="item-creation-info"
+          >
             <span>Erstellt am {{ formatCreationDate(item.createdAt) }}</span>
             <span>von {{ item.createdBy?.name || item.createdBy?.email || 'Unbekannt' }}</span>
           </section>
@@ -160,8 +299,17 @@
       </article>
     </div>
 
-    <InventoryItemModal v-model="showCreateDialog" :item="editingItem" @created="handleCreated" @updated="handleItemUpdated" />
-    <InventoryTransactionModal v-if="selectedStock" v-model="selectedStock" @updated="handleStockUpdated" />
+    <InventoryItemModal
+      v-model="showCreateDialog"
+      :item="editingItem"
+      @created="handleCreated"
+      @updated="handleItemUpdated"
+    />
+    <InventoryTransactionModal
+      v-if="selectedStock"
+      v-model="selectedStock"
+      @updated="handleStockUpdated"
+    />
     <InventoryReportModal
       v-if="reportMode"
       :mode="reportMode"
@@ -170,7 +318,14 @@
       :initial-location-ids="selectedLocationIds"
       @close="reportMode = null"
     />
-    <ContextMenu v-if="actionMenu.visible" :x="actionMenu.x" :y="actionMenu.y" :options="actionMenuOptions" @close="actionMenu.visible = false" @select="handleActionMenu" />
+    <ContextMenu
+      v-if="actionMenu.visible"
+      :x="actionMenu.x"
+      :y="actionMenu.y"
+      :options="actionMenuOptions"
+      @close="actionMenu.visible = false"
+      @select="handleActionMenu"
+    />
   </section>
 </template>
 
@@ -199,6 +354,9 @@ import InventoryTransactionModal from '@/components/InventoryTransactionModal.vu
 import ContextMenu from '@/components/ContextMenu.vue';
 import InventoryReportModal from '@/components/InventoryReportModal.vue';
 import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 
 library.add(faArrowUpRightFromSquare, faChartLine, faChevronDown, faChevronUp, faEllipsis, faPen, faPlus, faRotate, faSpinner, faTrash, faWarehouse);
 
@@ -451,7 +609,8 @@ function selectItemLocation(itemId, locationId) {
 }
 
 function selectedItemLocation(item) {
-  return selectedItemLocationIds.value[item.id] || item.locations[0]?.id;
+  const selected = selectedItemLocationIds.value[item.id];
+  return item.locations.some(location => location.id === selected) ? selected : item.locations[0]?.id;
 }
 
 function visibleItemLocations(item) {
@@ -501,31 +660,29 @@ onMounted(async () => {
 <style scoped lang="scss">
 .inventory-page { color: var(--text); }
 .inventory-toolbar { margin-bottom: 29px; overflow: visible; }
-.inventory-page :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--location-color); }
-.inventory-page :deep(.location-filter-chip.active) { border-color: var(--location-color); color: var(--location-color); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
+.inventory-page :deep(.location-filter-chip) { border-color: color-mix(in srgb, var(--location-color) 45%, var(--border)); color: var(--text); }
+.inventory-page :deep(.location-filter-chip.active) { border-color: var(--location-color); color: var(--text); background: color-mix(in srgb, var(--location-color) 12%, transparent); }
 .state { margin: 24px 0; color: var(--muted); }
-.state--error { color: #c3423f; }
+.state--error { color: var(--status-danger-text); }
 .inventory-list { display: grid; gap: 10px; }
 .item-card { border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); overflow: hidden; }
 .item-card__header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 14px 14px 11px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .item-card__summary { min-width: 0; display: grid; justify-items: start; gap: 5px; }
-.item-card__details-trigger { min-width: 0; display: grid; justify-items: start; gap: 5px; border: 0; padding: 0; background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+.item-card__details-trigger { --action-ghost-text: var(--text); min-width: 0; padding: 0 2px; font-size: inherit; white-space: normal; text-align: left; }
 .item-card__title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.item-card h3 { font-size: 0.98rem; margin: 0; }
-.item-card__no-target { flex: 0 0 auto; padding: 2px 5px; border: 1px solid color-mix(in srgb, #d78a00 45%, var(--border)); border-radius: 4px; background: color-mix(in srgb, #d78a00 10%, var(--tile-bg)); color: #a96100; font-size: 0.65rem; font-weight: 600; white-space: nowrap; }
+.item-card h3 { min-width: 0; font-size: 0.98rem; margin: 0; }
+.item-card__no-target { flex: 0 0 auto; padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--status-warning) 45%, var(--border)); border-radius: 4px; background: color-mix(in srgb, var(--status-warning) 10%, var(--tile-bg)); color: var(--status-warning-text); font-size: 0.65rem; font-weight: 600; white-space: nowrap; }
 .item-card__meta { color: var(--muted); font-size: 0.74rem; }
-.item-card__actions { display: flex; align-items: center; gap: 7px; }
+.item-card__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.item-card__actions :deep(.app-icon-button) { flex-shrink: 0; }
 .item-card__totals { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex-wrap: wrap; }
-.item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--location-color) 14%, var(--tile-bg)); color: var(--location-color); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap; }
-.item-card__edit { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
-.item-card__edit:hover { border-color: var(--primary); color: var(--primary); }
-.item-card__delete:hover { border-color: #c3423f; color: #c3423f; }
+.item-card__total { min-width: 28px; padding: 4px 7px; border-radius: 5px; background: color-mix(in srgb, var(--location-color) 14%, var(--tile-bg)); color: var(--text); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap; }
 .shop-link { color: var(--muted); font-size: 0.72rem; text-decoration: none; }
-.shop-link:hover { color: var(--primary); }
+.shop-link:hover { color: var(--action-accent-text); }
+.shop-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 .item-card__details { display: grid; gap: 12px; padding: 12px 14px 14px; }
-.location-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.location-tabs button { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 0.76rem; }
-.location-tabs button.active { border-color: var(--primary); color: var(--primary); }
+.location-tabs { display: flex; overflow-x: auto; padding: 2px; }
+.location-tabs :deep(.app-segmented-control) { flex-shrink: 0; }
 .stock-matrix-section { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
 .stock-matrix-section__header { display: flex; align-items: baseline; gap: 8px; padding: 9px 11px; border-bottom: 1px solid var(--border); }
 .stock-matrix-section__header h4 { margin: 0; font-size: 0.84rem; }
@@ -540,10 +697,11 @@ onMounted(async () => {
 .stock-matrix th:last-child, .stock-matrix td:last-child { border-right: 0; }
 .matrix-cell { width: 100%; height: 100%; min-height: 38px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); cursor: pointer; font: inherit; }
 .matrix-cell:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--tile-bg)); }
+.matrix-cell:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 .matrix-cell b { font-size: 0.88rem; }
 .matrix-cell small { color: var(--muted); font-size: 0.7rem; }
-.matrix-cell--under-target { color: #a96100; background: color-mix(in srgb, #d78a00 10%, var(--tile-bg)); }
-.matrix-cell--empty-stock { color: #c3423f; background: color-mix(in srgb, #c3423f 9%, var(--tile-bg)); }
+.matrix-cell--under-target { color: var(--status-warning-text); background: color-mix(in srgb, var(--status-warning) 10%, var(--tile-bg)); }
+.matrix-cell--empty-stock { color: var(--status-danger-text); background: color-mix(in srgb, var(--action-danger) 9%, var(--tile-bg)); }
 .matrix-cell--empty { color: var(--muted); }
-@media (max-width: 620px) { .page-header { align-items: start; flex-direction: column; gap: 5px; } .stock-count { padding: 0; } .item-card__header { padding: 12px; } .item-card__details { padding: 10px; } }
+@media (max-width: 620px) { .page-header { align-items: start; flex-direction: column; gap: 5px; } .stock-count { padding: 0; } .item-card__header { flex-direction: column; padding: 12px; } .item-card__details { padding: 10px; } }
 </style>

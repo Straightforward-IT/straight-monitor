@@ -5,17 +5,17 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="selectedLocation" class="wdk-select">
+      <AppSelect v-model="selectedLocation" size="sm" aria-label="Kommentare nach Standort filtern">
         <option value="Alle">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="wdk-list">
       <li v-for="item in visibleItems" :key="item._id" class="wdk-item">
-        <div class="wdk-link" role="button" tabindex="0" @click="goToDispo(item)" @keydown.enter="goToDispo(item)">
+        <button type="button" class="wdk-link" @click="goToDispo(item)">
           <div class="wdk-body">
             <div class="wdk-top">
               <span class="wdk-name">{{ item.maName }}</span>
@@ -26,7 +26,7 @@
             <span class="wdk-author">von {{ item.author }}</span>
           </div>
           <span class="wdk-badge">Neu</span>
-        </div>
+        </button>
       </li>
       <li v-if="!loading && !visibleItems.length" class="wdk-empty">
         <font-awesome-icon :icon="['fas', 'check-circle']" class="wdk-empty-icon" />
@@ -46,6 +46,7 @@ import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useComments } from '@/stores/comments';
 import DashboardWidget from './DashboardWidget.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const auth = useAuth();
 const cache = useDataCache();
@@ -170,16 +171,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.wdk-select {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-}
-
 .wdk-list {
   list-style: none;
   padding: 0;
@@ -197,9 +188,14 @@ onMounted(() => {
 
 .wdk-link {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   text-decoration: none;
   color: var(--text);
   border-radius: 8px;
@@ -208,6 +204,11 @@ onMounted(() => {
 
   &:hover {
     background: var(--hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 1px;
   }
 }
 
@@ -272,9 +273,9 @@ onMounted(() => {
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 20px;
-  background: rgba(var(--primary-rgb, 238 175 103) / 0.18);
+  background: rgba(var(--primary-rgb, 238, 175, 103), 0.18);
   color: var(--primary);
-  border: 1px solid rgba(var(--primary-rgb, 238 175 103) / 0.35);
+  border: 1px solid rgba(var(--primary-rgb, 238, 175, 103), 0.35);
   letter-spacing: 0.03em;
 }
 

@@ -1,23 +1,63 @@
 <template>
-  <article class="bewerber-card" :class="{ 'is-expanded': expanded }">
-    <div class="card-progress" :class="{ 'card-progress--expired': isExpired }" :style="{ '--seg-color': stageColor }" :title="statusLabel" role="progressbar" :aria-valuetext="statusLabel">
-      <span v-for="(step, i) in progressSteps" :key="step.key" class="progress-seg" :class="{ done: !isExpired && i <= currentStepIndex, current: !isExpired && i === currentStepIndex }" :title="step.label"></span>
+  <article
+    class="bewerber-card"
+    :class="{ 'is-expanded': expanded }"
+  >
+    <div
+      class="card-progress"
+      :class="{ 'card-progress--expired': isExpired }"
+      :style="{ '--seg-color': stageColor }"
+      :title="statusLabel"
+      role="progressbar"
+      :aria-valuetext="statusLabel"
+    >
+      <span
+        v-for="(step, i) in progressSteps"
+        :key="step.key"
+        class="progress-seg"
+        :class="{ done: !isExpired && i <= currentStepIndex, current: !isExpired && i === currentStepIndex }"
+        :title="step.label"
+      />
     </div>
-    <header class="card-header" :aria-expanded="expanded" @click="toggleExpand">
+    <header
+      class="card-header"
+      @click="toggleExpand"
+    >
       <div class="identity">
-        <div class="avatar">{{ initials }}</div>
+        <div class="avatar">
+          {{ initials }}
+        </div>
         <div>
           <h3>{{ bewerber.vorname }} {{ bewerber.nachname }}</h3>
           <p>{{ bewerber.email || 'Keine E-Mail hinterlegt' }}</p>
         </div>
       </div>
-      <div class="header-actions" @click.stop>
-        <button type="button" class="chevron" :class="{ open: expanded }" aria-label="Details" @click="toggleExpand">
+      <div
+        class="header-actions"
+        @click.stop
+      >
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          class="chevron"
+          :class="{ open: expanded }"
+          :label="`Details für ${bewerber.vorname} ${bewerber.nachname} ${expanded ? 'schließen' : 'anzeigen'}`"
+          :aria-expanded="expanded"
+          :aria-controls="`bewerber-details-${bewerber._id}`"
+          @click="toggleExpand"
+        >
           <font-awesome-icon icon="fa-solid fa-chevron-right" />
-        </button>
-        <button ref="actionButton" type="button" class="icon-button" aria-label="Aktionen" @click="openContextMenu">
+        </AppIconButton>
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          :label="`Aktionen für ${bewerber.vorname} ${bewerber.nachname}`"
+          aria-haspopup="menu"
+          :aria-expanded="showContextMenu"
+          @click="openContextMenu"
+        >
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-        </button>
+        </AppIconButton>
       </div>
     </header>
 
@@ -28,7 +68,11 @@
     </div>
 
     <transition name="expand">
-      <div v-show="expanded" class="card-body">
+      <div
+        v-show="expanded"
+        :id="`bewerber-details-${bewerber._id}`"
+        class="card-body"
+      >
         <BewerberDetailCard
           v-if="hasLoaded"
           :bewerber-id="bewerber._id"
@@ -40,7 +84,14 @@
       </div>
     </transition>
 
-    <ContextMenu v-if="showContextMenu" :x="contextMenuX" :y="contextMenuY" :options="contextMenuOptions" @close="showContextMenu = false" @select="handleContextAction" />
+    <ContextMenu
+      v-if="showContextMenu"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :options="contextMenuOptions"
+      @close="showContextMenu = false"
+      @select="handleContextAction"
+    />
   </article>
 </template>
 
@@ -50,12 +101,13 @@ import { faEllipsisVertical, faChevronRight } from '@fortawesome/free-solid-svg-
 import { library } from '@fortawesome/fontawesome-svg-core';
 import ContextMenu from './ContextMenu.vue';
 import BewerberDetailCard from './BewerberDetailCard.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 library.add(faEllipsisVertical, faChevronRight);
 
 export default {
   name: 'BewerberCard',
-  components: { ContextMenu, FontAwesomeIcon, BewerberDetailCard },
+  components: { ContextMenu, FontAwesomeIcon, BewerberDetailCard, AppIconButton },
   props: { bewerber: { type: Object, required: true } },
   emits: ['saved', 'invite'],
   data() {
@@ -102,8 +154,8 @@ export default {
       this.expanded = !this.expanded;
       if (this.expanded) this.hasLoaded = true;
     },
-    openContextMenu() {
-      const rect = this.$refs.actionButton.getBoundingClientRect();
+    openContextMenu(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
       this.contextMenuX = rect.right - 160;
       this.contextMenuY = rect.bottom + 4;
       this.showContextMenu = true;
@@ -123,14 +175,13 @@ export default {
 .card-header { align-items: center; cursor: pointer; display: flex; gap: 12px; justify-content: space-between; padding: 14px; }
 .identity, .header-actions, .card-meta { align-items: center; display: flex; }
 .identity { gap: 10px; min-width: 0; }
-.avatar { align-items: center; background: var(--primary); border-radius: 6px; color: #fff; display: flex; flex: 0 0 38px; font-weight: 700; height: 38px; justify-content: center; }
+.avatar { align-items: center; background: var(--action-primary); border-radius: 6px; color: var(--on-action-primary); display: flex; flex: 0 0 38px; font-weight: 700; height: 38px; justify-content: center; }
 h3, p { margin: 0; }
 h3 { color: var(--text); font-size: .95rem; }
 .identity p, .card-meta { color: var(--muted); font-size: .8rem; }
 .header-actions { gap: 6px; }
-.icon-button, .chevron { background: transparent; border: 0; color: var(--muted); cursor: pointer; height: 32px; width: 32px; }
-.chevron { align-items: center; display: flex; justify-content: center; transition: transform .2s, color .2s; }
-.chevron.open { color: var(--primary); transform: rotate(90deg); }
+.chevron :deep(svg) { transition: transform .2s; }
+.chevron.open :deep(svg) { transform: rotate(90deg); }
 .card-progress { display: flex; gap: 2px; padding: 0; width: 100%; }
 .card-progress .progress-seg { background: var(--border); flex: 1; height: 4px; transition: background .2s; }
 .card-progress .progress-seg:first-child { border-top-left-radius: 8px; }
@@ -149,5 +200,5 @@ h3 { color: var(--text); font-size: .95rem; }
 .expand-enter-from, .expand-leave-to { max-height: 0; opacity: 0; }
 .expand-enter-active, .expand-leave-active { overflow: hidden; transition: max-height .3s ease, opacity .2s ease; }
 .expand-enter-to, .expand-leave-from { max-height: 3000px; opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .expand-enter-active, .expand-leave-active { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .expand-enter-active, .expand-leave-active, .chevron :deep(svg) { transition: none; } }
 </style>

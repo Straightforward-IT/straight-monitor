@@ -3,7 +3,7 @@
     v-if="mitarbeiterId && (hosted || !delegated)"
     class="employee-card-modal"
     size="lg"
-    aria-label="Mitarbeiterprofil"
+    :aria-label="minimizeTitle"
     :show-close="false"
     minimizable
     :minimize-title="minimizeTitle"

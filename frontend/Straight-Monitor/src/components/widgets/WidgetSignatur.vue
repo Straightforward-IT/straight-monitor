@@ -6,9 +6,10 @@
     :loading="loading"
   >
     <template #actions>
-      <select
+      <AppSelect
         v-model="selectedLocation"
-        class="wp-select"
+        size="sm"
+        aria-label="Stundenlisten nach Standort filtern"
       >
         <option value="Alle">
           Alle
@@ -20,7 +21,7 @@
         >
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="ws-list">
@@ -74,6 +75,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
 import DashboardWidget from './DashboardWidget.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const auth = useAuth();
 const selectedLocation = ref('Alle');
@@ -155,21 +157,6 @@ onMounted(async () => {
 <style scoped lang="scss">
 :deep(.dash-widget__icon) {
   color: var(--muted);
-}
-
-.wp-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
-
-  &:focus {
-    border-color: var(--border);
-  }
 }
 
 .ws-list {
@@ -259,10 +246,10 @@ onMounted(async () => {
   font-weight: 700;
   white-space: nowrap;
 
-  &--open { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #f59e0b; }
-  &--completed { background: color-mix(in srgb, #10b981 16%, transparent); color: #10b981; }
+  &--open { background: color-mix(in srgb, var(--status-warning-text) 12%, transparent); color: var(--status-warning-text); }
+  &--completed { background: color-mix(in srgb, var(--status-success-text) 12%, transparent); color: var(--status-success-text); }
   &--draft { background: var(--hover); color: var(--muted); }
-  &--cancelled { background: color-mix(in srgb, #ef4444 14%, transparent); color: #ef4444; }
+  &--cancelled { background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); color: var(--status-danger-text); }
 }
 
 .ws-status-dot {

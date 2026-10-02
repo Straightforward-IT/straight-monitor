@@ -6,12 +6,12 @@
     :loading="loading"
   >
     <template #actions>
-      <select v-model="selectedStandort" class="wp-select">
+      <AppSelect v-model="selectedStandort" size="sm" aria-label="Bestand-Logs nach Standort filtern">
         <option value="Alle">Alle</option>
         <option v-for="location in locations" :key="location._id" :value="location._id">
           {{ location.shortName || location.nameFull }}
         </option>
-      </select>
+      </AppSelect>
     </template>
 
     <ul class="wm-list">
@@ -49,6 +49,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useAuth } from "@/stores/auth";
 import DashboardWidget from "./DashboardWidget.vue";
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 
 const auth = useAuth();
 
@@ -252,18 +253,4 @@ onMounted(async () => {
   text-align: center;
 }
 
-.wp-select {
-  font-size: 11px;
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--tile-bg);
-  color: var(--muted);
-  cursor: pointer;
-  outline: none;
-
-  &:focus {
-    border-color: var(--border);
-  }
-}
 </style>
