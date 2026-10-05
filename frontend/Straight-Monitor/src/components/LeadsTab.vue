@@ -45,7 +45,7 @@
             <ToolbarIconButton
               label="Spalten und eigene Felder verwalten"
               title="Spalten / Eigene Felder verwalten"
-              @click="showFieldManager = true"
+              @click="openFieldManager"
             >
               <font-awesome-icon :icon="['fas', 'sliders']" />
             </ToolbarIconButton>
@@ -53,6 +53,8 @@
               :active="showColPanel || colConfig.some(c => !c.visible)"
               label="Spalten anpassen"
               title="Spalten anpassen"
+              aria-haspopup="dialog"
+              :aria-expanded="showColPanel"
               @click="openColPanel($event)"
             >
               <font-awesome-icon :icon="['fas', 'table-columns']" />
@@ -92,9 +94,9 @@
       <div v-else-if="filteredLeads.length === 0" class="empty-list">
         <font-awesome-icon :icon="['fas', 'bullseye']" style="font-size: 32px; opacity: 0.3" />
         <p>Keine Leads vorhanden.</p>
-        <button class="btn btn-primary" @click="openCreateModal">
+        <AppButton @click="openCreateModal">
           <font-awesome-icon :icon="['fas', 'plus']" /> Ersten Lead anlegen
-        </button>
+        </AppButton>
       </div>
 
       <!-- Mobile vertical list -->
@@ -149,7 +151,8 @@
     </button>
 
     <!-- Right Sidebar -->
-      <LeadDetailPanel
+      <component
+        :is="hostedLead ? LeadContent : LeadDetailPanel"
         v-if="selectedLead"
         v-model="hasSelectedLead"
         v-model:presentation="leadPanelPresentation"
@@ -852,10 +855,7 @@
             </RecordChronikTimeline>
           </section>
 
-        <template v-if="leadPanelPresentation === 'modal'" #modal-footer>
-          <div :id="`lead-chronik-modal-${selectedLead._id}`" class="lead-chronik-modal-host"></div>
-        </template>
-      </LeadDetailPanel>
+      </component>
 
     <!-- Chronik bottom drawer (slides up when a lead is open) -->
     <RecordChronikDrawer
@@ -901,31 +901,34 @@
       title="Neuen Lead anlegen"
       size="md"
       class="lead-create-modal"
+      :close-on-backdrop="!creating"
+      :close-on-escape="!creating"
+      :show-close="!creating"
     >
           <div class="lead-create-body">
 
             <!-- Lead basics -->
             <div class="kv-grid" style="margin-bottom: 16px;">
               <div class="kv-item">
-                <label>Standort <span class="req">*</span></label>
-                <select v-model="createForm.locationV2" class="form-input">
+                <label :for="createLocationId">Standort <span class="req">*</span></label>
+                <AppSelect :id="createLocationId" v-model="createForm.locationV2" :disabled="creating">
                   <option v-for="location in locations" :key="location._id" :value="location._id">
                     {{ location.nameFull }}
                   </option>
-                </select>
+                </AppSelect>
               </div>
 
               <div class="kv-item">
-                <label>Organisation <span class="req">*</span></label>
-                <input v-model="createForm.title" class="form-input" placeholder="z.B. EventRent" />
+                <label :for="createTitleId">Organisation <span class="req">*</span></label>
+                <AppTextInput :id="createTitleId" v-model="createForm.title" placeholder="z.B. EventRent" :disabled="creating" />
               </div>
 
               <div class="kv-item">
-                <label>Quelle</label>
-                <select v-model="createForm.quelle" class="form-input">
+                <label :for="createSourceId">Quelle</label>
+                <AppSelect :id="createSourceId" v-model="createForm.quelle" :disabled="creating">
                   <option :value="null">—</option>
                   <option v-for="opt in leadConfig.quelleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
+                </AppSelect>
               </div>
             </div>
 
@@ -934,23 +937,14 @@
               <div class="contact-picker-header">
                 <font-awesome-icon :icon="['fab', 'microsoft']" class="ms-icon" />
                 <span>Microsoft Kontakt</span>
-                <div class="mode-tabs">
-                  <button
-                    class="mode-tab"
-                    :class="{ active: contactPickerMode === 'search' }"
-                    @click="contactPickerMode = 'search'"
-                  >Suchen</button>
-                  <button
-                    class="mode-tab"
-                    :class="{ active: contactPickerMode === 'new' }"
-                    @click="contactPickerMode = 'new'; linkedContact = null"
-                  >Neu anlegen</button>
-                  <button
-                    class="mode-tab"
-                    :class="{ active: contactPickerMode === 'skip' }"
-                    @click="contactPickerMode = 'skip'; linkedContact = null"
-                  >Überspringen</button>
-                </div>
+                <AppSegmentedControl
+                  v-model="createContactMode"
+                  class="contact-picker-modes"
+                  size="sm"
+                  label="Microsoft Kontakt"
+                  :options="contactPickerOptions"
+                  :disabled="creating"
+                />
               </div>
 
               <!-- Mode: Suchen -->
@@ -962,18 +956,19 @@
                     <strong>{{ linkedContact.displayName }}</strong>
                     <span>{{ primaryEmailOf(linkedContact) || linkedContact.companyName || '' }}</span>
                   </div>
-                  <button class="chip-remove" @click="linkedContact = null; createForm.kontakt = blankKontakt()">
+                  <AppIconButton label="Verknüpften Kontakt entfernen" size="sm" variant="ghost" :disabled="creating" @click="linkedContact = null; createForm.kontakt = blankKontakt()">
                     <font-awesome-icon :icon="['fas', 'xmark']" />
-                  </button>
+                  </AppIconButton>
                 </div>
 
                 <template v-else>
                   <div class="search-input-wrap">
-                    <input
-                      v-model="contactSearchQuery"
-                      class="form-input"
+                    <AppTextInput
+                      :model-value="contactSearchQuery"
+                      :disabled="creating"
+                      aria-label="Microsoft Kontakt suchen"
                       placeholder="Name oder E-Mail suchen…"
-                      @input="debouncedContactSearch"
+                      @update:model-value="onCreateContactSearch"
                     />
                     <font-awesome-icon v-if="msContactsLoading" :icon="['fas', 'spinner']" spin class="search-spin" />
                   </div>
@@ -982,6 +977,7 @@
                       v-for="c in contactSearchResults"
                       :key="c.id"
                       class="contact-result-item"
+                      :disabled="creating"
                       @click="selectContact(c)"
                     >
                       <div class="result-name">{{ c.displayName }}</div>
@@ -1005,13 +1001,14 @@
                     <strong>{{ linkedContact.displayName }}</strong>
                     <span>{{ primaryEmailOf(linkedContact) || linkedContact.companyName || '' }}</span>
                   </div>
-                  <button class="chip-remove" @click="linkedContact = null">
+                  <AppIconButton label="Neuen Kontakt entfernen" size="sm" variant="ghost" :disabled="creating" @click="linkedContact = null">
                     <font-awesome-icon :icon="['fas', 'xmark']" />
-                  </button>
+                  </AppIconButton>
                 </div>
                 <template v-else>
                   <button
                     class="btn-open-kontakt-modal"
+                    :disabled="creating"
                     @click="openKontaktAnlegenModal('create')"
                   >
                     <div class="ms-logo-grid" aria-hidden="true">
@@ -1036,12 +1033,12 @@
               </div>
             </div>
           </div>
+          <p v-if="createError" class="lead-create-error" role="alert">{{ createError }}</p>
           <template #footer>
-            <button class="btn btn-secondary" @click="showCreateModal = false">Abbrechen</button>
-            <button class="btn btn-primary" :disabled="!createForm.title.trim() || creating" @click="createLead">
-              <font-awesome-icon v-if="creating" :icon="['fas', 'spinner']" spin />
+            <AppButton variant="secondary" :disabled="creating" @click="showCreateModal = false">Abbrechen</AppButton>
+            <AppButton :disabled="!createForm.title.trim()" :loading="creating" @click="createLead">
               {{ contactPickerMode === 'new' ? 'Anlegen & Kontakt erstellen' : 'Anlegen' }}
-            </button>
+            </AppButton>
           </template>
     </ModalFrame>
 
@@ -1057,18 +1054,16 @@
     />
 
     <!-- Field Manager Modal (Custom Fields / LeadLabels) -->
-    <teleport to="body">
-      <div v-if="showFieldManager" class="modal-overlay" @click="showFieldManager = false">
-        <div class="modal-content modal-large" @click.stop>
-          <header class="modal-header">
-            <h3>
-              <font-awesome-icon :icon="['fas', 'sliders']" /> Eigene Felder verwalten
-            </h3>
-            <button class="btn-icon" @click="showFieldManager = false">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
-          <div class="modal-body">
+    <ModalFrame
+      v-model="showFieldManager"
+      title="Eigene Felder verwalten"
+      size="lg"
+      class="lead-field-manager-modal"
+      :close-on-backdrop="!fieldManagerBusy"
+      :close-on-escape="!fieldManagerBusy"
+      :show-close="!fieldManagerBusy"
+    >
+          <div class="lead-field-manager-body">
             <p class="muted-text">
               Definiere eigene Felder, die als zusätzliche Spalten in der Lead-Tabelle angezeigt
               werden und beim Lead-Detail editierbar sind.
@@ -1096,12 +1091,12 @@
                       <input type="checkbox" :checked="lbl.isActive" @change="toggleLabelField(lbl, 'isActive', $event.target.checked)" />
                       Aktiv
                     </label>
-                    <button class="btn-icon" @click="startEditLabel(lbl)" title="Bearbeiten">
+                    <AppIconButton size="sm" variant="ghost" :label="`${lbl.name} bearbeiten`" @click="startEditLabel(lbl)">
                       <font-awesome-icon :icon="['fas', 'sliders']" />
-                    </button>
-                    <button class="ctx-delete-btn" @click="deleteLabel(lbl)" title="Deaktivieren">
+                    </AppIconButton>
+                    <AppIconButton size="sm" variant="ghost" class="lead-field-manager-destructive" :label="`${lbl.name} deaktivieren`" @click="deleteLabel(lbl)">
                       <font-awesome-icon :icon="['fas', 'trash']" />
-                    </button>
+                    </AppIconButton>
                   </div>
                 </template>
 
@@ -1129,11 +1124,11 @@
                       <textarea v-model="editLabelForm.optionsText" class="form-input" rows="3" placeholder="Option A&#10;Option B"></textarea>
                     </div>
                     <div class="label-edit-actions">
-                      <button class="btn btn-primary btn-sm" :disabled="savingLabelEdit" @click="saveEditLabel(lbl)">
-                        <font-awesome-icon :icon="['fas', savingLabelEdit ? 'spinner' : 'paper-plane']" :spin="savingLabelEdit" />
+                      <AppButton size="sm" :disabled="!editLabelForm.name.trim()" :loading="savingLabelEdit" @click="saveEditLabel(lbl)">
+                        <font-awesome-icon :icon="['fas', 'paper-plane']" />
                         Speichern
-                      </button>
-                      <button class="btn btn-sm" @click="editingLabelId = null">Abbrechen</button>
+                      </AppButton>
+                      <AppButton size="sm" variant="secondary" :disabled="savingLabelEdit" @click="editingLabelId = null">Abbrechen</AppButton>
                     </div>
                   </div>
                 </template>
@@ -1158,10 +1153,10 @@
                 <option value="url">URL</option>
                 <option value="address">Adresse</option>
               </select>
-              <button class="btn btn-primary" :disabled="!newField.name.trim() || creatingField" @click="createField">
-                <font-awesome-icon :icon="['fas', creatingField ? 'spinner' : 'plus']" :spin="creatingField" />
+              <AppButton :disabled="!newField.name.trim()" :loading="creatingField" @click="createField">
+                <font-awesome-icon :icon="['fas', 'plus']" />
                 Hinzufügen
-              </button>
+              </AppButton>
             </div>
 
             <div v-if="['dropdown','multiselect'].includes(newField.fieldType)" class="new-options-block">
@@ -1188,18 +1183,20 @@
                       @keydown.esc="editingQuelleIdx = null"
                     />
                     <span class="config-value-hint">{{ opt.value }}</span>
-                    <button class="btn btn-primary btn-sm" @click="saveEditQuelle(idx)">✓</button>
-                    <button class="btn-icon" @click="editingQuelleIdx = null"><font-awesome-icon :icon="['fas', 'xmark']" /></button>
+                    <AppButton size="sm" :disabled="!editingQuelleLabel.trim()" :loading="savingConfig" @click="saveEditQuelle(idx)">Speichern</AppButton>
+                    <AppIconButton size="sm" variant="ghost" :disabled="savingConfig" label="Bearbeitung abbrechen" @click="editingQuelleIdx = null">
+                      <font-awesome-icon :icon="['fas', 'xmark']" />
+                    </AppIconButton>
                   </template>
                   <template v-else>
                     <span class="config-opt-label">{{ opt.label }}</span>
                     <span class="config-value-hint">{{ opt.value }}</span>
-                    <button class="btn-icon" @click="startEditQuelle(idx)" title="Bearbeiten">
+                    <AppIconButton size="sm" variant="ghost" :label="`${opt.label} bearbeiten`" @click="startEditQuelle(idx)">
                       <font-awesome-icon :icon="['fas', 'sliders']" />
-                    </button>
-                    <button class="ctx-delete-btn" @click="removeQuelleOption(idx)" title="Löschen">
+                    </AppIconButton>
+                    <AppIconButton size="sm" variant="ghost" class="lead-field-manager-destructive" :label="`${opt.label} löschen`" :disabled="savingConfig" @click="removeQuelleOption(idx)">
                       <font-awesome-icon :icon="['fas', 'trash']" />
-                    </button>
+                    </AppIconButton>
                   </template>
                 </div>
               </div>
@@ -1210,17 +1207,15 @@
                   placeholder="Neue Option (z.B. Partnervertrieb)"
                   @keydown.enter="addQuelleOption"
                 />
-                <button class="btn btn-primary" :disabled="!newQuelleLabel.trim()" @click="addQuelleOption">
+                <AppButton :disabled="!newQuelleLabel.trim()" :loading="savingConfig" @click="addQuelleOption">
                   <font-awesome-icon :icon="['fas', 'plus']" /> Hinzufügen
-                </button>
+                </AppButton>
               </div>
             </div>
 
 
           </div>
-        </div>
-      </div>
-    </teleport>
+    </ModalFrame>
 
     <!-- Row context menu -->
     <teleport to="body">
@@ -1316,37 +1311,19 @@
       </div>
     </teleport>
 
-    <!-- Column customizer panel -->
-    <teleport to="body">
-      <div v-if="showColPanel" class="col-panel-overlay" @click="closeColPanel">
-        <div
-          class="col-panel"
-          :style="{ top: colPanelAnchor.y + 'px', left: colPanelAnchor.x + 'px', transform: 'translateX(-100%)' }"
-          @click.stop
-        >
-          <div class="col-panel-header">Spalten anpassen</div>
-          <div v-for="(col, idx) in colConfig" :key="col._id" class="col-panel-row" :class="{ 'col-panel-row--standard': col.type === 'standard' }">
-            <label class="col-panel-label">
-              <input type="checkbox" :checked="col.visible" @change="toggleColVisible(col)" />
-              {{ col.name }}
-            </label>
-            <div class="col-panel-order">
-              <button :disabled="idx === 0" class="col-order-btn" @click="moveCol(idx, -1)" title="Nach oben">
-                <font-awesome-icon :icon="['fas', 'arrow-up']" />
-              </button>
-              <button :disabled="idx === colConfig.length - 1" class="col-order-btn" @click="moveCol(idx, 1)" title="Nach unten">
-                <font-awesome-icon :icon="['fas', 'arrow-down']" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <ColumnCustomizerPopover
+      v-model="showColPanel"
+      :anchor="colPanelAnchor"
+      :columns="columnCustomizerItems"
+      :return-focus-to="colPanelTrigger"
+      @toggle="toggleColVisible"
+      @move="moveCol"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, reactive, nextTick } from 'vue';
+import { ref, shallowRef, computed, onMounted, onUnmounted, watch, reactive, nextTick, useId } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -1385,6 +1362,12 @@ import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
+import ColumnCustomizerPopover from '@/components/ui-elements/ColumnCustomizerPopover.vue';
 
 library.add(
   faPlus, faXmark, faSpinner, faSliders, faUser, faInfoCircle,
@@ -1409,7 +1392,9 @@ const props = defineProps({
 });
 const modalManager = useDockedModals();
 const currentModal = useCurrentDockedModal();
-const HostedLeadWorkspace = defineAsyncComponent(() => import('./LeadsTab.vue'));
+const HostedLeadModal = defineAsyncComponent(() => import('./Modals/LeadModal.vue'));
+const LeadContent = (_, { slots }) => slots.default?.();
+LeadContent.inheritAttrs = false;
 const ownerAlive = ref(true);
 
 const hasSelectedLead = computed({
@@ -1588,16 +1573,39 @@ const showCreateModal = ref(false);
 const showFieldManager = ref(false);
 const showColPanel = ref(false);
 const colPanelAnchor = ref({ x: 0, y: 0 });
+const colPanelTrigger = shallowRef(null);
 const colConfig = ref([]);
+const columnCustomizerItems = computed(() => colConfig.value.map((column) => ({
+  id: column._id,
+  label: column.name,
+  visible: column.visible,
+})));
 const expectedCloseDateInput = ref(null);
 const showAddressModal = ref(false);
 const addressModalKey = ref('');
 const addressDraft = reactive({ street: '', city: '', zip: '', country: '' });
 const creating = ref(false);
+const createError = ref('');
 const creatingField = ref(false);
+const createFieldId = useId();
+const createLocationId = `${createFieldId}-location`;
+const createTitleId = `${createFieldId}-title`;
+const createSourceId = `${createFieldId}-source`;
 
 // Contact picker state (create modal)
 const contactPickerMode = ref('search'); // 'search' | 'new' | 'skip'
+const contactPickerOptions = [
+  { value: 'search', label: 'Suchen' },
+  { value: 'new', label: 'Neu anlegen' },
+  { value: 'skip', label: 'Überspringen' },
+];
+const createContactMode = computed({
+  get: () => contactPickerMode.value,
+  set: (mode) => {
+    contactPickerMode.value = mode;
+    if (mode !== 'search') linkedContact.value = null;
+  },
+});
 const contactSearchQuery = ref('');
 const contactSearchResults = ref([]);
 const contactSearchLoading = ref(false);
@@ -1726,6 +1734,7 @@ const addingNote = ref(false);
 // ─── Lead Config (configurable default fields) ────────────────────
 const leadConfig = ref({ quelleOptions: [] });
 const savingConfig = ref(false);
+const fieldManagerBusy = computed(() => creatingField.value || savingLabelEdit.value || savingConfig.value);
 // editing state inside Field Manager
 const newQuelleLabel = ref('');
 const editingQuelleIdx = ref(null); // index being edited inline
@@ -1853,8 +1862,14 @@ function saveColConfig() {
   localStorage.setItem('leads_col_config', JSON.stringify(colConfig.value.map((c) => ({ _id: c._id, visible: c.visible }))));
 }
 
+function openFieldManager() {
+  showColPanel.value = false;
+  showFieldManager.value = true;
+}
+
 function openColPanel(event) {
   const rect = event.currentTarget.getBoundingClientRect();
+  colPanelTrigger.value = event.currentTarget;
   colPanelAnchor.value = { x: rect.right, y: rect.bottom + 4 };
   showColPanel.value = !showColPanel.value;
 }
@@ -1863,7 +1878,9 @@ function closeColPanel() {
   showColPanel.value = false;
 }
 
-function toggleColVisible(col) {
+function toggleColVisible(id) {
+  const col = colConfig.value.find((column) => column._id === id);
+  if (!col) return;
   col.visible = !col.visible;
   saveColConfig();
 }
@@ -2152,7 +2169,7 @@ function openLead(lead) {
   }
   selectedLead.value = lead;
   leadPanelPresentation.value = 'panel';
-  if (window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
+  if (!props.hostedLead && window.innerWidth <= 1100) document.body.style.overflow = 'hidden';
   if (isMobile.value) resetMobileSections();
   detailForm.title = lead.title || '';
   detailForm.wert = lead.wert ?? null;
@@ -2200,7 +2217,7 @@ function handleSidebarAction(action) {
     const form = JSON.parse(JSON.stringify(detailForm));
     const id = `lead-${lead._id}`;
     if (modalManager.get(id)) modalManager.restore(id);
-    else modalManager.open({ id, title: lead.title || 'Lead', component: HostedLeadWorkspace,
+    else modalManager.open({ id, title: lead.title || 'Lead', component: HostedLeadModal, icon: 'lead',
       props: { hostedLead: lead, hostedForm: form,
         canDock: () => ownerAlive.value,
         onDock: (updatedLead, updatedForm) => {
@@ -2415,12 +2432,14 @@ function openCreateModal() {
   contactSearchResults.value = [];
   linkedContact.value = null;
   newContactTeam.value = 'berlin';
+  createError.value = '';
   showCreateModal.value = true;
 }
 
 async function createLead() {
-  if (!createForm.title.trim()) return;
+  if (creating.value || !createForm.title.trim()) return;
   creating.value = true;
+  createError.value = '';
   try {
     let msContact = null;
 
@@ -2471,7 +2490,7 @@ async function createLead() {
     openLead(data);
   } catch (e) {
     console.error('Failed to create lead', e);
-    alert('Lead konnte nicht angelegt werden.');
+    createError.value = 'Lead konnte nicht angelegt werden. Bitte erneut versuchen.';
   } finally {
     creating.value = false;
   }
@@ -2506,6 +2525,11 @@ function debouncedContactSearch() {
       primaryEmailOf(c).toLowerCase().includes(q)
     );
   }).slice(0, 25);
+}
+
+function onCreateContactSearch(query) {
+  contactSearchQuery.value = query;
+  debouncedContactSearch();
 }
 
 function selectContact(c) {
@@ -3219,9 +3243,13 @@ function handleEsc(e) {
   if (props.hostedLead) return;
   if (e.key === 'Escape') {
     if (showAddressModal.value) { closeAddressModal(); return; }
-    if (showCreateModal.value) showCreateModal.value = false;
-    else if (showFieldManager.value) showFieldManager.value = false;
-    else if (selectedLead.value) closeSidebar();
+    if (showCreateModal.value) {
+      if (!creating.value) showCreateModal.value = false;
+      return;
+    }
+    if (showFieldManager.value) return;
+    if (showColPanel.value) { closeColPanel(); return; }
+    if (selectedLead.value) closeSidebar();
   }
 }
 onMounted(() => {
@@ -3234,6 +3262,9 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleEsc);
   window.removeEventListener('resize', onResizeMobile);
 });
+
+defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuOptions,
+  openSidebarActionMenu, handleSidebarAction, stufeLabel });
 </script>
 
 <style scoped lang="scss">
@@ -4109,21 +4140,6 @@ onBeforeUnmount(() => {
 .chronik-text-wrap {
   position: relative;
   display: block;
-
-  .ctx-delete-btn {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.15s;
-    background: var(--panel);
-    border-radius: 4px;
-  }
-
-  &:hover .ctx-delete-btn {
-    opacity: 1;
-  }
 }
 
 .chronik-text {
@@ -4169,9 +4185,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 
-  &.modal-large {
-    max-width: 820px;
-  }
 }
 
 .modal-header {
@@ -4201,22 +4214,6 @@ onBeforeUnmount(() => {
   &:hover {
     color: var(--text);
   }
-}
-
-.ctx-delete-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 2px 4px;
-
-  &:hover { color: #ef4444; }
-}
-
-.modal-body {
-  padding: 18px;
-  overflow-y: auto;
 }
 
 .modal-footer {
@@ -4284,6 +4281,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.lead-field-manager-destructive:hover:not(:disabled) {
+  color: var(--action-danger, #c43d3d);
+}
+
 .chip-toggle {
   display: inline-flex;
   align-items: center;
@@ -4316,17 +4317,6 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.btn-sm {
-  padding: 4px 12px;
-  font-size: 0.82rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-  &:hover { background: var(--hover); }
-}
-
 .muted-text {
   color: var(--muted);
   font-size: 0.82rem;
@@ -4350,6 +4340,18 @@ onBeforeUnmount(() => {
 
   select.form-input {
     flex: 0 0 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lead-field-manager-body .label-card,
+  .lead-field-manager-body .new-field-row { flex-wrap: wrap; }
+  .lead-field-manager-body .label-card-actions { flex-wrap: wrap; }
+  .lead-field-manager-body .new-field-row .form-input,
+  .lead-field-manager-body .new-field-row select.form-input {
+    flex: 1 1 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 }
 
@@ -4412,11 +4414,6 @@ onBeforeUnmount(() => {
     height: 28px;
   }
 
-  .btn-sm {
-    padding: 3px 10px;
-    font-size: 0.8rem;
-    height: 28px;
-  }
 }
 
 .config-option-list--inline {
@@ -4485,31 +4482,12 @@ onBeforeUnmount(() => {
 
   span { flex: 1; }
 
-  .mode-tabs {
-    display: flex;
-    gap: 4px;
-  }
+  .contact-picker-modes { margin-left: auto; }
+}
 
-  .mode-tab {
-    padding: 3px 10px;
-    font-size: 0.78rem;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-
-    &.active {
-      border-color: var(--primary);
-      color: var(--primary);
-      background: transparent;
-    }
-
-    &:hover:not(.active) {
-      background: var(--hover);
-    }
-  }
+@media (max-width: 480px) {
+  .contact-picker-header { flex-wrap: wrap; }
+  .contact-picker-header .contact-picker-modes { width: 100%; }
 }
 
 .contact-search-area,
@@ -4634,15 +4612,13 @@ onBeforeUnmount(() => {
     span   { font-size: 0.78rem;  color: var(--muted); }
   }
 
-  .chip-remove {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 0.8rem;
-    padding: 2px 4px;
-    &:hover { color: #ef4444; }
-  }
+  .app-icon-button { --action-ghost-text: var(--muted); }
+}
+
+.lead-create-error {
+  margin: 0 0 12px;
+  color: var(--status-danger-text);
+  font-size: 0.85rem;
 }
 
 .picker-hint {
@@ -5036,95 +5012,6 @@ onBeforeUnmount(() => {
 
   &::placeholder { color: var(--muted); opacity: 0.6; }
   &:focus { border-color: var(--primary); background: var(--tile-bg); }
-}
-
-/* ── Column customizer panel ───────────────────────────────────── */
-.col-panel-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-}
-
-.col-panel {
-  position: fixed;
-  background: var(--modal-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.14);
-  min-width: 220px;
-  padding: 4px 0;
-  z-index: 9001;
-}
-
-.col-panel-header {
-  padding: 8px 14px 6px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-
-.col-panel-empty {
-  padding: 10px 14px;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.col-panel-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px 6px 14px;
-  gap: 10px;
-
-  &:hover { background: var(--hover); }
-}
-
-.col-panel-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  flex: 1;
-
-  input[type="checkbox"] {
-    accent-color: var(--primary);
-    width: 14px;
-    height: 14px;
-    cursor: pointer;
-  }
-}
-
-.col-panel-order {
-  display: flex;
-  gap: 2px;
-}
-
-.col-order-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:hover:not(:disabled) {
-    background: var(--hover);
-    color: var(--text);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
 }
 
 /* ── Aktivitäten ─────────────────────────────────────────────────── */
@@ -6082,21 +5969,6 @@ onBeforeUnmount(() => {
     z-index: 10;
     background: var(--tile-bg);
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Column-config panel as bottom sheet */
-  .col-panel {
-    position: fixed !important;
-    inset: auto 0 0 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    width: 100vw !important;
-    max-width: 100vw !important;
-    max-height: 80dvh;
-    border-radius: 16px 16px 0 0 !important;
-    overflow-y: auto;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Aktivitäten form */

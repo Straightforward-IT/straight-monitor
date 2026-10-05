@@ -7,7 +7,7 @@
     :show-close="false"
     minimizable
     :minimize-title="minimizeTitle"
-    style="--mf-max-height: 92dvh; --mf-body-padding: 0; --mf-minimize-right: 56px"
+    style="--mf-max-width: min(1100px, calc(100vw - 40px)); --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-minimize-right: 56px"
     @close="handleClose"
   >
     <EmployeeCard
@@ -105,3 +105,15 @@ const EmployeeCardModal = {
 
 export default EmployeeCardModal;
 </script>
+
+<style scoped>
+:global(.employee-card-modal) {
+  min-width: min(1100px, calc(100vw - 40px));
+}
+
+@media (max-width: 720px) {
+  :global(.employee-card-modal) {
+    min-width: 0;
+  }
+}
+</style>

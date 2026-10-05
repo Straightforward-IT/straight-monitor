@@ -41,7 +41,6 @@ watch(() => props.items, () => nextTick(() => { if (feed.value) feed.value.scrol
 .record-chronik { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .record-chronik__empty { color: var(--muted); padding: 20px; text-align: center; }
 .record-chronik__feed { display: flex; flex: 1; flex-direction: column; gap: 0; min-height: 0; overflow-y: auto; padding: 4px 2px; position: relative; }
-:global(.cdf-body--static) .record-chronik__feed { padding-right: 18px; }
 .record-chronik__feed::before { background: var(--border); bottom: 0; content: ''; left: 13px; position: absolute; top: 13px; width: 1px; }
 .record-chronik__divider { align-items: center; color: var(--primary); display: flex; font-size: 11px; font-weight: 700; gap: 8px; letter-spacing: .08em; margin: 6px 0; position: relative; text-transform: uppercase; z-index: 1; }
 .record-chronik__divider span { background: var(--tile-bg); border: 1px solid var(--primary); border-radius: 10px; padding: 1px 6px; }

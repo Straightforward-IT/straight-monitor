@@ -26,6 +26,7 @@ const {
 } = require("../../services/operations/EinsatzCountingService");
 const Auftrag = require("../../models/Event/Auftrag");
 const Qualifikation = require("../../models/Event/Qualifikation");
+const Location = require("../../models/System/Location");
 const { EventReport, EvaluierungMA, Laufzettel, LAUFZETTEL_STATUS } = require("../../models/Classes/FlipDocs");
 const FlipUser = require("../../models/Classes/FlipUser");
 const { sendMail } = require("../../services/integrations/EmailService");
@@ -1372,6 +1373,111 @@ router.get(
       .limit(12)
       .lean();
     res.json(results);
+  })
+);
+
+// --- GET today's office assignments ---
+// GET /api/personal/office-besetzung?date=YYYY-MM-DD
+router.get(
+  "/office-besetzung",
+  auth,
+  asyncHandler(async (req, res) => {
+    const now = new Date();
+    const requestedDate = String(req.query.date || '');
+    const dateMatch = requestedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const selectedDate = dateMatch
+      ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]))
+      : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (Number.isNaN(selectedDate.getTime())
+      || selectedDate.getFullYear() !== Number(dateMatch?.[1] || selectedDate.getFullYear())
+      || selectedDate.getMonth() !== Number(dateMatch?.[2] || selectedDate.getMonth() + 1) - 1
+      || selectedDate.getDate() !== Number(dateMatch?.[3] || selectedDate.getDate())) {
+      return res.status(400).json({ message: 'Ungültiges Datum. Erwartet wird YYYY-MM-DD.' });
+    }
+
+    const startOfToday = selectedDate;
+    const startOfTomorrow = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
+
+    const [locations, legacyOfficeCustomers] = await Promise.all([
+      Location.find({ officeKunde: { $ne: null } }).select("officeKunde").lean(),
+      Kunde.find({ kuerzel: ">S", locationV2: { $ne: null } }).select("_id kundenNr").lean(),
+    ]);
+    const configuredKundeIds = locations.map(location => location.officeKunde).filter(Boolean);
+    const configuredOfficeCustomers = configuredKundeIds.length
+      ? await Kunde.find({ _id: { $in: configuredKundeIds } }).select("_id kundenNr").lean()
+      : [];
+    const officeCustomerNumbers = [...new Map(
+      [...configuredOfficeCustomers, ...legacyOfficeCustomers].map(kunde => [String(kunde._id), kunde])
+    ).values()].map(kunde => kunde.kundenNr);
+
+    if (!officeCustomerNumbers.length) return res.json([]);
+
+    const officeOrders = await Auftrag.find({ kundenNr: { $in: officeCustomerNumbers } })
+      .select("auftragNr")
+      .lean();
+    const orderNumbers = officeOrders.map(order => order.auftragNr);
+    if (!orderNumbers.length) return res.json([]);
+
+    const assignments = await Einsatz.find({
+      auftragNr: { $in: orderNumbers },
+      datumVon: { $gte: startOfToday, $lt: startOfTomorrow },
+      personalNr: { $ne: null },
+    })
+      .select("personalNr datumVon uhrzeitVon uhrzeitBis auftragNr")
+      .lean();
+
+    const personalNumbers = [...new Set(assignments.map(assignment => assignment.personalNr))];
+    if (!personalNumbers.length) return res.json([]);
+
+    const employees = await Mitarbeiter.find({
+      $or: [
+        { personalnr: { $in: personalNumbers } },
+        { "personalnrHistory.value": { $in: personalNumbers } },
+      ],
+    })
+      .select("_id vorname nachname personalnr email telefon profilbild")
+      .populate("locationV2", "shortName")
+      .sort({ nachname: 1, vorname: 1 })
+      .lean();
+    const employeeIds = employees.map(employee => employee._id);
+    if (!employeeIds.length) return res.json([]);
+
+    const users = await User.find({ mitarbeiter: { $in: employeeIds } })
+      .select("_id name email mitarbeiter locationV2")
+      .populate("locationV2", "shortName")
+      .populate({
+        path: "mitarbeiter",
+        select: "_id vorname nachname personalnr email telefon profilbild locationV2",
+        populate: { path: "locationV2", select: "shortName" },
+      })
+      .lean();
+
+    const employeeByPersonalNumber = new Map();
+    employees.forEach(employee => {
+      const numbers = [
+        employee.personalnr,
+        ...(employee.personalnrHistory || []).map(history => history.value),
+      ].filter(Boolean);
+      numbers.forEach(number => employeeByPersonalNumber.set(String(number), employee));
+    });
+    const assignmentByEmployeeId = new Map();
+    assignments.forEach(assignment => {
+      const employee = employeeByPersonalNumber.get(String(assignment.personalNr));
+      if (employee && !assignmentByEmployeeId.has(String(employee._id))) {
+        assignmentByEmployeeId.set(String(employee._id), assignment);
+      }
+    });
+
+    res.json(
+      users
+        .filter(user => user.mitarbeiter && assignmentByEmployeeId.has(String(user.mitarbeiter._id)))
+        .map(user => ({
+          ...user,
+          locationV2: user.locationV2 || user.mitarbeiter.locationV2 || null,
+          assignment: assignmentByEmployeeId.get(String(user.mitarbeiter._id)),
+        }))
+    );
   })
 );
 

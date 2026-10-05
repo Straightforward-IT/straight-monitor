@@ -25,6 +25,14 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'office-besetzung',
+    title: 'Office Besetzung',
+    icon: ['fas', 'building'],
+    component: defineAsyncComponent(() => import('./WidgetOfficeBesetzung.vue')),
+    description: 'Zeigt Mitarbeiter mit einem heutigen Einsatz im Office',
+    defaultVisible: true,
+  },
+  {
     id: 'auftraege',
     title: 'Aufträge',
     icon: ['fas', 'calendar-days'],

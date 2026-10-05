@@ -67,6 +67,18 @@
             <div class="form-group"><label>Land</label><input v-model="locationForm.address.country" type="text" /></div>
             <div class="form-group"><label>Standortleitung</label><select v-model="locationForm.locationManager"><option value="">Nicht zugeordnet</option><option v-for="user in users" :key="user._id" :value="user._id">{{ user.name || user.email }}</option></select></div>
           </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Office-Kunde</label>
+              <select v-model="locationForm.officeKunde">
+                <option value="">Nicht zugeordnet</option>
+                <option v-for="kunde in officeCustomers" :key="kunde._id" :value="kunde._id">
+                  {{ kunde.kundenNr }} · {{ kunde.kuerzel }} · {{ kunde.kundName || 'Ohne Namen' }}
+                </option>
+              </select>
+              <small class="hint-text">Kunde mit Kürzel &gt;S für die Office-Besetzung dieses Standorts.</small>
+            </div>
+          </div>
           </template>
           <template v-else-if="locationModal.activeTab === 'contact'">
           <div class="form-grid">
@@ -780,6 +792,7 @@ const error = ref('');
 const searchQuery = ref('');
 const activeTab = ref('locations');
 const locations = ref([]);
+const kunden = ref([]);
 const signatureTypes = ref([]);
 const locationsLoading = ref(false);
 const locationSaving = ref(false);
@@ -799,6 +812,7 @@ const locationForm = reactive({
   color: '#6b7280',
   address: { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' },
   locationManager: '',
+  officeKunde: '',
   contact: { mainEmail: '', phone: '' },
   openingHours: emptyOpeningHours(),
   timeZone: 'Europe/Berlin',
@@ -812,6 +826,7 @@ const locationForm = reactive({
 const locationModal = reactive({ open: false, isNew: true, locationId: null, activeTab: 'general', error: '' });
 const canCreateLocation = computed(() => locationForm.nameFull.trim() && locationForm.shortName.trim());
 const activeLocations = computed(() => locations.value.filter((location) => location.isActive));
+const officeCustomers = computed(() => kunden.value.filter((kunde) => kunde.kuerzel === '>S'));
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -907,6 +922,15 @@ function sortLohnarten(field) {
   }
   lohnartSortField.value = field;
   lohnartSortDirection.value = 'asc';
+}
+
+async function fetchKunden() {
+  try {
+    const { data } = await api.get('/api/kunden');
+    kunden.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    locationError.value = e?.response?.data?.message || 'Fehler beim Laden der Kunden.';
+  }
 }
 
 function openKundenPreise(kunde) {
@@ -1053,6 +1077,7 @@ onMounted(async () => {
   await fetchUsers();
   await loadAsanaUserMap();
   await fetchLocations();
+  await fetchKunden();
   await fetchSignatureTypes();
   await fetchQualifikationen();
   await fetchLohnarten();
@@ -1120,6 +1145,7 @@ function resetLocationForm() {
   locationForm.color = '#6b7280';
   Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland' });
   locationForm.locationManager = '';
+  locationForm.officeKunde = '';
   Object.assign(locationForm.contact, { mainEmail: '', phone: '' });
   Object.assign(locationForm.openingHours, emptyOpeningHours());
   locationForm.timeZone = 'Europe/Berlin';
@@ -1142,6 +1168,7 @@ function openLocationEdit(location) {
   locationForm.color = location.color || '#6b7280';
   Object.assign(locationForm.address, { street: '', houseNumber: '', postalCode: '', city: '', country: 'Deutschland', ...location.address });
   locationForm.locationManager = location.locationManager?._id || location.locationManager || '';
+  locationForm.officeKunde = location.officeKunde?._id || location.officeKunde || '';
   Object.assign(locationForm.contact, { mainEmail: '', phone: '', ...location.contact });
   Object.assign(locationForm.openingHours, normalizeOpeningHours(location.openingHours));
   locationForm.timeZone = location.timeZone || 'Europe/Berlin';

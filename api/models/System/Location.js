@@ -36,6 +36,12 @@ const locationSchema = new mongoose.Schema({
     ref: 'User',
     default: null,
   },
+  officeKunde: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Kunde',
+    default: null,
+    index: true,
+  },
   contact: {
     mainEmail: { type: String, default: '', trim: true, lowercase: true },
     phone: { type: String, default: '', trim: true },

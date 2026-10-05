@@ -363,7 +363,7 @@ onBeforeUnmount(() => {
 .cdf-icon-btn:hover { background: var(--hover); color: var(--text); }
 .cdf-body { flex: 1; min-height: 0; padding: 12px 16px; overflow-y: auto; }
 .cdf-body-content { min-height: 0; }
-.cdf-body--static { display: flex; overflow: hidden; padding-right: 0; }
+.cdf-body--static { display: flex; overflow: hidden; padding-right: 24px; }
 .cdf-body--static .cdf-body-content { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .cdf-footer { flex: 0 0 auto; padding: 0 16px 12px; background: var(--tile-bg); }
 
