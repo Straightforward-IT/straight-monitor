@@ -41,7 +41,7 @@ describe('Leads field and column management', () => {
   it('uses shared buttons for field and source-option actions', async () => {
     const fallbackGet = mocks.api.get.getMockImplementation();
     mocks.api.get.mockImplementation(url => {
-      if (url === '/api/leads/labels') return Promise.resolve({ data: [{ _id: 'field-1', name: 'Branche', fieldType: 'text', isActive: true }] });
+      if (url === '/api/leads/labels') return Promise.resolve({ data: [{ _id: 'field-1', name: 'Branche', fieldType: 'dropdown', options: [{ label: 'Hotel', value: 'hotel' }], isActive: true }] });
       if (url === '/api/leads/config') return Promise.resolve({ data: { quelleOptions: [{ label: 'Website', value: 'website' }] } });
       return fallbackGet(url);
     });
@@ -56,6 +56,15 @@ describe('Leads field and column management', () => {
     expect(body.querySelector('button[aria-label="Website bearbeiten"].app-icon-button')).not.toBeNull();
     expect(body.querySelector('button[aria-label="Website löschen"].app-icon-button')).not.toBeNull();
     expect([...body.querySelectorAll('button.app-button')].filter(button => button.textContent.includes('Hinzufügen'))).toHaveLength(2);
+    expect(body.querySelectorAll('.app-text-input')).toHaveLength(2);
+    expect(body.querySelectorAll('.app-select')).toHaveLength(1);
+    expect(body.querySelector('input[aria-label="Pflichtfeldstatus für Branche"][type="checkbox"]')).not.toBeNull();
+
+    body.querySelector('button[aria-label="Branche bearbeiten"]').click();
+    await flushPromises();
+    expect(body.querySelectorAll('.app-text-input')).toHaveLength(3);
+    expect(body.querySelectorAll('.app-select')).toHaveLength(2);
+    expect(body.querySelector('.app-textarea')?.value).toBe('Hotel');
   });
 
   it('uses ModalFrame for the field manager and guards dismissal while saving', async () => {

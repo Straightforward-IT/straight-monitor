@@ -939,6 +939,15 @@ const mitarbeiterList = computed(() => dataCache.mitarbeiter || []);
 const kundenList = computed(() => dataCache.kunden || []);
 
 const selectedKunde = computed(() => kundenList.value.find(k => k._id === form.value.kundeId) || null);
+const selectedKundeSignaturName = computed(() => {
+  const kunde = selectedKunde.value;
+  if (!kunde) return '';
+  const contacts = Array.isArray(kunde.signaturKontakte) ? kunde.signaturKontakte : [];
+  const selectedContact = contacts.find(contact =>
+    String(contact?.id || '') === String(kunde.signaturKontaktId || '')
+  ) || contacts[0];
+  return String(selectedContact?.name || '').trim();
+});
 const selectedMitarbeiter = computed(() => mitarbeiterList.value.find(m => m._id === form.value.mitarbeiterId) || null);
 
 // ── Follower-Vorschläge (Kontakte des ausgewählten Kunden) ──────────────────
@@ -1756,6 +1765,14 @@ async function hydrateFromContext() {
 
   if (ctx.customEndpoint && form.value.typId) {
     currentStep.value = isGeneratedDocumentFlow.value ? 0 : (form.value.kundeId || form.value.mitarbeiterId ? 2 : 1);
+  }
+  if (ctx.typKey === 'stundenliste' && selectedKundeSignaturName.value) {
+    const kundeName = String(selectedKunde.value?.kundName || '').trim();
+    form.value.submitters = form.value.submitters.map(submitter =>
+      submitter.role === 'Entleiher' && (!submitter.name || submitter.name.trim() === kundeName)
+        ? { ...submitter, name: selectedKundeSignaturName.value }
+        : submitter
+    );
   }
   addReisekostenDefaultDeliveryEmail();
   addLohnvorschussDefaultDeliveryEmail();

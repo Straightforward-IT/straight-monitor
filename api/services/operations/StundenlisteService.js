@@ -41,6 +41,15 @@ const GESCHST_TO_TEAM = {
   '3': 'koeln',
 };
 
+function getKundeSignaturName(kunde) {
+  if (!kunde) return '';
+  const contacts = Array.isArray(kunde.signaturKontakte) ? kunde.signaturKontakte : [];
+  const selectedContact = contacts.find((contact) =>
+    String(contact?.id || '') === String(kunde.signaturKontaktId || '')
+  ) || contacts[0];
+  return String(selectedContact?.name || '').trim() || String(kunde.kundName || '').trim();
+}
+
 // Seiten- und Layout-Konstanten (A4 in pt)
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -138,6 +147,10 @@ class StundenlisteService {
       ? `${VERLEIHER.name} – Niederlassung ${niederlassung}`
       : VERLEIHER.name;
     return { name, email, niederlassung };
+  }
+
+  getKundeSignaturName(kunde) {
+    return getKundeSignaturName(kunde);
   }
 
   // ── Datenbeschaffung ──────────────────────────────────────────────────────
@@ -582,7 +595,7 @@ class StundenlisteService {
 
     ctx.page.drawText('Datum',                            { x: entX,                     y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
     ctx.page.drawText('Entleiher Unterschrift', { x: entX + dateW + subGap,    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
-    ctx.page.drawText((kunde && kunde.kundName) || '—',   { x: entX + dateW + subGap,    y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+    ctx.page.drawText(getKundeSignaturName(kunde) || '—', { x: entX + dateW + subGap, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
     // Unsichtbare DocuSeal-Texttags + sichtbares "Verified by DocuSeal" Badge (zentriert unter den Feldern).
     if (ctx.signatureTags) {

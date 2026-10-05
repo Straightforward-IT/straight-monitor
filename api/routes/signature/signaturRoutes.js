@@ -696,7 +696,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
     r2KeyUnsigned: unsignedPdfKey,
     submitters: [
       { role: 'Verleiher', name: verleiher.name || '', email: verleiher.email || '', embedded: true },
-      { role: 'Entleiher', name: kunde.kundName || '', email: kunde.signaturKontaktEmail || '', embedded: false },
+      { role: 'Entleiher', name: StundenlisteService.getKundeSignaturName(kunde), email: kunde.signaturKontaktEmail || '', embedded: false },
     ],
     entleiherInvitationRecipients: kunde.stundenlisteMehrereEinladungen
       ? (kunde.signaturKontakte || [])
@@ -771,7 +771,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   const kunde = auftrag.kundenNr
     ? await Kunde.findOne({ kundenNr: auftrag.kundenNr })
-        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner stundenlisteSignaturDoppelt stundenlisteMehrereEinladungen')
+        .select('_id kundenNr kundName kuerzel locationV2 signaturOrdner signaturKontaktId signaturKontakte signaturKontaktEmail stundenlisteSignaturDoppelt stundenlisteMehrereEinladungen')
     : null;
 
   // Resolve the Stundenliste type
@@ -850,7 +850,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
 
   const requestedSubmitters = [
     { role: 'Verleiher', name: verleiherSigner.name, email: verleiherSigner.email, embedded: true },
-    { role: 'Entleiher', name: entleiherReq.name || (kunde && kunde.kundName) || '', email: entleiherReq.email, embedded: false },
+    { role: 'Entleiher', name: entleiherReq.name || StundenlisteService.getKundeSignaturName(kunde), email: entleiherReq.email, embedded: false },
   ];
 
   // Create DocuSeal submission from the generated PDF

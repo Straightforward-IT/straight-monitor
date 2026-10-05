@@ -1083,14 +1083,8 @@
                     </span>
                   </div>
                   <div class="label-card-actions">
-                    <label class="chip-toggle" :class="{ active: lbl.required }" title="Pflichtfeld">
-                      <input type="checkbox" :checked="lbl.required" @change="toggleLabelField(lbl, 'required', $event.target.checked)" />
-                      Pflicht
-                    </label>
-                    <label class="chip-toggle" :class="{ active: lbl.isActive }" title="Aktiv">
-                      <input type="checkbox" :checked="lbl.isActive" @change="toggleLabelField(lbl, 'isActive', $event.target.checked)" />
-                      Aktiv
-                    </label>
+                    <AppToggleChip label="Pflicht" :accessible-label="`Pflichtfeldstatus für ${lbl.name}`" :model-value="Boolean(lbl.required)" @update:model-value="toggleLabelField(lbl, 'required', $event)" />
+                    <AppToggleChip label="Aktiv" :accessible-label="`Aktivstatus für ${lbl.name}`" :model-value="Boolean(lbl.isActive)" @update:model-value="toggleLabelField(lbl, 'isActive', $event)" />
                     <AppIconButton size="sm" variant="ghost" :label="`${lbl.name} bearbeiten`" @click="startEditLabel(lbl)">
                       <font-awesome-icon :icon="['fas', 'sliders']" />
                     </AppIconButton>
@@ -1104,8 +1098,8 @@
                 <template v-else>
                   <div class="label-edit-form">
                     <div class="new-field-row">
-                      <input v-model="editLabelForm.name" class="form-input" placeholder="Feldname" />
-                      <select v-model="editLabelForm.fieldType" class="form-input">
+                      <AppTextInput v-model="editLabelForm.name" :aria-label="`Feldname für ${lbl.name}`" placeholder="Feldname" />
+                      <AppSelect v-model="editLabelForm.fieldType" :aria-label="`Feldtyp für ${lbl.name}`">
                         <option value="text">Text</option>
                         <option value="number">Zahl</option>
                         <option value="currency">Währung</option>
@@ -1117,11 +1111,11 @@
                         <option value="email">E-Mail</option>
                         <option value="url">URL</option>
                         <option value="address">Adresse</option>
-                      </select>
+                      </AppSelect>
                     </div>
                     <div v-if="['dropdown','multiselect'].includes(editLabelForm.fieldType)" class="new-options-block">
-                      <label class="muted-text">Optionen (eine pro Zeile)</label>
-                      <textarea v-model="editLabelForm.optionsText" class="form-input" rows="3" placeholder="Option A&#10;Option B"></textarea>
+                      <label class="muted-text" :for="`${fieldManagerId}-edit-options`">Optionen (eine pro Zeile)</label>
+                      <AppTextarea :id="`${fieldManagerId}-edit-options`" v-model="editLabelForm.optionsText" rows="3" placeholder="Option A&#10;Option B" />
                     </div>
                     <div class="label-edit-actions">
                       <AppButton size="sm" :disabled="!editLabelForm.name.trim()" :loading="savingLabelEdit" @click="saveEditLabel(lbl)">
@@ -1139,8 +1133,8 @@
 
             <h4>Neues Feld</h4>
             <div class="new-field-row">
-              <input v-model="newField.name" class="form-input" placeholder="Feldname (z.B. Quellenherkunft)" />
-              <select v-model="newField.fieldType" class="form-input">
+              <AppTextInput v-model="newField.name" aria-label="Neuer Feldname" placeholder="Feldname (z.B. Quellenherkunft)" />
+              <AppSelect v-model="newField.fieldType" aria-label="Neuer Feldtyp">
                 <option value="text">Text</option>
                 <option value="number">Zahl</option>
                 <option value="currency">Währung</option>
@@ -1152,7 +1146,7 @@
                 <option value="email">E-Mail</option>
                 <option value="url">URL</option>
                 <option value="address">Adresse</option>
-              </select>
+              </AppSelect>
               <AppButton :disabled="!newField.name.trim()" :loading="creatingField" @click="createField">
                 <font-awesome-icon :icon="['fas', 'plus']" />
                 Hinzufügen
@@ -1160,8 +1154,8 @@
             </div>
 
             <div v-if="['dropdown','multiselect'].includes(newField.fieldType)" class="new-options-block">
-              <label class="muted-text">Optionen (eine pro Zeile, Format: <code>Anzeigename</code>)</label>
-              <textarea v-model="newField.optionsText" class="form-input" rows="4" placeholder="HOT&#10;WARM&#10;COLD"></textarea>
+              <label class="muted-text" :for="`${fieldManagerId}-new-options`">Optionen (eine pro Zeile, Format: <code>Anzeigename</code>)</label>
+              <AppTextarea :id="`${fieldManagerId}-new-options`" v-model="newField.optionsText" rows="4" placeholder="HOT&#10;WARM&#10;COLD" />
             </div>
 
             <hr class="divider" />
@@ -1176,9 +1170,10 @@
               <div class="config-option-list">
                 <div v-for="(opt, idx) in leadConfig.quelleOptions" :key="opt.value" class="config-option-row">
                   <template v-if="editingQuelleIdx === idx">
-                    <input
+                    <AppTextInput
                       v-model="editingQuelleLabel"
-                      class="form-input form-input--sm"
+                      class="source-option-input"
+                      :aria-label="`Bezeichnung für Quelle ${opt.value}`"
                       @keydown.enter="saveEditQuelle(idx)"
                       @keydown.esc="editingQuelleIdx = null"
                     />
@@ -1201,9 +1196,9 @@
                 </div>
               </div>
               <div class="new-field-row" style="margin-top: 8px;">
-                <input
+                <AppTextInput
                   v-model="newQuelleLabel"
-                  class="form-input"
+                  aria-label="Neue Quelle-Option"
                   placeholder="Neue Option (z.B. Partnervertrieb)"
                   @keydown.enter="addQuelleOption"
                 />
@@ -1366,6 +1361,8 @@ import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppTextarea from '@/components/ui-elements/AppTextarea.vue';
+import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 import ColumnCustomizerPopover from '@/components/ui-elements/ColumnCustomizerPopover.vue';
 
@@ -1588,6 +1585,7 @@ const creating = ref(false);
 const createError = ref('');
 const creatingField = ref(false);
 const createFieldId = useId();
+const fieldManagerId = useId();
 const createLocationId = `${createFieldId}-location`;
 const createTitleId = `${createFieldId}-title`;
 const createSourceId = `${createFieldId}-source`;
@@ -4281,28 +4279,12 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   flex-shrink: 0;
 }
 
-.lead-field-manager-destructive:hover:not(:disabled) {
-  color: var(--action-danger, #c43d3d);
+.lead-field-manager-body .app-icon-button {
+  --action-ghost-text: var(--muted);
 }
 
-.chip-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  user-select: none;
-
-  input[type="checkbox"] { display: none; }
-
-  &.active {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
+.lead-field-manager-destructive:hover:not(:disabled) {
+  color: var(--action-danger, #c43d3d);
 }
 
 .label-edit-form {
@@ -4334,11 +4316,11 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   gap: 8px;
   align-items: center;
 
-  .form-input {
+  > .app-text-input {
     flex: 1;
   }
 
-  select.form-input {
+  > .app-select {
     flex: 0 0 180px;
   }
 }
@@ -4347,8 +4329,8 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   .lead-field-manager-body .label-card,
   .lead-field-manager-body .new-field-row { flex-wrap: wrap; }
   .lead-field-manager-body .label-card-actions { flex-wrap: wrap; }
-  .lead-field-manager-body .new-field-row .form-input,
-  .lead-field-manager-body .new-field-row select.form-input {
+  .lead-field-manager-body .new-field-row > .app-text-input,
+  .lead-field-manager-body .new-field-row > .app-select {
     flex: 1 1 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -4407,7 +4389,7 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
     margin-right: 4px;
   }
 
-  .form-input--sm {
+  .source-option-input {
     flex: 1;
     font-size: 0.85rem;
     padding: 3px 8px;
