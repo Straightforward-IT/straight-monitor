@@ -57,10 +57,10 @@
               placeholder="Dokumente durchsuchen..."
               aria-label="Dokumente suchen"
             />
-            <button class="btn-nachpflege" @click="$router.push('/dokumente/nachpflege')">
+            <AppButton class="btn-nachpflege" size="sm" variant="secondary" @click="$router.push('/dokumente/nachpflege')">
               <font-awesome-icon :icon="['fas', 'plus']" />
               Nachpflege
-            </button>
+            </AppButton>
           </div>
           <template #bottom-actions>
             <ToolbarPageControls
@@ -86,35 +86,35 @@
 
       <div v-else class="table">
         <div class="thead">
-          <div @click="handleSort('docType')" class="sortable">
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'docType'" @click="handleSort('docType')">
             Typ
             <font-awesome-icon v-if="sortKey === 'docType'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
-          <div @click="handleSort('datum')" class="sortable">
+          </AppButton></div>
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'datum'" @click="handleSort('datum')">
             Datum
             <font-awesome-icon v-if="sortKey === 'datum'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
-          <div @click="handleSort('bezeichnung')" class="sortable">
+          </AppButton></div>
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'bezeichnung'" @click="handleSort('bezeichnung')">
             Event
             <font-awesome-icon v-if="sortKey === 'bezeichnung'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
-          <div @click="handleSort('teamleiter')" class="sortable">
+          </AppButton></div>
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'teamleiter'" @click="handleSort('teamleiter')">
             Teamleiter
             <font-awesome-icon v-if="sortKey === 'teamleiter'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
-          <div @click="handleSort('mitarbeiter')" class="sortable">
+          </AppButton></div>
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'mitarbeiter'" @click="handleSort('mitarbeiter')">
             Mitarbeiter
             <font-awesome-icon v-if="sortKey === 'mitarbeiter'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
-          <div @click="handleSort('status')" class="sortable" title="Status">
+          </AppButton></div>
+          <div class="sortable"><AppButton size="sm" variant="ghost" :aria-pressed="sortKey === 'status'" aria-label="Nach Status sortieren" title="Status" @click="handleSort('status')">
             <font-awesome-icon v-if="sortKey === 'status'" :icon="sortOrder === 'asc' ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" />
             <font-awesome-icon v-else icon="fa-solid fa-sort" class="muted-icon" />
-          </div>
+          </AppButton></div>
           <div></div>
         </div>
         <div
@@ -129,20 +129,27 @@
             </span>
           </div>
           <div>{{ formatDate(doc.datum) }}</div>
-          <div class="truncate" :title="auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung">{{ auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || "—" }}</div>
+          <div class="truncate" :title="auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung">
+            <AppButton class="document-title-button" size="sm" variant="ghost" :aria-label="`${auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || 'Dokument'} öffnen`" @click.stop="openDoc(doc)">
+              {{ auftragTitelMap.get(String(doc.details?.auftragnummer)) || doc.bezeichnung || "—" }}
+            </AppButton>
+          </div>
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_teamleiter">
               <template v-if="doc.details?.teamleiter">
-                <button 
-                  :class="['btn-icon-tiny', { 'filter-active': filteredTeamleiter === doc.details.name_teamleiter }]"
+                <AppIconButton
+                  class="btn-icon-tiny"
+                  size="sm"
+                  variant="ghost"
+                  :active="filteredTeamleiter === doc.details.name_teamleiter"
+                  :label="filteredTeamleiter === doc.details.name_teamleiter ? 'Teamleiter-Filter zurücksetzen' : `Nach ${doc.details.name_teamleiter} filtern`"
                   @click.stop="filterByTeamleiter(doc.details.name_teamleiter)"
-                  :title="filteredTeamleiter === doc.details.name_teamleiter ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Teamleiter filtern'"
                 >
                   <font-awesome-icon icon="fa-solid fa-filter" />
-                </button>
-                <button class="link-btn" @click.stop="openMitarbeiterCard('teamleiter', getEmployeeId(doc, 'teamleiter'))">
+                </AppIconButton>
+                <AppButton class="link-btn" size="sm" variant="ghost" @click.stop="openMitarbeiterCard('teamleiter', getEmployeeId(doc, 'teamleiter'))">
                   {{ doc.details.name_teamleiter }}
-                </button>
+                </AppButton>
               </template>
               <span v-else class="unassigned-name">
                 {{ doc.details.name_teamleiter }}
@@ -156,16 +163,19 @@
           <div class="truncate person-cell">
             <template v-if="doc.details?.name_mitarbeiter">
               <template v-if="doc.details?.mitarbeiter">
-                <button 
-                  :class="['btn-icon-tiny', { 'filter-active': filteredMitarbeiter === doc.details.name_mitarbeiter }]"
+                <AppIconButton
+                  class="btn-icon-tiny"
+                  size="sm"
+                  variant="ghost"
+                  :active="filteredMitarbeiter === doc.details.name_mitarbeiter"
+                  :label="filteredMitarbeiter === doc.details.name_mitarbeiter ? 'Mitarbeiter-Filter zurücksetzen' : `Nach ${doc.details.name_mitarbeiter} filtern`"
                   @click.stop="filterByMitarbeiter(doc.details.name_mitarbeiter)"
-                  :title="filteredMitarbeiter === doc.details.name_mitarbeiter ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Mitarbeiter filtern'"
                 >
                   <font-awesome-icon icon="fa-solid fa-filter" />
-                </button>
-                <button class="link-btn" @click.stop="openMitarbeiterCard('mitarbeiter', getEmployeeId(doc, 'mitarbeiter'))">
+                </AppIconButton>
+                <AppButton class="link-btn" size="sm" variant="ghost" @click.stop="openMitarbeiterCard('mitarbeiter', getEmployeeId(doc, 'mitarbeiter'))">
                   {{ doc.details.name_mitarbeiter }}
-                </button>
+                </AppButton>
               </template>
               <span v-else class="unassigned-name">
                 {{ doc.details.name_mitarbeiter }}
@@ -180,9 +190,9 @@
             <font-awesome-icon :icon="statusIcon(doc.status)" :class="['status-icon', (doc.status || '').toLowerCase()]" />
           </div>
           <div class="actions-col" @click.stop>
-            <button class="btn-icon" @click="toggleQuickActions(doc, $event)">
+            <AppIconButton class="btn-icon" size="sm" variant="ghost" :label="`Aktionen für ${doc.bezeichnung || doc.docType || 'Dokument'}`" aria-haspopup="menu" :aria-expanded="quickActionMenu.visible && quickActionMenu.document === doc" @click="toggleQuickActions(doc, $event)">
               <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-            </button>
+            </AppIconButton>
           </div>
         </div>
 
@@ -204,6 +214,9 @@
       v-if="quickActionMenu.visible"
       :x="quickActionMenu.x"
       :y="quickActionMenu.y"
+      :anchor="quickActionMenu.anchor"
+      follow-anchor
+      focus-on-open
       :options="quickActionOptions"
       @close="closeQuickActionMenu"
       @select="handleQuickAction"
@@ -218,7 +231,6 @@ import { useDataCache } from "@/stores/dataCache";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import CustomTooltip from './CustomTooltip.vue';
-import FilterPanel from '@/components/FilterPanel.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -229,6 +241,8 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 import {
   faMagnifyingGlass,
@@ -295,7 +309,7 @@ library.add(
 
 export default {
   name: "DocumentsOverviewTab",
-  components: { FontAwesomeIcon, CustomTooltip, FilterPanel, EmployeeCardModal, SearchBar, Toolbar, SortMenu, ToolbarPageControls, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu },
+  components: { FontAwesomeIcon, CustomTooltip, EmployeeCardModal, SearchBar, Toolbar, SortMenu, ToolbarPageControls, ToolbarFilter, FilterGroup, FilterChip, FilterDivider, ContextMenu, AppButton, AppIconButton },
 
   setup() {
     const dataCache = useDataCache();
@@ -370,7 +384,7 @@ export default {
       pageOptions: [25, 50, 100],
 
       // ui
-      quickActionMenu: { visible: false, x: 0, y: 0, document: null },
+      quickActionMenu: { visible: false, x: 0, y: 0, document: null, anchor: null },
       selectedMitarbeiter: null,
 
       // person details cache (for Asana links)
@@ -883,6 +897,10 @@ export default {
       }
     },
 
+    setPage(page) {
+      this.currentPage = Math.max(1, Math.min(Number(page) || 1, this.totalPages));
+    },
+
     setItemsPerPage(count) {
       this.itemsPerPage = count;
       this.currentPage = 1;
@@ -953,16 +971,19 @@ export default {
         this.closeQuickActionMenu();
         return;
       }
+      const anchor = event.currentTarget;
+      const anchorRect = anchor?.getBoundingClientRect();
       this.quickActionMenu = {
         visible: true,
-        x: event.clientX,
-        y: event.clientY,
+        x: anchorRect?.left ?? event.clientX,
+        y: anchorRect?.bottom ?? event.clientY,
         document,
+        anchor,
       };
     },
 
     closeQuickActionMenu() {
-      this.quickActionMenu = { visible: false, x: 0, y: 0, document: null };
+      this.quickActionMenu = { visible: false, x: 0, y: 0, document: null, anchor: null };
     },
 
     handleQuickAction(action) {
@@ -1153,14 +1174,14 @@ export default {
 
 .dokumente-page :deep(.location-filter-chip) {
   border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
-  color: var(--location-color);
+  color: var(--text);
 }
 
 .dokumente-page :deep(.location-filter-chip.active) {
   background: color-mix(in srgb, var(--location-color) 12%, transparent);
   border-color: var(--location-color);
   box-shadow: inset 0 0 0 1px var(--location-color);
-  color: var(--location-color);
+  color: var(--text);
 }
 
 .panel {
@@ -1376,22 +1397,8 @@ export default {
 }
 
 .btn-nachpflege {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   flex-shrink: 0;
   margin-left: auto;
-  padding: 6px 14px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .filter-search-box {
@@ -1534,15 +1541,18 @@ export default {
 }
 
 .table .thead .sortable {
-  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  user-select: none;
+  min-width: 0;
 }
 
-.table .thead .sortable:hover {
-  color: var(--brand);
+.table .thead .sortable .app-button {
+  min-width: 0;
+  padding: 2px 3px;
+  font-size: inherit;
+  font-weight: inherit;
+  color: var(--text);
+  text-align: left;
 }
 
 .muted-icon {
@@ -1612,7 +1622,7 @@ export default {
 
 .status-icon.zugewiesen { color: #2ec27e; }
 .status-icon.abgeschlossen { color: #2ec27e; }
-.status-icon.offen { color: #f6a019; }
+.status-icon.offen { color: var(--status-warning-text); }
 
 /* Skeleton */
 .table.skeleton {
@@ -1655,48 +1665,6 @@ export default {
   margin: 0;
 }
 
-.btn {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: 140ms ease;
-}
-
-.btn:hover {
-  background: var(--soft);
-}
-
-.btn-primary {
-  background: var(--brand);
-  color: white;
-  border-color: var(--brand);
-}
-
-.btn-primary:hover {
-  background: color-mix(in srgb, var(--brand) 85%, black);
-}
-
-.btn-sm {
-  padding: 4px 8px;
-  font-size: 0.8rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-danger {
-  background: var(--bad);
-  color: white;
-  border-color: var(--bad);
-}
-
-.btn-danger:hover {
-  background: color-mix(in srgb, var(--bad) 85%, black);
-}
-
 @media (max-width: 640px) {
   .toolbar-page-controls {
     right: 6px;
@@ -1729,6 +1697,20 @@ export default {
   background: var(--soft) !important;
 }
 
+.document-title-button {
+  max-width: 100%;
+  min-height: 26px;
+  padding: 2px 4px;
+  overflow: hidden;
+  color: var(--action-accent-text);
+  text-align: left;
+}
+
+.document-title-button :deep(.app-button__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .actions-col {
   position: relative;
   display: flex;
@@ -1736,40 +1718,16 @@ export default {
 }
 
 .btn-icon {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-icon:hover {
-  background: var(--soft);
-  color: var(--text);
+  --app-button-icon-size: 30px;
 }
 
 /* Clickable Link Buttons */
 .link-btn {
-  background: transparent;
-  border: none;
-  color: var(--brand);
-  cursor: pointer;
+  min-height: 26px;
   padding: 2px 4px;
-  border-radius: 4px;
-  transition: 140ms ease;
-  font-family: inherit;
+  color: var(--action-accent-text);
   font-size: inherit;
   text-align: left;
-}
-
-.link-btn:hover {
-  background: color-mix(in srgb, var(--brand) 15%, transparent);
-  color: var(--brand-ink);
 }
 
 /* Person Cell with Link and Icon */
@@ -1795,38 +1753,14 @@ export default {
 }
 
 .warn-icon {
-  color: var(--warn);
+  color: var(--status-warning-text);
   font-size: 0.85em;
   opacity: 0.8;
 }
 
 .btn-icon-tiny {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: 140ms ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-
-  &:hover {
-    background: var(--soft);
-    color: var(--brand);
-  }
-
-  &.filter-active {
-    color: var(--brand);
-    background: color-mix(in srgb, var(--brand) 15%, transparent);
-    
-    &:hover {
-      color: var(--brand);
-      background: color-mix(in srgb, var(--brand) 25%, transparent);
-    }
-  }
+  --app-button-icon-size: 26px;
+  min-height: 26px;
 }
 
 /* ── Responsive table ─────────────────────────────────────────────── */

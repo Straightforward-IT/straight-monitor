@@ -16,18 +16,18 @@
     @close="emit('close')"
   >
     <template #actions>
-      <button
+      <AppIconButton
         ref="menuButton"
-        type="button"
         class="document-preview-menu-button"
-        aria-label="Dokumentaktionen"
-        title="Dokumentaktionen"
+        size="sm"
+        variant="ghost"
+        label="Dokumentaktionen"
         aria-haspopup="menu"
         :aria-expanded="menuOpen"
         @click="menuOpen = !menuOpen"
       >
         <FontAwesomeIcon :icon="faEllipsisVertical" />
-      </button>
+      </AppIconButton>
     </template>
 
     <div v-if="actionError" class="document-preview-notice document-preview-notice--error" role="alert">{{ actionError }}</div>
@@ -41,15 +41,15 @@
     <div v-else-if="error" class="document-preview-state" role="alert">
       <FontAwesomeIcon :icon="faFileCircleExclamation" />
       <p>{{ error }}</p>
-      <button type="button" @click="retry++">Erneut versuchen</button>
+      <AppButton variant="secondary" @click="retry++">Erneut versuchen</AppButton>
     </div>
     <div v-else-if="format.kind === 'unsupported'" class="document-preview-state">
       <FontAwesomeIcon :icon="faFileCircleExclamation" />
       <h4>Keine Vorschau für dieses Dateiformat</h4>
       <p>Du kannst das Dokument herunterladen oder in einem neuen Tab öffnen.</p>
       <div class="document-preview-fallback-actions">
-        <button type="button" :disabled="busy" @click="handleAction('download')">Herunterladen</button>
-        <button type="button" :disabled="!canOpenTab" @click="handleAction('tab')">In neuem Tab öffnen</button>
+        <AppButton :loading="busy" @click="handleAction('download')">Herunterladen</AppButton>
+        <AppButton variant="secondary" :disabled="!canOpenTab" @click="handleAction('tab')">In neuem Tab öffnen</AppButton>
       </div>
     </div>
     <PdfDocumentPreview
@@ -77,17 +77,22 @@
     <div v-else-if="format.kind === 'text'" ref="printContent" class="document-preview-text"><pre>{{ textContent }}</pre></div>
     <div v-else-if="format.kind === 'spreadsheet'" class="document-preview-workbook">
       <div class="document-preview-sheet-tabs" role="tablist" aria-label="Arbeitsblätter">
-        <button
+        <AppButton
           v-for="(sheet, index) in sheets"
           :key="sheet.name"
-          type="button"
+          size="sm"
+          variant="ghost"
           role="tab"
+          :id="sheetTabId(index)"
+          :aria-controls="sheetPanelId"
           :aria-selected="sheetIndex === index"
+          :tabindex="sheetIndex === index ? 0 : -1"
           @click="sheetIndex = index"
-        >{{ sheet.name }}</button>
+          @keydown="onSheetTabKeydown($event, index)"
+        >{{ sheet.name }}</AppButton>
       </div>
       <p v-if="currentSheet?.truncated" class="document-preview-notice">Vorschau und Druck auf 500 Zeilen und 100 Spalten begrenzt. Der Download enthält die vollständige Datei.</p>
-      <div ref="printContent" class="document-preview-table-scroll">
+      <div ref="printContent" class="document-preview-table-scroll" role="tabpanel" :id="sheetPanelId" :aria-labelledby="sheetTabId(sheetIndex)" tabindex="0">
         <table v-if="currentSheet?.rows.length" class="document-preview-table">
           <caption>{{ currentSheet.name }}</caption>
           <tbody>
@@ -106,7 +111,7 @@
       v-if="menuOpen"
       :x="0"
       :y="0"
-      :anchor="menuButton"
+      :anchor="menuAnchor"
       follow-anchor
       focus-on-open
       :width="240"
@@ -118,12 +123,14 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onDeactivated, ref, shallowRef, useId, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faDownload, faEllipsisVertical, faFileCircleExclamation, faArrowUpRightFromSquare, faPrint, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import { exportElementToPdf } from '@/utils/htmlToPdfService';
 import {
   documentFilename, documentFormat, fetchDocumentBlob, validateDocumentUrl, triggerDocumentDownload,
@@ -148,6 +155,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue', 'close']);
 const menuButton = ref(null);
+const menuAnchor = computed(() => menuButton.value?.$el || menuButton.value);
 const menuOpen = ref(false);
 const printContent = ref(null);
 const loading = ref(true);
@@ -165,6 +173,9 @@ const displayName = computed(() => props.filename || documentFilename(sourceUrl.
 const textContent = ref('');
 const sheets = shallowRef([]);
 const sheetIndex = ref(0);
+const sheetUid = useId();
+const sheetPanelId = `${sheetUid}-sheet-panel`;
+const sheetTabId = index => `${sheetUid}-sheet-tab-${index}`;
 const currentSheet = computed(() => sheets.value[sheetIndex.value]);
 const retry = ref(0);
 let actionController;
@@ -182,7 +193,17 @@ const menuOptions = computed(() => [
 
 function closeMenu() {
   menuOpen.value = false;
-  menuButton.value?.focus();
+  menuAnchor.value?.focus();
+}
+
+function onSheetTabKeydown(event, index) {
+  if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key) || !sheets.value.length) return;
+  event.preventDefault();
+  const last = sheets.value.length - 1;
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? last
+    : (index + (event.key === 'ArrowRight' ? 1 : -1) + sheets.value.length) % sheets.value.length;
+  sheetIndex.value = next;
+  event.currentTarget.parentElement?.querySelectorAll('[role="tab"]')[next]?.focus();
 }
 
 function previewFailed(message) {
@@ -256,7 +277,7 @@ watch(
         if (content.size > MAX_WORKBOOK_BYTES) throw new Error('Diese Tabelle ist für die Vorschau zu groß (max. 25 MB). Bitte über das Menü herunterladen.');
         const [xlsx, buffer] = await Promise.all([import('xlsx'), content.arrayBuffer()]);
         signal.throwIfAborted();
-        const workbook = xlsx.read(buffer, { type: 'array', sheetRows: MAX_SHEET_ROWS + 1, cellHTML: false, cellFormula: false });
+        const workbook = xlsx.read(new Uint8Array(buffer), { type: 'array', sheetRows: MAX_SHEET_ROWS + 1, cellHTML: false, cellFormula: false });
         sheets.value = workbook.SheetNames.map(name => ({ name, ...worksheetPreview(workbook.Sheets[name], xlsx.utils) }));
         renderReady.value = true;
       }
@@ -332,18 +353,9 @@ onBeforeUnmount(() => actionController?.abort());
 }
 :global(.document-preview-modal .mf-title) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-preview-menu-button {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  cursor: pointer;
-  &:hover, &:focus-visible { color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  --app-button-icon-size: 32px;
+  --action-ghost-text: var(--muted);
+  min-height: 32px;
 }
 .document-preview-state {
   display: flex;
@@ -360,7 +372,7 @@ onBeforeUnmount(() => actionController?.abort());
 }
 .document-preview-fallback-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .document-preview-notice { flex-shrink: 0; margin: 0; padding: 10px 16px; font-size: 0.85rem; background: var(--tile-bg); border-bottom: 1px solid var(--border); }
-.document-preview-notice--error { color: var(--danger, #c0392b); }
+.document-preview-notice--error { color: var(--status-danger-text); }
 .document-preview-pdf { flex: 1; width: 100%; min-height: 0; border: 0; background: #525659; }
 .document-preview-image, .document-preview-media {
   display: flex;
@@ -384,8 +396,12 @@ onBeforeUnmount(() => actionController?.abort());
   overflow-x: auto;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  button { white-space: nowrap; }
-  button[aria-selected="true"] { color: var(--primary); border-color: var(--primary); }
+  .app-button { flex-shrink: 0; }
+  .app-button[aria-selected="true"] {
+    border-color: var(--primary);
+    background: var(--action-ghost-hover);
+    color: var(--action-accent-text);
+  }
 }
 .document-preview-table-scroll { flex: 1; min-height: 0; overflow: auto; }
 .document-preview-table {

@@ -1351,66 +1351,6 @@
               <span>Aktionen</span>
             </AppButton>
           </CustomTooltip>
-          <teleport to="body">
-            <div v-if="showQuickActionsMenu" class="qa-overlay" @click="_closeQuickActions()">
-              <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
-                <div class="qa-group">
-                  <div class="qa-group-label">Aktionen</div>
-                  <button class="qa-item" @click="executeQuickAction('share-link')">
-                    <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
-                    {{ linkCopied ? 'Link kopiert!' : 'Link kopieren' }}
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('upload-photo')">
-                    <font-awesome-icon icon="fa-solid fa-camera" /> Bild hochladen
-                  </button>
-                  <button v-if="resolvedMa?.isActive !== false" class="qa-item" @click="executeQuickAction('open-dispo')">
-                    <font-awesome-icon icon="fa-solid fa-table-columns" /> In Dispo öffnen
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('time-capture')">
-                    <font-awesome-icon icon="fa-solid fa-clock" /> Stundenschnellerfassung
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('time-management')">
-                    <font-awesome-icon icon="fa-solid fa-calendar" /> Zeitverwaltung
-                  </button>
-                  <div
-                    class="qa-signature-menu"
-                    @mouseenter="openQuickSignatureMenu($event)"
-                    @mouseleave="showQuickSignatureMenu = false"
-                  >
-                    <button class="qa-item qa-item--submenu" @click="toggleQuickSignatureMenu($event)">
-                      <font-awesome-icon icon="fa-solid fa-file-signature" />
-                      <span>Signatur</span>
-                      <font-awesome-icon class="qa-submenu-chevron" icon="fa-solid fa-chevron-right" />
-                    </button>
-                    <div
-                      v-if="showQuickSignatureMenu"
-                      class="qa-submenu"
-                      :class="{ 'qa-submenu--left': quickSignatureMenuOpenLeft }"
-                    >
-                      <button class="qa-item" @click="executeQuickAction('lohnvorschuss')">
-                        <font-awesome-icon icon="fa-solid fa-money-bill-wave" /> Lohnvorschuss
-                      </button>
-                      <button class="qa-item" @click="executeQuickAction('urlaubsantrag')">
-                        <font-awesome-icon icon="fa-solid fa-calendar" /> Urlaubsantrag
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div class="qa-group">
-                  <button class="qa-item" @click="executeQuickAction('edit')">
-                    <font-awesome-icon icon="fa-solid fa-edit" /> Bearbeiten
-                  </button>
-                  <button class="qa-item" @click="executeQuickAction('toggle-active')">
-                    <font-awesome-icon :icon="resolvedMa.isActive ? 'fa-regular fa-circle' : 'fa-solid fa-circle-check'" />
-                    {{ resolvedMa.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
-                  </button>
-                  <button v-if="auth.user?.roles?.includes('ADMIN')" class="qa-item qa-item--danger" @click="executeQuickAction('delete')">
-                    <font-awesome-icon icon="fa-solid fa-trash" /> Löschen
-                  </button>
-                </div>
-              </div>
-            </div>
-          </teleport>
         </div>
       </div>
 
@@ -1675,6 +1615,17 @@
         :options="contextMenuOptions"
         @select="handleContextMenuSelect"
         @close="showContextMenu = false"
+      />
+      <ContextMenu
+        v-if="showQuickActionsMenu"
+        :x="quickActionsMenuX"
+        :y="quickActionsMenuY"
+        :anchor="qaButton"
+        :follow-anchor="Boolean(qaButton)"
+        :focus-on-open="true"
+        :options="quickActionsOptions"
+        @select="executeQuickAction"
+        @close="_closeQuickActions"
       />
     </teleport>
 
@@ -2022,12 +1973,10 @@ export default {
 
       // Quick Actions Menu
       showQuickActionsMenu: false,
-      showQuickSignatureMenu: false,
-      quickSignatureMenuOpenLeft: false,
       linkCopied: false,
-      quickActionsMenuStyle: {},
       qaButton: null,
-      qaScrollHandler: null,
+      quickActionsMenuX: 0,
+      quickActionsMenuY: 0,
 
       // EventReport Feedback (lazy-loaded on expand)
       eventreportFeedback: [],
@@ -2139,6 +2088,39 @@ export default {
         },
         { label: this.resolvedMa?.isActive ? 'Deaktivieren' : 'Reaktivieren', action: 'toggle-active' },
         { label: 'Löschen', action: 'delete' }
+      ];
+    },
+    quickActionsOptions() {
+      return [
+        {
+          label: this.linkCopied ? 'Link kopiert!' : 'Link kopieren',
+          action: 'share-link',
+          icon: this.linkCopied ? ['fas', 'check'] : ['fas', 'link'],
+        },
+        { label: 'Bild hochladen', action: 'upload-photo', icon: ['fas', 'camera'] },
+        ...(this.resolvedMa?.isActive !== false
+          ? [{ label: 'In Dispo öffnen', action: 'open-dispo', icon: ['fas', 'table-columns'] }]
+          : []),
+        { label: 'Stundenschnellerfassung', action: 'time-capture', icon: ['fas', 'clock'] },
+        { label: 'Zeitverwaltung', action: 'time-management', icon: ['fas', 'calendar'] },
+        {
+          label: 'Signatur',
+          icon: ['fas', 'file-signature'],
+          children: [
+            { label: 'Lohnvorschuss', action: 'lohnvorschuss', icon: ['fas', 'money-bill-wave'] },
+            { label: 'Urlaubsantrag', action: 'urlaubsantrag', icon: ['fas', 'calendar'] },
+          ],
+        },
+        { type: 'divider' },
+        { label: 'Bearbeiten', action: 'edit', icon: ['fas', 'edit'] },
+        {
+          label: this.resolvedMa?.isActive ? 'Deaktivieren' : 'Reaktivieren',
+          action: 'toggle-active',
+          icon: this.resolvedMa?.isActive ? ['far', 'circle'] : ['fas', 'circle-check'],
+        },
+        ...(this.auth.user?.roles?.includes('ADMIN')
+          ? [{ label: 'Löschen', action: 'delete', icon: ['fas', 'trash'], variant: 'danger' }]
+          : []),
       ];
     },
     persgruppeLabel() {
@@ -2416,12 +2398,6 @@ export default {
     // so we must trigger the reload manually.
     if (this.expanded) {
       this.reloadAllData();
-    }
-  },
-
-  beforeUnmount() {
-    if (this.qaScrollHandler) {
-      window.removeEventListener('scroll', this.qaScrollHandler, true);
     }
   },
 
@@ -3652,9 +3628,6 @@ export default {
       const btn = event.target.closest('button');
       if (btn) {
         this.qaButton = btn;
-        this._updateQaMenuStyle();
-        this.qaScrollHandler = () => this._updateQaMenuStyle();
-        window.addEventListener('scroll', this.qaScrollHandler, true);
       }
       this.showQuickActionsMenu = true;
     },
@@ -3664,46 +3637,14 @@ export default {
       event.preventDefault();
       event.stopPropagation();
       this._closeQuickActions();
-      this.quickActionsMenuStyle = {
-        position: 'fixed',
-        top: Math.min(event.clientY, window.innerHeight - 260) + 'px',
-        left: Math.min(event.clientX, window.innerWidth - 220) + 'px',
-      };
+      this.quickActionsMenuX = event.clientX;
+      this.quickActionsMenuY = event.clientY;
       this.showQuickActionsMenu = true;
-    },
-
-    _updateQaMenuStyle() {
-      if (!this.qaButton) return;
-      const rect = this.qaButton.getBoundingClientRect();
-      this.quickActionsMenuStyle = {
-        position: 'fixed',
-        top: rect.bottom + 4 + 'px',
-        left: Math.min(rect.left, window.innerWidth - 220) + 'px',
-      };
     },
 
     _closeQuickActions() {
       this.showQuickActionsMenu = false;
-      this.showQuickSignatureMenu = false;
-      if (this.qaScrollHandler) {
-        window.removeEventListener('scroll', this.qaScrollHandler, true);
-        this.qaScrollHandler = null;
-      }
       this.qaButton = null;
-    },
-
-    openQuickSignatureMenu(event) {
-      const menuItem = event.currentTarget;
-      this.quickSignatureMenuOpenLeft = menuItem.getBoundingClientRect().right + 190 > window.innerWidth;
-      this.showQuickSignatureMenu = true;
-    },
-
-    toggleQuickSignatureMenu(event) {
-      if (this.showQuickSignatureMenu) {
-        this.showQuickSignatureMenu = false;
-        return;
-      }
-      this.openQuickSignatureMenu(event);
     },
 
     getPhoneNumber() {
@@ -6969,107 +6910,9 @@ export default {
   color: var(--status-success-text);
 }
 
-/* Quick Actions Overlay + Menu (teleported to body, so not scoped) */
 </style>
 
 <style lang="scss">
-/* Global styles for teleported quick actions menu */
-.qa-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 99999;
-}
-
-.qa-menu {
-  min-width: 200px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-  z-index: 100000;
-  padding: 6px 0;
-  
-  .qa-group {
-    &:not(:last-child) {
-      border-bottom: 1px solid var(--border, #e5e7eb);
-      margin-bottom: 6px;
-      padding-bottom: 6px;
-    }
-  }
-  
-  .qa-group-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted, #9ca3af);
-    padding: 4px 12px 6px;
-  }
-  
-  .qa-item {
-    width: 100%;
-    border: none;
-    background: transparent;
-    padding: 8px 12px;
-    text-align: left;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text, #1f2937);
-    transition: all 0.15s ease;
-    
-    &:hover {
-      background: var(--soft, #f3f4f6);
-      color: var(--primary, #3b82f6);
-    }
-    
-    .fa-phone { color: var(--primary); }
-    .fa-envelope { color: var(--primary); }
-    .fa-edit { color: #8b5cf6; }
-    .fa-user { color: var(--primary, #3b82f6); }
-  }
-
-  .qa-signature-menu {
-    position: relative;
-  }
-
-  .qa-item--submenu {
-    .qa-submenu-chevron {
-      margin-left: auto;
-      font-size: 11px;
-    }
-  }
-
-  .qa-submenu {
-    position: absolute;
-    top: -6px;
-    left: calc(100% + 4px);
-    min-width: 190px;
-    padding: 6px 0;
-    background: var(--surface, #fff);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 8px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-
-    &.qa-submenu--left {
-      right: calc(100% + 4px);
-      left: auto;
-    }
-  }
-  
-  .qa-item--danger {
-    &:hover {
-      background: rgba(220, 53, 69, 0.08);
-      color: #dc3545;
-    }
-  }
-}
-
 // ─── Inventar View ────────────────────────────────────────────────────────────
 .inventar-view {
   min-height: 200px;

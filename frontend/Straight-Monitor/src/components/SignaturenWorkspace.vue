@@ -223,38 +223,17 @@
       </template>
     </ModalFrame>
 
-    <!-- Template context menu — teleported to body to escape overflow clipping -->
-    <Teleport to="body">
-      <transition name="ctx-fade">
-        <div
-          v-if="openMenuId !== null"
-          class="tc-dropdown-portal"
-          :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }"
-          @click.stop
-        >
-          <template v-for="t in filteredTemplates" :key="t.id">
-            <template v-if="openMenuId === t.id">
-              <button type="button" @click="editTemplate(t); openMenuId = null">
-                <font-awesome-icon :icon="['fas', 'pen-ruler']" /> Bearbeiten
-              </button>
-              <button type="button" @click="startRename(t); openMenuId = null">
-                <font-awesome-icon :icon="['fas', 'pencil']" /> Umbenennen
-              </button>
-              <button type="button" @click="duplicateTemplate(t); openMenuId = null">
-                <font-awesome-icon :icon="['fas', 'clone']" /> Duplizieren
-              </button>
-              <button type="button" @click="newSignatureFromTemplate(t); openMenuId = null">
-                <font-awesome-icon :icon="['fas', 'file-signature']" /> Neue Signatur
-              </button>
-              <div class="tc-dropdown-divider" />
-              <button type="button" class="tc-dropdown--danger" @click="archiveTemplate(t); openMenuId = null">
-                <font-awesome-icon :icon="['fas', 'box-archive']" /> Archivieren
-              </button>
-            </template>
-          </template>
-        </div>
-      </transition>
-    </Teleport>
+    <ContextMenu
+      v-if="openMenuId !== null && menuBtnEl"
+      :x="0"
+      :y="0"
+      :anchor="menuBtnEl"
+      :follow-anchor="true"
+      :focus-on-open="true"
+      :options="templateMenuOptions"
+      @select="handleTemplateMenuAction"
+      @close="closeTemplateMenu"
+    />
   </div>
 </template>
 
@@ -268,6 +247,7 @@ import api from '@/utils/api';
 import { useSignaturModal } from '@/stores/signaturModal';
 import { useSignaturBuilder } from '@/stores/signaturBuilder';
 import { useAuth } from '@/stores/auth';
+import ContextMenu from '@/components/ContextMenu.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
@@ -549,34 +529,44 @@ function formatDate(d) {
 
 // ── Templates ────────────────────────────────────────────────────────────────
 const openMenuId = ref(null);
-const menuPos = ref({ top: 0, left: 0 });
 const renamingId = ref(null);
 const renamingValue = ref('');
 const renameInput = ref(null);
 let menuBtnEl = null;
 
-function updateMenuPos() {
-  if (!menuBtnEl) return;
-  const rect = menuBtnEl.getBoundingClientRect();
-  menuPos.value = { top: rect.bottom + 6, left: rect.right - 210 };
-}
-
 function toggleMenu(id, event) {
   if (openMenuId.value === id) {
-    openMenuId.value = null;
-    menuBtnEl = null;
+    closeTemplateMenu();
     return;
   }
   menuBtnEl = event.currentTarget;
-  updateMenuPos();
   openMenuId.value = id;
 }
 
-function closeMenuOnOutsideClick(e) {
-  if (!e.target.closest('.tc-menu-wrap') && !e.target.closest('.tc-dropdown-portal')) {
-    openMenuId.value = null;
-    menuBtnEl = null;
-  }
+const selectedTemplate = computed(() => filteredTemplates.value.find((template) => template.id === openMenuId.value));
+const templateMenuOptions = computed(() => [
+  { label: 'Bearbeiten', action: 'edit', icon: ['fas', 'pen-ruler'] },
+  { label: 'Umbenennen', action: 'rename', icon: ['fas', 'pencil'] },
+  { label: 'Duplizieren', action: 'duplicate', icon: ['fas', 'clone'] },
+  { label: 'Neue Signatur', action: 'new-signature', icon: ['fas', 'file-signature'] },
+  { type: 'divider' },
+  { label: 'Archivieren', action: 'archive', icon: ['fas', 'box-archive'], variant: 'danger' },
+]);
+
+function closeTemplateMenu() {
+  openMenuId.value = null;
+  menuBtnEl = null;
+}
+
+function handleTemplateMenuAction(action) {
+  const template = selectedTemplate.value;
+  closeTemplateMenu();
+  if (!template) return;
+  if (action === 'edit') editTemplate(template);
+  else if (action === 'rename') startRename(template);
+  else if (action === 'duplicate') duplicateTemplate(template);
+  else if (action === 'new-signature') newSignatureFromTemplate(template);
+  else if (action === 'archive') archiveTemplate(template);
 }
 
 async function startRename(t) {
@@ -776,13 +766,9 @@ onMounted(() => {
   loadTypen();
   loadLocations();
   connectSSE();
-  window.addEventListener('click', closeMenuOnOutsideClick);
-  window.addEventListener('scroll', updateMenuPos, true);
 });
 onUnmounted(() => {
   if (eventSource) eventSource.close();
-  window.removeEventListener('click', closeMenuOnOutsideClick);
-  window.removeEventListener('scroll', updateMenuPos, true);
 });
 </script>
 
@@ -975,46 +961,4 @@ onUnmounted(() => {
   .tc-archive:hover { border-color: #dc3545 !important; color: #dc3545 !important; }
 }
 
-.ctx-fade-enter-active, .ctx-fade-leave-active { transition: opacity 0.12s, transform 0.12s; }
-.ctx-fade-enter-from, .ctx-fade-leave-to { opacity: 0; transform: translateY(-4px); }
-</style>
-
-<style lang="scss">
-/* Unscoped — portal dropdown is rendered at body level */
-.tc-dropdown-portal {
-  position: fixed;
-  z-index: 9999;
-  min-width: 210px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, #a4a4a470);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
-  padding: 4px;
-
-  button {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    width: 100%;
-    padding: 9px 12px;
-    background: none;
-    border: none;
-    border-radius: 7px;
-    font-size: 0.85rem;
-    font-weight: 300;
-    color: var(--text, #222);
-    cursor: pointer;
-    text-align: left;
-    &:hover { background: color-mix(in srgb, var(--primary, #eeaf67) 10%, transparent); color: var(--primary, #eeaf67); }
-  }
-  .tc-dropdown--danger {
-    color: #dc3545;
-    &:hover { background: color-mix(in srgb, #dc3545 10%, transparent) !important; color: #dc3545 !important; }
-  }
-  .tc-dropdown-divider {
-    height: 1px;
-    background: var(--border, #a4a4a470);
-    margin: 4px 8px;
-  }
-}
 </style>

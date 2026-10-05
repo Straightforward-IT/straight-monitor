@@ -7,193 +7,37 @@
         <span v-if="currentViewTitle" class="header-view-title" :title="currentViewTitle">{{ currentViewTitle }}</span>
       </div>
       <nav class="desktop-nav">
-        <router-link
-          to="/dashboard"
-          :class="{ active: $route.name === 'Dashboard' }"
-          >Dashboard</router-link
-        >
-        <router-link
-          to="/dispo"
-          :class="{ active: $route.name === 'Dispo'}"
-        >
-          Dispo
-        </router-link>
-        <div class="nav-group nav-group--auftraege">
-          <router-link
-            :to="newPagesEnabled ? '/auftraege' : '#'"
-            :class="{ active: isAuftraegeSectionActive, disabled: !newPagesEnabled }"
-            @click="handleNewPageClick($event, '/auftraege')"
-          >
-            Aufträge
-          </router-link>
-        </div>
-        <div class="nav-group nav-group--sign">
-          <router-link
-            to="/signaturen"
-            :class="{ active: isSignSectionActive }"
-          >
-            Signatur
-          </router-link>
-          <div class="nav-submenu" aria-label="Signatur Untermenue">
+        <template v-for="item in navigationItems" :key="item.id">
+          <div v-if="!item.mobileOnly && item.desktopChildren.length" :class="['nav-group', item.groupClass]">
             <router-link
-              to="/signaturen"
-              class="nav-submenu__link"
+              :to="item.disabled ? '#' : item.to"
+              :class="{ active: item.active, disabled: item.disabled, 'dev-role--vertrieb': item.devRole }"
+              @click="handleNavigationClick($event, item)"
             >
-              Signaturen
+              {{ item.label }}
+              <span v-if="item.beta" class="beta-tag beta-tag--payroll">IN ARBEIT</span>
             </router-link>
-            <router-link
-              :to="{ path: '/signaturen', query: { tab: 'templates' } }"
-              class="nav-submenu__link"
-            >
-              Templates
-            </router-link>
-            <router-link
-              :to="{ path: '/signaturen', query: { tab: 'ablage' } }"
-              class="nav-submenu__link"
-            >
-              Ablage
-            </router-link>
-          </div>
-        </div>
-          <div class="nav-group nav-group--personal">
-            <router-link
-              :to="newPagesEnabled ? personalNavTarget : '#'"
-              :class="{ active: isPersonalSectionActive, disabled: !newPagesEnabled }"
-              @click="handleNewPageClick($event, personalNavTarget)"
-            >{{ personalNavLabel }}</router-link>
-            <div class="nav-submenu" aria-label="Personal Untermenue">
+            <div class="nav-submenu" :aria-label="`${item.label} Untermenue`">
               <router-link
-                v-if="personalNavLabel !== 'Personal'"
-                to="/personal"
+                v-for="child in item.desktopChildren"
+                :key="child.id"
+                :to="child.to"
                 class="nav-submenu__link"
-                @click="handleNewPageClick($event, '/personal')"
+                @click="handleNavigationClick($event, child)"
               >
-                Personal
-              </router-link>
-              <router-link
-                v-if="personalNavLabel !== 'Bewerber'"
-                :to="{ path: '/personal', query: { tab: 'bewerber' } }"
-                class="nav-submenu__link"
-                @click="handleNewPageClick($event, '/personal')"
-              >
-                Bewerber
-              </router-link>
-              <router-link
-                v-if="personalNavLabel !== 'MA erstellen'"
-                to="/flip/benutzer-erstellen"
-                class="nav-submenu__link"
-              >
-                MA erstellen
+                {{ child.label }}
               </router-link>
             </div>
           </div>
-        <div v-if="canSeePayroll" class="nav-group nav-group--payroll">
           <router-link
-            to="/payroll"
-            :class="{ active: isPayrollSectionActive }"
-          >Stunden <span class="beta-tag beta-tag--payroll">IN ARBEIT</span></router-link>
-        </div>
-        <div class="nav-group nav-group--reports">
-          <router-link
-            :to="reportsNavTarget"
-            :class="{ active: isReportsSectionActive }"
-          >{{ reportsNavLabel }}</router-link>
-          <div class="nav-submenu" aria-label="Reports Untermenue">
-            <router-link
-              v-if="reportsNavLabel !== 'Reports'"
-              to="/dokumente"
-              class="nav-submenu__link"
-            >
-              Reports
-            </router-link>
-            <router-link
-              v-if="reportsNavLabel !== 'Nachpflege'"
-              to="/dokumente-nachpflegen"
-              class="nav-submenu__link"
-            >
-              Nachpflege
-            </router-link>
-            <router-link
-              v-if="reportsNavLabel !== 'Auswertung'"
-              to="/teamleiter-auswertung"
-              class="nav-submenu__link"
-            >
-              Auswertung
-            </router-link>
-          </div>
-        </div>
-        <div class="nav-group nav-group--bestand">
-          <router-link
-            :to="bestandNavTarget"
-            :class="{ active: isBestandSectionActive }"
-          >{{ bestandNavLabel }}</router-link>
-          <div class="nav-submenu" aria-label="Bestand Untermenue">
-            <router-link
-              v-if="bestandNavLabel !== 'Bestand'"
-              to="/bestand"
-              class="nav-submenu__link"
-            >
-              Bestand
-            </router-link>
-            <router-link
-              v-if="bestandNavLabel !== 'Verlauf'"
-              to="/verlauf"
-              class="nav-submenu__link"
-            >
-              Verlauf
-            </router-link>
-            <router-link
-              v-if="bestandNavLabel !== 'Graph'"
-              :to="{ path: '/verlauf', query: { tab: 'graph' } }"
-              class="nav-submenu__link"
-            >
-              Graph
-            </router-link>
-          </div>
-        </div>
-        <div class="nav-group nav-group--kunden">
-          <router-link :to="kundenNavTarget" :class="{ active: isKundenSectionActive, 'dev-role--vertrieb': isDev }"
-            @click="handleNewPageClick($event, kundenNavTarget)"
-            >{{ kundenNavLabel }}</router-link
+            v-else-if="!item.mobileOnly"
+            :to="item.disabled ? '#' : item.to"
+            :class="{ active: item.active, disabled: item.disabled, 'dev-role--vertrieb': item.devRole }"
+            @click="handleNavigationClick($event, item)"
           >
-          <div class="nav-submenu" aria-label="Kunden Untermenue">
-            <router-link
-              v-if="kundenNavLabel !== 'Kunden'"
-              to="/kunden"
-              class="nav-submenu__link"
-            >
-              Kunden
-            </router-link>
-            <router-link
-              v-if="kundenNavLabel !== 'Analytics'"
-              :to="{ path: '/kunden', query: { tab: 'analytics' } }"
-              class="nav-submenu__link"
-            >
-              Analytics
-            </router-link>
-            <router-link
-              v-if="kundenNavLabel !== 'Leads'"
-              :to="{ path: '/kunden', query: { tab: 'leads' } }"
-              class="nav-submenu__link"
-            >
-              Leads
-            </router-link>
-            <router-link
-              v-if="kundenNavLabel !== 'Watchlist'"
-              :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
-              class="nav-submenu__link"
-            >
-              Watchlist
-            </router-link>
-            <router-link
-              v-if="kundenNavLabel !== 'Kontakte'"
-              :to="{ path: '/kunden', query: { tab: 'kontakte' } }"
-              class="nav-submenu__link"
-            >
-              Kontakte
-            </router-link>
-          </div>
-        </div>
+            {{ item.label }}
+          </router-link>
+        </template>
       </nav>
       <div class="right">
       <div class="desktop-user-area">
@@ -265,328 +109,48 @@
       </div>
       
       <div class="mobile-menu-items">
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: $route.name === 'Dashboard', 'mobile-menu-toggle--open': mobileDashboardMenuOpen }"
-            @click="toggleMobileDashboardMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'chart-line']" />
-              Dashboard
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <font-awesome-icon :icon="['fas', mobileDashboardMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileDashboardMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/dashboard"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Dashboard' && !$route.query.tab }"
-              @click="closeMobileMenu"
+        <template v-for="item in navigationItems" :key="`mobile-${item.id}`">
+          <div v-if="!item.mobileOnly && item.children.length" class="mobile-menu-group">
+            <button
+              class="mobile-menu-btn mobile-menu-toggle"
+              :class="{ active: item.active, 'mobile-menu-toggle--open': isMobileNavGroupOpen(item.id), disabled: item.disabled }"
+              @click="toggleMobileNavGroup(item)"
             >
-              <font-awesome-icon :icon="['fas', 'table-cells-large']" />
-              Übersicht
-            </router-link>
-            <!-- <router-link
-              :to="{ path: '/dashboard', query: { tab: 'spaces' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Dashboard' && $route.query.tab === 'spaces' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'folder-open']" />
-              Spaces
-            </router-link> -->
+              <span class="mobile-menu-toggle__label">
+                <font-awesome-icon :icon="item.icon" />
+                {{ item.mobileLabel }}
+              </span>
+              <span class="mobile-menu-toggle__meta">
+                <span v-if="item.beta" class="beta-tag beta-tag--payroll">IN ARBEIT</span>
+                <font-awesome-icon :icon="['fas', isMobileNavGroupOpen(item.id) ? 'chevron-up' : 'chevron-down']" />
+              </span>
+            </button>
+            <div v-if="isMobileNavGroupOpen(item.id)" class="mobile-submenu">
+              <router-link
+                v-for="child in item.children"
+                :key="`mobile-${child.id}`"
+                :to="child.to"
+                class="mobile-submenu__link"
+                :class="{ active: child.active }"
+                @click="handleNavigationClick($event, child, true)"
+              >
+                <font-awesome-icon :icon="child.icon" />
+                {{ child.mobileLabel || child.label }}
+              </router-link>
+            </div>
           </div>
-        </div>
-        <router-link
-          to="/dispo"
-          :class="{ active: $route.name === 'Dispo' }"
-          @click="showMobileMenu = false"
-        >
-          <font-awesome-icon :icon="['fas', 'table-columns']" />
-          Dispo
-        </router-link>
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isAuftraegeSectionActive, 'mobile-menu-toggle--open': mobileAuftraegeMenuOpen }"
-            @click="toggleMobileAuftraegeMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'calendar-alt']" />
-              Aufträge
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-              <font-awesome-icon :icon="['fas', mobileAuftraegeMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileAuftraegeMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/auftraege"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Auftraege' && !$route.query.openPseudo }"
-              @click="handleMobileNavClick($event, '/auftraege')"
-            >
-              <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
-            </router-link>
-          </div>
-        </div>
-        
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isPersonalSectionActive, 'mobile-menu-toggle--open': mobilePersonalMenuOpen }"
-            @click="toggleMobilePersonalMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'users']" />
-              Personal
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <span v-if="!newPagesEnabled" class="beta-tag">IN ARBEIT</span>
-              <font-awesome-icon :icon="['fas', mobilePersonalMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobilePersonalMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/personal"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Personal' }"
-              @click="handleMobileNavClick($event, '/personal')"
-            >
-              <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
-            </router-link>
-            <router-link
-              to="/flip/benutzer-erstellen"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'BenutzerErstellen' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'user-plus']" />
-              MA erstellen
-            </router-link>
-          </div>
-        </div>
-        <div v-if="canSeePayroll" class="mobile-menu-group">
           <router-link
-            to="/payroll"
+            v-else-if="!item.mobileOnly"
+            :to="item.disabled ? '#' : item.to"
             class="mobile-menu-btn"
-            :class="{ active: isPayrollSectionActive }"
-            @click="closeMobileMenu"
+            :class="{ active: item.active, disabled: item.disabled }"
+            @click="handleNavigationClick($event, item, true)"
           >
-            <font-awesome-icon :icon="['fas', 'calculator']" />
-            Stunden
-            <span class="beta-tag beta-tag--payroll">IN ARBEIT</span>
+            <font-awesome-icon :icon="item.icon" />
+            {{ item.label }}
+            <span v-if="item.beta" class="beta-tag beta-tag--payroll">IN ARBEIT</span>
           </router-link>
-        </div>
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isReportsSectionActive, 'mobile-menu-toggle--open': mobileReportsMenuOpen }"
-            @click="toggleMobileReportsMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'file-alt']" />
-              Reports
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <font-awesome-icon :icon="['fas', mobileReportsMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileReportsMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/dokumente"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Dokumente' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
-            </router-link>
-            <router-link
-              to="/dokumente-nachpflegen"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'DokumenteNachpflegen' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'pen-to-square']" />
-              Nachpflege
-            </router-link>
-            <router-link
-              to="/teamleiter-auswertung"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'TeamleiterAuswertung' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'user-tie']" />
-              Auswertung
-            </router-link>
-          </div>
-        </div>
-        
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isBestandSectionActive, 'mobile-menu-toggle--open': mobileBestandMenuOpen }"
-            @click="toggleMobileBestandMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'list']" />
-              Bestand
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <font-awesome-icon :icon="['fas', mobileBestandMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileBestandMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/bestand"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Bestand' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Bestand
-            </router-link>
-            <router-link
-              to="/verlauf"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Verlauf' && $route.query.tab !== 'graph' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'history']" />
-              Verlauf
-            </router-link>
-            <router-link
-              :to="{ path: '/verlauf', query: { tab: 'graph' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Verlauf' && $route.query.tab === 'graph' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'chart-line']" />
-              Graph
-            </router-link>
-          </div>
-        </div>
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isKundenSectionActive, 'mobile-menu-toggle--open': mobileKundenMenuOpen, 'dev-role--vertrieb': isDev }"
-            @click="toggleMobileKundenMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'building']" />
-              Kunden
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <font-awesome-icon :icon="['fas', mobileKundenMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileKundenMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/kunden"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && !$route.query.tab }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'layer-group']" />
-              Übersicht
-            </router-link>
-            <router-link
-              :to="{ path: '/kunden', query: { tab: 'analytics' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'analytics' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'chart-line']" />
-              Analytics
-            </router-link>
-            <router-link
-              :to="{ path: '/kunden', query: { tab: 'leads' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'leads' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'bullseye']" />
-              Leads
-            </router-link>
-            <router-link
-              :to="{ path: '/kunden', query: { tab: 'watchlist' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'watchlist' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'star']" />
-              Watchlist
-            </router-link>
-            <router-link
-              :to="{ path: '/kunden', query: { tab: 'kontakte' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'Kunden' && $route.query.tab === 'kontakte' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'address-book']" />
-              Kontakte
-            </router-link>
-          </div>
-        </div>
-        
-        <div class="mobile-menu-group">
-          <button
-            class="mobile-menu-btn mobile-menu-toggle"
-            :class="{ active: isSignSectionActive, 'mobile-menu-toggle--open': mobileSignMenuOpen }"
-            @click="toggleMobileSignMenu"
-          >
-            <span class="mobile-menu-toggle__label">
-              <font-awesome-icon :icon="['fas', 'file-signature']" />
-              Signatur
-            </span>
-            <span class="mobile-menu-toggle__meta">
-              <font-awesome-icon :icon="['fas', mobileSignMenuOpen ? 'chevron-up' : 'chevron-down']" />
-            </span>
-          </button>
-
-          <div v-if="mobileSignMenuOpen" class="mobile-submenu">
-            <router-link
-              to="/signaturen"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'SignaturenPage' && !$route.query.tab }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'list-check']" />
-              Signaturen
-            </router-link>
-            <router-link
-              :to="{ path: '/signaturen', query: { tab: 'templates' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'SignaturenPage' && $route.query.tab === 'templates' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'file-lines']" />
-              Templates
-            </router-link>
-            <router-link
-              :to="{ path: '/signaturen', query: { tab: 'ablage' } }"
-              class="mobile-submenu__link"
-              :class="{ active: $route.name === 'SignaturenPage' && $route.query.tab === 'ablage' }"
-              @click="closeMobileMenu"
-            >
-              <font-awesome-icon :icon="['fas', 'folder-open']" />
-              Ablage
-            </router-link>
-          </div>
-        </div>
+        </template>
 
         
         <div class="mobile-menu-divider"></div>
@@ -607,13 +171,14 @@
         </button>
 
         <router-link
-          to="/einstellungen"
+          v-if="settingsNavigationItem"
+          :to="settingsNavigationItem.to"
           class="mobile-menu-btn"
-          :class="{ active: $route.name === 'UserSettings' }"
+          :class="{ active: settingsNavigationItem.active }"
           @click="closeMobileMenu"
         >
-          <font-awesome-icon :icon="['fas', 'gear']" />
-          Einstellungen
+          <font-awesome-icon :icon="settingsNavigationItem.icon" />
+          {{ settingsNavigationItem.mobileLabel }}
         </router-link>
         
         <button class="mobile-menu-btn" @click="showSupportModal = true; showMobileMenu = false">
@@ -841,13 +406,7 @@ onMounted(async () => {
 
 // Mobile Menu State
 const showMobileMenu = ref(false);
-const mobileDashboardMenuOpen = ref(false);
-const mobileAuftraegeMenuOpen = ref(false);
-const mobileBestandMenuOpen = ref(false);
-const mobileReportsMenuOpen = ref(false);
-const mobilePersonalMenuOpen = ref(false);
-const mobileKundenMenuOpen = ref(false);
-const mobileSignMenuOpen = ref(false);
+const mobileNavGroupsOpen = ref({});
 
 // Support Modal State
 const showSupportModal = ref(false);
@@ -921,6 +480,14 @@ const kundenNavTarget = computed(() => {
   return tab ? { path: '/kunden', query: { tab } } : '/kunden';
 });
 const isAuftraegeSectionActive = computed(() => route.name === 'Auftraege');
+const auftraegeNavLabel = computed(() => (
+  route.name === 'Auftraege' && route.query.tab === 'list' ? 'Liste' : 'Aufträge'
+));
+const auftraegeNavTarget = computed(() => (
+  auftraegeNavLabel.value === 'Liste'
+    ? { path: '/auftraege', query: { tab: 'list' } }
+    : '/auftraege'
+));
 const isBestandSectionActive = computed(() => ['Bestand', 'Verlauf'].includes(route.name));
 const bestandNavLabel = computed(() => {
   if (route.name === 'Verlauf') return route.query.tab === 'graph' ? 'Graph' : 'Verlauf';
@@ -953,71 +520,147 @@ const personalNavTarget = computed(() => {
   return '/personal';
 });
 const isSignSectionActive = computed(() => route.name === 'SignaturenPage');
+const signNavLabel = computed(() => {
+  if (route.name !== 'SignaturenPage') return 'Signatur';
+  const labels = { templates: 'Templates', ablage: 'Ablage' };
+  return labels[route.query.tab] || 'Signatur';
+});
+const signNavTarget = computed(() => {
+  const tab = route.name === 'SignaturenPage' ? route.query.tab : null;
+  return tab ? { path: '/signaturen', query: { tab } } : '/signaturen';
+});
 
-// Handler für deaktivierte neue Pages
-const handleNewPageClick = (event, path) => {
-  if (!newPagesEnabled.value) {
+const navigationItems = computed(() => {
+  const child = (id, label, to, active, icon = ['fas', 'layer-group'], mobileLabel = label) => ({
+    id, label, mobileLabel, to, active, icon, disabled: false
+  });
+  const items = [
+    {
+      id: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: ['fas', 'chart-line'],
+      mobileLabel: 'Dashboard',
+      active: route.name === 'Dashboard', groupClass: 'nav-group--dashboard',
+      children: [child('dashboard-overview', 'Übersicht', '/dashboard', route.name === 'Dashboard' && !route.query.tab, ['fas', 'table-cells-large'], 'Dashboard')]
+    },
+    {
+      id: 'dispo', label: 'Dispo', to: '/dispo', icon: ['fas', 'table-columns'],
+      mobileLabel: 'Dispo',
+      active: route.name === 'Dispo', children: []
+    },
+    {
+      id: 'auftraege', label: auftraegeNavLabel.value, to: auftraegeNavTarget.value,
+      mobileLabel: 'Aufträge', icon: ['fas', 'calendar-alt'], active: isAuftraegeSectionActive.value,
+      disabled: !newPagesEnabled.value, groupClass: 'nav-group--auftraege',
+      children: [
+        child('auftraege-overview', 'Aufträge', '/auftraege', route.name === 'Auftraege' && !route.query.tab, ['fas', 'layer-group'], 'Kalender'),
+        child('auftraege-list', 'Liste', { path: '/auftraege', query: { tab: 'list' } }, route.name === 'Auftraege' && route.query.tab === 'list', ['fas', 'list'])
+      ]
+    },
+    {
+      id: 'signaturen', label: signNavLabel.value, to: signNavTarget.value,
+      mobileLabel: 'Signatur', icon: ['fas', 'file-signature'], active: isSignSectionActive.value, groupClass: 'nav-group--sign',
+      children: [
+        child('signaturen-default', 'Signatur', '/signaturen', route.name === 'SignaturenPage' && !route.query.tab, ['fas', 'list-check'], 'Übersicht'),
+        child('signaturen-templates', 'Templates', { path: '/signaturen', query: { tab: 'templates' } }, route.name === 'SignaturenPage' && route.query.tab === 'templates', ['fas', 'file-lines']),
+        child('signaturen-ablage', 'Ablage', { path: '/signaturen', query: { tab: 'ablage' } }, route.name === 'SignaturenPage' && route.query.tab === 'ablage', ['fas', 'folder-open'])
+      ]
+    },
+    {
+      id: 'personal', label: personalNavLabel.value, to: personalNavTarget.value,
+      mobileLabel: 'Personal', icon: ['fas', 'users'], active: isPersonalSectionActive.value,
+      disabled: !newPagesEnabled.value, groupClass: 'nav-group--personal',
+      children: [
+        child('personal-default', 'Personal', '/personal', route.name === 'Personal' && !route.query.tab, ['fas', 'layer-group'], 'Übersicht'),
+        child('personal-bewerber', 'Bewerber', { path: '/personal', query: { tab: 'bewerber' } }, route.name === 'Personal' && route.query.tab === 'bewerber', ['fas', 'user-plus']),
+        child('personal-create', 'MA erstellen', '/flip/benutzer-erstellen', route.name === 'BenutzerErstellen', ['fas', 'user-plus'])
+      ]
+    },
+    {
+      id: 'payroll', label: 'Stunden', to: '/payroll', icon: ['fas', 'calculator'],
+      mobileLabel: 'Stunden',
+      active: isPayrollSectionActive.value, disabled: !canSeePayroll.value, beta: true,
+      groupClass: 'nav-group--payroll', desktopChildren: [],
+      children: [
+        child('payroll-capture', 'Stundenerfassung', '/payroll', route.name === 'Payroll' && (!route.query.tab || route.query.tab === 'stundenerfassung'), ['fas', 'clock']),
+        child('payroll-review', 'Monatsprüfung', { path: '/payroll', query: { tab: 'monatspruefung' } }, route.name === 'Payroll' && route.query.tab === 'monatspruefung', ['fas', 'list-check'])
+      ]
+    },
+    {
+      id: 'reports', label: reportsNavLabel.value, to: reportsNavTarget.value,
+      mobileLabel: 'Reports', icon: ['fas', 'file-alt'], active: isReportsSectionActive.value, groupClass: 'nav-group--reports',
+      children: [
+        child('reports-default', 'Reports', '/dokumente', route.name === 'Dokumente', ['fas', 'layer-group'], 'Übersicht'),
+        child('reports-maintenance', 'Nachpflege', '/dokumente-nachpflegen', route.name === 'DokumenteNachpflegen', ['fas', 'pen-to-square']),
+        child('reports-evaluation', 'Auswertung', '/teamleiter-auswertung', route.name === 'TeamleiterAuswertung', ['fas', 'user-tie'])
+      ]
+    },
+    {
+      id: 'bestand', label: bestandNavLabel.value, to: bestandNavTarget.value,
+      mobileLabel: 'Bestand', icon: ['fas', 'list'], active: isBestandSectionActive.value, groupClass: 'nav-group--bestand',
+      children: [
+        child('bestand-default', 'Bestand', '/bestand', route.name === 'Bestand', ['fas', 'layer-group'], 'Übersicht'),
+        child('bestand-history', 'Verlauf', '/verlauf', route.name === 'Verlauf' && route.query.tab !== 'graph', ['fas', 'history']),
+        child('bestand-graph', 'Graph', { path: '/verlauf', query: { tab: 'graph' } }, route.name === 'Verlauf' && route.query.tab === 'graph', ['fas', 'chart-line'])
+      ]
+    },
+    {
+      id: 'kunden', label: kundenNavLabel.value, to: kundenNavTarget.value,
+      mobileLabel: 'Kunden', icon: ['fas', 'building'], active: isKundenSectionActive.value, devRole: isDev, groupClass: 'nav-group--kunden',
+      children: [
+        child('kunden-default', 'Kunden', '/kunden', route.name === 'Kunden' && !route.query.tab, ['fas', 'layer-group'], 'Übersicht'),
+        child('kunden-analytics', 'Analytics', { path: '/kunden', query: { tab: 'analytics' } }, route.name === 'Kunden' && route.query.tab === 'analytics', ['fas', 'chart-line']),
+        child('kunden-leads', 'Leads', { path: '/kunden', query: { tab: 'leads' } }, route.name === 'Kunden' && route.query.tab === 'leads', ['fas', 'bullseye']),
+        child('kunden-watchlist', 'Watchlist', { path: '/kunden', query: { tab: 'watchlist' } }, route.name === 'Kunden' && route.query.tab === 'watchlist', ['fas', 'star']),
+        child('kunden-contacts', 'Kontakte', { path: '/kunden', query: { tab: 'kontakte' } }, route.name === 'Kunden' && route.query.tab === 'kontakte', ['fas', 'address-book'])
+      ]
+    },
+    {
+      id: 'settings', label: 'Einstellungen', mobileLabel: 'Einstellungen', to: '/einstellungen',
+      icon: ['fas', 'gear'], active: route.name === 'UserSettings', children: [], mobileOnly: true
+    }
+  ];
+
+  return items.map((item) => ({
+    ...item,
+    children: item.children.map((entry) => ({ ...entry, disabled: item.disabled })),
+    desktopChildren: (item.desktopChildren || item.children
+      .filter((entry) => entry.label !== item.label))
+      .map((entry) => ({ ...entry, disabled: item.disabled }))
+  }));
+});
+
+const settingsNavigationItem = computed(() => navigationItems.value.find((item) => item.id === 'settings'));
+
+const isMobileNavGroupOpen = (id) => !!mobileNavGroupsOpen.value[id];
+const toggleMobileNavGroup = (item) => {
+  if (item.disabled) return;
+  mobileNavGroupsOpen.value = {
+    ...mobileNavGroupsOpen.value,
+    [item.id]: !isMobileNavGroupOpen(item.id)
+  };
+};
+const handleNavigationClick = (event, item, closeMenu = false) => {
+  if (item.disabled) {
     event.preventDefault();
     event.stopPropagation();
     return false;
   }
+  if (closeMenu) closeMobileMenu();
+  return true;
 };
 
 const closeMobileMenu = () => {
   showMobileMenu.value = false;
-  mobileDashboardMenuOpen.value = false;
-  mobileAuftraegeMenuOpen.value = false;
-  mobileBestandMenuOpen.value = false;
-  mobileReportsMenuOpen.value = false;
-  mobilePersonalMenuOpen.value = false;
-  mobileKundenMenuOpen.value = false;
-  mobileSignMenuOpen.value = false;
-};
-
-const toggleMobileDashboardMenu = () => {
-  mobileDashboardMenuOpen.value = !mobileDashboardMenuOpen.value;
-};
-
-const toggleMobileAuftraegeMenu = () => {
-  mobileAuftraegeMenuOpen.value = !mobileAuftraegeMenuOpen.value;
-};
-
-const toggleMobileBestandMenu = () => {
-  mobileBestandMenuOpen.value = !mobileBestandMenuOpen.value;
-};
-
-const toggleMobileReportsMenu = () => {
-  mobileReportsMenuOpen.value = !mobileReportsMenuOpen.value;
-};
-
-const toggleMobilePersonalMenu = () => {
-  mobilePersonalMenuOpen.value = !mobilePersonalMenuOpen.value;
-};
-
-const toggleMobileKundenMenu = () => {
-  mobileKundenMenuOpen.value = !mobileKundenMenuOpen.value;
-};
-
-const toggleMobileSignMenu = () => {
-  mobileSignMenuOpen.value = !mobileSignMenuOpen.value;
-};
-
-const handleMobileNavClick = (event, path) => {
-  const allowed = handleNewPageClick(event, path);
-  if (allowed === false) return;
-  closeMobileMenu();
+  mobileNavGroupsOpen.value = {};
 };
 
 watch(
-  () => route.name,
-  (name) => {
-    mobileDashboardMenuOpen.value = name === 'Dashboard';
-    mobileAuftraegeMenuOpen.value = ['Auftraege'].includes(name);
-    mobileBestandMenuOpen.value = ['Bestand', 'Verlauf'].includes(name);
-    mobileReportsMenuOpen.value = ['Dokumente', 'DokumenteNachpflegen', 'TeamleiterAuswertung'].includes(name);
-    mobilePersonalMenuOpen.value = ['Personal', 'BenutzerErstellen'].includes(name);
-    mobileKundenMenuOpen.value = name === 'Kunden';
-    mobileSignMenuOpen.value = name === 'SignaturenPage';
+  () => route.fullPath,
+  () => {
+    const activeGroups = {};
+    navigationItems.value.forEach((item) => {
+      if (item.active) activeGroups[item.id] = true;
+    });
+    mobileNavGroupsOpen.value = activeGroups;
   },
   { immediate: true }
 );

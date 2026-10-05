@@ -66,6 +66,8 @@ const { descriptor } = parse(await readFile(filename, 'utf8'));
 const compiled = compileScript(descriptor, { id: 'document-preview-test' }).content
   .replace(/import ModalFrame from '[^']+';/, 'const ModalFrame = {};')
   .replace(/import ContextMenu from '[^']+';/, 'const ContextMenu = {};')
+  .replace(/import AppButton from '[^']+';/, 'const AppButton = {};')
+  .replace(/import AppIconButton from '[^']+';/, 'const AppIconButton = {};')
   .replace(/import \{ exportElementToPdf \} from '[^']+';/, 'const exportElementToPdf = async () => {};')
   .replace("from '@/utils/documentPreview'", `from '${new URL('../src/utils/documentPreview.js', import.meta.url)}'`)
   .replace(/from '(vue|@fortawesome\/[^']+)'/g, (_, module) => `from '${import.meta.resolve(module)}'`);

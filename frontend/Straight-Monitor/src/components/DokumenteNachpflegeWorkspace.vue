@@ -8,23 +8,24 @@
           Neuer Laufzettel
         </h2>
 
-        <div v-if="success.laufzettel" class="success-banner">
+        <div v-if="success.laufzettel" class="success-banner" role="status">
           <div class="success-icon"><font-awesome-icon icon="fa-solid fa-circle-check" /></div>
           <div>
             <strong>Laufzettel erstellt!</strong>
             <p>Angelegt und dem Teamleiter in Flip zugewiesen.</p>
           </div>
-          <button class="btn-outline btn-sm" @click="resetForm('laufzettel')">Weiteren erstellen</button>
+          <AppButton size="sm" variant="outlined" @click="resetForm('laufzettel')">Weiteren erstellen</AppButton>
         </div>
 
         <form v-else @submit.prevent="submitLaufzettel" class="form-body">
+          <fieldset class="form-fields" :disabled="loading.laufzettel">
           <div class="field-group">
-            <label class="field-label">
+            <label class="field-label" for="lz-auftrag-nr">
               Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="lz.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
+              <AppTextInput id="lz-auftrag-nr" v-model="lz.auftragNr" type="number" class="input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.laufzettel" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
@@ -41,13 +42,13 @@
             <div v-if="lzEinsatzMAs.length" class="einsatz-ma-section">
               <span class="einsatz-ma-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter im Einsatz <span class="count-badge">{{ lzEinsatzMAs.length }}</span></span>
               <div class="einsatz-ma-grid">
-                <button v-for="ma in lzEinsatzMAs" :key="ma._id" type="button"
-                  class="einsatz-ma-btn" :class="{ selected: lz.ma?._id === ma._id }"
+                <AppButton v-for="ma in lzEinsatzMAs" :key="ma._id" type="button" size="sm" variant="secondary"
+                  class="einsatz-ma-btn" :class="{ selected: lz.ma?._id === ma._id }" :aria-pressed="lz.ma?._id === ma._id"
                   @click="lz.ma = ma">
                   <font-awesome-icon icon="fa-solid fa-user" />
                   {{ ma.vorname }} {{ ma.nachname }}
                   <span v-if="ma.personalnr" class="einsatz-ma-nr">{{ ma.personalnr }}</span>
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -57,23 +58,27 @@
 
           <div class="field-row">
             <div class="field-group">
-              <label class="field-label">Datum *</label>
-              <input v-model="lz.datum" type="date" class="input-field" :max="todayStr" required />
+              <label class="field-label" for="lz-datum">Datum *</label>
+              <AppTextInput id="lz-datum" v-model="lz.datum" type="date" :max="todayStr" required />
             </div>
             <div class="field-group">
-              <label class="field-label">Niederlassung *</label>
-              <select v-model="lz.locationV2" class="input-field" required>
+              <label class="field-label" for="lz-location">Niederlassung *</label>
+              <AppSelect id="lz-location" v-model="lz.locationV2" required>
                 <option disabled value="">Standort wählen</option>
                 <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
           <ValidationError :msg="errors.laufzettel" />
           <div class="form-actions">
-            <SubmitBtn :loading="loading.laufzettel" :disabled="!lzValid">Laufzettel erstellen</SubmitBtn>
+            <AppButton type="submit" :loading="loading.laufzettel" :disabled="!lzValid">
+              <font-awesome-icon v-if="!loading.laufzettel" icon="fa-solid fa-paper-plane" />
+              {{ loading.laufzettel ? 'Wird erstellt…' : 'Laufzettel erstellen' }}
+            </AppButton>
           </div>
           </template>
+          </fieldset>
         </form>
       </div>
 
@@ -85,23 +90,24 @@
         </h2>
         <p class="card-desc">Erstellt einen abgeschlossenen Laufzettel mit Bewertungsfeldern.</p>
 
-        <div v-if="success.evaluierung" class="success-banner">
+        <div v-if="success.evaluierung" class="success-banner" role="status">
           <div class="success-icon"><font-awesome-icon icon="fa-solid fa-circle-check" /></div>
           <div>
             <strong>Evaluierung erstellt!</strong>
             <p>Der Laufzettel wurde mit Status „Bewertet" angelegt.</p>
           </div>
-          <button class="btn-outline btn-sm" @click="resetForm('evaluierung')">Weiteren erstellen</button>
+          <AppButton size="sm" variant="outlined" @click="resetForm('evaluierung')">Weiteren erstellen</AppButton>
         </div>
 
         <form v-else @submit.prevent="submitEvaluierung" class="form-body">
+          <fieldset class="form-fields" :disabled="loading.evaluierung">
           <div class="field-group">
-            <label class="field-label">
+            <label class="field-label" for="ev-auftrag-nr">
               Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="ev.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
+              <AppTextInput id="ev-auftrag-nr" v-model="ev.auftragNr" type="number" class="input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.evaluierung" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
@@ -118,13 +124,13 @@
             <div v-if="evEinsatzMAs.length" class="einsatz-ma-section">
               <span class="einsatz-ma-label"><font-awesome-icon icon="fa-solid fa-users" /> Mitarbeiter im Einsatz <span class="count-badge">{{ evEinsatzMAs.length }}</span></span>
               <div class="einsatz-ma-grid">
-                <button v-for="ma in evEinsatzMAs" :key="ma._id" type="button"
-                  class="einsatz-ma-btn" :class="{ selected: ev.ma?._id === ma._id }"
+                <AppButton v-for="ma in evEinsatzMAs" :key="ma._id" type="button" size="sm" variant="secondary"
+                  class="einsatz-ma-btn" :class="{ selected: ev.ma?._id === ma._id }" :aria-pressed="ev.ma?._id === ma._id"
                   @click="ev.ma = ma">
                   <font-awesome-icon icon="fa-solid fa-user" />
                   {{ ma.vorname }} {{ ma.nachname }}
                   <span v-if="ma.personalnr" class="einsatz-ma-nr">{{ ma.personalnr }}</span>
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -134,21 +140,21 @@
 
           <div class="field-row">
             <div class="field-group">
-              <label class="field-label">Datum *</label>
-              <input v-model="ev.datum" type="date" class="input-field" :max="todayStr" required />
+              <label class="field-label" for="ev-datum">Datum *</label>
+              <AppTextInput id="ev-datum" v-model="ev.datum" type="date" :max="todayStr" required />
             </div>
             <div class="field-group">
-              <label class="field-label">Niederlassung *</label>
-              <select v-model="ev.locationV2" class="input-field" required>
+              <label class="field-label" for="ev-location">Niederlassung *</label>
+              <AppSelect id="ev-location" v-model="ev.locationV2" required>
                 <option disabled value="">Standort wählen</option>
                 <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Kunde / Event <span class="field-hint">Optional – wird aus Auftrag übernommen</span></label>
-            <input v-model="ev.kunde" type="text" class="input-field" placeholder="z.B. Messe Berlin" />
+            <label class="field-label" for="ev-kunde">Kunde / Event <span class="field-hint">Optional – wird aus Auftrag übernommen</span></label>
+            <AppTextInput id="ev-kunde" v-model="ev.kunde" placeholder="z.B. Messe Berlin" />
           </div>
 
           <div class="rating-grid">
@@ -162,9 +168,13 @@
 
           <ValidationError :msg="errors.evaluierung" />
           <div class="form-actions">
-            <SubmitBtn :loading="loading.evaluierung" :disabled="!evValid">Evaluierung erstellen</SubmitBtn>
+            <AppButton type="submit" :loading="loading.evaluierung" :disabled="!evValid">
+              <font-awesome-icon v-if="!loading.evaluierung" icon="fa-solid fa-paper-plane" />
+              {{ loading.evaluierung ? 'Wird erstellt…' : 'Evaluierung erstellen' }}
+            </AppButton>
           </div>
           </template>
+          </fieldset>
         </form>
       </div>
 
@@ -175,23 +185,24 @@
           Neuer Event Report
         </h2>
 
-        <div v-if="success.eventreport" class="success-banner">
+        <div v-if="success.eventreport" class="success-banner" role="status">
           <div class="success-icon"><font-awesome-icon icon="fa-solid fa-circle-check" /></div>
           <div>
             <strong>Event Report erstellt!</strong>
             <p>Der Report wurde angelegt und dem Teamleiter zugeordnet.</p>
           </div>
-          <button class="btn-outline btn-sm" @click="resetForm('eventreport')">Weiteren erstellen</button>
+          <AppButton size="sm" variant="outlined" @click="resetForm('eventreport')">Weiteren erstellen</AppButton>
         </div>
 
         <form v-else @submit.prevent="submitEventReport" class="form-body">
+          <fieldset class="form-fields" :disabled="loading.eventreport">
           <div class="field-group">
-            <label class="field-label">
+            <label class="field-label" for="er-auftrag-nr">
               Auftragsnummer *
               <span class="field-hint">Einsatzdaten werden automatisch geladen</span>
             </label>
             <div class="auftrag-input-wrap">
-              <input v-model="er.auftragNr" type="number" class="input-field input-narrow" placeholder="z.B. 12345" min="1" required />
+              <AppTextInput id="er-auftrag-nr" v-model="er.auftragNr" type="number" class="input-narrow" placeholder="z.B. 12345" min="1" required />
               <font-awesome-icon v-if="auftragLoading.eventreport" icon="fa-solid fa-spinner" spin class="auftrag-spinner" />
             </div>
           </div>
@@ -214,26 +225,26 @@
 
           <div class="field-row">
             <div class="field-group">
-              <label class="field-label">Datum *</label>
-              <input v-model="er.datum" type="date" class="input-field" :max="todayStr" required />
+              <label class="field-label" for="er-datum">Datum *</label>
+              <AppTextInput id="er-datum" v-model="er.datum" type="date" :max="todayStr" required />
             </div>
             <div class="field-group">
-              <label class="field-label">Niederlassung *</label>
-              <select v-model="er.locationV2" class="input-field" required>
+              <label class="field-label" for="er-location">Niederlassung *</label>
+              <AppSelect id="er-location" v-model="er.locationV2" required>
                 <option disabled value="">Standort wählen</option>
                 <option v-for="location in locations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
           <div class="field-row">
             <div class="field-group">
-              <label class="field-label">Kunde / Event *</label>
-              <input v-model="er.kunde" type="text" class="input-field" placeholder="z.B. Messe Berlin" required />
+              <label class="field-label" for="er-kunde">Kunde / Event *</label>
+              <AppTextInput id="er-kunde" v-model="er.kunde" placeholder="z.B. Messe Berlin" required />
             </div>
             <div class="field-group">
-              <label class="field-label">Mitarbeiter Anzahl <span class="field-hint">Optional – wird aus Einsatz übernommen</span></label>
-              <input v-model="er.mitarbeiter_anzahl" type="text" class="input-field" placeholder="z.B. 12" />
+              <label class="field-label" for="er-anzahl">Mitarbeiter Anzahl <span class="field-hint">Optional – wird aus Einsatz übernommen</span></label>
+              <AppTextInput id="er-anzahl" v-model="er.mitarbeiter_anzahl" placeholder="z.B. 12" />
             </div>
           </div>
 
@@ -244,20 +255,22 @@
 
             <!-- ── Mitarbeiter / Job – per-MA rows ── -->
             <div class="field-group field-group--wide">
-              <label class="field-label">Mitarbeiter / Job</label>
+              <span class="field-label">Mitarbeiter / Job</span>
 
               <!-- Chip row: available MAs not yet added -->
               <div v-if="erMaAvailable.length" class="er-ma-chips">
-                <button
+                <AppButton
                   v-for="ma in erMaAvailable"
                   :key="ma._id"
                   type="button"
+                  size="sm"
+                  variant="outlined"
                   class="er-ma-chip"
                   @click="addErMaRow(ma)"
                 >
                   <font-awesome-icon icon="fa-solid fa-plus" />
                   {{ ma.vorname }} {{ ma.nachname }}
-                </button>
+                </AppButton>
               </div>
 
               <!-- Per-MA feedback rows -->
@@ -268,11 +281,12 @@
                     v-model="row.text"
                     class="er-ma-row-input"
                     rows="2"
+                    :aria-label="`Feedback zu ${row.name}`"
                     :placeholder="'Feedback zu ' + row.name + '\u2026'"
                   />
-                  <button type="button" class="er-ma-row-remove" @click="removeErMaRow(row)">
+                  <AppIconButton type="button" size="sm" variant="ghost" class="er-ma-row-remove" :label="`${row.name} entfernen`" @click="removeErMaRow(row)">
                     <font-awesome-icon icon="fa-solid fa-times" />
-                  </button>
+                  </AppIconButton>
                 </div>
 
                 <!-- Fallback free-text when no Einsatz MAs available -->
@@ -281,6 +295,7 @@
                   v-model="er.mitarbeiter_job"
                   class="input-field textarea-field"
                   rows="2"
+                  aria-label="Mitarbeiter und Job"
                   placeholder="Mitarbeiter / Job\u2026"
                 />
               </div>
@@ -292,9 +307,13 @@
 
           <ValidationError :msg="errors.eventreport" />
           <div class="form-actions">
-            <SubmitBtn :loading="loading.eventreport" :disabled="!erValid">Event Report erstellen</SubmitBtn>
+            <AppButton type="submit" :loading="loading.eventreport" :disabled="!erValid">
+              <font-awesome-icon v-if="!loading.eventreport" icon="fa-solid fa-paper-plane" />
+              {{ loading.eventreport ? 'Wird erstellt…' : 'Event Report erstellen' }}
+            </AppButton>
           </div>
           </template>
+          </fieldset>
         </form>
       </div>
 
@@ -331,10 +350,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, defineComponent, h } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h, getCurrentInstance } from 'vue';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useTheme } from '@/stores/theme';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import laufzettelImg from '@/assets/laufzettel.png';
 import laufzettelDarkImg from '@/assets/laufzettel-dark.png';
 import evaluierungImg from '@/assets/evaluierung.png';
@@ -356,13 +379,37 @@ const PersonSearch = defineComponent({
   },
   emits: ['update:modelValue'],
   setup(props, { emit }) {
+    const inputId = `document-person-search-${getCurrentInstance().uid}`;
     const query = ref(props.modelValue ? `${props.modelValue.vorname} ${props.modelValue.nachname}` : '');
     const results = ref([]);
     const loading = ref(false);
     const focused = ref(false);
     const showDrop = ref(false);
     const highlight = ref(-1);
+    const inputRef = ref(null);
     let timer = null;
+    let blurTimer = null;
+    let searchRevision = 0;
+
+    watch(() => props.modelValue, (value, previousValue) => {
+      if (!value) {
+        if (previousValue && query.value === `${previousValue.vorname} ${previousValue.nachname}`) query.value = '';
+        if (previousValue) {
+          searchRevision++;
+          results.value = [];
+          showDrop.value = false;
+          loading.value = false;
+        }
+        return;
+      }
+      query.value = `${value.vorname} ${value.nachname}`;
+    });
+
+    onBeforeUnmount(() => {
+      clearTimeout(timer);
+      clearTimeout(blurTimer);
+      searchRevision++;
+    });
 
     const selected = computed(() => props.modelValue);
 
@@ -370,21 +417,26 @@ const PersonSearch = defineComponent({
       emit('update:modelValue', null);
       highlight.value = -1;
       clearTimeout(timer);
-      if (query.value.trim().length < 2) { results.value = []; return; }
+      searchRevision++;
+      if (query.value.trim().length < 2) { results.value = []; showDrop.value = false; loading.value = false; return; }
       timer = setTimeout(search, 280);
     }
 
     async function search() {
+      const revision = searchRevision;
       loading.value = true;
       try {
         const { data } = await api.get('/api/personal/mitarbeiter/search', { params: { q: query.value } });
-        results.value = data;
+        if (revision !== searchRevision) return;
+        results.value = Array.isArray(data) ? data : [];
         showDrop.value = true;
-      } catch { results.value = []; }
-      finally { loading.value = false; }
+      } catch { if (revision === searchRevision) results.value = []; }
+      finally { if (revision === searchRevision) loading.value = false; }
     }
 
     function pick(ma) {
+      searchRevision++;
+      loading.value = false;
       emit('update:modelValue', ma);
       query.value = `${ma.vorname} ${ma.nachname}`;
       results.value = [];
@@ -392,14 +444,20 @@ const PersonSearch = defineComponent({
     }
 
     function clear() {
+      searchRevision++;
+      clearTimeout(timer);
+      loading.value = false;
       emit('update:modelValue', null);
       query.value = '';
       results.value = [];
+      showDrop.value = false;
+      inputRef.value?.focus();
     }
 
     function onBlur() {
       focused.value = false;
-      setTimeout(() => { showDrop.value = false; }, 150);
+      clearTimeout(blurTimer);
+      blurTimer = setTimeout(() => { showDrop.value = false; highlight.value = -1; }, 150);
     }
 
     function nav(dir) {
@@ -413,34 +471,46 @@ const PersonSearch = defineComponent({
     return () => {
       const inputEl = h('div', { class: ['search-field', focused.value && 'focused'] }, [
         h(FontAwesomeIcon, { icon: 'fa-solid fa-magnifying-glass', class: 'search-icon' }),
-        h('input', {
-          value: query.value,
-          type: 'text',
+        h(AppTextInput, {
+          ref: inputRef,
+          id: inputId,
+          modelValue: query.value,
           placeholder: 'Name oder Personalnr. suchen…',
           autocomplete: 'off',
-          onInput: (e) => { query.value = e.target.value; onInput(); },
+          role: 'combobox',
+          'aria-autocomplete': 'list',
+          'aria-expanded': showDrop.value && results.value.length > 0,
+          'aria-controls': `${inputId}-results`,
+          'aria-activedescendant': highlight.value >= 0 ? `${inputId}-option-${highlight.value}` : undefined,
+          'onUpdate:modelValue': (value) => { query.value = value; onInput(); },
           onFocus: () => { focused.value = true; showDrop.value = true; },
           onBlur,
           onKeydown: (e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); nav(1); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); nav(-1); }
             else if (e.key === 'Enter') { e.preventDefault(); enter(); }
-            else if (e.key === 'Escape') showDrop.value = false;
+            else if (e.key === 'Escape') { showDrop.value = false; highlight.value = -1; }
           },
         }),
-        selected.value && h('button', { type: 'button', class: 'clear-btn', onClick: clear, tabindex: -1 },
-          [h(FontAwesomeIcon, { icon: 'fa-solid fa-times' })]
-        ),
+        selected.value && h(AppIconButton, {
+          type: 'button', size: 'sm', variant: 'ghost', class: 'clear-btn',
+          label: `${props.label.replace(/\s*\*$/, '')} Auswahl aufheben`, onClick: clear,
+        }, { default: () => h(FontAwesomeIcon, { icon: 'fa-solid fa-times' }) }),
         loading.value && h(FontAwesomeIcon, { icon: 'fa-solid fa-spinner', spin: true, class: 'loading-icon' }),
       ]);
 
       const dropItems = showDrop.value && results.value.length > 0
-        ? h('div', { class: 'search-dropdown' },
+        ? h('div', { id: `${inputId}-results`, class: 'search-dropdown', role: 'listbox', 'aria-label': props.label },
             results.value.map((ma, i) =>
-              h('div', {
+              h('button', {
                 key: ma._id,
+                id: `${inputId}-option-${i}`,
+                type: 'button',
+                role: 'option',
+                'aria-selected': highlight.value === i,
+                tabindex: -1,
                 class: ['dropdown-item', highlight.value === i && 'highlighted'],
-                onMousedown: (e) => { e.preventDefault(); pick(ma); },
+                onClick: () => pick(ma),
               }, [
                 h('span', { class: 'dropdown-name' }, `${ma.vorname} ${ma.nachname}`),
                 h('span', { class: 'dropdown-meta' }, [
@@ -463,7 +533,7 @@ const PersonSearch = defineComponent({
         : null;
 
       return h('div', { class: 'field-group' }, [
-        h('label', { class: 'field-label' }, [
+        h('label', { class: 'field-label', for: inputId }, [
           props.label,
           props.hint && h('span', { class: 'field-hint' }, props.hint),
         ]),
@@ -475,35 +545,17 @@ const PersonSearch = defineComponent({
   },
 });
 
-// StandortChips
-const StandortChips = defineComponent({
-  name: 'StandortChips',
-  props: { modelValue: { type: String, default: '' } },
-  emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    const standorte = ['Hamburg', 'Berlin', 'Köln'];
-    return () => h('div', { class: 'standort-chips' },
-      standorte.map(s =>
-        h('button', {
-          key: s,
-          type: 'button',
-          class: ['standort-chip', props.modelValue === s && 'active'],
-          onClick: () => emit('update:modelValue', s),
-        }, s)
-      )
-    );
-  },
-});
-
 // RatingField
 const RatingField = defineComponent({
   name: 'RatingField',
   props: { label: String, modelValue: String, wide: { type: Boolean, default: false } },
   emits: ['update:modelValue'],
   setup(props, { emit }) {
+    const inputId = `document-rating-${getCurrentInstance().uid}`;
     return () => h('div', { class: ['field-group', props.wide && 'field-group--wide'] }, [
-      h('label', { class: 'field-label' }, props.label),
+      h('label', { class: 'field-label', for: inputId }, props.label),
       h('textarea', {
+        id: inputId,
         class: 'input-field textarea-field',
         rows: 2,
         placeholder: `${props.label}…`,
@@ -520,28 +572,10 @@ const ValidationError = defineComponent({
   props: { msg: String },
   setup(props) {
     return () => props.msg
-      ? h('p', { class: 'validation-error' }, [
+      ? h('p', { class: 'validation-error', role: 'alert' }, [
           h(FontAwesomeIcon, { icon: 'fa-solid fa-triangle-exclamation' }), ' ', props.msg,
         ])
       : null;
-  },
-});
-
-// SubmitBtn
-const SubmitBtn = defineComponent({
-  name: 'SubmitBtn',
-  props: { loading: Boolean, disabled: Boolean },
-  slots: ['default'],
-  setup(props, { slots }) {
-    return () => h('button', {
-      type: 'submit',
-      class: 'btn-primary',
-      disabled: props.disabled || props.loading,
-    }, [
-      h(FontAwesomeIcon, { icon: props.loading ? 'fa-solid fa-spinner' : 'fa-solid fa-paper-plane', spin: props.loading }),
-      ' ',
-      props.loading ? 'Wird erstellt…' : (slots.default ? slots.default() : 'Erstellen'),
-    ]);
   },
 });
 
@@ -597,6 +631,7 @@ const lz = ref({ ma: null, tl: null, datum: todayStr.value, locationV2: '', auft
 const lzValid = computed(() => !!auftragData.value.laufzettel && !!lz.value.ma && !!lz.value.tl && !!lz.value.datum && !!lz.value.locationV2);
 
 async function submitLaufzettel() {
+  if (loading.value.laufzettel || !lzValid.value) return;
   errors.value.laufzettel = '';
   if (lz.value.ma?._id === lz.value.tl?._id)
     return (errors.value.laufzettel = 'Mitarbeiter und Teamleitung dürfen nicht identisch sein.');
@@ -621,6 +656,7 @@ const ev = ref({ ma: null, tl: null, datum: todayStr.value, locationV2: '', auft
 const evValid = computed(() => !!auftragData.value.evaluierung && !!ev.value.ma && !!ev.value.tl && !!ev.value.datum && !!ev.value.locationV2);
 
 async function submitEvaluierung() {
+  if (loading.value.evaluierung || !evValid.value) return;
   errors.value.evaluierung = '';
   if (ev.value.ma?._id === ev.value.tl?._id)
     return (errors.value.evaluierung = 'Mitarbeiter und Teamleitung dürfen nicht identisch sein.');
@@ -648,14 +684,17 @@ const erMaAvailable = computed(() =>
   erEinsatzMAs.value.filter(ma => !erMaRows.value.some(r => r._id === ma._id))
 );
 function addErMaRow(ma) {
+  if (loading.value.eventreport || erMaRows.value.some(row => row._id === ma._id)) return;
   erMaRows.value.push({ _id: ma._id, name: `${ma.vorname} ${ma.nachname}`, text: '' });
 }
 function removeErMaRow(row) {
+  if (loading.value.eventreport) return;
   erMaRows.value = erMaRows.value.filter(r => r._id !== row._id);
 }
 const erValid = computed(() => !!auftragData.value.eventreport && !!er.value.tl && !!er.value.datum && !!er.value.locationV2 && !!er.value.kunde);
 
 async function submitEventReport() {
+  if (loading.value.eventreport || !erValid.value) return;
   errors.value.eventreport = '';
   loading.value.eventreport = true;
   try {
@@ -679,6 +718,9 @@ async function submitEventReport() {
 }
 
 function resetForm(type) {
+  if (loading.value[type]) return;
+  clearTimeout(_auftragTimers[type]);
+  auftragRevision[type]++;
   success.value[type] = false;
   errors.value[type] = '';
   auftragData.value[type] = null;
@@ -696,18 +738,21 @@ const geschStToStandort = { '1': 'Berlin', '2': 'Hamburg', '3': 'Köln' };
 const auftragData = ref({ laufzettel: null, evaluierung: null, eventreport: null });
 const auftragLoading = ref({ laufzettel: false, evaluierung: false, eventreport: false });
 const _auftragTimers = {};
+const auftragRevision = { laufzettel: 0, evaluierung: 0, eventreport: 0 };
 
 function debouncedAuftragFetch(formType, nr) {
   clearTimeout(_auftragTimers[formType]);
-  if (!nr || String(nr).length < 3) { auftragData.value[formType] = null; return; }
+  const revision = ++auftragRevision[formType];
+  if (!nr || String(nr).length < 3) { auftragData.value[formType] = null; auftragLoading.value[formType] = false; return; }
   _auftragTimers[formType] = setTimeout(async () => {
     auftragLoading.value[formType] = true;
     try {
       const { data } = await api.get(`/api/auftraege/${nr}/details`);
+      if (revision !== auftragRevision[formType]) return;
       auftragData.value[formType] = data;
       applyAuftragAutoFill(formType, data);
-    } catch { auftragData.value[formType] = null; }
-    finally { auftragLoading.value[formType] = false; }
+    } catch { if (revision === auftragRevision[formType]) auftragData.value[formType] = null; }
+    finally { if (revision === auftragRevision[formType]) auftragLoading.value[formType] = false; }
   }, 400);
 }
 
@@ -779,6 +824,10 @@ watch(() => ev.value.auftragNr, (v) => debouncedAuftragFetch('evaluierung', v));
 watch(() => er.value.auftragNr, (v) => debouncedAuftragFetch('eventreport', v));
 
 onMounted(fetchLocations);
+onBeforeUnmount(() => {
+  Object.values(_auftragTimers).forEach(clearTimeout);
+  Object.keys(auftragRevision).forEach(type => { auftragRevision[type]++; });
+});
 
 function typeIcon(type) {
   if (type === 'laufzettel') return 'fa-solid fa-file-lines';
@@ -853,10 +902,17 @@ function formatDate(d) {
 
 /* ── Form ── */
 .form-body {
+  margin-top: 1.25rem;
+}
+
+.form-fields {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  margin-top: 1.25rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 :deep(.field-group) {
@@ -916,7 +972,11 @@ function formatDate(d) {
   padding: 0 0.75rem;
   transition: border-color 0.15s;
 
-  &.focused { border-color: var(--primary); }
+  &:focus-within {
+    border-color: var(--primary);
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 1px;
+  }
 }
 
 :deep(.search-field .search-icon) {
@@ -925,7 +985,7 @@ function formatDate(d) {
   flex-shrink: 0;
 }
 
-:deep(.search-field input) {
+:deep(.search-field .app-text-input) {
   flex: 1;
   background: none;
   border: none;
@@ -938,14 +998,9 @@ function formatDate(d) {
 }
 
 :deep(.clear-btn) {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  font-size: 0.8rem;
+  --app-button-icon-size: 28px;
+  min-height: 28px;
   flex-shrink: 0;
-  &:hover { color: var(--text); }
 }
 
 :deep(.loading-icon) {
@@ -972,10 +1027,17 @@ function formatDate(d) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 0.6rem 0.875rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   gap: 0.5rem;
-  &:hover, &.highlighted { background: var(--hover); }
+  &:hover, &.highlighted, &:focus-visible { background: var(--hover); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 }
 
 :deep(.dropdown-name) {
@@ -1014,7 +1076,7 @@ function formatDate(d) {
   gap: 0.45rem;
   background: color-mix(in oklab, var(--primary) 12%, transparent);
   border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
-  color: var(--primary);
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 600;
   padding: 0.3rem 0.75rem;
@@ -1030,51 +1092,26 @@ function formatDate(d) {
 /* ── Inputs ── */
 .input-field,
 :deep(.input-field) {
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 9px;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text);
-  outline: none;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.15s;
-  &:focus { border-color: var(--primary); }
-  &[type="date"] { cursor: pointer; color-scheme: dark; }
+  background: var(--control-input-bg);
+  border: 1px solid var(--control-input-border);
+  border-radius: var(--control-radius);
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 1px; }
+  &:disabled { background: var(--control-disabled-bg); color: var(--control-disabled-text); }
 }
 
 .input-narrow { max-width: 200px; }
+.field-group > .app-select { width: 100%; }
 
 :deep(.textarea-field) {
   resize: vertical;
   min-height: 60px;
   font-family: inherit;
-}
-
-/* ── Standort chips ── */
-:deep(.standort-chips) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-:deep(.standort-chip) {
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 20px;
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  &.active {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
-  }
-  &:hover:not(.active) { background: var(--hover); }
 }
 
 /* ── Validation error ── */
@@ -1083,7 +1120,7 @@ function formatDate(d) {
   align-items: center;
   gap: 0.45rem;
   font-size: 0.85rem;
-  color: #dc3545;
+  color: var(--status-danger-text);
   margin: 0;
 }
 
@@ -1094,46 +1131,13 @@ function formatDate(d) {
   padding-top: 0.25rem;
 }
 
-/* ── Buttons ── */
-:deep(.btn-primary) {
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 9px;
-  padding: 0.65rem 1.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: opacity 0.15s;
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:not(:disabled):hover { opacity: 0.9; }
-}
-
-.btn-outline {
-  background: none;
-  border: 1.5px solid var(--primary);
-  color: var(--primary);
-  border-radius: 8px;
-  padding: 0.45rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  &:hover { background: color-mix(in oklab, var(--primary) 10%, transparent); }
-}
-
-.btn-sm { padding: 0.35rem 0.875rem; font-size: 0.8rem; }
-
 /* ── Success banner ── */
 .success-banner {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: rgba(40, 167, 69, 0.08);
-  border: 1px solid rgba(40, 167, 69, 0.3);
+  background: color-mix(in srgb, var(--status-success-text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-success-text) 30%, transparent);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   strong { display: block; font-size: 0.95rem; color: var(--text); margin-bottom: 0.2rem; }
@@ -1144,8 +1148,8 @@ function formatDate(d) {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(40, 167, 69, 0.15);
-  color: #28a745;
+  background: color-mix(in srgb, var(--status-success-text) 15%, transparent);
+  color: var(--status-success-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1180,9 +1184,9 @@ function formatDate(d) {
   font-size: 1rem;
   flex-shrink: 0;
 
-  &--laufzettel  { background: rgba(40, 167, 69, 0.1);  color: #28a745; }
-  &--evaluierung { background: rgba(255, 193, 7, 0.12); color: #d4a017; }
-  &--eventreport { background: rgba(238, 175, 103, 0.15); color: var(--primary); }
+  &--laufzettel  { background: color-mix(in srgb, var(--status-success-text) 10%, transparent); color: var(--status-success-text); }
+  &--evaluierung { background: color-mix(in srgb, var(--status-warning) 12%, transparent); color: var(--status-warning-text); }
+  &--eventreport { background: var(--action-ghost-hover); color: var(--action-accent-text); }
 }
 
 .history-info {
@@ -1216,9 +1220,9 @@ function formatDate(d) {
   letter-spacing: 0.03em;
   flex-shrink: 0;
 
-  &--laufzettel  { background: rgba(40, 167, 69, 0.15);  color: #28a745; }
-  &--evaluierung { background: rgba(255, 193, 7, 0.15);  color: #d4a017; }
-  &--eventreport { background: rgba(238, 175, 103, 0.15); color: var(--primary); }
+  &--laufzettel  { background: color-mix(in srgb, var(--status-success-text) 15%, transparent); color: var(--status-success-text); }
+  &--evaluierung { background: color-mix(in srgb, var(--status-warning) 15%, transparent); color: var(--status-warning-text); }
+  &--eventreport { background: var(--action-ghost-hover); color: var(--action-accent-text); }
 }
 
 /* ── Auftrag Lookup ── */
@@ -1298,31 +1302,16 @@ function formatDate(d) {
 }
 
 .einsatz-ma-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: var(--tile-bg);
-  border: 1.5px solid var(--border);
+  min-height: 30px;
   border-radius: 20px;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
 
   svg { font-size: 0.7rem; color: var(--muted); }
 
-  &:hover {
-    border-color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
-  }
-
   &.selected {
     border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
-    svg { color: var(--primary); }
+    color: var(--action-accent-text);
+    background: var(--action-ghost-hover);
+    svg { color: var(--action-accent-text); }
   }
 }
 
@@ -1341,26 +1330,10 @@ function formatDate(d) {
 }
 
 .er-ma-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
+  min-height: 30px;
   border-radius: 20px;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
 
   svg { font-size: 0.65rem; }
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 8%, transparent);
-  }
 }
 
 .er-ma-rows {
@@ -1386,7 +1359,7 @@ function formatDate(d) {
   left: 0.65rem;
   transform: translateY(-50%);
   background: var(--tile-bg);
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 0 0.25rem;
@@ -1416,13 +1389,7 @@ function formatDate(d) {
   position: absolute;
   top: 0.3rem;
   right: 0.4rem;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.95rem;
-  cursor: pointer;
-  padding: 0.35rem;
-
-  &:hover { color: #e74c3c; }
+  --app-button-icon-size: 28px;
+  min-height: 28px;
 }
 </style>
