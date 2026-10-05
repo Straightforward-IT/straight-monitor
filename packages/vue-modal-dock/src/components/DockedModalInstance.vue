@@ -40,6 +40,7 @@ provide(dockedModalInjectionKey, {
   minimize,
   restore,
   remove,
+  setCloseHandler: handler => manager.setCloseHandler(id.value, handler),
 })
 </script>
 

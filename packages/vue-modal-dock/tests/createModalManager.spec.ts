@@ -10,6 +10,44 @@ const FirstComponent = defineComponent({ name: 'FirstComponent' })
 const ReplacementComponent = defineComponent({ name: 'ReplacementComponent' })
 
 describe('createModalManager', () => {
+  it('routes dock close through the form guard without destroying its state', () => {
+    const manager = createModalManager()
+    manager.open({ id: 'guarded', title: 'Guarded', component: FirstComponent })
+    let requests = 0
+    const release = manager.setCloseHandler('guarded', () => { requests += 1 })
+    manager.minimize('guarded')
+    expect(manager.requestClose('guarded')).toBe(false)
+    expect(requests).toBe(1)
+    expect(manager.get('guarded')?.status).toBe('open')
+    release()
+    expect(manager.requestClose('guarded')).toBe(true)
+    expect(manager.get('guarded')).toBeUndefined()
+  })
+
+  it('updates a minimized title without restoring or reordering its instance', () => {
+    const manager = createModalManager()
+    const first = manager.open({ id: 'first', title: 'First', component: FirstComponent })
+    const second = manager.open({ id: 'second', title: 'Second', component: FirstComponent })
+    manager.minimize('first')
+
+    expect(manager.updateTitle('first', 'Updated')).toBe(true)
+    expect(first.title).toBe('Updated')
+    expect(first.status).toBe('minimized')
+    expect(manager.modals.value).toEqual([first, second])
+    expect(manager.get('first')).toBe(first)
+    expect(manager.updateTitle('missing', 'Missing')).toBe(false)
+    expect(() => manager.updateTitle('first', ' ')).toThrow(ModalDockError)
+  })
+
+  it('preserves icon metadata on title updates and refreshes it on reopening', () => {
+    const manager = createModalManager()
+    manager.open({ id: 'icon', title: 'Icon', component: FirstComponent, icon: 'employee' })
+    manager.updateTitle('icon', 'Named employee')
+    expect(manager.get('icon')?.icon).toBe('employee')
+    manager.open({ id: 'icon', title: 'Icon', component: FirstComponent, icon: 'document' })
+    expect(manager.get('icon')?.icon).toBe('document')
+  })
+
   it('opens, minimizes, restores, and removes one modal record', () => {
     const manager = createModalManager()
     const record = manager.open({

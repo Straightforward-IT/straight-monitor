@@ -688,12 +688,6 @@
     v-model="showTypModal"
     @created="onTypCreated"
   />
-  <DocuSealSigningModal
-    v-if="inAppSigning"
-    :title="inAppSigning.title"
-    :signers="inAppSigning.signers"
-    @close="inAppSigning = null"
-  />
 </template>
 
 <script setup>
@@ -717,7 +711,8 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import ContactSearchPicker from '@/components/ContactSearchPicker.vue';
 import SignaturTypAnlegenModal from '@/components/SignaturTypAnlegenModal.vue';
-import DocuSealSigningModal from '@/components/Modals/DocuSealSigningModal.vue';
+import { useSigningModals } from '@/composables/useSigningModals';
+import { useDockedModals } from '@bleck-it/vue-modal-dock';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
@@ -734,13 +729,14 @@ library.add(
 );
 
 const modal = useSignaturModal();
+const dockedModals = useDockedModals();
+const { openSigning } = useSigningModals();
 const builder = useSignaturBuilder();
 const auth = useAuth();
 const dataCache = useDataCache();
 const modalTitle = computed(() => modal.context.draftId ? 'Entwurf bearbeiten' : 'Neue Signatur');
 
 const showTypModal = ref(false);
-const inAppSigning = ref(null);
 const entleiherInvitationRecipients = ref([]);
 
 function onTypCreated(typ) {
@@ -920,6 +916,7 @@ const form = ref(emptyForm());
 watch(() => form.value.submitters, syncSignerDeliveryRecipients, { deep: true });
 watch(entleiherInvitationRecipients, syncEntleiherInvitationDeliveryRecipients, { deep: true });
 const signatureDockTitle = computed(() => form.value.name.trim() || modalTitle.value);
+watch(signatureDockTitle, title => dockedModals.updateTitle('signature-new', title));
 
 function emptyForm() {
   const userLocation = auth.user?.locationV2;
@@ -1588,8 +1585,9 @@ async function loadGraphContacts() {
 }
 
 // ── Open / context hydration ─────────────────────────────────────────────────
-watch(() => modal.open, async (open) => {
-  if (!open) return;
+watch(() => modal.requestVersion, async () => {
+  if (!modal.open) return;
+  const requestVersion = modal.requestVersion;
   // Reset
   currentStep.value = 0;
   error.value = '';
@@ -1618,10 +1616,11 @@ watch(() => modal.open, async (open) => {
   const mitarbeiterRequest = dataCache.loadMitarbeiter?.();
 
   await Promise.all([typenRequest, templatesRequest, graphContactsRequest, kundenRequest, mitarbeiterRequest]);
+  if (!modal.open || modal.requestVersion !== requestVersion) return;
   await hydrateFromContext();
   normalizeSubmitterNames();
   syncSignerDeliveryRecipients();
-});
+}, { immediate: true });
 
 async function hydrateFromContext() {
   const ctx = modal.context;
@@ -1845,8 +1844,8 @@ async function submit() {
       : null;
 
     modal.notifyCreated(vorgang);
+    if (signingSession) openSigning(signingSession);
     closeWithoutPrompt();
-    if (signingSession) inAppSigning.value = signingSession;
   } catch (e) {
     console.error('Signatur erstellen fehlgeschlagen', e);
     error.value = e?.response?.data?.message || 'Die Signatur konnte nicht erstellt werden.';

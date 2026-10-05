@@ -50,8 +50,10 @@ describe('TimeManagement interactions', () => {
     render();
     const entry = wrapper.get('.time-month-matrix [data-time-target="shift-09"]');
     await entry.get('.tm-entry__type').trigger('click');
-    const menu = wrapper.get('[role="menu"]');
-    await menu.findAll('button').find(button => button.text().includes('Krank (mit Lohnfortzahlung)')).trigger('click');
+    const menu = document.querySelector('[role="menu"]');
+    expect(menu).not.toBeNull();
+    [...menu.querySelectorAll('button')].find(button => button.textContent.includes('Krank (mit Lohnfortzahlung)')).click();
+    await nextTick();
     expect(entry.get('.tm-entry__type').text()).toBe('K');
     expect(entry.text()).toContain('7:00');
     expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('110:00 h');
@@ -108,7 +110,7 @@ describe('TimeManagement interactions', () => {
     await target('shift-a').trigger('click');
     const input = document.querySelector('[aria-label="Exakte Minuten"]');
     input.value = '45'; input.dispatchEvent(new Event('input', { bubbles: true })); await nextTick();
-    document.querySelector('.tm-minute-picker .tm-button').click(); await nextTick();
+    document.querySelector('.tm-minute-picker > .app-button').click(); await nextTick();
     expect(bucket()).toContain('0:45 h');
     await button('Minuten').trigger('click'); await button('Ablegen').trigger('click');
     await target('bank').trigger('click'); expect(target('bank').text()).toContain('24:45 h');

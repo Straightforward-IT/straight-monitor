@@ -691,14 +691,6 @@
         @select="handleDocumentMenuAction"
       />
 
-      <ExportMitarbeiterModal
-        v-if="showMitarbeiterExportModal"
-        :mitarbeiter-list="mitarbeiterExportData?.mitarbeiter || []"
-        :shifts="mitarbeiterExportData?.schichten || []"
-        :filename="mitarbeiterExportFilename"
-        :extra-information="mitarbeiterExportExtraInformation()"
-        @close="closeMitarbeiterExport"
-      />
 
       <!-- Sidebar for Event Details -->
       <AuftragDetailsSidePanel
@@ -1063,14 +1055,6 @@
         @submit="confirmEinsatzDokUpload"
       />
 
-      <DocumentPreviewModal
-        v-if="previewEinsatzDokument"
-        v-model="showEinsatzDokPreview"
-        :filename="previewEinsatzDokument.filename"
-        :mime-type="previewEinsatzDokument.mimeType"
-        :resolve-url="resolveEinsatzDokPreviewUrl"
-        @close="previewEinsatzDokument = null"
-      />
 
       <!-- Mitarbeiter Card Modal -->
       <EmployeeCardModal
@@ -1223,15 +1207,15 @@ import { useFlipAll } from "@/stores/flipAll";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useSignaturModal } from "@/stores/signaturModal";
-import { useMinimizeDock } from "@bleck-it/vue-modal-dock";
+import { useDockedModals } from "@bleck-it/vue-modal-dock";
 import FilterPanel from "@/components/FilterPanel.vue";
 import ThinScrollContainer from "@/components/ThinScrollContainer.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
 import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
-import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
-import DocumentPreviewModal from "@/components/Modals/DocumentPreviewModal.vue";
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import OrderDocumentsPanel from "@/components/orders/OrderDocumentsPanel.vue";
 import OrderHoursVisibilityButton from "@/components/orders/OrderHoursVisibilityButton.vue";
 import AppButton from "@/components/ui-elements/AppButton.vue";
@@ -1286,14 +1270,12 @@ export default {
     AppButton,
     AppIconButton,
     OrderDocumentUploadDialog,
-    DocumentPreviewModal,
     FilterPanel,
     ThinScrollContainer,
     FilterGroup,
     FilterChip,
     FilterDivider,
     EmployeeCardModal,
-    ExportMitarbeiterModal,
     SearchBar,
     Toolbar,
     ToolbarFilter,
@@ -1309,12 +1291,14 @@ export default {
     AuftragCalendarSearchDropdown,
   },
   setup() {
+    const { openExport } = useAdditionalModals();
+    const { openDocumentPreview } = useDocumentPreviewModals();
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
     const { openEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
     const { openTimeCapture } = useTimeCaptureModals();
-    const minimizeDock = useMinimizeDock();
+    const minimizeDock = useDockedModals();
     const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1331,6 +1315,8 @@ export default {
     };
 
     return {
+      openExport,
+      openDocumentPreview,
       openCustomer,
       openDocumentModal: openDocument,
       openEvent,
@@ -3310,7 +3296,12 @@ export default {
           `/api/auftraege/${this.selectedEvent.auftragNr}/mitarbeiter-export`,
         );
         this.mitarbeiterExportData = data;
-        this.showMitarbeiterExportModal = true;
+        this.openExport({
+          mitarbeiterList: data?.mitarbeiter || [],
+          shifts: data?.schichten || [],
+          filename: this.mitarbeiterExportFilename,
+          extraInformation: this.mitarbeiterExportExtraInformation(),
+        });
       } catch (err) {
         alert(
           err.response?.data?.message ||
@@ -3435,8 +3426,16 @@ export default {
       }
     },
     previewEinsatzDok(dok) {
-      this.previewEinsatzDokument = dok;
-      this.showEinsatzDokPreview = true;
+      const auftragNr = this.selectedEvent?.auftragNr;
+      this.openDocumentPreview({
+        id: `order-${auftragNr}-${dok._id}`,
+        filename: dok.filename,
+        mimeType: dok.mimeType,
+        resolveUrl: async () => {
+          const { data } = await api.get(`/api/auftraege/${auftragNr}/einsatzdokumente/${dok._id}/download`);
+          return data.data.url;
+        },
+      }, { minimizable: false });
     },
     async resolveEinsatzDokPreviewUrl() {
       const dok = this.previewEinsatzDokument;

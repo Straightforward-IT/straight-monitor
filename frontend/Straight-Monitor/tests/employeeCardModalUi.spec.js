@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils';
 import EmployeeCardModal from '../src/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '../src/components/frames/ModalFrame.vue';
 
-const mocks = vi.hoisted(() => ({ dock: { open: vi.fn(), get: vi.fn(), remove: vi.fn() } }));
+const mocks = vi.hoisted(() => ({ dock: { open: vi.fn(), get: vi.fn(), remove: vi.fn(), updateTitle: vi.fn() } }));
 vi.mock('@bleck-it/vue-modal-dock', () => ({
   useDockedModals: () => mocks.dock,
   useCurrentDockedModal: () => null,
@@ -43,7 +43,7 @@ describe('EmployeeCardModal shared frame', () => {
     card.vm.$emit('profile-loaded', { vorname: 'Ada', nachname: 'Test' });
     await wrapper.vm.$nextTick();
     expect(frame.attributes('aria-label')).toBe('Ada Test');
-    expect(mocks.dock.open).toHaveBeenCalledWith(expect.objectContaining({ id: 'employee-employee-1', title: 'Ada Test' }));
+    expect(mocks.dock.updateTitle).toHaveBeenCalledWith('employee-employee-1', 'Ada Test');
     card.vm.$emit('close');
     expect(wrapper.emitted('close')).toHaveLength(1);
     wrapper.unmount();

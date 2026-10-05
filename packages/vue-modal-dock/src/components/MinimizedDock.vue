@@ -65,7 +65,7 @@ async function remove(item: DockItem): Promise<void> {
   const index = minimizedItems.value.findIndex(candidate => candidate.key === item.key)
   const removed =
     item.source === 'modal'
-      ? modalManager.remove(item.id)
+      ? modalManager.requestClose(item.id)
       : regionManager.remove(item.id)
   if (!removed) return
 

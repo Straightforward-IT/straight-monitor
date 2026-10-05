@@ -125,7 +125,7 @@
 
     <!-- Expandable body -->
     <transition name="expand">
-      <div v-show="expanded && view !== 'profile'" class="card-body" :class="{ 'card-body--links': view === 'links' }">
+      <div v-show="expanded && view !== 'profile'" :id="view !== 'profile' ? employeePanelId : undefined" class="card-body" :class="{ 'card-body--links': view === 'links' }" role="tabpanel" :aria-labelledby="employeeTabId(view)" tabindex="0">
         <!-- Straight View -->
         <section v-if="view === 'straight' || view === 'reports'" class="straight-view">
           <!-- Dispo Section -->
@@ -133,10 +133,10 @@
             <h4 class="section-title">
               <font-awesome-icon icon="fa-solid fa-calendar-days" class="section-icon" />
               Disposition
-              <button class="dispo-open-btn" @click.stop="executeQuickAction('open-dispo')" title="In Dispo öffnen">
+              <AppButton class="dispo-open-btn" size="sm" variant="secondary" @click.stop="executeQuickAction('open-dispo')">
                 <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
                 In Dispo
-              </button>
+              </AppButton>
             </h4>
 
             <!-- Letzter / Nächster Einsatz -->
@@ -201,15 +201,15 @@
               <div class="dispo-mini-cal">
                 <!-- Navigation spanning both months -->
                 <div class="dispo-cal-nav">
-                  <button class="dispo-cal-nav-btn" @click.stop="prevCalMonth">
+                  <AppIconButton class="dispo-cal-nav-btn" size="sm" variant="ghost" :label="`Vorheriger Monat vor ${calendarMonthName}`" @click.stop="prevCalMonth">
                     <font-awesome-icon icon="fa-solid fa-chevron-left" />
-                  </button>
+                  </AppIconButton>
                   <span class="dispo-cal-month-label">{{ calendarMonthName }}</span>
                   <span class="dispo-cal-month-sep">–</span>
                   <span class="dispo-cal-month-label">{{ calendarMonthNameNext }}</span>
-                  <button class="dispo-cal-nav-btn" @click.stop="nextCalMonth">
+                  <AppIconButton class="dispo-cal-nav-btn" size="sm" variant="ghost" :label="`Nächster Monat nach ${calendarMonthNameNext}`" @click.stop="nextCalMonth">
                     <font-awesome-icon icon="fa-solid fa-chevron-right" />
-                  </button>
+                  </AppIconButton>
                 </div>
 
                 <!-- Two months side by side -->
@@ -289,23 +289,20 @@
                 <div class="dispo-notiz-section">
                   <div class="dispo-notiz-header">
                     <span class="kw-section-label">Notiz</span>
-                    <button v-if="!editingDispoNotiz" class="dispo-notiz-edit-btn" @click.stop="startEditDispoNotiz" title="Notiz bearbeiten">
+                    <AppIconButton v-if="!editingDispoNotiz" class="dispo-notiz-edit-btn" size="sm" variant="ghost" label="Dispo-Notiz bearbeiten" @click.stop="startEditDispoNotiz">
                       <font-awesome-icon icon="fa-solid fa-pen" />
-                    </button>
+                    </AppIconButton>
                   </div>
                   <template v-if="editingDispoNotiz">
-                    <textarea v-model="dispoNotizDraft" class="dispo-notiz-textarea" rows="3" placeholder="Interne Notiz…" @keydown.esc="cancelDispoNotiz" />
+                    <textarea v-model="dispoNotizDraft" class="dispo-notiz-textarea" rows="3" aria-label="Interne Dispo-Notiz" placeholder="Interne Notiz…" :disabled="savingDispoNotiz" @keydown.esc="cancelDispoNotiz" />
                     <div class="dispo-notiz-actions">
-                      <button class="btn btn-sm" @click.stop="saveDispoNotiz" :disabled="savingDispoNotiz">
-                        <font-awesome-icon v-if="savingDispoNotiz" icon="fa-solid fa-spinner" class="fa-spin" />
-                        <span v-else>Speichern</span>
-                      </button>
-                      <button class="btn btn-sm btn-ghost" @click.stop="cancelDispoNotiz">Abbrechen</button>
+                      <AppButton size="sm" :loading="savingDispoNotiz" @click.stop="saveDispoNotiz">Speichern</AppButton>
+                      <AppButton size="sm" variant="ghost" :disabled="savingDispoNotiz" @click.stop="cancelDispoNotiz">Abbrechen</AppButton>
                     </div>
                   </template>
-                  <p v-else class="dispo-notiz-text" @click.stop="startEditDispoNotiz" :class="{ 'dispo-notiz-text--empty': !resolvedMa.dispoNotiz }">
+                  <AppButton v-else class="dispo-notiz-text" variant="ghost" @click.stop="startEditDispoNotiz" :class="{ 'dispo-notiz-text--empty': !resolvedMa.dispoNotiz }">
                     {{ resolvedMa.dispoNotiz || 'Notiz hinzufügen…' }}
-                  </p>
+                  </AppButton>
                 </div>
 
                 <!-- Chronik -->
@@ -319,20 +316,15 @@
                       <div class="chronik-meta">
                         <span class="chronik-author">{{ entry.author }}</span>
                         <span class="chronik-date">{{ formatDate(entry.createdAt) }}</span>
-                        <button class="chronik-delete-btn" @click.stop="deleteChronikEntry(entry._id)" title="Eintrag löschen">
-                          <font-awesome-icon icon="fa-solid fa-trash" />
-                        </button>
+                        <AppIconButton class="chronik-delete-btn" size="sm" variant="ghost" :label="`Chronik-Eintrag vom ${formatDate(entry.createdAt)} löschen`" :loading="deletingChronikId === entry._id" :disabled="!!deletingChronikId" @click.stop="deleteChronikEntry(entry._id)"><font-awesome-icon v-if="deletingChronikId !== entry._id" icon="fa-solid fa-trash" /></AppIconButton>
                       </div>
                       <p class="chronik-text">{{ entry.text }}</p>
                     </li>
                   </ul>
                   <p v-else class="ec-none">Keine Einträge</p>
                   <div class="chronik-add">
-                    <textarea v-model="newChronikText" class="dispo-notiz-textarea" rows="2" placeholder="Neuer Chronik-Eintrag…" />
-                    <button class="btn btn-sm" @click.stop="addChronikEntry" :disabled="!newChronikText.trim() || savingChronik">
-                      <font-awesome-icon v-if="savingChronik" icon="fa-solid fa-spinner" class="fa-spin" />
-                      <span v-else>Senden</span>
-                    </button>
+                    <textarea v-model="newChronikText" class="dispo-notiz-textarea" rows="2" aria-label="Neuer Chronik-Eintrag" placeholder="Neuer Chronik-Eintrag…" :disabled="savingChronik" />
+                    <AppButton size="sm" @click.stop="addChronikEntry" :disabled="!newChronikText.trim()" :loading="savingChronik">Senden</AppButton>
                   </div>
                 </div>
               </div>
@@ -364,10 +356,12 @@
                 Event Reports – geschrieben ({{ resolvedMa.eventreports.length }})
               </h5>
               <div class="doc-list">
-                <div
+                <button
                   v-for="doc in sortByDateDesc(resolvedMa.eventreports)"
                   :key="doc._id" 
+                  type="button"
                   class="doc-item"
+                  :aria-label="`Event-Bericht ${doc.kunde || doc.location || 'Unbekannt'} öffnen`"
                   @click="openDocument(doc, 'Event-Bericht')"
                 >
                   <font-awesome-icon icon="fa-solid fa-clipboard" class="doc-icon" />
@@ -375,7 +369,7 @@
                     <span class="doc-title">{{ doc.kunde || doc.location || 'Unbekannt' }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -393,60 +387,69 @@
                 <div 
                   v-for="fb in sortByDateDesc(eventreportFeedback)" 
                   :key="fb.feedbackId || fb._id" 
-                  class="feedback-inline-item feedback-inline-item--hoverable"
-                  :class="{ 'feedback-inline-item--editing': editingFeedbackId === fb.feedbackId }"
+                  class="feedback-inline-item"
                 >
                   <div class="feedback-inline-header">
                     <span class="feedback-inline-event">{{ fb.kunde || fb.location || 'Unbekannt' }}</span>
                     <div v-if="fb.feedbackId" class="feedback-inline-actions">
-                      <button
+                      <AppIconButton
                         v-if="editingFeedbackId !== fb.feedbackId"
                         class="feedback-inline-action-btn"
-                        title="Feedback bearbeiten"
+                        size="sm"
+                        variant="ghost"
+                        :label="`Feedback zu ${fb.kunde || fb.location || 'Event'} bearbeiten`"
+                        :disabled="!!deletingFeedbackId || !!savingFeedbackId"
                         @click.stop="startEditFeedback(fb)"
                       >
                         <font-awesome-icon icon="fa-solid fa-pen" />
-                      </button>
-                      <button
+                      </AppIconButton>
+                      <AppIconButton
                         class="feedback-inline-action-btn feedback-inline-action-btn--delete"
-                        :disabled="deletingFeedbackId === fb.feedbackId"
-                        title="Feedback löschen"
+                        size="sm"
+                        variant="ghost"
+                        :label="`Feedback zu ${fb.kunde || fb.location || 'Event'} löschen`"
+                        :disabled="!!savingFeedbackId || !!deletingFeedbackId"
+                        :loading="deletingFeedbackId === fb.feedbackId"
                         @click.stop="deleteFeedback(fb)"
                       >
-                        <font-awesome-icon v-if="deletingFeedbackId === fb.feedbackId" icon="fa-solid fa-spinner" class="fa-spin" />
-                        <font-awesome-icon v-else icon="fa-solid fa-trash" />
-                      </button>
+                        <font-awesome-icon v-if="deletingFeedbackId !== fb.feedbackId" icon="fa-solid fa-trash" />
+                      </AppIconButton>
                     </div>
                     <span class="feedback-inline-date">{{ formatDate(fb.datum) }}</span>
                     <span v-if="fb.teamleiter || fb.name_teamleiter" class="feedback-inline-author">
                       <font-awesome-icon icon="fa-solid fa-user-tie" />
                       {{ fb.teamleiter ? `${fb.teamleiter.vorname} ${fb.teamleiter.nachname}` : fb.name_teamleiter }}
                     </span>
-                    <button class="btn-report-small" @click.stop="openDocument(fb, 'Event-Bericht')" title="Report öffnen">
+                    <AppButton class="btn-report-small" size="sm" variant="outlined" @click.stop="openDocument(fb, 'Event-Bericht')">
                       <font-awesome-icon icon="fa-solid fa-file-lines" />
                       Report
-                    </button>
+                    </AppButton>
                   </div>
                   <template v-if="editingFeedbackId === fb.feedbackId">
                     <textarea
                       v-model="editingFeedbackText"
                       class="feedback-inline-textarea"
                       rows="3"
+                      aria-label="Feedback-Text"
+                      :disabled="savingFeedbackId === fb.feedbackId"
                     />
                     <div class="feedback-inline-edit-actions">
-                      <button
+                      <AppButton
                         class="btn-report-small"
-                        :disabled="savingFeedbackId === fb.feedbackId"
+                        size="sm"
+                        :disabled="!editingFeedbackText.trim()"
+                        :loading="savingFeedbackId === fb.feedbackId"
                         @click.stop="saveFeedback(fb)"
                       >
-                        <font-awesome-icon v-if="savingFeedbackId === fb.feedbackId" icon="fa-solid fa-spinner" class="fa-spin" />
-                        <span v-else>Speichern</span>
-                      </button>
-                      <button
-                        class="btn-report-small btn-report-small--ghost"
+                        Speichern
+                      </AppButton>
+                      <AppButton
+                        class="btn-report-small"
+                        size="sm"
+                        variant="ghost"
                         :disabled="savingFeedbackId === fb.feedbackId"
                         @click.stop="cancelEditFeedback"
-                      >Abbrechen</button>
+                      >Abbrechen</AppButton>
                     </div>
                   </template>
                   <p v-else class="feedback-inline-text">{{ fb.feedback_text || '—' }}</p>
@@ -462,10 +465,12 @@
                 Laufzettel erhalten ({{ resolvedMa.laufzettel_received.length }})
               </h5>
               <div class="doc-list">
-                <div 
+                <button
                   v-for="doc in sortByDateDesc(resolvedMa.laufzettel_received)" 
                   :key="doc._id" 
+                  type="button"
                   class="doc-item"
+                  :aria-label="`Erhaltenen Laufzettel ${doc.kunde || doc.location || 'Unbekannt'} öffnen`"
                   @click="openDocument(doc, 'Laufzettel')"
                 >
                   <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
@@ -473,7 +478,7 @@
                     <span class="doc-title">{{ doc.kunde || doc.location || 'Unbekannt' }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -484,10 +489,12 @@
                 Laufzettel abgegeben ({{ resolvedMa.laufzettel_submitted.length }})
               </h5>
               <div class="doc-list">
-                <div 
+                <button
                   v-for="doc in sortByDateDesc(resolvedMa.laufzettel_submitted)" 
                   :key="doc._id" 
+                  type="button"
                   class="doc-item"
+                  :aria-label="`Abgegebenen Laufzettel ${doc.name_mitarbeiter || 'Unbekannt'} öffnen`"
                   @click="openDocument(doc, 'Laufzettel')"
                 >
                   <font-awesome-icon icon="fa-solid fa-file-lines" class="doc-icon" />
@@ -495,7 +502,7 @@
                     <span class="doc-title">{{ doc.name_mitarbeiter || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname} ${doc.mitarbeiter.nachname}` : 'Unbekannt') }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -506,10 +513,12 @@
                 Evaluierungen erhalten ({{ resolvedMa.evaluierungen_received.length }})
               </h5>
               <div class="doc-list">
-                <div 
+                <button
                   v-for="doc in sortByDateDesc(resolvedMa.evaluierungen_received)" 
                   :key="doc._id" 
+                  type="button"
                   class="doc-item"
+                  :aria-label="`Erhaltene Evaluierung ${doc.name_teamleiter || 'Unbekannt'} öffnen`"
                   @click="openDocument(doc, 'Evaluierung')"
                 >
                   <font-awesome-icon icon="fa-solid fa-star" class="doc-icon" />
@@ -517,7 +526,7 @@
                     <span class="doc-title">{{ doc.name_teamleiter || (doc.teamleiter ? `${doc.teamleiter.vorname} ${doc.teamleiter.nachname}` : 'Unbekannt') }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -528,10 +537,12 @@
                 Evaluierungen abgegeben ({{ resolvedMa.evaluierungen_submitted.length }})
               </h5>
               <div class="doc-list">
-                <div 
+                <button
                   v-for="doc in sortByDateDesc(resolvedMa.evaluierungen_submitted)" 
                   :key="doc._id" 
+                  type="button"
                   class="doc-item"
+                  :aria-label="`Abgegebene Evaluierung ${doc.name_mitarbeiter || 'Unbekannt'} öffnen`"
                   @click="openDocument(doc, 'Evaluierung')"
                 >
                   <font-awesome-icon icon="fa-solid fa-star" class="doc-icon" />
@@ -539,7 +550,7 @@
                     <span class="doc-title">{{ doc.name_mitarbeiter || (doc.mitarbeiter ? `${doc.mitarbeiter.vorname} ${doc.mitarbeiter.nachname}` : 'Unbekannt') }}</span>
                     <span class="doc-date">{{ formatDate(doc.datum) }}</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -800,15 +811,15 @@
             </div>
 
             <!-- Status Messages -->
-            <div v-if="flipActionError" class="flip-action-msg error">
+            <div v-if="flipActionError" class="flip-action-msg error" role="alert">
               <font-awesome-icon icon="fa-solid fa-triangle-exclamation" />
               <span>{{ flipActionError }}</span>
-              <button class="close-msg" @click="flipActionError = ''">×</button>
+              <AppIconButton class="close-msg" size="sm" variant="ghost" label="Flip-Fehlermeldung schließen" @click="flipActionError = ''"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
             </div>
-            <div v-if="flipActionSuccess" class="flip-action-msg success">
+            <div v-if="flipActionSuccess" class="flip-action-msg success" role="status">
               <font-awesome-icon icon="fa-solid fa-check-circle" />
               <span>{{ flipActionSuccess }}</span>
-              <button class="close-msg" @click="flipActionSuccess = ''">×</button>
+              <AppIconButton class="close-msg" size="sm" variant="ghost" label="Flip-Erfolgsmeldung schließen" @click="flipActionSuccess = ''"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
             </div>
 
             <!-- Case 1: MA has flip_id → try restore -->
@@ -817,14 +828,14 @@
                 <font-awesome-icon icon="fa-solid fa-info-circle" />
                 Dieser Mitarbeiter hat eine gespeicherte Flip-ID (<code>{{ resolvedMa.flip_id }}</code>), aber der Account ist nicht aktiv.
               </p>
-              <button
-                class="btn btn-primary btn-sm"
+              <AppButton
+                size="sm"
                 @click="restoreFlipUser"
-                :disabled="flipActionLoading"
+                :loading="flipActionLoading"
               >
-                <font-awesome-icon :icon="flipActionLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-rotate-left'" :class="{ 'fa-spin': flipActionLoading }" />
+                <font-awesome-icon v-if="!flipActionLoading" icon="fa-solid fa-rotate-left" />
                 {{ flipActionLoading ? 'Wird wiederhergestellt...' : 'Flip-User wiederherstellen' }}
-              </button>
+              </AppButton>
             </div>
 
             <!-- Case 2: No flip_id → create or link -->
@@ -834,22 +845,23 @@
                 Kein Flip-Account verknüpft. Du kannst einen neuen erstellen oder einen bestehenden verknüpfen.
               </p>
               <div class="flip-action-buttons">
-                <button
-                  class="btn btn-primary btn-sm"
+                <AppButton
+                  size="sm"
                   @click="openFlipCreateForm"
                   :disabled="flipActionLoading"
                 >
                   <font-awesome-icon icon="fa-solid fa-user-plus" />
                   Flip-User erstellen
-                </button>
-                <button
-                  class="btn btn-ghost btn-sm"
+                </AppButton>
+                <AppButton
+                  size="sm"
+                  variant="ghost"
                   @click="openFlipLinkModal"
                   :disabled="flipActionLoading"
                 >
                   <font-awesome-icon icon="fa-solid fa-link" />
                   Bestehenden verknüpfen
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -861,41 +873,41 @@
               </div>
 
               <div class="fc-row">
-                <label class="fc-label">Standort <span class="fc-required">*</span></label>
-                <select v-model="flipCreateOptions.location" class="fc-select">
+                <label class="fc-label" :for="`${employeeTabsId}-flip-location`">Standort <span class="fc-required">*</span></label>
+                <AppSelect :id="`${employeeTabsId}-flip-location`" v-model="flipCreateOptions.location" class="fc-select" :disabled="flipActionLoading" required>
                   <option value="">— auswählen —</option>
                   <option value="Hamburg">Hamburg</option>
                   <option value="Berlin">Berlin</option>
                   <option value="Köln">Köln</option>
-                </select>
+                </AppSelect>
               </div>
 
               <div class="fc-checkboxes">
                 <label class="fc-check-item">
-                  <input type="checkbox" v-model="flipCreateOptions.isService" @change="flipCreateSetDepartment" />
+                  <input type="checkbox" v-model="flipCreateOptions.isService" :disabled="flipActionLoading" @change="flipCreateSetDepartment" />
                   Service
                 </label>
                 <label class="fc-check-item">
-                  <input type="checkbox" v-model="flipCreateOptions.isLogistik" @change="flipCreateSetDepartment" />
+                  <input type="checkbox" v-model="flipCreateOptions.isLogistik" :disabled="flipActionLoading" @change="flipCreateSetDepartment" />
                   Logistik
                 </label>
                 <label class="fc-check-item">
-                  <input type="checkbox" v-model="flipCreateOptions.isTeamleiter" @change="flipCreateUpdateJobTitle" />
+                  <input type="checkbox" v-model="flipCreateOptions.isTeamleiter" :disabled="flipActionLoading" @change="flipCreateUpdateJobTitle" />
                   Teamleiter
                 </label>
                 <label class="fc-check-item">
-                  <input type="checkbox" v-model="flipCreateOptions.isFestangestellt" />
+                  <input type="checkbox" v-model="flipCreateOptions.isFestangestellt" :disabled="flipActionLoading" />
                   Festangestellt
                 </label>
                 <label class="fc-check-item">
-                  <input type="checkbox" v-model="flipCreateOptions.isOffice" />
+                  <input type="checkbox" v-model="flipCreateOptions.isOffice" :disabled="flipActionLoading" />
                   Office
                 </label>
               </div>
 
               <div class="fc-row">
-                <label class="fc-label">Job-Titel</label>
-                <input v-model="flipCreateOptions.job_title" type="text" class="fc-input" />
+                <label class="fc-label" :for="`${employeeTabsId}-flip-job-title`">Job-Titel</label>
+                <AppTextInput :id="`${employeeTabsId}-flip-job-title`" v-model="flipCreateOptions.job_title" class="fc-input" :disabled="flipActionLoading" />
               </div>
 
               <div v-if="flipCreateOptions.department" class="fc-row">
@@ -904,17 +916,18 @@
               </div>
 
               <div class="flip-confirm-actions">
-                <button
-                  class="btn btn-primary btn-sm"
+                <AppButton
+                  size="sm"
                   @click="createFlipUserForMa"
-                  :disabled="flipActionLoading || !flipCreateOptions.location"
+                  :disabled="!flipCreateOptions.location"
+                  :loading="flipActionLoading"
                 >
-                  <font-awesome-icon :icon="flipActionLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-check'" :class="{ 'fa-spin': flipActionLoading }" />
+                  <font-awesome-icon v-if="!flipActionLoading" icon="fa-solid fa-check" />
                   {{ flipActionLoading ? 'Erstelle...' : 'Erstellen' }}
-                </button>
-                <button class="btn btn-ghost btn-sm" @click="showFlipCreateConfirm = false" :disabled="flipActionLoading">
+                </AppButton>
+                <AppButton size="sm" variant="ghost" @click="showFlipCreateConfirm = false" :disabled="flipActionLoading">
                   Abbrechen
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -929,39 +942,44 @@
                 <span>Lade verfügbare Flip-User...</span>
               </div>
               <template v-else>
-                <input
-                  type="text"
+                <AppTextInput
                   v-model="flipLinkSearch"
                   placeholder="Flip-User suchen (Name oder Email)..."
                   class="flip-link-search"
+                  aria-label="Flip-User suchen"
+                  :disabled="linkingFlip"
                 />
                 <div class="flip-link-list">
-                  <div
+                  <button
                     v-for="user in filteredUnlinkedUsers"
                     :key="user.id"
+                    type="button"
                     class="flip-link-item"
                     :class="{ selected: selectedFlipUser?.id === user.id }"
+                    :aria-pressed="selectedFlipUser?.id === user.id"
+                    :disabled="linkingFlip"
                     @click="selectedFlipUser = user"
                   >
                     <div class="flip-link-name">{{ user.first_name }} {{ user.last_name }}</div>
                     <div class="flip-link-email">{{ user.email }}</div>
-                  </div>
+                  </button>
                   <div v-if="filteredUnlinkedUsers.length === 0" class="flip-link-empty">
                     Keine unverknüpften Flip-User gefunden.
                   </div>
                 </div>
                 <div class="flip-link-actions">
-                  <button
-                    class="btn btn-primary btn-sm"
+                  <AppButton
+                    size="sm"
                     @click="linkFlipUser"
-                    :disabled="!selectedFlipUser || linkingFlip"
+                    :disabled="!selectedFlipUser"
+                    :loading="linkingFlip"
                   >
-                    <font-awesome-icon :icon="linkingFlip ? 'fa-solid fa-spinner' : 'fa-solid fa-link'" :class="{ 'fa-spin': linkingFlip }" />
+                    <font-awesome-icon v-if="!linkingFlip" icon="fa-solid fa-link" />
                     {{ linkingFlip ? 'Verknüpfe...' : 'Verknüpfen' }}
-                  </button>
-                  <button class="btn btn-ghost btn-sm" @click="closeFlipLinkModal">
+                  </AppButton>
+                  <AppButton size="sm" variant="ghost" :disabled="linkingFlip" @click="closeFlipLinkModal">
                     Abbrechen
-                  </button>
+                  </AppButton>
                 </div>
               </template>
             </div>
@@ -979,31 +997,35 @@
               </h4>
               <div class="asana-id">
                 <strong>Task-ID:</strong> {{ resolvedMa.asana_id }}
-                <button
+                <AppIconButton
                   class="copy-btn"
+                  size="sm"
+                  variant="ghost"
+                  label="Asana-Task-ID kopieren"
                   @click="copyToClipboard(resolvedMa.asana_id)"
-                  title="ID kopieren"
                 >
                   <font-awesome-icon icon="fa-solid fa-copy" />
-                </button>
+                </AppIconButton>
               </div>
               <div class="asana-actions">
-                <button
-                  class="btn btn-ghost btn-sm"
+                <AppButton
+                  size="sm"
+                  variant="ghost"
                   @click="openAsanaTask"
                   :disabled="loadingAsana"
                 >
                   <font-awesome-icon icon="fa-solid fa-external-link-alt" />
                   Task öffnen
-                </button>
-                <button
-                  class="btn btn-danger btn-sm"
+                </AppButton>
+                <AppButton
+                  size="sm"
+                  variant="danger"
                   @click="removeAsanaLink"
-                  :disabled="savingAsana"
+                  :loading="savingAsana"
                 >
-                  <font-awesome-icon icon="fa-solid fa-unlink" />
+                  <font-awesome-icon v-if="!savingAsana" icon="fa-solid fa-unlink" />
                   Verknüpfung entfernen
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -1013,13 +1035,13 @@
             <div v-if="!showAsanaLinkForm" class="emptystate">
               <font-awesome-icon icon="fa-solid fa-clipboard-list" />
               <p>Keine Asana-Verknüpfung vorhanden</p>
-              <button
-                class="btn btn-primary btn-sm"
+              <AppButton
+                size="sm"
                 @click="showAsanaLinkForm = true"
               >
                 <font-awesome-icon icon="fa-solid fa-link" />
                 Asana-Task verknüpfen
-              </button>
+              </AppButton>
             </div>
 
             <!-- Asana Link Formular -->
@@ -1031,23 +1053,24 @@
 
               <!-- Direkte GID Eingabe -->
               <div class="form-section">
-                <label for="asana-gid">Task-GID direkt eingeben:</label>
+                <label :for="`${employeeTabsId}-asana-gid`">Task-GID direkt eingeben:</label>
                 <div class="input-group">
-                  <input
-                    id="asana-gid"
+                  <AppTextInput
+                    :id="`${employeeTabsId}-asana-gid`"
                     v-model="asanaGidInput"
-                    type="text"
                     placeholder="z.B. 1234567890123456"
                     class="form-input"
+                    :disabled="savingAsana"
                     @keyup.enter="linkAsanaTaskById"
                   />
-                  <button
-                    class="btn btn-primary btn-sm"
+                  <AppButton
+                    size="sm"
                     @click="linkAsanaTaskById"
-                    :disabled="!asanaGidInput.trim() || savingAsana"
+                    :disabled="!asanaGidInput.trim()"
+                    :loading="savingAsana"
                   >
                     Verknüpfen
-                  </button>
+                  </AppButton>
                 </div>
               </div>
 
@@ -1055,32 +1078,27 @@
 
               <!-- Task-Suche -->
               <div class="form-section">
-                <label for="asana-search">Task nach Namen suchen:</label>
+                <label :for="`${employeeTabsId}-asana-search`">Task nach Namen suchen:</label>
                 <div class="search-group">
-                  <input
-                    id="asana-search"
+                  <AppTextInput
+                    :id="`${employeeTabsId}-asana-search`"
                     v-model="asanaSearchQuery"
-                    type="text"
                     placeholder="Task-Name eingeben..."
                     class="form-input"
-                    @input="searchAsanaTasks"
+                    :disabled="searchingAsana || savingAsana"
+                    @input="searchAsanaTasks($event.target.value)"
                     @keyup.enter="searchAsanaTasks"
                   />
-                  <button
-                    class="btn btn-secondary btn-sm"
+                  <AppButton
+                    size="sm"
+                    variant="secondary"
                     @click="searchAsanaTasks"
-                    :disabled="!asanaSearchQuery.trim() || searchingAsana"
+                    :disabled="asanaSearchQuery.trim().length < 2 || savingAsana"
+                    :loading="searchingAsana"
                   >
-                    <font-awesome-icon
-                      :icon="
-                        searchingAsana
-                          ? 'fa-solid fa-spinner'
-                          : 'fa-solid fa-search'
-                      "
-                      :class="{ 'fa-spin': searchingAsana }"
-                    />
+                    <font-awesome-icon v-if="!searchingAsana" icon="fa-solid fa-search" />
                     Suchen
-                  </button>
+                  </AppButton>
                 </div>
 
                 <!-- Suchergebnisse -->
@@ -1088,13 +1106,16 @@
                   v-if="asanaSearchResults.length > 0"
                   class="search-results"
                 >
-                  <div
+                  <button
                     v-for="task in asanaSearchResults"
                     :key="task.gid"
+                    type="button"
                     :class="[
                       'search-result-item',
                       { 'featured-task': task.containsEmployeeEmail },
                     ]"
+                    :disabled="savingAsana"
+                    :aria-label="`Asana-Task ${task.name} verknüpfen`"
                     @click="selectAsanaTask(task)"
                   >
                     <div class="task-info">
@@ -1137,7 +1158,7 @@
                         {{ task.completed ? "Abgeschlossen" : "Aktiv" }}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 </div>
 
                 <div
@@ -1150,12 +1171,14 @@
 
               <!-- Formular-Aktionen -->
               <div class="form-actions">
-                <button
-                  class="btn btn-ghost btn-sm"
+                <AppButton
+                  size="sm"
+                  variant="ghost"
+                  :disabled="savingAsana"
                   @click="cancelAsanaLinking"
                 >
                   Abbrechen
-                </button>
+                </AppButton>
               </div>
 
               <!-- Loading/Error States -->
@@ -1239,14 +1262,11 @@
               Rohdaten (MongoDB-Dokument)
             </h4>
             <div class="raw-actions">
-              <button class="btn btn-sm btn-ghost" @click.stop="loadRawDocument" :disabled="rawLoading || rawSaving">
-                <font-awesome-icon :icon="'fa-solid fa-rotate-right'" :class="{ 'fa-spin': rawLoading }" />
+              <AppButton size="sm" variant="ghost" @click.stop="loadRawDocument" :disabled="rawSaving" :loading="rawLoading">
+                <font-awesome-icon v-if="!rawLoading" icon="fa-solid fa-rotate-right" />
                 Neu laden
-              </button>
-              <button class="btn btn-sm" @click.stop="saveRawDocument" :disabled="rawLoading || rawSaving">
-                <font-awesome-icon v-if="rawSaving" icon="fa-solid fa-spinner" class="fa-spin" />
-                <span v-else>Speichern</span>
-              </button>
+              </AppButton>
+              <AppButton size="sm" @click.stop="saveRawDocument" :disabled="rawLoading || !rawLoaded" :loading="rawSaving">Speichern</AppButton>
             </div>
           </div>
 
@@ -1263,14 +1283,18 @@
             <textarea
               v-model="rawJson"
               class="raw-editor"
+              aria-label="Mitarbeiter-Rohdaten als JSON"
+              :disabled="rawSaving"
+              :aria-invalid="!!rawError || undefined"
+              :aria-describedby="rawError ? `${employeeTabsId}-raw-error` : undefined"
               spellcheck="false"
               autocomplete="off"
               @input="rawError = ''"
             ></textarea>
-            <p v-if="rawError" class="raw-error">
+            <p v-if="rawError" :id="`${employeeTabsId}-raw-error`" class="raw-error" role="alert">
               <font-awesome-icon icon="fa-solid fa-circle-exclamation" /> {{ rawError }}
             </p>
-            <p v-if="rawSuccess" class="raw-success">
+            <p v-if="rawSuccess" class="raw-success" role="status">
               <font-awesome-icon icon="fa-solid fa-circle-check" /> {{ rawSuccess }}
             </p>
           </template>
@@ -1283,150 +1307,50 @@
          between the employee header and the active view. -->
     <section v-show="expanded" class="employee-tabs-shell" @click.stop>
       <div class="card-actions" role="tablist" aria-label="Mitarbeiteransicht">
-        <!-- Stammdaten -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Stammdaten" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
-              <span
-                class="tab-brand tab-brand--sf"
-                :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
-                aria-hidden="true"
-              />
-              <span>Stammdaten</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'profile' }" @click="view = 'profile'" :aria-selected="view === 'profile'">
+        <CustomTooltip
+          v-for="tab in visibleEmployeeTabs"
+          :key="tab.id"
+          :text="tab.tooltip || tab.label"
+          :position="tooltipPosition"
+          :delay-in="150"
+          :disabled="!showTooltips"
+        >
+          <AppButton
+            :id="employeeTabId(tab.id)"
+            class="icon-btn"
+            :class="{ active: view === tab.id, 'icon-btn--admin': tab.id === 'raw' }"
+            variant="ghost"
+            role="tab"
+            :data-employee-tab="tab.id"
+            :aria-controls="employeePanelId"
+            :aria-selected="view === tab.id"
+            :tabindex="view === tab.id ? 0 : -1"
+            @click="view = tab.id"
+            @keydown="navigateEmployeeTab($event, tab.id)"
+          >
             <span
+              v-if="tab.id === 'profile'"
               class="tab-brand tab-brand--sf"
               :style="{ '--tab-brand-image': `url(${effectiveTheme === 'dark' ? straightDark : straightLight})` }"
               aria-hidden="true"
             />
-            <span>Stammdaten</span>
-          </button>
-        </template>
-
-        <!-- R2-Ablage -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Ablage" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'ablage' }" @click="view = 'ablage'" :aria-selected="view === 'ablage'">
-              <font-awesome-icon icon="fa-solid fa-folder-open" />
-              <span>Ablage</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'ablage' }" @click="view = 'ablage'" :aria-selected="view === 'ablage'">
-            <font-awesome-icon icon="fa-solid fa-folder-open" />
-            <span>Ablage</span>
-          </button>
-        </template>
-
-        <!-- Einsätze -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Einsätze" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
-              <font-awesome-icon icon="fa-solid fa-calendar-days" />
-              <span>Einsätze</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'straight' }" @click="view = 'straight'" :aria-selected="view === 'straight'">
-            <font-awesome-icon icon="fa-solid fa-calendar-days" />
-            <span>Einsätze</span>
-          </button>
-        </template>
-
-        <!-- Reports -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Reports" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'reports' }" @click="view = 'reports'" :aria-selected="view === 'reports'">
-              <font-awesome-icon icon="fa-solid fa-file-lines" />
-              <span>Reports</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'reports' }" @click="view = 'reports'" :aria-selected="view === 'reports'">
-            <font-awesome-icon icon="fa-solid fa-file-lines" />
-            <span>Reports</span>
-          </button>
-        </template>
-
-        <!-- Combined Links Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Asana und Flip" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'links' }" @click="view = 'links'" :aria-selected="view === 'links'">
-              <span class="tab-logo-pair" aria-hidden="true">
-                <span class="tab-brand tab-brand--asana" :style="{ '--tab-brand-image': `url(${asanaLogo})` }" />
-                <span class="tab-brand tab-brand--flip" :style="{ '--tab-brand-image': `url(${flipLogo})` }" />
-              </span>
-              <span>Links</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'links' }" @click="view = 'links'" :aria-selected="view === 'links'">
-            <span class="tab-logo-pair" aria-hidden="true">
+            <span v-else-if="tab.id === 'links'" class="tab-logo-pair" aria-hidden="true">
               <span class="tab-brand tab-brand--asana" :style="{ '--tab-brand-image': `url(${asanaLogo})` }" />
               <span class="tab-brand tab-brand--flip" :style="{ '--tab-brand-image': `url(${flipLogo})` }" />
             </span>
-            <span>Links</span>
-          </button>
-        </template>
-
-        <!-- Inventar Button -->
-        <template v-if="showTooltips">
-          <custom-tooltip text="Inventar" :position="tooltipPosition" :delay-in="150">
-            <button class="icon-btn" role="tab" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-selected="view === 'inventar'">
-              <font-awesome-icon icon="fa-solid fa-box-open" />
-              <span>Inventar</span>
-            </button>
-          </custom-tooltip>
-        </template>
-        <template v-else>
-          <button class="icon-btn" role="tab" :class="{ active: view === 'inventar' }" @click="view = 'inventar'" :aria-selected="view === 'inventar'">
-            <font-awesome-icon icon="fa-solid fa-box-open" />
-            <span>Inventar</span>
-          </button>
-        </template>
-
-        <!-- Rohdaten Button (Admin only) -->
-        <template v-if="isAdmin">
-          <template v-if="showTooltips">
-            <custom-tooltip text="Rohdaten (Admin)" :position="tooltipPosition" :delay-in="150">
-              <button class="icon-btn icon-btn--admin" role="tab" :class="{ active: view === 'raw' }" @click="view = 'raw'" :aria-selected="view === 'raw'">
-                <font-awesome-icon icon="fa-solid fa-database" />
-                <span>Rohdaten</span>
-              </button>
-            </custom-tooltip>
-          </template>
-          <template v-else>
-            <button class="icon-btn icon-btn--admin" role="tab" :class="{ active: view === 'raw' }" @click="view = 'raw'" :aria-selected="view === 'raw'">
-              <font-awesome-icon icon="fa-solid fa-database" />
-              <span>Rohdaten</span>
-            </button>
-          </template>
-        </template>
+            <font-awesome-icon v-else :icon="tab.icon" aria-hidden="true" />
+            <span>{{ tab.label }}</span>
+          </AppButton>
+        </CustomTooltip>
 
         <!-- Actions Button with Dropdown -->
         <div class="quick-actions-wrapper" @click.stop>
-          <template v-if="showTooltips">
-            <custom-tooltip text="Aktionen" :position="tooltipPosition" :delay-in="150">
-              <button class="icon-btn icon-btn--actions" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
-                <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-                <span>Aktionen</span>
-              </button>
-            </custom-tooltip>
-          </template>
-          <template v-else>
-            <button class="icon-btn icon-btn--actions" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
+          <CustomTooltip text="Aktionen" :position="tooltipPosition" :delay-in="150" :disabled="!showTooltips">
+            <AppButton class="icon-btn icon-btn--actions" variant="ghost" aria-haspopup="menu" :aria-expanded="showQuickActionsMenu" :class="{ active: showQuickActionsMenu }" @click="toggleQuickActions">
               <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
               <span>Aktionen</span>
-            </button>
-          </template>
+            </AppButton>
+          </CustomTooltip>
           <teleport to="body">
             <div v-if="showQuickActionsMenu" class="qa-overlay" @click="_closeQuickActions()">
               <div class="qa-menu" :style="quickActionsMenuStyle" @click.stop>
@@ -1490,7 +1414,7 @@
         </div>
       </div>
 
-      <div v-if="view === 'profile'" class="hero-right" role="tabpanel">
+      <div v-if="view === 'profile'" :id="employeePanelId" class="hero-right" role="tabpanel" :aria-labelledby="employeeTabId('profile')" tabindex="0">
       <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
         <img v-if="photoUrl" :src="photoUrl" :alt="`${resolvedMa.vorname} ${resolvedMa.nachname}`" class="hero-img" />
         <div v-else class="hero-initials" :style="{ '--hue': avatarHue(resolvedMa) }">
@@ -1509,16 +1433,101 @@
             Stammdaten
           </h4>
           <dl class="stammdaten-grid">
-            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'email' }"><dt>E-Mail <button class="stammdaten-edit-btn" type="button" title="E-Mail bearbeiten" aria-label="E-Mail bearbeiten" @click.stop="startEditStammdaten('email')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'email'" class="stammdaten-detail-list"><span>Primär: {{ resolvedMa.email || '—' }} <button v-if="resolvedMa.email" class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.email)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></span><span v-if="resolvedMa.additionalEmails?.length" class="stammdaten-email-alternatives">Alt.: <span class="email-list"><span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span></span></span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.email" type="email" aria-label="Primäre E-Mail" placeholder="Primäre E-Mail"><input v-model="stammdatenDraft.additionalEmails" type="text" aria-label="Alternative E-Mails" placeholder="Alternative E-Mails, durch Komma getrennt"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
-            <div v-if="resolvedMa.telefon" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'telefon' }"><dt>Telefon <button class="stammdaten-edit-btn" type="button" title="Telefon bearbeiten" aria-label="Telefon bearbeiten" @click.stop="startEditStammdaten('telefon')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'telefon'"><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.telefon)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
-            <div v-if="resolvedMa.geburtsname || resolvedMa.geburtsdatum || resolvedMa.geburtsort" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'geburtsdaten' }"><dt>Geburtsdaten <button class="stammdaten-edit-btn" type="button" title="Geburtsdaten bearbeiten" aria-label="Geburtsdaten bearbeiten" @click.stop="startEditStammdaten('geburtsdaten')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'geburtsdaten'" class="stammdaten-detail-list"><span v-if="resolvedMa.geburtsname">Geb. Name: {{ resolvedMa.geburtsname }}</span><span v-if="resolvedMa.geburtsdatum">Geb. Tag: {{ formatDate(resolvedMa.geburtsdatum) }}</span><span v-if="resolvedMa.geburtsort">Geb. Ort: {{ resolvedMa.geburtsort }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.geburtsname" type="text" aria-label="Geburtsname" placeholder="Geburtsname"><input v-model="stammdatenDraft.geburtsdatum" type="date" aria-label="Geburtsdatum"><input v-model.trim="stammdatenDraft.geburtsort" type="text" aria-label="Geburtsort" placeholder="Geburtsort"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
-            <div v-if="resolvedMa.konfektionsgroesse || resolvedMa.schuhgroesse" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'groessen' }"><dt>Klamottengrößen <button class="stammdaten-edit-btn" type="button" title="Klamottengrößen bearbeiten" aria-label="Klamottengrößen bearbeiten" @click.stop="startEditStammdaten('groessen')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'groessen'" class="stammdaten-detail-list"><span v-if="resolvedMa.konfektionsgroesse">Konfektionsgröße: {{ resolvedMa.konfektionsgroesse }}</span><span v-if="resolvedMa.schuhgroesse">Schuhgröße: {{ resolvedMa.schuhgroesse }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.konfektionsgroesse" type="text" aria-label="Konfektionsgröße" placeholder="Konfektionsgröße"><input v-model.trim="stammdatenDraft.schuhgroesse" type="text" aria-label="Schuhgröße" placeholder="Schuhgröße"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
-            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'nationalitaet' }"><dt>Staatsangehörigkeit <button class="stammdaten-edit-btn" type="button" title="Staatsangehörigkeit bearbeiten" aria-label="Staatsangehörigkeit bearbeiten" @click.stop="startEditStammdaten('nationalitaet')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'nationalitaet'">{{ nationalitaetLabel(resolvedMa.nationalitaet) || '—' }}</dd><dd v-else class="stammdaten-inline-editor"><select v-model="stammdatenDraft.nationalitaet" aria-label="Staatsangehörigkeit"><option value="">Nicht angegeben</option><option v-for="nationalitaet in nationalitaeten" :key="nationalitaet.schluessel" :value="String(nationalitaet.schluessel)">{{ nationalitaetOptionLabel(nationalitaet) }}</option></select><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'email' }">
+              <dt>E-Mail <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="E-Mail bearbeiten" @click.stop="startEditStammdaten('email')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'email'" class="stammdaten-detail-list">
+                <span>Primär: {{ resolvedMa.email || '—' }} <AppIconButton v-if="resolvedMa.email" class="copy-inline-btn" size="sm" variant="ghost" label="E-Mail kopieren" @click.stop="copyToClipboard(resolvedMa.email)"><font-awesome-icon icon="fa-solid fa-copy" /></AppIconButton></span>
+                <span v-if="resolvedMa.additionalEmails?.length" class="stammdaten-email-alternatives">Alt.: <span class="email-list"><span v-for="(email, idx) in resolvedMa.additionalEmails" :key="idx" class="email-badge">{{ email }}</span></span></span>
+              </dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.email" type="email" aria-label="Primäre E-Mail" placeholder="Primäre E-Mail" :disabled="savingStammdatenField" />
+                <AppTextInput v-model="stammdatenDraft.additionalEmails" aria-label="Alternative E-Mails" placeholder="Alternative E-Mails, durch Komma getrennt" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="E-Mail speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="E-Mail-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div v-if="resolvedMa.telefon" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'telefon' }">
+              <dt>Telefon <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Telefon bearbeiten" @click.stop="startEditStammdaten('telefon')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'telefon'"><a :href="generateSipgateLink(resolvedMa.telefon)" class="phone-link" @click.prevent="executeQuickAction('sipgate')"><font-awesome-icon icon="fa-solid fa-phone" /> {{ resolvedMa.telefon }}</a><AppIconButton class="copy-inline-btn" size="sm" variant="ghost" label="Telefonnummer kopieren" @click.stop="copyToClipboard(resolvedMa.telefon)"><font-awesome-icon icon="fa-solid fa-copy" /></AppIconButton></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Telefon speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Telefon-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div v-if="resolvedMa.geburtsname || resolvedMa.geburtsdatum || resolvedMa.geburtsort" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'geburtsdaten' }">
+              <dt>Geburtsdaten <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Geburtsdaten bearbeiten" @click.stop="startEditStammdaten('geburtsdaten')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'geburtsdaten'" class="stammdaten-detail-list"><span v-if="resolvedMa.geburtsname">Geb. Name: {{ resolvedMa.geburtsname }}</span><span v-if="resolvedMa.geburtsdatum">Geb. Tag: {{ formatDate(resolvedMa.geburtsdatum) }}</span><span v-if="resolvedMa.geburtsort">Geb. Ort: {{ resolvedMa.geburtsort }}</span></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.geburtsname" aria-label="Geburtsname" placeholder="Geburtsname" :disabled="savingStammdatenField" />
+                <AppTextInput v-model="stammdatenDraft.geburtsdatum" type="date" aria-label="Geburtsdatum" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.geburtsort" aria-label="Geburtsort" placeholder="Geburtsort" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Geburtsdaten speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Geburtsdaten-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div v-if="resolvedMa.konfektionsgroesse || resolvedMa.schuhgroesse" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'groessen' }">
+              <dt>Klamottengrößen <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Klamottengrößen bearbeiten" @click.stop="startEditStammdaten('groessen')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'groessen'" class="stammdaten-detail-list"><span v-if="resolvedMa.konfektionsgroesse">Konfektionsgröße: {{ resolvedMa.konfektionsgroesse }}</span><span v-if="resolvedMa.schuhgroesse">Schuhgröße: {{ resolvedMa.schuhgroesse }}</span></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.konfektionsgroesse" aria-label="Konfektionsgröße" placeholder="Konfektionsgröße" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.schuhgroesse" aria-label="Schuhgröße" placeholder="Schuhgröße" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Klamottengrößen speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Größen-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'nationalitaet' }">
+              <dt>Staatsangehörigkeit <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Staatsangehörigkeit bearbeiten" @click.stop="startEditStammdaten('nationalitaet')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'nationalitaet'">{{ nationalitaetLabel(resolvedMa.nationalitaet) || '—' }}</dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppSelect v-model="stammdatenDraft.nationalitaet" size="sm" aria-label="Staatsangehörigkeit" :disabled="savingStammdatenField"><option value="">Nicht angegeben</option><option v-for="nationalitaet in nationalitaeten" :key="nationalitaet.schluessel" :value="String(nationalitaet.schluessel)">{{ nationalitaetOptionLabel(nationalitaet) }}</option></AppSelect>
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Staatsangehörigkeit speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Bearbeitung der Staatsangehörigkeit abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
-            <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <button class="copy-inline-btn" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)" title="Kopieren"><font-awesome-icon icon="fa-solid fa-copy" /></button></dd></div>
-            <div v-if="addressLines(resolvedMa.adresse).length" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse' }"><dt>Adresse <button class="stammdaten-edit-btn" type="button" title="Adresse bearbeiten" aria-label="Adresse bearbeiten" @click.stop="startEditStammdaten('adresse')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'adresse'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.strasse" type="text" aria-label="Straße" placeholder="Straße"><input v-model.trim="stammdatenDraft.plz" type="text" aria-label="PLZ" placeholder="PLZ"><input v-model.trim="stammdatenDraft.ort" type="text" aria-label="Ort" placeholder="Ort"><input v-model.trim="stammdatenDraft.land" type="text" aria-label="Land" placeholder="Land"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
-            <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse2' }"><dt>Adresse 2 <button class="stammdaten-edit-btn" type="button" title="Adresse 2 bearbeiten" aria-label="Adresse 2 bearbeiten" @click.stop="startEditStammdaten('adresse2')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'adresse2'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.strasse" type="text" aria-label="Straße" placeholder="Straße"><input v-model.trim="stammdatenDraft.plz" type="text" aria-label="PLZ" placeholder="PLZ"><input v-model.trim="stammdatenDraft.ort" type="text" aria-label="Ort" placeholder="Ort"><input v-model.trim="stammdatenDraft.land" type="text" aria-label="Land" placeholder="Land"><input v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon Adresse 2" placeholder="Telefon"><input v-model.trim="stammdatenDraft.email" type="email" aria-label="E-Mail Adresse 2" placeholder="E-Mail"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <AppIconButton class="copy-inline-btn" size="sm" variant="ghost" label="Sozialversicherungsnummer kopieren" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)"><font-awesome-icon icon="fa-solid fa-copy" /></AppIconButton></dd></div>
+            <div v-if="addressLines(resolvedMa.adresse).length" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse' }">
+              <dt>Adresse <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Adresse bearbeiten" @click.stop="startEditStammdaten('adresse')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'adresse'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.strasse" aria-label="Straße" placeholder="Straße" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.plz" aria-label="PLZ" placeholder="PLZ" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.ort" aria-label="Ort" placeholder="Ort" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.land" aria-label="Land" placeholder="Land" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Adresse speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Adressbearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div v-if="addressLines(resolvedMa.adresse2).length || resolvedMa.adresse2?.telefon || resolvedMa.adresse2?.email" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse2' }">
+              <dt>Adresse 2 <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Adresse 2 bearbeiten" @click.stop="startEditStammdaten('adresse2')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'adresse2'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse2)" :key="idx">{{ line }}</span><span v-if="resolvedMa.adresse2?.telefon" class="steckbrief-value--muted">{{ resolvedMa.adresse2.telefon }}</span><span v-if="resolvedMa.adresse2?.email" class="steckbrief-value--muted">{{ resolvedMa.adresse2.email }}</span></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.strasse" aria-label="Straße Adresse 2" placeholder="Straße" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.plz" aria-label="PLZ Adresse 2" placeholder="PLZ" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.ort" aria-label="Ort Adresse 2" placeholder="Ort" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.land" aria-label="Land Adresse 2" placeholder="Land" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.telefon" type="tel" aria-label="Telefon Adresse 2" placeholder="Telefon" :disabled="savingStammdatenField" />
+                <AppTextInput v-model.trim="stammdatenDraft.email" type="email" aria-label="E-Mail Adresse 2" placeholder="E-Mail" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Adresse 2 speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Bearbeitung der Adresse 2 abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
             <div v-if="resolvedMa.erstellt_von || resolvedMa.dateCreated"><dt>Erstellt</dt><dd class="stammdaten-detail-list"><span v-if="resolvedMa.erstellt_von">Von: {{ resolvedMa.erstellt_von }}</span><span v-if="resolvedMa.dateCreated">Am: {{ formatDate(resolvedMa.dateCreated) }}</span></dd></div>
           </dl>
         </section>
@@ -1528,7 +1537,18 @@
             Lohn
           </h4>
           <dl class="arbeitsverhaeltnis-grid">
-            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'lohn' }"><dt>IBAN & Gültig ab <button class="stammdaten-edit-btn" type="button" title="IBAN und Gültigkeitsdatum bearbeiten" aria-label="IBAN und Gültigkeitsdatum bearbeiten" @click.stop="startEditStammdaten('lohn')"><font-awesome-icon icon="fa-solid fa-pen" /></button></dt><dd v-if="editingStammdatenField !== 'lohn'" class="stammdaten-detail-list"><span :class="{ 'iban-missing': !resolvedMa.iban }">IBAN: {{ resolvedMa.iban || 'IBAN fehlt!' }}</span><span v-if="resolvedMa.arbeitsverhaeltnis?.von">Gültig ab: {{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</span></dd><dd v-else class="stammdaten-inline-editor"><input v-model.trim="stammdatenDraft.iban" type="text" aria-label="IBAN" placeholder="IBAN"><input v-model="stammdatenDraft.von" type="date" aria-label="Gültig ab"><span class="stammdaten-edit-actions"><button type="button" class="stammdaten-save-btn" :disabled="savingStammdatenField" title="Speichern" aria-label="Speichern" @click.stop="saveStammdaten"><font-awesome-icon icon="fa-solid fa-check" /></button><button type="button" class="stammdaten-cancel-btn" :disabled="savingStammdatenField" title="Abbrechen" aria-label="Abbrechen" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></button></span></dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'lohn' }">
+              <dt>IBAN &amp; Gültig ab <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="IBAN und Gültigkeitsdatum bearbeiten" @click.stop="startEditStammdaten('lohn')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'lohn'" class="stammdaten-detail-list"><span :class="{ 'iban-missing': !resolvedMa.iban }">IBAN: {{ resolvedMa.iban || 'IBAN fehlt!' }}</span><span v-if="resolvedMa.arbeitsverhaeltnis?.von">Gültig ab: {{ formatDate(resolvedMa.arbeitsverhaeltnis.von) }}</span></dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.iban" aria-label="IBAN" placeholder="IBAN" :disabled="savingStammdatenField" />
+                <AppTextInput v-model="stammdatenDraft.von" type="date" aria-label="Gültig ab" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="IBAN und Gültigkeitsdatum speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="IBAN-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
             <div v-if="arbeitsverhaeltnisTypLabel"><dt>Arbeitsverhältnis</dt><dd>{{ arbeitsverhaeltnisTypLabel }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
           </dl>
@@ -1566,10 +1586,10 @@
             <div v-if="resolvedMa.arbeitsverhaeltnis?.typ === 3"><dt>Vorarbeitgeber</dt><dd>{{ vorarbeitgebertageDisplay }} Tage</dd></div>
           </dl>
         </section>
-        <button class="steckbrief-edit-button" type="button" @click.stop="executeQuickAction('edit')">
+        <AppButton class="steckbrief-edit-button" size="sm" variant="secondary" @click.stop="executeQuickAction('edit')">
           <font-awesome-icon icon="fa-solid fa-pen-to-square" />
           Bearbeiten
-        </button>
+        </AppButton>
       </div>
 
       <div class="skills-section">
@@ -1660,17 +1680,6 @@
 
     <!-- Modals -->
     <teleport to="body">
-      <EditMitarbeiterDialog
-        v-if="showEditModal"
-        :mitarbeiter="resolvedMa"
-        :nationalitaeten="nationalitaeten"
-        :saving="savingEdit"
-        :conflict-info="editConflictInfo"
-        @close="closeEditModal"
-        @save="saveEdit"
-        @save-force="saveEditForce"
-        @cancel-conflict="editConflictInfo = null"
-      />
       
       <DeleteMitarbeiterDialog
         v-if="showDeleteModal"
@@ -1761,14 +1770,14 @@
   </article>
 </template>
 <script>
-import { computed, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
+import { computed, getCurrentInstance, ref, onMounted, onBeforeUnmount, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import CustomTooltip from "./CustomTooltip.vue";
 import FlipProfile from "./FlipProfile.vue";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import ContextMenu from "./ContextMenu.vue";
 import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
-import EditMitarbeiterDialog from "@/components/Modals/EditMitarbeiterDialog.vue";
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
 import ImageCropModal from "./ImageCropModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
@@ -1777,6 +1786,8 @@ import R2FileBrowser from "./R2FileBrowser.vue";
 import HoverDataCard from "./ui-elements/HoverDataCard.vue";
 import AppButton from "./ui-elements/AppButton.vue";
 import AppIconButton from "./ui-elements/AppIconButton.vue";
+import AppTextInput from "./ui-elements/AppTextInput.vue";
+import AppSelect from "./ui-elements/AppSelect.vue";
 import ModalFrame from "./frames/ModalFrame.vue";
 import { shortTermEmploymentWindow } from "@/utils/shortTermEmployment";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
@@ -1812,7 +1823,7 @@ const fetchNationalitaeten = async () => {
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, EditMitarbeiterDialog, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, ModalFrame },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, AppTextInput, AppSelect, ModalFrame },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1825,12 +1836,15 @@ export default {
   emits: ["open", "edit", "toggle-selection", "quick-actions", "close", "open-employee", "open-profile-modal", "filter-beruf", "filter-qualifikation", "reactivated", "profile-loaded"],
 
   setup(props) {
+    const employeeTabsId = `employee-card-${getCurrentInstance().uid}`;
+    const employeePanelId = `${employeeTabsId}-panel`;
     const theme = useTheme();
     const auth = useAuth();
     const router = useRouter();
     const { openDocument: openDocumentModal } = useDocumentModals();
     const { openTimeCapture } = useTimeCaptureModals();
     const signaturModal = useSignaturModal();
+    const { openEmployeeEdit } = useAdditionalModals();
 
     // Self-loading state (used when only mitarbeiterId prop is passed)
     const selfLoadedMa = ref(null);
@@ -1948,6 +1962,8 @@ export default {
       effectiveTheme,
       showTooltips,
       tooltipPosition,
+      employeeTabsId,
+      employeePanelId,
       straightLight,
       straightDark,
       flipLogo,
@@ -1965,6 +1981,7 @@ export default {
       openDocumentModal,
       openTimeCapture,
       signaturModal,
+      openEmployeeEdit,
     };
   },
 
@@ -2009,8 +2026,8 @@ export default {
       quickSignatureMenuOpenLeft: false,
       linkCopied: false,
       quickActionsMenuStyle: {},
-      _qaBtn: null,
-      _qaScrollHandler: null,
+      qaButton: null,
+      qaScrollHandler: null,
 
       // EventReport Feedback (lazy-loaded on expand)
       eventreportFeedback: [],
@@ -2063,6 +2080,7 @@ export default {
       loadingChronik: false,
       newChronikText: '',
       savingChronik: false,
+      deletingChronikId: null,
       editingDispoNotiz: false,
       dispoNotizDraft: '',
       savingDispoNotiz: false,
@@ -2090,6 +2108,18 @@ export default {
   },
 
   computed: {
+    visibleEmployeeTabs() {
+      const tabs = [
+        { id: 'profile', label: 'Stammdaten' },
+        { id: 'ablage', label: 'Ablage', icon: 'fa-solid fa-folder-open' },
+        { id: 'straight', label: 'Einsätze', icon: 'fa-solid fa-calendar-days' },
+        { id: 'reports', label: 'Reports', icon: 'fa-solid fa-file-lines' },
+        { id: 'links', label: 'Links', tooltip: 'Asana und Flip' },
+        { id: 'inventar', label: 'Inventar', icon: 'fa-solid fa-box-open' },
+      ];
+      if (this.isAdmin) tabs.push({ id: 'raw', label: 'Rohdaten', tooltip: 'Rohdaten (Admin)', icon: 'fa-solid fa-database' });
+      return tabs;
+    },
     resolvedMa() {
       return this.ma || this.selfLoadedMa;
     },
@@ -2390,12 +2420,28 @@ export default {
   },
 
   beforeUnmount() {
-    if (this._qaScrollHandler) {
-      window.removeEventListener('scroll', this._qaScrollHandler, true);
+    if (this.qaScrollHandler) {
+      window.removeEventListener('scroll', this.qaScrollHandler, true);
     }
   },
 
   methods: {
+    employeeTabId(id) {
+      return `${this.employeeTabsId}-tab-${id}`;
+    },
+    navigateEmployeeTab(event, currentId) {
+      const ids = this.visibleEmployeeTabs.map(tab => tab.id);
+      const index = ids.indexOf(currentId);
+      let nextId;
+      if (event.key === 'ArrowRight') nextId = ids[(index + 1) % ids.length];
+      else if (event.key === 'ArrowLeft') nextId = ids[(index - 1 + ids.length) % ids.length];
+      else if (event.key === 'Home') nextId = ids[0];
+      else if (event.key === 'End') nextId = ids.at(-1);
+      else return;
+      event.preventDefault();
+      this.view = nextId;
+      this.$nextTick(() => this.$el.querySelector(`[data-employee-tab="${nextId}"]`)?.focus());
+    },
     async loadSelf() {
       const id = this.mitarbeiterId;
       if (!id) return;
@@ -2699,11 +2745,12 @@ export default {
       this.editingFeedbackText = fb.feedback_text || '';
     },
     cancelEditFeedback() {
+      if (this.savingFeedbackId) return;
       this.editingFeedbackId = null;
       this.editingFeedbackText = '';
     },
     async saveFeedback(fb) {
-      if (!this.editingFeedbackText.trim()) return;
+      if (!this.editingFeedbackText.trim() || this.savingFeedbackId) return;
       this.savingFeedbackId = fb.feedbackId;
       try {
         await api.patch(`/api/personal/eventreport/${fb._id}/feedback/${fb.feedbackId}`, { text: this.editingFeedbackText.trim() });
@@ -2717,6 +2764,7 @@ export default {
       }
     },
     async deleteFeedback(fb) {
+      if (this.deletingFeedbackId || this.savingFeedbackId) return;
       if (!confirm('Feedback wirklich löschen?')) return;
       this.deletingFeedbackId = fb.feedbackId;
       try {
@@ -2742,8 +2790,9 @@ export default {
       }
     },
     async loadRawDocument() {
-      if (!this.resolvedMa?._id) return;
+      if (!this.resolvedMa?._id || this.rawLoading || this.rawSaving) return;
       this.rawLoading = true;
+      this.rawLoaded = false;
       this.rawError = '';
       this.rawSuccess = '';
       try {
@@ -2758,6 +2807,7 @@ export default {
       }
     },
     async saveRawDocument() {
+      if (!this.resolvedMa?._id || !this.rawLoaded || this.rawLoading || this.rawSaving) return;
       this.rawError = '';
       this.rawSuccess = '';
       let parsed;
@@ -3044,7 +3094,7 @@ export default {
 
     async addChronikEntry() {
       const text = this.newChronikText.trim();
-      if (!text || !this.resolvedMa?._id) return;
+      if (!text || !this.resolvedMa?._id || this.savingChronik) return;
       this.savingChronik = true;
       try {
         const { data } = await api.post('/api/comments', {
@@ -3062,11 +3112,15 @@ export default {
     },
 
     async deleteChronikEntry(id) {
+      if (this.deletingChronikId) return;
+      this.deletingChronikId = id;
       try {
         await api.delete(`/api/comments/${id}`);
         this.chronik = this.chronik.filter(e => e._id !== id);
       } catch (err) {
         console.error('Chronik Löschen Fehler:', err);
+      } finally {
+        this.deletingChronikId = null;
       }
     },
 
@@ -3076,18 +3130,20 @@ export default {
       this.editingDispoNotiz = true;
     },
     cancelDispoNotiz() {
+      if (this.savingDispoNotiz) return;
       this.editingDispoNotiz = false;
       this.dispoNotizDraft = '';
     },
     async saveDispoNotiz() {
-      if (!this.resolvedMa?._id) return;
+      if (!this.resolvedMa?._id || this.savingDispoNotiz) return;
       this.savingDispoNotiz = true;
       try {
         await api.patch(`/api/personal/mitarbeiter/${this.resolvedMa._id}`, {
           dispoNotiz: this.dispoNotizDraft
         });
         this.resolvedMa.dispoNotiz = this.dispoNotizDraft;
-        this.cancelDispoNotiz();
+        this.editingDispoNotiz = false;
+        this.dispoNotizDraft = '';
       } catch (err) {
         console.error('Dispo-Notiz Fehler:', err);
       } finally {
@@ -3104,6 +3160,7 @@ export default {
     },
 
     async removeAsanaLink() {
+      if (this.savingAsana) return;
       if (!confirm("Asana-Verknüpfung wirklich entfernen?")) {
         return;
       }
@@ -3138,7 +3195,7 @@ export default {
     },
 
     async linkAsanaTaskById() {
-      if (!this.asanaGidInput.trim()) return;
+      if (!this.asanaGidInput.trim() || this.savingAsana) return;
 
       console.log("🔄 Verknüpfe per GID:", {
         gid: this.asanaGidInput.trim(),
@@ -3201,15 +3258,16 @@ export default {
       }
     },
 
-    async searchAsanaTasks() {
+    async searchAsanaTasks(inputValue) {
+      const query = (typeof inputValue === 'string' ? inputValue : this.asanaSearchQuery).trim();
       if (
-        !this.asanaSearchQuery.trim() ||
-        this.asanaSearchQuery.trim().length < 2
+        this.searchingAsana || this.savingAsana ||
+        query.length < 2
       ) {
         return;
       }
 
-      console.log("🔍 Suche Asana-Tasks:", this.asanaSearchQuery.trim());
+      console.log("🔍 Suche Asana-Tasks:", query);
 
       this.searchingAsana = true;
       this.asanaSearchResults = [];
@@ -3217,7 +3275,7 @@ export default {
       try {
         const response = await api.get("/api/asana/tasks/search", {
           params: {
-            query: this.asanaSearchQuery.trim(),
+            query,
             employeeEmail: this.resolvedMa?.email, // Pass employee email for featured suggestions
             employeeLocation: this.displayLocation || this.resolvedMa?.standort, // Pass location for prioritization
           },
@@ -3264,7 +3322,7 @@ export default {
     },
 
     async selectAsanaTask(task) {
-      if (!task.gid) return;
+      if (!task.gid || this.savingAsana) return;
 
       console.log("🔄 Verknüpfe Asana-Task:", {
         taskGid: task.gid,
@@ -3338,7 +3396,7 @@ export default {
 
     // ── Flip Management Methods ──────────────────────────────────────
     async restoreFlipUser() {
-      if (!this.resolvedMa?.flip_id) return;
+      if (!this.resolvedMa?.flip_id || this.flipActionLoading) return;
       this.flipActionLoading = true;
       this.flipActionError = "";
       this.flipActionSuccess = "";
@@ -3418,6 +3476,7 @@ export default {
     },
 
     async createFlipUserForMa() {
+      if (this.flipActionLoading || !this.flipCreateOptions.location) return;
       this.flipActionLoading = true;
       this.flipActionError = "";
       this.flipActionSuccess = "";
@@ -3452,6 +3511,7 @@ export default {
     },
 
     async openFlipLinkModal() {
+      if (this.flipActionLoading || this.loadingUnlinkedUsers) return;
       this.showFlipLinkModal = true;
       this.flipLinkSearch = "";
       this.selectedFlipUser = null;
@@ -3475,7 +3535,7 @@ export default {
     },
 
     async linkFlipUser() {
-      if (!this.selectedFlipUser) return;
+      if (!this.selectedFlipUser || this.linkingFlip) return;
       this.linkingFlip = true;
       this.flipActionError = "";
       this.flipActionSuccess = "";
@@ -3591,10 +3651,10 @@ export default {
       }
       const btn = event.target.closest('button');
       if (btn) {
-        this._qaBtn = btn;
+        this.qaButton = btn;
         this._updateQaMenuStyle();
-        this._qaScrollHandler = () => this._updateQaMenuStyle();
-        window.addEventListener('scroll', this._qaScrollHandler, true);
+        this.qaScrollHandler = () => this._updateQaMenuStyle();
+        window.addEventListener('scroll', this.qaScrollHandler, true);
       }
       this.showQuickActionsMenu = true;
     },
@@ -3613,8 +3673,8 @@ export default {
     },
 
     _updateQaMenuStyle() {
-      if (!this._qaBtn) return;
-      const rect = this._qaBtn.getBoundingClientRect();
+      if (!this.qaButton) return;
+      const rect = this.qaButton.getBoundingClientRect();
       this.quickActionsMenuStyle = {
         position: 'fixed',
         top: rect.bottom + 4 + 'px',
@@ -3625,11 +3685,11 @@ export default {
     _closeQuickActions() {
       this.showQuickActionsMenu = false;
       this.showQuickSignatureMenu = false;
-      if (this._qaScrollHandler) {
-        window.removeEventListener('scroll', this._qaScrollHandler, true);
-        this._qaScrollHandler = null;
+      if (this.qaScrollHandler) {
+        window.removeEventListener('scroll', this.qaScrollHandler, true);
+        this.qaScrollHandler = null;
       }
-      this._qaBtn = null;
+      this.qaButton = null;
     },
 
     openQuickSignatureMenu(event) {
@@ -3844,7 +3904,7 @@ export default {
 
     // --- Edit Dialog Methods ---
     openEditModal() {
-      this.showEditModal = true;
+      this.openEmployeeEdit(this.resolvedMa, this.nationalitaeten);
     },
     
     closeEditModal() {
@@ -4065,22 +4125,7 @@ export default {
   }
 }
 
-.copy-inline-btn {
-  flex: none;
-  background: none;
-  border: none;
-  padding: 1px 3px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 10px;
-  border-radius: 3px;
-  transition: color 0.12s, background 0.12s;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-  }
-}
+.copy-inline-btn.app-button { --app-button-icon-size: 24px; min-height: 24px; font-size: 10px; }
 
 /* ── Dispo Section ──────────────────────────────────────────────────────────── */
 .dispo-section {
@@ -4101,24 +4146,7 @@ export default {
 
 .dispo-open-btn {
   margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 9px;
   font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.12s, border-color 0.12s, background 0.12s;
-
-  &:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
 }
 
 .einsatz-context-row {
@@ -4246,31 +4274,25 @@ export default {
 }
 
 .dispo-notiz-edit-btn {
-  background: none;
-  border: none;
-  padding: 2px 5px;
-  cursor: pointer;
-  color: var(--muted);
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   font-size: 11px;
-  border-radius: 4px;
-  transition: color 0.12s, background 0.12s;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-  }
 }
 
-.dispo-notiz-text {
+.dispo-notiz-text.app-button {
+  display: block;
+  width: 100%;
   font-size: 13px;
   color: var(--text);
   line-height: 1.5;
-  cursor: pointer;
+  font-weight: 400;
+  text-align: left;
+  white-space: pre-wrap;
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px dashed transparent;
-  transition: border-color 0.15s, background 0.15s;
-  white-space: pre-wrap;
+
+  :deep(.app-button__content) { display: block; white-space: pre-wrap; }
 
   &:hover {
     border-color: var(--border);
@@ -4296,8 +4318,14 @@ export default {
   box-sizing: border-box;
 
   &:focus {
-    outline: none;
     border-color: var(--primary);
+    outline: 2px solid var(--control-focus-ring, color-mix(in srgb, var(--primary) 42%, transparent));
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    background: var(--control-disabled-bg, var(--hover));
+    color: var(--control-disabled-text, var(--muted));
   }
 }
 
@@ -4348,21 +4376,14 @@ export default {
 
 .chronik-delete-btn {
   margin-left: auto;
-  background: none;
-  border: none;
-  padding: 2px 4px;
-  cursor: pointer;
-  color: transparent;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   font-size: 10px;
-  border-radius: 3px;
-  transition: color 0.12s;
+  color: var(--muted);
 
-  .chronik-entry:hover & {
-    color: var(--muted);
-  }
-
-  &:hover {
-    color: #dc3545 !important;
+  &:hover:not(:disabled) {
+    color: var(--status-danger-text, #c43d3d);
+    background: color-mix(in srgb, var(--status-danger-text, #c43d3d) 10%, transparent);
   }
 }
 
@@ -4398,7 +4419,7 @@ export default {
     resize: none;
   }
 
-  .btn {
+  .app-button {
     flex-shrink: 0;
     align-self: stretch;
   }
@@ -4933,6 +4954,7 @@ export default {
 
 .doc-item {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -4941,10 +4963,18 @@ export default {
   border-radius: 6px;
   transition: all 0.2s ease;
   cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
 
   &:hover {
     background: var(--hover);
     border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring, color-mix(in srgb, var(--primary) 42%, transparent));
+    outline-offset: 2px;
   }
 
   .doc-icon {
@@ -5017,53 +5047,21 @@ export default {
   position: relative;
 }
 
-.feedback-inline-item--hoverable {
-  .feedback-inline-actions {
-    display: none;
-  }
-  &:hover .feedback-inline-actions {
-    display: flex;
-  }
-}
-
-.feedback-inline-item--editing {
-  .feedback-inline-actions {
-    display: flex;
-  }
-}
-
 .feedback-inline-actions {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 4px;
   margin-left: auto;
 }
 
 .feedback-inline-action-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 2px 5px;
-  cursor: pointer;
-  color: var(--muted);
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   font-size: 10px;
-  transition: color 0.14s, background 0.14s, border-color 0.14s;
 
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  }
-
-  &--delete:hover {
-    color: #dc3545;
-    background: rgba(220, 53, 69, 0.08);
-    border-color: rgba(220, 53, 69, 0.25);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  &--delete:hover:not(:disabled) {
+    color: var(--status-danger-text, #c43d3d);
+    background: color-mix(in srgb, var(--status-danger-text, #c43d3d) 10%, transparent);
   }
 }
 
@@ -5081,9 +5079,14 @@ export default {
   box-sizing: border-box;
 
   &:focus {
-    outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+    outline: 2px solid var(--control-focus-ring, color-mix(in srgb, var(--primary) 42%, transparent));
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    background: var(--control-disabled-bg, var(--hover));
+    color: var(--control-disabled-text, var(--muted));
   }
 }
 
@@ -5091,17 +5094,6 @@ export default {
   display: flex;
   gap: 6px;
   margin-top: 6px;
-}
-
-.btn-report-small--ghost {
-  border-color: var(--border);
-  color: var(--muted);
-  background: transparent;
-
-  &:hover {
-    background: var(--soft);
-    color: var(--text);
-  }
 }
 
 .feedback-inline-header {
@@ -5139,24 +5131,11 @@ export default {
   font-style: italic;
 }
 
-.btn-report-small {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.btn-report-small.app-button {
+  min-height: 26px;
   font-size: 10px;
   padding: 2px 7px;
-  border-radius: 4px;
-  border: 1px solid var(--primary, #e07b00);
-  color: var(--primary, #e07b00);
-  background: transparent;
-  cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
-
-  &:hover {
-    background: var(--primary, #e07b00);
-    color: #fff;
-  }
 }
 
 .feedback-inline-text {
@@ -5396,24 +5375,20 @@ export default {
 
   .close-msg {
     margin-left: auto;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
+    --app-button-icon-size: 26px;
+    min-height: 26px;
     color: inherit;
-    opacity: 0.7;
-    &:hover { opacity: 1; }
   }
 
   &.error {
-    background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: color-mix(in srgb, var(--status-danger-text) 8%, var(--surface));
+    color: var(--status-danger-text);
+    border: 1px solid color-mix(in srgb, var(--status-danger-text) 20%, var(--border));
   }
   &.success {
-    background: rgba(16, 185, 129, 0.08);
-    color: #059669;
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: color-mix(in srgb, var(--status-success-text) 8%, var(--surface));
+    color: var(--status-success-text);
+    border: 1px solid color-mix(in srgb, var(--status-success-text) 20%, var(--border));
   }
 }
 
@@ -5486,20 +5461,13 @@ export default {
     min-width: 80px;
     flex-shrink: 0;
   }
-  .fc-required { color: #e07b00; }
+  .fc-required { color: var(--status-warning-text); }
 
   .fc-select, .fc-input {
     flex: 1;
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--tile-bg, var(--surface));
-    color: var(--text);
+    min-width: 0;
+    min-height: 34px;
     font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.2s;
-    &:focus { border-color: var(--primary); }
   }
 
   .fc-value-muted {
@@ -5547,19 +5515,8 @@ export default {
 
 .flip-link-search {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--tile-bg);
-  color: var(--text);
   font-size: 13px;
   margin-bottom: 8px;
-  transition: border-color 0.2s;
-
-  &:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
 }
 
 .flip-link-list {
@@ -5572,17 +5529,27 @@ export default {
 }
 
 .flip-link-item {
+  display: block;
+  width: 100%;
   padding: 8px 12px;
+  border: 0;
   cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s;
 
   &:last-child { border-bottom: none; }
-  &:hover { background: rgba(var(--primary-rgb), 0.06); }
+  &:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
   &.selected {
-    background: rgba(var(--primary-rgb), 0.12);
+    background: color-mix(in srgb, var(--primary) 12%, var(--surface));
     border-left: 3px solid var(--primary);
   }
+
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
+  &:disabled { cursor: not-allowed; opacity: 0.7; }
 
   .flip-link-name {
     font-size: 13px;
@@ -6305,18 +6272,8 @@ export default {
       font-size: 13px;
 
       .copy-btn {
-        padding: 4px;
-        border: none;
-        background: var(--surface);
-        border-radius: 4px;
-        cursor: pointer;
-        color: var(--muted);
-        transition: all 0.2s ease;
-
-        &:hover {
-          color: var(--text);
-          background: var(--border);
-        }
+        --app-button-icon-size: 28px;
+        min-height: 28px;
       }
     }
 
@@ -6363,22 +6320,7 @@ export default {
 
     .form-input {
       flex: 1;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--surface);
-      color: var(--text);
       font-size: 14px;
-      transition: border-color 0.2s ease;
-
-      &:focus {
-        outline: none;
-        border-color: var(--primary);
-      }
-
-      &::placeholder {
-        color: var(--muted);
-      }
     }
   }
 
@@ -6422,10 +6364,16 @@ export default {
 
   .search-result-item {
     display: flex;
+    width: 100%;
     justify-content: space-between;
     align-items: center;
     padding: 12px;
+    border: 0;
     cursor: pointer;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
     transition: all 0.2s ease;
     border-bottom: 1px solid var(--border);
     position: relative;
@@ -6434,23 +6382,26 @@ export default {
       border-bottom: none;
     }
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: var(--soft);
     }
+
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
+    &:disabled { cursor: not-allowed; opacity: 0.7; }
 
     &.featured-task {
       background: linear-gradient(
         135deg,
-        rgba(16, 185, 129, 0.08) 0%,
-        rgba(16, 185, 129, 0.04) 100%
+        color-mix(in srgb, var(--status-success-text) 8%, var(--surface)) 0%,
+        color-mix(in srgb, var(--status-success-text) 4%, var(--surface)) 100%
       );
-      border-left: 3px solid #10b981;
+      border-left: 3px solid var(--status-success-text);
 
-      &:hover {
+      &:hover:not(:disabled) {
         background: linear-gradient(
           135deg,
-          rgba(16, 185, 129, 0.12) 0%,
-          rgba(16, 185, 129, 0.06) 100%
+          color-mix(in srgb, var(--status-success-text) 12%, var(--surface)) 0%,
+          color-mix(in srgb, var(--status-success-text) 6%, var(--surface)) 100%
         );
       }
     }
@@ -6486,7 +6437,7 @@ export default {
 
     .project-tag {
       background: var(--primary);
-      color: white;
+      color: var(--on-action-primary, var(--primary-contrast, #2a2118));
       padding: 2px 6px;
       border-radius: 10px;
       font-size: 10px;
@@ -6499,7 +6450,7 @@ export default {
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      color: #059669;
+      color: var(--status-success-text);
       margin-top: 4px;
       font-weight: 500;
 
@@ -6518,12 +6469,12 @@ export default {
       text-transform: uppercase;
 
       &.active {
-        background: #e8fbf3;
-        color: #1f8e5d;
+        background: color-mix(in srgb, var(--status-success-text) 12%, var(--surface));
+        color: var(--status-success-text);
       }
 
       &.completed {
-        background: #f1f3f6;
+        background: var(--soft);
         color: var(--muted);
       }
     }
@@ -6744,19 +6695,9 @@ export default {
 }
 
 .dispo-cal-nav-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
   font-size: 10px;
-  transition: color 0.15s, background 0.15s;
-  &:hover { color: var(--text); background: var(--hover); }
 }
 
 .dispo-cal-grid {
@@ -6956,10 +6897,12 @@ export default {
   padding: 8px 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: color-mix(in srgb, #f59e0b 75%, var(--text));
-  background: color-mix(in srgb, #f59e0b 12%, transparent);
-  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--status-warning-text) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--status-warning-text) 35%, var(--border));
   border-radius: 8px;
+
+  > svg { color: var(--status-warning, var(--status-warning-text)); }
 
   code {
     font-family: 'SF Mono', Monaco, Consolas, monospace;
@@ -6998,9 +6941,14 @@ export default {
   overflow-x: auto;
 
   &:focus {
-    outline: none;
-    border-color: #8b5cf6;
-    box-shadow: 0 0 0 3px color-mix(in srgb, #8b5cf6 20%, transparent);
+    border-color: var(--primary);
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    background: var(--control-disabled-bg, var(--hover));
+    color: var(--control-disabled-text, var(--muted));
   }
 }
 
@@ -7014,11 +6962,11 @@ export default {
 }
 
 .raw-error {
-  color: #dc2626;
+  color: var(--status-danger-text);
 }
 
 .raw-success {
-  color: #059669;
+  color: var(--status-success-text);
 }
 
 /* Quick Actions Overlay + Menu (teleported to body, so not scoped) */
@@ -7375,6 +7323,12 @@ export default {
   display: none;
 }
 
+.employee-tabs-shell .card-actions .tooltip-container,
+.employee-tabs-shell .card-actions .tooltip-trigger {
+  display: flex;
+  align-self: stretch;
+}
+
 .employee-tabs-shell .card-actions .icon-btn {
   width: auto;
   min-width: max-content;
@@ -7396,7 +7350,7 @@ export default {
   flex-shrink: 0;
 }
 
-.employee-tabs-shell .card-actions .icon-btn > svg {
+.employee-tabs-shell .card-actions .icon-btn .app-button__content > svg {
   display: block;
   width: 18px;
   height: 18px;
@@ -7410,7 +7364,7 @@ export default {
 }
 
 .employee-tabs-shell .card-actions .icon-btn.active {
-  color: var(--accent, var(--primary));
+  color: var(--action-accent-text, var(--text));
   background: transparent;
   border-bottom-color: var(--accent, var(--primary));
   border-radius: 0;
@@ -7534,22 +7488,7 @@ export default {
 .employee-tabs-shell .steckbrief-edit-button {
   grid-column: 1 / -1;
   justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
   font-size: 12px;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
 }
 
 .stammdaten-section,
@@ -7637,7 +7576,7 @@ export default {
 }
 
 .arbeitsverhaeltnis-grid .iban-missing {
-  color: #dc2626;
+  color: var(--status-danger-text);
 }
 
 .stammdaten-address {
@@ -7658,20 +7597,9 @@ export default {
   gap: 4px;
 }
 
-.stammdaten-edit-btn,
-.stammdaten-save-btn,
-.stammdaten-cancel-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
+.stammdaten-edit-btn.app-button,
+.stammdaten-save-btn.app-button,
+.stammdaten-cancel-btn.app-button { --app-button-icon-size: 24px; min-height: 24px; font-size: 10px; }
 
 .stammdaten-edit-btn {
   opacity: 0;
@@ -7683,15 +7611,8 @@ export default {
   opacity: 1;
 }
 
-.stammdaten-edit-btn:hover,
-.stammdaten-save-btn:hover {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-}
-
-.stammdaten-cancel-btn:hover {
-  color: #c73b3b;
-  background: color-mix(in srgb, #c73b3b 12%, transparent);
+@media (hover: none) {
+  .stammdaten-edit-btn { opacity: 1; }
 }
 
 .stammdaten-inline-editor {
@@ -7700,17 +7621,8 @@ export default {
   gap: 4px;
 }
 
-.stammdaten-inline-editor input,
-.stammdaten-inline-editor select {
-  min-width: 0;
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
+.stammdaten-inline-editor .app-text-input,
+.stammdaten-inline-editor .app-select { min-height: 30px; padding: 4px 6px; font-size: 12px; }
 
 .stammdaten-edit-actions {
   display: inline-flex;

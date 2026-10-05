@@ -31,6 +31,17 @@ The package supports two complementary modes:
 
 Both modes appear in the same `MinimizedDock`.
 
+Straight Monitor uses hosted modals only. Every dockable window is registered
+through `useDockedModals().open(...)`, with one `DockedModalHost` in `App.vue`
+outside the router and a `MinimizedModalDock` for hosted records. Pages request
+opening windows but do not render them or remove them when navigating away.
+The region API remains available for other consumers and compatibility.
+
+Pinia preserves application state, not component instances. The app-level host
+and `KeepAlive` preserve a modal's local state across navigation and minimization.
+Browser refresh is separate: only records with an application-supported
+`persistence` descriptor can be recreated after reload.
+
 ## Foundation usage
 
 ```ts
@@ -58,10 +69,25 @@ createApp(App)
 Mount the persistent host and dock once, outside route-owned content:
 
 ```vue
+<script setup>
+import { computed } from 'vue'
+import {
+  DockedModalHost,
+  MinimizedModalDock,
+  createModalDockThemeStyle,
+  useModalDockOptions,
+} from '@bleck-it/vue-modal-dock'
+
+const options = useModalDockOptions()
+const themeStyle = computed(() => createModalDockThemeStyle(options.theme))
+</script>
+
 <template>
   <RouterView />
   <DockedModalHost />
-  <MinimizedDock />
+  <div class="vmd-workspace vmd-headless-workspace" :style="themeStyle">
+    <MinimizedModalDock />
+  </div>
 </template>
 ```
 
@@ -116,6 +142,38 @@ and route navigation. The hosted component's visible DOM must remain in its
 logical component tree while dock-managed. If its frame normally Teleports to
 `body`, disable that internal Teleport while hosted; a parent cannot hide a
 child-owned Teleport target automatically.
+
+## Titles, close requests, and icons
+
+Use `modals.updateTitle(id, title)` to change a title without restoring a
+minimized window or changing its order. Calling `open()` again intentionally
+restores the existing window and updates its props.
+
+The dock calls `modals.requestClose(id)`. Without a handler this removes the
+record. A hosted form can register its existing close-confirmation flow:
+
+```ts
+import { onBeforeUnmount } from 'vue'
+import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock'
+
+const modal = useCurrentDockedModal()
+const unregister = modal?.setCloseHandler(requestFormClose)
+onBeforeUnmount(() => unregister?.())
+```
+
+When a handler exists, a close request restores the window so it can show its
+confirmation, then calls the handler. `requestClose()` returns whether the
+record was removed synchronously, not whether the user will confirm later.
+After confirmation, use `remove()` for unconditional removal; do not call
+`requestClose()` again. Minimization and navigation must not trigger removal.
+Straight Monitor's `ModalFrame` registers this handler for hosted windows.
+
+`ModalDefinition.icon` is an optional application-defined string, not an icon
+library dependency. `MinimizedModalDock` exposes an `icon` slot with `icon`,
+`id`, and `title`; render the application's SVG there. The default is a window
+outline. Straight Monitor resolves its keys to existing FontAwesome SVGs.
+Each item sizes to its content with a maximum width and title ellipsis, rather
+than reserving the same horizontal space for every title.
 
 ## Page-local regions
 

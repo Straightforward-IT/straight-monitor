@@ -19,7 +19,7 @@ function restore(id: string, title: string): void {
 
 async function remove(id: string, title: string): Promise<void> {
   const index = minimizedModals.value.findIndex(modal => modal.id === id)
-  if (!manager.remove(id)) return
+  if (!manager.requestClose(id)) return
 
   announcement.value = `${title} closed.`
   await nextTick()
@@ -51,9 +51,13 @@ async function remove(id: string, title: string): Promise<void> {
             :title="`Restore ${modal.title}`"
             @click="restore(modal.id, modal.title)"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="4" y="5" width="16" height="14" rx="2" />
-            </svg>
+            <span class="vmd-dock__icon" aria-hidden="true">
+              <slot name="icon" :icon="modal.icon" :id="modal.id" :title="modal.title">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="5" width="16" height="14" rx="2" />
+                </svg>
+              </slot>
+            </span>
             <span>{{ modal.title }}</span>
           </button>
           <button

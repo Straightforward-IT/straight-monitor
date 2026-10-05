@@ -37,6 +37,7 @@ const emptyContext = () => ({
 export const useSignaturModal = defineStore('signaturModal', {
   state: () => ({
     open: false,
+    requestVersion: 0,
     context: emptyContext(),
     _onCreated: null,
   }),
@@ -50,6 +51,7 @@ export const useSignaturModal = defineStore('signaturModal', {
     openModal(contextOverrides = {}, onCreated = null) {
       this.context = { ...emptyContext(), ...contextOverrides };
       this._onCreated = typeof onCreated === 'function' ? onCreated : null;
+      this.requestVersion += 1;
       this.open = true;
     },
 

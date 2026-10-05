@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils';
 import { createPinia } from 'pinia';
+import { createModalDock, DockedModalHost, MinimizedModalDock, useDockedModals } from '@bleck-it/vue-modal-dock';
+import { defineComponent, h, nextTick } from 'vue';
+import { createRouter, createMemoryHistory, RouterView } from 'vue-router';
+import { useSignatureModalHost } from '@/composables/useSignatureModalHost';
 import SignaturNeuModal from '../src/components/Modals/SignaturNeuModal.vue';
 import SignaturTypAnlegenModal from '../src/components/SignaturTypAnlegenModal.vue';
 import ModalFrame from '../src/components/frames/ModalFrame.vue';
@@ -8,6 +12,7 @@ import { useSignaturModal } from '../src/stores/signaturModal';
 import { useSignaturBuilder } from '../src/stores/signaturBuilder';
 
 const mocks = vi.hoisted(() => ({
+  openSigning: vi.fn(),
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() },
   auth: { user: { roles: ['ADMIN'], locationV2: 'hh' } },
   cache: { kunden: [{ _id: 'kunde', kuerzel: 'ACME', kundName: 'Acme' }], mitarbeiter: [], loadKunden: vi.fn(), loadMitarbeiter: vi.fn() },
@@ -16,6 +21,7 @@ vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => mocks.cache }));
 vi.mock('@/utils/htmlToPdfService', () => ({ exportElementToPdf: vi.fn() }));
+vi.mock('@/composables/useSigningModals', () => ({ useSigningModals: () => ({ openSigning: mocks.openSigning }) }));
 
 const typ = { _id: 'typ', key: 'vereinbarung', label: 'Vereinbarung', linkedTo: 'Both' };
 const templates = [{ id: 42, name: 'Vertrag', defaultTypId: 'typ', submitters: [{ name: 'Partei' }] }];
@@ -23,6 +29,8 @@ const signer = { role: 'Partei', name: 'Erika', email: 'erika@example.com', embe
 let wrapper;
 let store;
 let pinia;
+let dock;
+let router;
 const stubs = {
   'font-awesome-icon': true,
   CustomTooltip: { template: '<div><slot /></div>' },
@@ -64,7 +72,17 @@ afterEach(() => {
   vi.useRealTimers();
 });
 async function render(context = {}, callback = null) {
-  wrapper = mount(SignaturNeuModal, { attachTo: document.body, global: { plugins: [pinia], stubs } });
+  router = createRouter({ history: createMemoryHistory(), routes: [
+    { path: '/', component: { template: '<p>First page</p>' } },
+    { path: '/other', component: { template: '<p>Other page</p>' } },
+  ] });
+  await router.push('/');
+  const Root = defineComponent({ setup() {
+    dock = useDockedModals();
+    useSignatureModalHost();
+    return () => h('div', [h(RouterView), h(DockedModalHost), h(MinimizedModalDock)]);
+  } });
+  wrapper = mount(Root, { attachTo: document.body, global: { plugins: [pinia, router, createModalDock()], stubs } });
   store = useSignaturModal(pinia);
   store.openModal(context, callback);
   await flushPromises();
@@ -75,6 +93,31 @@ async function renderType() {
 }
 
 describe('signature wizard shared-control migration', () => {
+  it('preserves the same wizard and draft across navigation and guarded dock close', async () => {
+    await render({ name: 'Vertrag', typKey: 'vereinbarung' });
+    const wizard = wrapper.getComponent(SignaturNeuModal).vm.$.uid;
+    const nameInput = dialog().get('#sig-name').element;
+    await dialog().get('#sig-name').setValue('Unfertiger Vertrag');
+    dock.minimize('signature-new');
+    await nextTick();
+    await router.push('/other');
+    await flushPromises();
+    expect(dock.get('signature-new').status).toBe('minimized');
+    expect(dock.get('signature-new').title).toBe('Unfertiger Vertrag');
+    await wrapper.get('[aria-label="Restore Unfertiger Vertrag"]').trigger('click');
+    expect(wrapper.getComponent(SignaturNeuModal).vm.$.uid).toBe(wizard);
+    expect(dialog().get('#sig-name').element).toBe(nameInput);
+    expect(dialog().get('#sig-name').element.value).toBe('Unfertiger Vertrag');
+    dock.minimize('signature-new');
+    await nextTick();
+    await wrapper.get('[aria-label="Close Unfertiger Vertrag"]').trigger('click');
+    expect(dock.get('signature-new')).toBeDefined();
+    expect(dialog().find('.sig-close-confirm').exists()).toBe(true);
+    await byText(dialog(), 'Verwerfen').trigger('click');
+    expect(dock.get('signature-new')).toBeUndefined();
+    expect(store.open).toBe(false);
+  });
+
   it('keeps prerequisite gates and skips disallowed link modes during keyboard selection', async () => {
     await render();
     const modal = dialog();
@@ -132,7 +175,7 @@ describe('signature wizard shared-control migration', () => {
     await flushPromises();
     expect(callback).toHaveBeenCalledWith(response);
     expect(store.open).toBe(false);
-    expect(wrapper.getComponent(stubs.DocuSealSigningModal).props('signers')).toEqual([expect.objectContaining({ src: 'https://example.com/sign', name: 'Erika' })]);
+    expect(mocks.openSigning).toHaveBeenCalledWith(expect.objectContaining({ signers: [expect.objectContaining({ src: 'https://example.com/sign', name: 'Erika' })] }));
   });
 
   it('retains an existing draft on submit failure and retries via PATCH with submit true', async () => {
@@ -157,12 +200,12 @@ describe('signature wizard shared-control migration', () => {
     await render({ draftId: 'draft', draftData: data }, callback);
     await dialog().get('#sig-name').setValue('Überarbeiteter Entwurf');
     mocks.api.patch.mockRejectedValueOnce({ response: { data: { message: 'Entwurf konnte nicht gespeichert werden' } } });
-    await byText(footer(), 'Änderungen speichern').trigger('click');
+    await byText(footer(), 'Entwurf speichern').trigger('click');
     await flushPromises();
     expect(store.open).toBe(true);
     expect(footer().text()).toContain('Entwurf konnte nicht gespeichert werden');
     mocks.api.patch.mockResolvedValueOnce({ data: { name: 'Überarbeiteter Entwurf' } });
-    const save = byText(footer(), 'Änderungen speichern');
+    const save = byText(footer(), 'Entwurf speichern');
     save.element.click();
     save.element.click();
     await flushPromises();

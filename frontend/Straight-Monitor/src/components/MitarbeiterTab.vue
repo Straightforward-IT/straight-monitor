@@ -98,7 +98,7 @@
                 >
                   Alle {{ filteredMitarbeitersSorted.length }} auswählen
                 </AppButton>
-                <AppButton size="sm" @click="showExportModal = true">
+                <AppButton size="sm" @click="openExport({ mitarbeiterList: selectedMitarbeiterData })">
                   <font-awesome-icon icon="fa-solid fa-table" />
                   Exportieren
                 </AppButton>
@@ -425,11 +425,6 @@
     </div>
     
     <!-- Export Modal -->
-    <ExportMitarbeiterModal
-      v-if="showExportModal"
-      :mitarbeiter-list="selectedMitarbeiterData"
-      @close="showExportModal = false"
-    />
 
     <EmployeeCardModal
       :mitarbeiter-id="profileModalEmployeeId"
@@ -456,7 +451,7 @@ import FilterGroup from "@/components/FilterGroup.vue";
 import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
-import ExportMitarbeiterModal from "@/components/ExportMitarbeiterModal.vue";
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import ImageCropModal from "@/components/ImageCropModal.vue";
 import MitarbeiterSearch from "@/components/ui-elements/MitarbeiterSearch.vue";
@@ -557,15 +552,16 @@ library.add(
 
 export default {
   name: "MitarbeiterTab",
-  components: { FontAwesomeIcon, EmployeeCard, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, ExportMitarbeiterModal, EmployeeCardModal, ImageCropModal, MitarbeiterSearch, Toolbar, SortMenu, ToolbarPageControls, AppButton },
+  components: { FontAwesomeIcon, EmployeeCard, FilterGroup, FilterChip, FilterDivider, ToolbarFilter, EmployeeCardModal, ImageCropModal, MitarbeiterSearch, Toolbar, SortMenu, ToolbarPageControls, AppButton },
 
   // Pinia-Store sauber einbinden (Options API + setup)
   setup() {
+    const { openExport } = useAdditionalModals();
     const flip = useFlipAll();
     const dataCache = useDataCache();
     const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
     
-    return { flip, dataCache, formatEmployeeName };
+    return { flip, dataCache, formatEmployeeName, openExport };
   },
 
   data() {

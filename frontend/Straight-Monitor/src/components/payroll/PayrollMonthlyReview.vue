@@ -8,14 +8,14 @@
     <ul v-if="state.inheritedChanges?.length"><li v-for="change in state.inheritedChanges" :key="change.id">Fortlaufende Fehlzeit {{ change.after?.code || change.before?.code }} · {{ change.after?.startDate || change.before?.startDate }}<details><summary>Geänderter Zeitraum und Tagesmengen</summary><pre>{{ JSON.stringify({ vorher: change.before, aktuell: change.after }, null, 2) }}</pre></details></li></ul>
     <p>Zeitkonto nicht verfügbar · AZK-Vorschläge sind nicht gegen einen LODAS-Kontostand geprüft.</p>
     <div v-if="state.canReview" class="actions">
-      <button v-if="state.state === 'DRAFT'" type="button" :disabled="busy || dirty || state.stale || !state.revision || !reason.trim()" @click="$emit('action', 'finalize')">Monat intern abschließen</button>
-      <button v-else type="button" :disabled="busy || !reason.trim()" @click="$emit('action', 'reopen')">Neue Entwurfsrevision öffnen</button>
-      <button type="button" :disabled="busy || mappingDirty" @click="$emit('loadMapping')">LODAS-Zuordnungen bearbeiten</button>
+      <AppButton v-if="state.state === 'DRAFT'" size="sm" :disabled="busy || dirty || state.stale || !state.revision || !reason.trim()" @click="$emit('action', 'finalize')">Monat intern abschließen</AppButton>
+      <AppButton v-else size="sm" :disabled="busy || !reason.trim()" @click="$emit('action', 'reopen')">Neue Entwurfsrevision öffnen</AppButton>
+      <AppButton size="sm" variant="secondary" :disabled="busy || mappingDirty" @click="$emit('loadMapping')">LODAS-Zuordnungen bearbeiten</AppButton>
     </div>
     <p v-else>Der Monatsabschluss erfolgt durch PAYROLL oder ADMIN.</p>
     <h3>Prüfhistorie</h3>
     <p v-if="!state.snapshots.length">Noch kein geprüfter Snapshot.</p>
-    <ul><li v-for="snapshot in state.snapshots" :key="snapshot._id">Revision {{ snapshot.revision }} · {{ new Date(snapshot.reviewedAt).toLocaleString('de-DE') }} <button v-if="state.canReview" type="button" :disabled="busy" @click="$emit('preview', snapshot._id)">LODAS-Vorschau</button></li></ul>
+    <ul><li v-for="snapshot in state.snapshots" :key="snapshot._id">Revision {{ snapshot.revision }} · {{ new Date(snapshot.reviewedAt).toLocaleString('de-DE') }} <AppButton v-if="state.canReview" size="sm" variant="outlined" :disabled="busy" @click="$emit('preview', snapshot._id)">LODAS-Vorschau</AppButton></li></ul>
     <template v-if="preview">
       <h3>Offline-Vorschau · Snapshot {{ preview.contentHash.slice(0, 12) }}</h3>
       <p>{{ preview.mappingComplete ? 'DATEV-Zuordnungen vollständig' : 'DATEV-Zuordnungen unvollständig' }} · Mapping-Version {{ preview.mappingVersion }} · Keine Übertragung</p>
@@ -30,25 +30,27 @@
       <h3>LODAS-Zuordnungen · Version {{ mapping.version }}</h3>
       <p>Werte aus dem zukünftigen LODAS-Mandanten. Zvoove-Nummern werden nicht automatisch übernommen. Unterstützte Mengeneinheiten: Stunden oder Minuten.</p>
       <fieldset :disabled="busy">
-        <label>Beraternummer-Mandantennummer<input v-model="config.clientId" placeholder="Noch nicht eingerichtet"></label>
-        <label>LODAS-Personalnummer<input v-model.number="config.personnelNumber" type="number" min="1" max="99999" @change="config.personnelNumber === '' && (config.personnelNumber = null)"></label>
+        <label>Beraternummer-Mandantennummer<AppTextInput v-model="config.clientId" placeholder="Noch nicht eingerichtet" /></label>
+        <label>LODAS-Personalnummer<AppTextInput v-model.number="config.personnelNumber" type="number" min="1" max="99999" @change="config.personnelNumber === '' && (config.personnelNumber = null)" /></label>
         <div v-for="(rule, index) in config.rules" :key="index" class="rule">
-          <label>Quellcode<input v-model="rule.code" list="payroll-mapping-codes"></label>
-          <label>Übermittlung<select v-model="rule.mode"><option value="QUANTITY">Monatsmenge</option><option value="ABSENCE">Fehlzeitzeitraum</option><option value="BOTH">Zeitraum und Menge</option><option value="EXCLUDE">Bewusst ausschließen</option></select></label>
+          <label>Quellcode<AppTextInput v-model="rule.code" list="payroll-mapping-codes" /></label>
+          <label>Übermittlung<AppSelect v-model="rule.mode"><option value="QUANTITY">Monatsmenge</option><option value="ABSENCE">Fehlzeitzeitraum</option><option value="BOTH">Zeitraum und Menge</option><option value="EXCLUDE">Bewusst ausschließen</option></AppSelect></label>
           <template v-if="['QUANTITY', 'BOTH'].includes(rule.mode)">
-            <label>Lohnart<input v-model.number="rule.salaryTypeId" type="number" min="1" max="9999"></label>
-            <label>Verarbeitungsschlüssel<input v-model.number="rule.processingCode" type="number"></label>
-            <label>Einheit<select v-model="rule.unit"><option value="HOURS">Stunden</option><option value="MINUTES">Minuten</option></select></label>
-            <label>Vorzeichen<select v-model.number="rule.sign"><option :value="1">Positiv</option><option :value="-1">Negativ</option></select></label>
-            <label>Kostenstelle (optional)<input v-model="rule.costCenterId" maxlength="13"></label>
+            <label>Lohnart<AppTextInput v-model.number="rule.salaryTypeId" type="number" min="1" max="9999" /></label>
+            <label>Verarbeitungsschlüssel<AppTextInput v-model.number="rule.processingCode" type="number" /></label>
+            <label>Einheit<AppSelect v-model="rule.unit"><option value="HOURS">Stunden</option><option value="MINUTES">Minuten</option></AppSelect></label>
+            <label>Vorzeichen<AppSelect v-model.number="rule.sign"><option :value="1">Positiv</option><option :value="-1">Negativ</option></AppSelect></label>
+            <label>Kostenstelle (optional)<AppTextInput v-model="rule.costCenterId" maxlength="13" /></label>
           </template>
-          <label v-if="['ABSENCE', 'BOTH'].includes(rule.mode)">LODAS-Fehlzeitgrund<input v-model.number="rule.absenceReason" type="number"></label>
-          <label v-if="rule.mode === 'EXCLUDE'">Begründung<input v-model="rule.reason"></label>
-          <button type="button" @click="config.rules.splice(index, 1)">Zuordnung entfernen</button>
+          <label v-if="['ABSENCE', 'BOTH'].includes(rule.mode)">LODAS-Fehlzeitgrund<AppTextInput v-model.number="rule.absenceReason" type="number" /></label>
+          <label v-if="rule.mode === 'EXCLUDE'">Begründung<AppTextInput v-model="rule.reason" /></label>
+          <AppButton size="sm" variant="outlined" @click="config.rules.splice(index, 1)">Zuordnung entfernen</AppButton>
         </div>
         <datalist id="payroll-mapping-codes"><option v-for="code in codes" :key="code" :value="code" /></datalist>
-        <button type="button" @click="addRule">Zuordnung hinzufügen</button>
-        <button type="button" :disabled="!mappingDirty" @click="$emit('saveMapping', cleanConfig())">Neue Mapping-Version speichern</button>
+        <div class="monthly-review__mapping-actions">
+          <AppButton size="sm" variant="secondary" @click="addRule">Zuordnung hinzufügen</AppButton>
+          <AppButton size="sm" :disabled="!mappingDirty" @click="$emit('saveMapping', cleanConfig())">Neue Mapping-Version speichern</AppButton>
+        </div>
       </fieldset>
     </section>
     <details><summary>Bearbeitungsverlauf</summary><ul><li v-for="entry in state.history" :key="entry.revision">{{ entry.revision }} · {{ entry.action }} · {{ entry.reason }} · {{ new Date(entry.at).toLocaleString('de-DE') }}</li></ul></details>
@@ -57,6 +59,9 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import { formatMinutes } from '@/utils/timeManagement';
 const props = defineProps({ state: { type: Object, required: true }, preview: { type: Object, default: null }, mapping: { type: Object, default: null }, busy: Boolean, dirty: Boolean, reason: { type: String, default: '' }, codes: { type: Array, default: () => [] } });
 const emit = defineEmits(['action', 'preview', 'loadMapping', 'saveMapping', 'mappingDirty']);
@@ -81,8 +86,8 @@ function cleanConfig() {
 <style scoped>
 .monthly-review { padding: 16px; } h2 { font-size: 18px; } h3 { font-size: 15px; margin-top: 24px; }
 dl { display: grid; grid-template-columns: minmax(170px, 320px) auto; gap: 8px; } dd { margin: 0; font-variant-numeric: tabular-nums; }
-fieldset { border: 0; padding: 0; } label { display: grid; gap: 4px; margin: 8px 0; font-size: 13px; } input, select, button { padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); }
-button { margin: 4px; cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
-.rule { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; padding: 10px; margin-block: 8px; border: 1px solid var(--border); } .rule input { width: 160px; }
+fieldset { border: 0; padding: 0; } label { display: grid; gap: 4px; margin: 8px 0; font-size: 13px; }
+.actions, .monthly-review__mapping-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rule { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; padding: 10px; margin-block: 8px; border: 1px solid var(--border); } .rule .app-text-input { width: 160px; } .rule .app-button { margin-bottom: 8px; }
 table { width: 100%; text-align: left; font-size: 13px; } td, th { padding: 8px; overflow-wrap: anywhere; } pre { white-space: pre-wrap; overflow-wrap: anywhere; } [role=alert] { color: var(--danger, #c54a38); }
 </style>

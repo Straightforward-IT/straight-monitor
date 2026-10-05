@@ -31,24 +31,45 @@
 
   <!-- Package-owned, visually headless host: modal instances survive route changes. -->
   <DockedModalHost />
-  <MinimizedDock />
+  <div class="vmd-workspace vmd-headless-workspace" :style="dockThemeStyle">
+    <MinimizedModalDock>
+      <template #icon="{ icon }">
+        <template v-if="dockIcons[icon]">
+          <font-awesome-icon :icon="['fas', dockIcons[icon]]" />
+          <font-awesome-icon v-if="icon === 'package-editor'" :icon="['fas', 'pen']" class="vmd-dock__icon-overlay" />
+        </template>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+        </svg>
+      </template>
+    </MinimizedModalDock>
+  </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { getTheme, initFlipBridge, subscribe, BridgeEventType } from "@getflip/bridge";
-import { useDockedModals } from "@bleck-it/vue-modal-dock";
+import { useDockedModals, MinimizedModalDock, useModalDockOptions, createModalDockThemeStyle } from "@bleck-it/vue-modal-dock";
 import { useTheme } from "@/stores/theme";
 import { useDataCache } from "@/stores/dataCache";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
 import DocumentCard from "@/components/Modals/DocumentCard.vue";
+import { useSignatureModalHost } from '@/composables/useSignatureModalHost';
 const NOTIF_STORAGE_KEY = "notif_prompted_v1";
 const MINIMIZED_MODAL_STORAGE_KEY = "straight-monitor:minimized-modals:v1";
 
 const route = useRoute();
 const themeStore = useTheme();
 const dockedModals = useDockedModals();
+const dockOptions = useModalDockOptions();
+const dockThemeStyle = computed(() => createModalDockThemeStyle(dockOptions.theme));
+const dockIcons = {
+  employee: 'user', customer: 'building', document: 'file-lines', 'document-preview': 'file-lines',
+  event: 'user-tie', package: 'box-open', 'package-editor': 'box-open',
+  'travel-expense': 'signature', signature: 'signature', 'time-capture': 'clock',
+};
+useSignatureModalHost();
 const isFlipCreate = computed(() => route.name === "BenutzerErstellen");
 const isPublicEinsaetze = computed(() => route.name === "PublicEinsaetze");
 const isCapacityCounter = computed(() => route.name === "CapacityCounter");
@@ -71,6 +92,7 @@ function restoreMinimizedModal({ id, title, persistence }) {
       id,
       title,
       component: EmployeeCardModal,
+      icon: 'employee',
       persistence,
       props: {
         mitarbeiterId,
@@ -85,6 +107,7 @@ function restoreMinimizedModal({ id, title, persistence }) {
       id,
       title,
       component: DocumentCard,
+      icon: 'document',
       persistence,
       props: {
         doc: document,

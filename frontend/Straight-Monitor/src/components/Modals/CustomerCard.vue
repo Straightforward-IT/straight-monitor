@@ -984,12 +984,6 @@
     />
 
     <!-- Kontakt Anlegen Modal -->
-    <KontaktAnlegenModal
-      v-if="showKontaktAnlegenModal"
-      :prefilledCompanyName="kunde.kuerzel || ''"
-      @close="showKontaktAnlegenModal = false"
-      @created="onKontaktAngelegt"
-    />
     <AdresseFormModal
       v-if="showAdresseFormModal"
       :kunden-nr="kunde.kundenNr"
@@ -1073,7 +1067,7 @@ import KundenAnalyticsEmbed from '@/components/KundenAnalyticsEmbed.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import AdresseFormModal from '@/components/Modals/AdresseFormModal.vue';
 import EinsatzortFormModal from '@/components/Modals/EinsatzortFormModal.vue';
-import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
 import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
@@ -2237,6 +2231,12 @@ async function loadTopMa() {
 onMounted(loadTopMa);
 const selectedContactCard = ref(null);
 const showKontaktAnlegenModal = ref(false);
+const { openContact } = useAdditionalModals();
+watch(showKontaktAnlegenModal, open => {
+  if (!open) return;
+  showKontaktAnlegenModal.value = false;
+  openContact({ prefilledCompanyName: props.kunde.kuerzel || '' }, onKontaktAngelegt);
+});
 
 function onKontaktAngelegt(contact) {
   showKontaktAnlegenModal.value = false;

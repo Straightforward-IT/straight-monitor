@@ -26,6 +26,7 @@ export function useDocumentPreviewModals() {
       id,
       title: filename,
       component: DocumentPreviewModal,
+      icon: 'document-preview',
       props: {
         url: document.url,
         resolveUrl: document.resolveUrl,
@@ -33,7 +34,7 @@ export function useDocumentPreviewModals() {
         mimeType: document.mimeType,
         filename,
         modelValue: true,
-        minimizable: true,
+        minimizable: options.minimizable ?? true,
         minimizeId: id,
         'onUpdate:modelValue': open => { if (!open) dockedModals.remove(id); },
       },

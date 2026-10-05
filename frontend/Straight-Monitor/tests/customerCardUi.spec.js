@@ -14,6 +14,7 @@ vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => mocks.cache }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('@/stores/theme', () => ({ useTheme: () => mocks.theme }));
+vi.mock('@/composables/useAdditionalModals', () => ({ useAdditionalModals: () => ({ openContact: vi.fn() }) }));
 vi.mock('vue-router', async importOriginal => ({ ...(await importOriginal()), useRouter: () => mocks.router }));
 vi.mock('@bleck-it/vue-modal-dock', async importOriginal => ({
   ...(await importOriginal()),

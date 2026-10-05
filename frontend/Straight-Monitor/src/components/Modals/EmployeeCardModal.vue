@@ -66,6 +66,7 @@ const EmployeeCardModal = {
         id,
         title: "Mitarbeiterprofil",
         component: EmployeeCardModal,
+        icon: 'employee',
         props: {
           mitarbeiterId: this.mitarbeiterId,
           hosted: true,
@@ -97,13 +98,7 @@ const EmployeeCardModal = {
       const modal = this.dockedModals.get(id);
       if (!modal || modal.title === fullName) return;
 
-      this.dockedModals.open({
-        id,
-        title: fullName,
-        component: EmployeeCardModal,
-        props: modal.props,
-        persistence: modal.persistence,
-      });
+      this.dockedModals.updateTitle(id, fullName);
     },
   },
 };

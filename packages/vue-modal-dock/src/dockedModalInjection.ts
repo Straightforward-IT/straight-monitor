@@ -12,6 +12,7 @@ export interface DockedModalContext {
   minimize(): boolean
   restore(): boolean
   remove(): boolean
+  setCloseHandler(handler: () => void): () => void
 }
 
 export const dockedModalInjectionKey: InjectionKey<DockedModalContext> = Symbol(

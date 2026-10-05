@@ -15,6 +15,8 @@ import '@bleck-it/vue-modal-dock/style.css';
 // FontAwesome Core
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { faSignature } from '@fortawesome/free-solid-svg-icons';
+library.add(faSignature);
 
 // FontAwesome Brands
 import { faMicrosoft } from '@fortawesome/free-brands-svg-icons';

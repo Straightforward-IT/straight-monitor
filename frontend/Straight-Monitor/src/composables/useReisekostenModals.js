@@ -22,6 +22,7 @@ export function useReisekostenModals() {
       id,
       title,
       component: ReisekostenModal,
+      icon: 'travel-expense',
       props: {
         modelValue: true,
         auftragNr,

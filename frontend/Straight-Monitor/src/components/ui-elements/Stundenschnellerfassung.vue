@@ -158,53 +158,57 @@
                       <CustomTooltip
                         :text="`Soll-Zeiten übernehmen – ${row.name}`"
                       >
-                        <button
-                          type="button"
+                        <AppIconButton
+                          size="sm"
+                          variant="ghost"
                           :disabled="row.locked || !row.planned.start || !row.planned.end"
-                          :aria-label="`Soll-Zeiten übernehmen – ${row.name}`"
+                          :label="`Soll-Zeiten übernehmen – ${row.name}`"
                           @click="usePlanned([row])"
                         >
                           <FontAwesomeIcon :icon="faClock" />
-                        </button>
+                        </AppIconButton>
                       </CustomTooltip>
                       <CustomTooltip
                         :text="`Zurücksetzen – ${row.name}`"
                       >
-                        <button
-                          type="button"
+                        <AppIconButton
+                          size="sm"
+                          variant="ghost"
                           :disabled="row.locked || !row.dirty"
-                          :aria-label="`Zurücksetzen – ${row.name}`"
+                          :label="`Zurücksetzen – ${row.name}`"
                           @click="resetRows([row])"
                         >
                           <FontAwesomeIcon :icon="faArrowRotateLeft" />
-                        </button>
+                        </AppIconButton>
                       </CustomTooltip>
                       <CustomTooltip
                         :text="`Zeile leeren – ${row.name}`"
                       >
-                        <button
-                          type="button"
+                        <AppIconButton
+                          size="sm"
+                          variant="ghost"
                           :disabled="row.locked || row.analysis.empty"
-                          :aria-label="`Zeile leeren – ${row.name}`"
+                          :label="`Zeile leeren – ${row.name}`"
                           @click="clearRow(row)"
                         >
                           <FontAwesomeIcon :icon="faXmark" />
-                        </button>
+                        </AppIconButton>
                       </CustomTooltip>
                       <CustomTooltip
                         v-if="connected"
                         :text="row.locked ? 'Rücknahme aus der Stundenerfassung' : 'Übertragen in die Stundenerfassung'"
                       >
-                        <button
-                          type="button"
+                        <AppIconButton
                           class="quick-time__transfer-action"
                           :class="{ 'quick-time__transfer-action--withdraw': row.locked }"
-                          :disabled="!row.locked && (!row.analysis.complete || row.analysis.errors.length)"
-                          :aria-label="row.locked ? 'Rücknahme aus der Stundenerfassung' : 'Übertragen in die Stundenerfassung'"
+                          size="sm"
+                          variant="outlined"
+                          :disabled="!row.locked && (!row.analysis.complete || row.analysis.errors.length > 0)"
+                          :label="row.locked ? 'Rücknahme aus der Stundenerfassung' : 'Übertragen in die Stundenerfassung'"
                           @click="submitRow(row)"
                         >
                           <FontAwesomeIcon :icon="row.locked ? faArrowLeft : faArrowRight" />
-                        </button>
+                        </AppIconButton>
                       </CustomTooltip>
                     </div>
                   </td>
@@ -214,14 +218,15 @@
                     class="quick-time__payroll-cell"
                   >
                     <CustomTooltip :text="`Stundenerfassung öffnen – ${row.name}`">
-                      <button
-                        type="button"
+                      <AppIconButton
                         class="quick-time__payroll-link"
-                        :aria-label="`Stundenerfassung öffnen – ${row.name}`"
+                        size="sm"
+                        variant="ghost"
+                        :label="`Stundenerfassung öffnen – ${row.name}`"
                         @click="openPayroll(row)"
                       >
                         <FontAwesomeIcon :icon="faArrowUpRightFromSquare" />
-                      </button>
+                      </AppIconButton>
                     </CustomTooltip>
                   </td>
                 </tr>
@@ -248,16 +253,17 @@
                       role="status"
                     >
                       <FontAwesomeIcon :icon="faTriangleExclamation" /> {{ row.analysis.warnings.join(' ') }} Die Erfassung kann trotzdem gespeichert werden.
-                      <button
+                      <AppButton
                         v-if="row.analysis.minimumRestBreakMinutes > row.analysis.breakMinutes"
-                        type="button"
                         class="quick-time__apply-break"
+                        size="sm"
+                        variant="outlined"
                         :disabled="row.locked || row.analysis.usesBlocks"
                         :title="row.analysis.usesBlocks ? 'Zeitblöcke zuerst entfernen' : undefined"
                         @click="applyMinimumBreak(row)"
                       >
                         {{ row.analysis.minimumRestBreakMinutes }} Min. Pause eintragen
-                      </button>
+                      </AppButton>
                     </p>
                   </td>
                 </tr>
@@ -296,15 +302,16 @@
                             <CustomTooltip
                               :text="`Pause ${index + 1} entfernen – ${row.name}`"
                             >
-                              <button
-                                type="button"
+                              <AppIconButton
                                 class="quick-time__remove-break"
+                                size="sm"
+                                variant="ghost"
                                 :disabled="row.locked || (!block.start && !block.end)"
-                                :aria-label="`Pause ${index + 1} entfernen – ${row.name}`"
+                                :label="`Pause ${index + 1} entfernen – ${row.name}`"
                                 @click="clearBreak(row, index)"
                               >
                                 <FontAwesomeIcon :icon="faXmark" />
-                              </button>
+                              </AppIconButton>
                             </CustomTooltip>
                           </div>
                           <label class="quick-time__paid"><input
@@ -363,22 +370,21 @@
         >
           Abbrechen
         </ToolbarButton>
-        <button
+        <AppButton
           type="submit"
-          class="quick-time__accept"
+          size="sm"
           :disabled="!canSubmit"
         >
           {{ connected ? 'Entwurf speichern' : 'Übernehmen' }}
-        </button>
-        <button
+        </AppButton>
+        <AppButton
           v-if="connected"
-          type="button"
-          class="quick-time__accept"
+          size="sm"
           :disabled="!canSubmit"
           @click="submit('release')"
         >
           Alle übertragen
-        </button>
+        </AppButton>
       </div>
       <p
         v-if="errorCount"
@@ -413,6 +419,8 @@ import CustomTooltip from '@/components/CustomTooltip.vue';
 import MinuteSelect from '@/components/ui-elements/MinuteSelect.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import TimeSelect from '@/components/ui-elements/TimeSelect.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import { analyzeQuickEntry, buildQuickEntryRows, createQuickEntry, employeeName, formatHours, plannedTimes } from '@/utils/stundenschnellerfassung';
 import { useAuth } from '@/stores/auth';
 
@@ -541,7 +549,7 @@ function submit(action = 'save') {
 </script>
 
 <style scoped>
-.quick-time { color: var(--text); font-size: 12px; min-width: 0; }
+.quick-time { --quick-time-warning-text: color-mix(in srgb, var(--status-warning) 55%, var(--text)); color: var(--text); font-size: 12px; min-width: 0; }
 .quick-time--contained { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .quick-time--contained .quick-time__content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .quick-time--contained > footer { flex-shrink: 0; }
@@ -567,11 +575,10 @@ function submit(action = 'save') {
 .quick-time__person > strong { display: block; font-weight: 500; font-size: 11px; margin: 0 0 3px; }
 .quick-time__person > span { display: block; font-weight: 400; font-size: 9px; color: var(--muted); }
 .quick-time__status-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); margin: 0 5px 1px 0; }
-.quick-time__status-dot.complete { background: #62b58f; }
-.quick-time__status-dot.released { background: #4a8e70; }
+.quick-time__status-dot.complete, .quick-time__status-dot.released { background: var(--status-success-text); }
 .quick-time__status-dot.dirty { background: var(--primary); }
-.quick-time__status-dot.error { background: #dc665e; }
-.quick-time__status-dot.warning { background: #e6a447; }
+.quick-time__status-dot.error { background: var(--status-danger-text); }
+.quick-time__status-dot.warning { background: var(--status-warning); }
 .quick-time__planned { display: flex; gap: 4px; align-items: center; min-height: 26px; white-space: nowrap; color: var(--muted); font-size: 11px; }
 .quick-time__planned > span { opacity: .5; }
 .quick-time__time-pair { display: flex; align-items: center; gap: 3px; }
@@ -585,20 +592,19 @@ function submit(action = 'save') {
 .quick-time__hours { display: block; padding-top: 4px; font-size: 12px; font-weight: 600; }
 .quick-time__hours--empty { color: var(--muted); font-weight: 400; }
 .quick-time__row-actions { display: flex; gap: 3px; }
-.quick-time__row-actions button, .quick-time__payroll-link, .quick-time__remove-break { display: grid; place-items: center; width: 25px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 10px; }
-.quick-time__row-actions .quick-time__transfer-action { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); color: var(--primary); }
-.quick-time__row-actions .quick-time__transfer-action--withdraw { border-color: color-mix(in srgb, #4a8e70 55%, var(--border)); color: #4a8e70; }
-.quick-time button:hover:not(:disabled) { border-color: var(--primary); }
-.quick-time :is(input, select, button, [tabindex]):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.quick-time button:disabled { opacity: .35; cursor: not-allowed; }
+.quick-time__row-actions .app-icon-button, .quick-time__payroll-link, .quick-time__remove-break { --app-button-icon-size: 26px; min-height: 26px; font-size: 10px; }
+.quick-time__row-actions .quick-time__transfer-action--withdraw { --app-button-border: var(--status-success-text); --app-button-color: var(--status-success-text); --action-accent-text: var(--status-success-text); }
+.quick-time button:not(.app-button):hover:not(:disabled) { border-color: var(--primary); }
+.quick-time :is(input, select, button:not(.app-button), [tabindex]):focus-visible { outline: 2px solid var(--control-focus-ring, var(--primary)); outline-offset: 2px; }
+.quick-time button:not(.app-button):disabled { opacity: .35; cursor: not-allowed; }
 .quick-time__row--dirty .quick-time__person { box-shadow: inset 2px 0 var(--primary); }
-.quick-time__row--error .quick-time__person { box-shadow: inset 2px 0 #dc665e; }
-.quick-time__row--warning .quick-time__person { box-shadow: inset 2px 0 #e6a447; }
-.quick-time__row--locked { background: color-mix(in srgb, #4a8e70 4%, var(--surface)); }
-.quick-time__row--locked .quick-time__person { box-shadow: inset 2px 0 #4a8e70; }
-.quick-time__error-row p { display: flex; align-items: center; gap: 6px; color: #c75048; font-size: 10px; }
-.quick-time__warning-row p { display: flex; align-items: center; gap: 6px; color: #9a6417; font-size: 10px; }
-.quick-time__apply-break { flex: 0 0 auto; min-height: 22px; padding: 2px 7px; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; font: inherit; font-weight: 500; cursor: pointer; }
+.quick-time__row--error .quick-time__person { box-shadow: inset 2px 0 var(--status-danger-text); }
+.quick-time__row--warning .quick-time__person { box-shadow: inset 2px 0 var(--status-warning); }
+.quick-time__row--locked { background: color-mix(in srgb, var(--status-success-text) 4%, var(--surface)); }
+.quick-time__row--locked .quick-time__person { box-shadow: inset 2px 0 var(--status-success-text); }
+.quick-time__error-row p { display: flex; align-items: center; gap: 6px; color: var(--status-danger-text); font-size: 10px; }
+.quick-time__warning-row p { display: flex; align-items: center; gap: 6px; color: var(--quick-time-warning-text); font-size: 10px; }
+.quick-time__apply-break { flex: 0 0 auto; min-height: 26px; font-size: 10px; }
 .quick-time__error-row td, .quick-time__warning-row td { padding-top: 4px; padding-bottom: 6px; }
 .quick-time__break-panel { padding: 0 0 3px; }
 .quick-time__break-panel-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; }
@@ -609,7 +615,7 @@ function submit(action = 'save') {
 .quick-time__break-block { margin: 0; padding: 6px 8px; min-width: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
 .quick-time__break-block legend { padding: 0 3px; color: var(--muted); font-size: 10px; }
 .quick-time__break-block .quick-time__time-pair :deep(.time-select) { width: 100%; min-width: 0; }
-.quick-time__remove-break { flex: 0 0 24px; height: 28px; border: none; }
+.quick-time__remove-break { flex: 0 0 26px; }
 .quick-time__paid { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--muted); font-size: 10px; }
 .quick-time__paid input { accent-color: var(--primary); }
 .quick-time__table tfoot { border-top: 1px solid var(--border); background: var(--hover); }
@@ -622,10 +628,9 @@ function submit(action = 'save') {
 .quick-time__total > span { display: block; color: var(--muted); font-size: 9px; }
 .quick-time__total > strong { display: block; font-size: 14px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .quick-time__total small { font-size: 11px; font-weight: 400; color: var(--muted); }
-.quick-time__accept { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--primary); background: var(--primary); color: #27221c; font-weight: 600; cursor: pointer; }
 .quick-time__message, .quick-time__footer-error, .quick-time__footer-warning { flex-basis: 100%; font-size: 10px; color: var(--muted); }
-.quick-time__footer-error { color: #c75048; }
-.quick-time__footer-warning { color: #9a6417; }
+.quick-time__footer-error { color: var(--status-danger-text); }
+.quick-time__footer-warning { color: var(--quick-time-warning-text); }
 .quick-time__empty { padding: 16px; color: var(--muted); text-align: center; }
 .quick-time__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) {
@@ -649,7 +654,7 @@ function submit(action = 'save') {
   .quick-time__hours { padding-top: 9px; font-size: 15px; text-align: left; }
   .quick-time__break-toggle { min-height: 28px; font-size: 10px; }
   .quick-time__row-actions { justify-content: flex-end; gap: 7px; }
-  .quick-time__row-actions button, .quick-time__payroll-link, .quick-time__remove-break { width: 40px; height: 40px; font-size: 13px; }
+  .quick-time__row-actions .app-icon-button, .quick-time__payroll-link, .quick-time__remove-break { --app-button-icon-size: 40px; min-height: 40px; font-size: 13px; }
   .quick-time__error-row, .quick-time__warning-row, .quick-time__details-row { display: block; width: 100%; margin: -1px 0 0; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 6px 6px; background: var(--surface); }
   .quick-time__error-row:has(+ .quick-time__details-row), .quick-time__warning-row:has(+ .quick-time__details-row) { border-radius: 0; }
   .quick-time__error-row > td, .quick-time__warning-row > td, .quick-time__details-row > td { display: block; width: 100%; padding: 8px 10px; border: 0 !important; }
@@ -663,7 +668,7 @@ function submit(action = 'save') {
   .quick-time__footer { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 8px; }
   .quick-time__bulk, .quick-time__submit { display: flex; width: 100%; flex-wrap: wrap; }
   .quick-time__bulk > *, .quick-time__submit > * { flex: 1 1 120px; }
-  .quick-time__bulk :deep(button), .quick-time__submit :deep(button), .quick-time__accept { width: 100%; min-height: 40px; font-size: 11px; justify-content: center; }
+  .quick-time__bulk :deep(button), .quick-time__submit :deep(button) { width: 100%; min-height: 40px; font-size: 11px; justify-content: center; }
   .quick-time__total { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0; text-align: left; }
   .quick-time__total > strong { font-size: 16px; }
 }

@@ -11,32 +11,32 @@
       @submit.prevent="submit"
     >
       <div class="time-entry-form__grid">
-        <label>Datum<input
+        <label>Datum<AppTextInput
           v-model="date"
           type="date"
           :min="`${month}-01`"
           :max="lastDate"
           required
-        ></label>
-        <label>Stunden<input
+        /></label>
+        <label>Stunden<AppTextInput
           v-model.number="hours"
           type="number"
           min="0"
           max="24"
           step="1"
           required
-        ></label>
-        <label>Minuten<input
+        /></label>
+        <label>Minuten<AppTextInput
           v-model.number="minutePart"
           type="number"
           min="0"
           max="59"
           step="1"
           required
-        ></label>
+        /></label>
       </div>
       <label>Eintragsart
-        <select
+        <AppSelect
           v-model="code"
           @change="credited = selectedType.credited"
         >
@@ -45,17 +45,17 @@
             :key="type.code"
             :value="type.code"
           >{{ type.code }} · {{ type.label }}</option>
-        </select>
+        </AppSelect>
       </label>
       <label class="time-entry-form__check"><input
         v-model="credited"
         type="checkbox"
       > Auf Monatsstunden anrechnen</label>
-      <label>Notiz <span>(optional)</span><input
+      <label>Notiz <span>(optional)</span><AppTextInput
         v-model="note"
         maxlength="160"
         placeholder="z. B. Korrektur nach Rücksprache"
-      ></label>
+      /></label>
       <p class="time-entry-form__hint">
         {{ code === 'FA' ? `Entnahme aus dem Zeitkonto · verfügbar: ${formatMinutes(bankMinutes)}.` : 'Die eingegebene Zeit wird als neue Zeit angelegt.' }}
         Mit 0 Stunden legst du ein leeres Ziel für den Eimer an.
@@ -72,20 +72,18 @@
       </p>
     </form>
     <template #footer>
-      <button
-        class="time-form-button"
-        type="button"
+      <AppButton
+        variant="secondary"
         @click="emit('close')"
       >
         Abbrechen
-      </button>
-      <button
-        class="time-form-button time-form-button--primary"
+      </AppButton>
+      <AppButton
         type="submit"
         :form="formId"
       >
         Eintrag anlegen
-      </button>
+      </AppButton>
     </template>
   </ModalFrame>
 </template>
@@ -93,6 +91,9 @@
 <script setup>
 import { computed, getCurrentInstance, ref } from 'vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import { DAY_ENTRY_TYPES, formatMinutes, monthDays } from '@/utils/timeManagement';
 const props = defineProps({ month: { type: String, required: true }, initialDate: { type: String, required: true },
   employeeName: { type: String, default: '' }, bankMinutes: { type: Number, default: 0 }, dayEntryTypes: { type: Array, default: () => DAY_ENTRY_TYPES } });
@@ -131,13 +132,11 @@ function submit() {
 .time-entry-form { display: grid; gap: 20px; color: var(--text); }
 .time-entry-form label { display: grid; gap: 8px; font-size: 13px; font-weight: 500; }
 .time-entry-form label span { color: var(--muted); font-weight: 400; }
-.time-entry-form input, .time-entry-form select { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+.time-entry-form .app-text-input, .time-entry-form .app-select { width: 100%; }
 .time-entry-form__grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
 .time-entry-form .time-entry-form__check { display: flex; align-items: center; }
 .time-entry-form__check input { width: 16px; height: 16px; accent-color: var(--primary); }
 .time-entry-form__hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .time-entry-form__error { margin: 0; color: var(--danger, #c7544c); font-size: 13px; }
-.time-form-button { padding: 9px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; font-size: 13px; }
-.time-form-button--primary { background: var(--primary); color: #292117; border-color: var(--primary); }
 @media (max-width: 480px) { .time-entry-form__grid { grid-template-columns: 1fr 1fr; } .time-entry-form__grid label:first-child { grid-column: 1 / -1; } }
 </style>

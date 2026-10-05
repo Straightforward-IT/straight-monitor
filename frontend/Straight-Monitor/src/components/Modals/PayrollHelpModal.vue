@@ -7,15 +7,16 @@
     <template #toc>
       <nav class="help-toc" aria-label="Inhalt der Anleitung">
         <span class="help-toc-label">Inhalt</span>
-        <button
+        <AppButton
           v-for="section in sections"
           :key="section.id"
-          type="button"
+          size="sm"
+          variant="secondary"
           :data-section="section.id"
           @click="scrollToSection(section.id)"
         >
           {{ section.label }}
-        </button>
+        </AppButton>
       </nav>
     </template>
 
@@ -62,6 +63,7 @@
 
 <script setup>
 import HelpModal from '@/components/Modals/HelpModal.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 defineProps({ modelValue: { type: Boolean, required: true } });
 defineEmits(['update:modelValue']);

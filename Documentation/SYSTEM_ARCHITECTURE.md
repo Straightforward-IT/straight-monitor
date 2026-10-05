@@ -228,6 +228,33 @@ roles: ['VERTRIEB']      → Must have VERTRIEB (sales) role
 | **Integration** | FlipCreate, FlipProfile, FlipActions | Flip-specific UI and workflows |
 | **Navigation** | HeaderBar, FilterPanel, SearchBar | Common UI elements |
 
+### Hosted Modal Ownership
+
+All dockable Straight Monitor windows use the app-level modal manager from
+`@bleck-it/vue-modal-dock`. `App.vue` mounts a single `DockedModalHost` outside
+`RouterView` and a themed `MinimizedModalDock`. Pages open windows through
+`useDockedModals()` or the existing `use*Modals` composables; they do not render
+or own their lifetime. Nested dockable editors are independent hosted records.
+Ordinary non-dockable confirmations and inline side panels can remain local.
+
+The host and `KeepAlive` retain component-local drafts and loaded content while
+minimized and after navigation, even when the launching page or layout unmounts.
+Pinia alone preserves store state, not the modal component instance. Stable
+entity IDs identify windows; reopening an existing ID restores that instance.
+`updateTitle()` changes its dock title without changing visibility or order.
+
+Dock close uses `requestClose()` so `ModalFrame` can apply the same busy-state
+and discard-confirmation rules as its own close button. Confirmed close removes
+the record; navigating or minimizing does not. Signature opening retains the
+Pinia command API through an app-owned adapter, and post-creation signing is a
+separate hosted session rather than a child of a closed wizard.
+
+Navigation survival does not imply browser-refresh persistence. Only the
+existing employee/document persistence descriptors are restored after reload.
+Generic attached-region APIs remain in the package for compatibility but are
+not used for dockable windows in Straight Monitor. See
+`packages/vue-modal-dock/README.md` for the manager and icon-slot APIs.
+
 ### State Management (Pinia Stores)
 
 **auth.js** — User and authentication state

@@ -179,7 +179,7 @@
 }
 
 .vmd-icon-button svg,
-.vmd-dock svg {
+.vmd-dock svg:not(.svg-inline--fa) {
   width: 18px;
   height: 18px;
   fill: none;
@@ -229,7 +229,10 @@
   height: 34px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 30px;
-  flex: 0 0 clamp(150px, 19vw, 220px);
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 0;
+  max-width: clamp(150px, 19vw, 220px);
   overflow: hidden;
   color: var(--vmd-text);
   background: var(--vmd-item-background);
@@ -256,12 +259,28 @@
   font-weight: var(--vmd-title-font-weight);
 }
 
-.vmd-dock__restore svg {
+.vmd-dock__icon {
+  position: relative;
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
   color: var(--vmd-accent);
   opacity: 0.8;
+}
+
+.vmd-dock__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.vmd-dock__icon .vmd-dock__icon-overlay {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  padding: 1px;
+  background: var(--vmd-item-background);
 }
 
 .vmd-dock__restore span {
@@ -337,7 +356,7 @@
   }
 
   .vmd-dock__item {
-    flex-basis: min(58vw, 210px);
+    max-width: min(58vw, 210px);
   }
 }
 

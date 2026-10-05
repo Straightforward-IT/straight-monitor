@@ -95,11 +95,11 @@
             <p v-if="notice" role="status">{{ notice }}</p>
             <template v-if="preparation">
               <div class="payroll-preparation-actions">
-                <label>Bearbeitungs- / Prüfvermerk<input v-model="preparationReason" maxlength="1000" :disabled="busy"></label>
+                <label>Bearbeitungs- / Prüfvermerk<AppTextInput v-model="preparationReason" maxlength="1000" :disabled="busy" /></label>
                 <label v-if="preparation.stale && preparation.state === 'DRAFT'"><input v-model="reconcile" type="checkbox"> Geänderte Quellen geprüft und abgeglichen</label>
                 <p v-if="preparation.stale" role="alert">Die gespeicherte Vorbereitung verweist auf ältere Quellen. Bitte Änderungen prüfen.</p>
-                <button v-if="preparation.state === 'DRAFT'" type="button" :disabled="busy || formDirty || !preparationReason.trim() || (preparation.stale && !reconcile)" @click="savePreparation">Vorbereitung speichern</button>
-                <button type="button" :disabled="busy" @click="refreshSources">Quellen aktualisieren (Entwurf behalten)</button>
+                <AppButton v-if="preparation.state === 'DRAFT'" size="sm" :disabled="busy || formDirty || !preparationReason.trim() || (preparation.stale && !reconcile)" @click="savePreparation">Vorbereitung speichern</AppButton>
+                <AppButton size="sm" variant="secondary" :disabled="busy" @click="refreshSources">Quellen aktualisieren (Entwurf behalten)</AppButton>
                 <span v-if="preparationDirty">Ungespeicherte Änderungen</span>
                 <span v-if="formDirty">Eintrag zuerst zum Entwurf hinzufügen oder Bearbeiten abbrechen.</span>
               </div>
@@ -215,6 +215,8 @@ import RouterPageLayout from '@/components/layout/RouterPageLayout.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import CalendarControls from '@/components/ui-elements/CalendarControls.vue';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
@@ -376,8 +378,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .payroll-preparation-actions { padding: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .payroll-preparation-actions label { display: flex; gap: 8px; align-items: center; }
-.payroll-preparation-actions input:not([type=checkbox]) { min-width: 240px; }
-.payroll-preparation-actions input, .payroll-preparation-actions button { padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); }
+.payroll-preparation-actions .app-text-input { min-width: 240px; }
 .payroll-page { padding: 16px; min-width: 0; }
 .payroll-page__toolbar { margin-bottom: 29px; overflow: visible; }
 .payroll-page__field { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
@@ -390,9 +391,9 @@ onBeforeUnmount(() => {
 .payroll-page__main { flex: 1; min-width: 0; container: payroll-main / inline-size; }
 .payroll-page :deep(.payroll-page__day-panel) { top: calc(var(--header-h, 56px) + 12px); height: calc(100dvh - var(--header-h, 56px) - 28px); }
 .payroll-page__day-content { min-width: 0; }
-.payroll-page__day-actions { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
-.payroll-page__day-actions:hover:not(:disabled) { background: var(--hover); border-color: var(--border); color: var(--text); }
-.payroll-page__day-actions:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.payroll-page__day-actions { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--action-secondary-border, var(--border)); border-radius: var(--control-radius, 8px); background: var(--action-secondary, var(--tile-bg)); color: var(--action-secondary-text, var(--text)); cursor: pointer; }
+.payroll-page__day-actions:hover:not(:disabled) { background: var(--action-secondary-hover, var(--hover)); color: var(--action-accent-text, var(--text)); }
+.payroll-page__day-actions:focus-visible { outline: 2px solid var(--control-focus-ring, var(--primary)); outline-offset: 2px; }
 .payroll-page__day-actions:disabled { opacity: .45; cursor: default; }
 .payroll-page__day-empty { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 .payroll-page :deep(.payroll-page__day-panel .sp-panel__body) { padding: 12px; }

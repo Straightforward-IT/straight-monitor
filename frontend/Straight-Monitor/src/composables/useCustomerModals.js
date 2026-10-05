@@ -37,6 +37,7 @@ export function useCustomerModals() {
       id,
       title,
       component: CustomerCard,
+      icon: 'customer',
       props: {
         kunde: customer,
         initialTab,

@@ -20,6 +20,7 @@ export function usePackageModals() {
       id,
       title,
       component: PaketVorlageModal,
+      icon: 'package',
       props: {
         modelValue: template,
         minimizeId: id,
@@ -45,6 +46,7 @@ export function usePackageModals() {
       id,
       title,
       component: PaketVorlageEditorModal,
+      icon: 'package-editor',
       props: {
         modelValue: true,
         template,

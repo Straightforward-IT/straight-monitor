@@ -22,6 +22,7 @@ export function useEventModals() {
       id,
       title: 'Neuer Auftrag',
       component: EventModal,
+      icon: 'event',
       props: {
         initialLocationV2: options.initialLocationV2 || '',
         minimizable: true,
@@ -42,6 +43,7 @@ export function useEventModals() {
       id,
       title,
       component: EventModal,
+      icon: 'event',
       props: {
         auftragNr: event.auftragNr,
         minimizable: true,

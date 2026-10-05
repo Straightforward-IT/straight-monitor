@@ -9,31 +9,34 @@
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle"
     :layer="layer"
-    :close-on-escape="dockedModal ? false : closeOnEscape"
+    :title="doc.bezeichnung || doc.docType || 'Dokument'"
+    :show-close="!documentBusy"
+    :close-on-backdrop="!documentBusy"
+    :close-on-escape="!documentBusy && !dockedModal && closeOnEscape"
     @close="closeDoc"
   >
-    <template #header>
+    <template #header="{ titleId }">
       <div class="doc-header">
         <div class="doc-icon">
           <img :src="docTypeImage" :alt="doc.docType" class="doc-icon-img" />
         </div>
         <div class="title">
           <span class="doc-type">{{ doc.docType }} <span v-if="doc.version === 'v2'" class="version-badge">v2</span></span>
-          <span class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</span>
+          <h2 :id="titleId" class="bezeichnung">{{ doc.bezeichnung || 'Kein Titel' }}</h2>
         </div>
       </div>
     </template>
     <template #actions>
-      <button class="copy-link-btn" :class="{ 'copy-link-btn--copied': linkCopied }" :title="linkCopied ? 'Link kopiert!' : 'Link kopieren'" @click="copyLink">
+      <AppIconButton class="copy-link-btn" size="sm" variant="ghost" :class="{ 'copy-link-btn--copied': linkCopied }" :label="linkCopied ? 'Link kopiert' : 'Dokumentlink kopieren'" @click="copyLink">
         <font-awesome-icon :icon="linkCopied ? 'fa-solid fa-check' : 'fa-solid fa-link'" />
-      </button>
-      <div class="context-menu-wrapper">
-        <button class="copy-link-btn" :class="{ 'copy-link-btn--active': menuOpen }" title="Weitere Aktionen" @click.stop="menuOpen = !menuOpen">
+      </AppIconButton>
+      <div ref="contextMenuWrapper" class="context-menu-wrapper">
+        <AppIconButton class="copy-link-btn" size="sm" variant="ghost" :active="menuOpen" label="Weitere Dokumentaktionen" aria-haspopup="menu" :aria-expanded="menuOpen" @click.stop="toggleMenu" @keydown.down.prevent="openMenu">
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
-        </button>
+        </AppIconButton>
         <Transition name="ctx">
-          <div v-if="menuOpen" class="context-menu" @click.stop>
-            <button class="context-menu-item" @click="exportPdf">
+          <div v-if="menuOpen" class="context-menu" role="menu" aria-label="Dokumentaktionen" @click.stop @keydown.esc.stop.prevent="closeMenuAndFocus">
+            <button class="context-menu-item" type="button" role="menuitem" :disabled="exportLoading" @click="exportPdf">
               <font-awesome-icon icon="fa-solid fa-file-pdf" />
               Als PDF exportieren
             </button>
@@ -58,17 +61,17 @@
           <div v-if="doc.details?.auftragnummer">
             <dt>Auftrag</dt>
             <dd>
-              <button class="link-btn" @click="goToAuftrag" title="Auftrag in Aufträge-Ansicht öffnen">
+              <AppButton class="link-btn" size="sm" variant="ghost" @click="goToAuftrag" title="Auftrag in Aufträge-Ansicht öffnen">
                 {{ auftragTitel || '#' + doc.details.auftragnummer }}
-              </button>
+              </AppButton>
             </dd>
           </div>
           <div v-if="doc.details?.kunde">
             <dt>Kunde</dt>
             <dd>
-              <button class="link-btn" @click="goToKunde" title="Kunde in Kunden-Ansicht suchen">
+              <AppButton class="link-btn" size="sm" variant="ghost" :disabled="!kundeId" @click="goToKunde" title="Kunde in Kunden-Ansicht öffnen">
                 {{ kundeName || doc.details.kunde }}
-              </button>
+              </AppButton>
             </dd>
           </div>
           <div v-if="doc.details?.name_teamleiter">
@@ -76,33 +79,38 @@
             <dd>
               <div class="person-detail">
                 <template v-if="doc.details?.teamleiter">
-                  <button 
-                    :class="['btn-icon-tiny', { 'filter-active': isTeamleiterFiltered }]" 
+                  <AppIconButton
+                    class="btn-icon-tiny"
+                    size="sm"
+                    variant="ghost"
+                    :active="Boolean(isTeamleiterFiltered)"
+                    :label="isTeamleiterFiltered ? 'Teamleiter-Filter zurücksetzen' : 'Nach diesem Teamleiter filtern'"
                     @click="filterByPerson('filterTeamleiter', doc.details.name_teamleiter)"
-                    :title="isTeamleiterFiltered ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Teamleiter filtern'"
                   >
                     <font-awesome-icon icon="fa-solid fa-filter" />
-                  </button>
-                  <button class="link-btn" @click="openEmployee('teamleiter', getEmployeeId('teamleiter'))">
+                  </AppIconButton>
+                  <AppButton class="link-btn" size="sm" variant="ghost" @click="openEmployee('teamleiter', getEmployeeId('teamleiter'))">
                     {{ doc.details.name_teamleiter }}
-                  </button>
-                  <button 
+                  </AppButton>
+                  <AppIconButton
                     v-if="getPersonAsanaId('teamleiter')"
-                    class="btn-icon-tiny" 
+                    class="btn-icon-tiny"
+                    size="sm"
+                    variant="ghost"
+                    label="Teamleiter-Task in Asana öffnen"
                     @click="openAsanaTask('teamleiter')"
-                    title="Asana Task öffnen"
                   >
-                    <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-                  </button>
+                    <img :src="asanaLogo" alt="" class="asana-icon" />
+                  </AppIconButton>
                 </template>
                 <template v-else>
                   <span class="unassigned-name">
                     {{ doc.details.name_teamleiter }}
                     <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
                   </span>
-                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
+                  <AppButton size="sm" @click="openAssignDialog('teamleiter')">
                     <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-                  </button>
+                  </AppButton>
                 </template>
               </div>
             </dd>
@@ -110,9 +118,9 @@
           <div v-else>
             <dt>Teamleiter</dt>
             <dd>
-              <button class="btn btn-sm btn-primary" @click="openAssignDialog('teamleiter')">
+              <AppButton size="sm" @click="openAssignDialog('teamleiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-              </button>
+              </AppButton>
             </dd>
           </div>
           <div v-if="doc.docType !== 'Event-Bericht'">
@@ -120,40 +128,45 @@
             <dd v-if="doc.details?.name_mitarbeiter">
               <div class="person-detail">
                 <template v-if="doc.details?.mitarbeiter">
-                  <button 
-                    :class="['btn-icon-tiny', { 'filter-active': isMitarbeiterFiltered }]" 
+                  <AppIconButton
+                    class="btn-icon-tiny"
+                    size="sm"
+                    variant="ghost"
+                    :active="Boolean(isMitarbeiterFiltered)"
+                    :label="isMitarbeiterFiltered ? 'Mitarbeiter-Filter zurücksetzen' : 'Nach diesem Mitarbeiter filtern'"
                     @click="filterByPerson('filterMitarbeiter', doc.details.name_mitarbeiter)"
-                    :title="isMitarbeiterFiltered ? 'Filter aktiv - klicken zum Zurücksetzen' : 'Nach diesem Mitarbeiter filtern'"
                   >
                     <font-awesome-icon icon="fa-solid fa-filter" />
-                  </button>
-                  <button class="link-btn" @click="openEmployee('mitarbeiter', getEmployeeId('mitarbeiter'))">
+                  </AppIconButton>
+                  <AppButton class="link-btn" size="sm" variant="ghost" @click="openEmployee('mitarbeiter', getEmployeeId('mitarbeiter'))">
                     {{ doc.details.name_mitarbeiter }}
-                  </button>
-                  <button 
+                  </AppButton>
+                  <AppIconButton
                     v-if="getPersonAsanaId('mitarbeiter')"
-                    class="btn-icon-tiny" 
+                    class="btn-icon-tiny"
+                    size="sm"
+                    variant="ghost"
+                    label="Mitarbeiter-Task in Asana öffnen"
                     @click="openAsanaTask('mitarbeiter')"
-                    title="Asana Task öffnen"
                   >
-                    <img :src="asanaLogo" alt="Asana" class="asana-icon" />
-                  </button>
+                    <img :src="asanaLogo" alt="" class="asana-icon" />
+                  </AppIconButton>
                 </template>
                 <template v-else>
                   <span class="unassigned-name">
                     {{ doc.details.name_mitarbeiter }}
                     <font-awesome-icon icon="fa-solid fa-circle-exclamation" class="warn-icon" />
                   </span>
-                  <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
+                  <AppButton size="sm" @click="openAssignDialog('mitarbeiter')">
                     <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-                  </button>
+                  </AppButton>
                 </template>
               </div>
             </dd>
             <dd v-else>
-              <button class="btn btn-sm btn-primary" @click="openAssignDialog('mitarbeiter')">
+              <AppButton size="sm" @click="openAssignDialog('mitarbeiter')">
                 <font-awesome-icon icon="fa-solid fa-link" /> Zuweisen
-              </button>
+              </AppButton>
             </dd>
           </div>
 
@@ -168,30 +181,35 @@
           Mitarbeiter Feedback ({{ feedbackEntries.length }})
         </h4>
         <div class="feedback-list">
-          <div v-for="(fb, idx) in feedbackEntries" :key="fb._id || idx" class="feedback-item feedback-item--hoverable" :class="{ 'feedback-item--editing': editingFeedbackId === fb._id }">
+          <div v-for="(fb, idx) in feedbackEntries" :key="fb._id || idx" class="feedback-item">
             <div class="feedback-header">
-              <button v-if="fb.mitarbeiter?._id" class="link-btn" @click="openEmployee('mitarbeiter', fb.mitarbeiter._id)">
+              <AppButton v-if="fb.mitarbeiter?._id" class="link-btn" size="sm" variant="ghost" @click="openEmployee('mitarbeiter', fb.mitarbeiter._id)">
                 {{ fb.mitarbeiter.vorname }} {{ fb.mitarbeiter.nachname }}
-              </button>
+              </AppButton>
               <span v-else class="unassigned-name">Unbekannter MA</span>
               <div class="feedback-actions">
-                <button
+                <AppIconButton
                   v-if="editingFeedbackId !== fb._id"
                   class="feedback-action-btn"
-                  title="Feedback bearbeiten"
+                  size="sm"
+                  variant="ghost"
+                  :label="`Feedback von ${fb.mitarbeiter?.vorname || 'Mitarbeiter'} bearbeiten`"
+                  :disabled="!!savingFeedbackId || !!deletingFeedbackId"
                   @click.stop="startEditFeedback(fb)"
                 >
                   <font-awesome-icon icon="fa-solid fa-pen" />
-                </button>
-                <button
+                </AppIconButton>
+                <AppIconButton
                   class="feedback-action-btn feedback-action-btn--delete"
-                  :disabled="deletingFeedbackId === fb._id"
-                  title="Feedback löschen"
+                  size="sm"
+                  variant="ghost"
+                  :label="`Feedback von ${fb.mitarbeiter?.vorname || 'Mitarbeiter'} löschen`"
+                  :disabled="!!savingFeedbackId || !!deletingFeedbackId"
+                  :loading="deletingFeedbackId === fb._id"
                   @click.stop="deleteFeedback(fb)"
                 >
-                  <font-awesome-icon v-if="deletingFeedbackId === fb._id" icon="fa-solid fa-spinner" spin />
-                  <font-awesome-icon v-else icon="fa-solid fa-trash" />
-                </button>
+                  <font-awesome-icon v-if="deletingFeedbackId !== fb._id" icon="fa-solid fa-trash" />
+                </AppIconButton>
               </div>
             </div>
             <template v-if="editingFeedbackId === fb._id">
@@ -199,14 +217,13 @@
                 v-model="editingFeedbackText"
                 class="feedback-edit-textarea"
                 rows="3"
+                aria-label="Feedback-Text bearbeiten"
+                :disabled="savingFeedbackId === fb._id"
                 autofocus
               />
               <div class="feedback-edit-actions">
-                <button class="btn btn-sm btn-primary" :disabled="savingFeedbackId === fb._id" @click.stop="saveFeedback(fb)">
-                  <font-awesome-icon v-if="savingFeedbackId === fb._id" icon="fa-solid fa-spinner" spin />
-                  <span v-else>Speichern</span>
-                </button>
-                <button class="btn btn-sm" :disabled="savingFeedbackId === fb._id" @click.stop="cancelEditFeedback">Abbrechen</button>
+                <AppButton size="sm" :disabled="!editingFeedbackText.trim()" :loading="savingFeedbackId === fb._id" @click.stop="saveFeedback(fb)">Speichern</AppButton>
+                <AppButton size="sm" variant="ghost" :disabled="savingFeedbackId === fb._id" @click.stop="cancelEditFeedback">Abbrechen</AppButton>
               </div>
             </template>
             <p v-else class="feedback-text">{{ fb.text || '—' }}</p>
@@ -300,29 +317,33 @@
             rows="3"
             placeholder="Kommentar schreiben..."
             class="comment-textarea"
+            aria-label="Kommentar schreiben"
+            :disabled="commentLoading"
             @keydown.ctrl.enter.prevent="postComment(false)"
           />
-          <button
+          <AppButton
             class="comment-send-btn"
-            :disabled="!newCommentText.trim() || commentLoading"
+            size="sm"
+            :disabled="!newCommentText.trim()"
+            :loading="commentLoading"
             @click="postComment(false)"
           >
-            <font-awesome-icon :icon="commentLoading ? 'fa-solid fa-spinner' : 'fa-solid fa-paper-plane'" :spin="commentLoading" />
+            <font-awesome-icon v-if="!commentLoading" icon="fa-solid fa-paper-plane" />
             Senden
-          </button>
+          </AppButton>
         </div>
       </section>
     </div>
 
     <template v-if="doc.docType === 'Event-Bericht'" #footer>
-      <button
-        class="btn btn-primary"
-        :disabled="!newCommentText.trim() || commentLoading"
+      <AppButton
+        :disabled="!newCommentText.trim()"
+        :loading="commentLoading"
         @click="postComment(true)"
       >
-        <font-awesome-icon icon="fa-solid fa-envelope" />
+        <font-awesome-icon v-if="!commentLoading" icon="fa-solid fa-envelope" />
         An alle ausliefern
-      </button>
+      </AppButton>
     </template>
   </ModalFrame>
 
@@ -336,6 +357,8 @@
     title="Mitarbeiter zuweisen"
     size="sm"
     layer="elevated"
+    :show-close="!assigningEmployee"
+    :close-on-backdrop="!assigningEmployee"
     :close-on-escape="false"
     style="--mf-max-width: 500px; --mf-max-height: 85dvh"
     @close="closeAssignModal"
@@ -357,12 +380,12 @@
 
     <div class="assign-search">
       <font-awesome-icon icon="fa-solid fa-magnifying-glass" class="search-ic" />
-      <input
+      <AppTextInput
         ref="assignSearchInput"
         v-model="assignSearchQuery"
-        type="text"
         placeholder="Mitarbeiter suchen…"
         aria-label="Mitarbeiter suchen"
+        :disabled="loadingEmployees || assigningEmployee"
       />
     </div>
 
@@ -382,6 +405,7 @@
         :key="employee._id"
         class="employee-item"
         type="button"
+        :disabled="assigningEmployee"
         @click="selectEmployee(employee)"
       >
         <span class="employee-info">
@@ -399,6 +423,9 @@ import { computed, defineAsyncComponent, onMounted } from "vue";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useCurrentDockedModal } from "@bleck-it/vue-modal-dock";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
+import AppButton from "@/components/ui-elements/AppButton.vue";
+import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
+import AppTextInput from "@/components/ui-elements/AppTextInput.vue";
 import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useDataCache } from "@/stores/dataCache";
@@ -446,7 +473,7 @@ const EmployeeCardModal = defineAsyncComponent(() => import("@/components/Modals
 export default {
   name: "DocumentCard",
   inheritAttrs: false,
-  components: { FontAwesomeIcon, ModalFrame, EmployeeCardModal },
+  components: { FontAwesomeIcon, ModalFrame, AppButton, AppIconButton, AppTextInput, EmployeeCardModal },
   props: {
     doc: { type: Object, required: true },
     personDetails: { type: Object, default: () => ({}) },
@@ -475,6 +502,7 @@ export default {
       savingFeedbackId: null,
       linkCopied: false,
       menuOpen: false,
+      exportLoading: false,
       localPersonDetails: {},
       selectedMitarbeiter: null,
       showAssignModal: false,
@@ -482,6 +510,7 @@ export default {
       assignSearchQuery: '',
       employees: [],
       loadingEmployees: false,
+      assigningEmployee: false,
     };
   },
 
@@ -579,6 +608,9 @@ export default {
   },
 
   computed: {
+    documentBusy() {
+      return this.commentLoading || !!this.savingFeedbackId || !!this.deletingFeedbackId || this.assigningEmployee || this.exportLoading;
+    },
     docTypeImage() {
       const type = (this.doc.docType || '').toLowerCase();
       if (type.includes('laufzettel')) return this.laufzettelImg;
@@ -640,6 +672,22 @@ export default {
       this.menuOpen = false;
     },
 
+    async openMenu() {
+      this.menuOpen = true;
+      await this.$nextTick();
+      this.$refs.contextMenuWrapper?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
+    },
+
+    toggleMenu() {
+      if (this.menuOpen) this.closeMenu();
+      else this.openMenu();
+    },
+
+    closeMenuAndFocus() {
+      this.closeMenu();
+      this.$refs.contextMenuWrapper?.querySelector('button')?.focus();
+    },
+
     resetSatellites() {
       this.selectedMitarbeiter = null;
       this.showAssignModal = false;
@@ -648,8 +696,9 @@ export default {
     },
 
     closeDoc() {
+      if (this.documentBusy) return;
       this.$emit('close');
-      if (this.$route.query.docId) {
+      if (this.$route?.query?.docId) {
         const { docId, ...rest } = this.$route.query;
         this.$router.replace({ query: rest });
       }
@@ -657,6 +706,11 @@ export default {
 
     handleEscape(event) {
       if (event.key !== 'Escape' || !this.dockedModal || this.isMinimized || !this.isTopmost) return;
+      if (this.menuOpen) {
+        this.menuOpen = false;
+        return;
+      }
+      if (this.documentBusy) return;
       if (this.showAssignModal) this.closeAssignModal();
       else if (this.selectedMitarbeiter) this.selectedMitarbeiter = null;
       else this.closeDoc();
@@ -690,6 +744,7 @@ export default {
     },
 
     async openAssignDialog(role) {
+      if (this.assigningEmployee) return;
       this.assignRole = role;
       this.assignSearchQuery = '';
       this.showAssignModal = true;
@@ -698,6 +753,7 @@ export default {
     },
 
     closeAssignModal() {
+      if (this.assigningEmployee) return;
       this.showAssignModal = false;
       this.assignRole = null;
       this.assignSearchQuery = '';
@@ -725,6 +781,7 @@ export default {
     },
 
     async selectEmployee(employee) {
+      if (this.assigningEmployee || !this.assignRole) return;
       const roleName = this.assignRole === 'teamleiter' ? 'Teamleiter' : 'Mitarbeiter';
       const formularName = this.doc.details?.[`name_${this.assignRole}`] || '(nicht angegeben)';
       const confirmed = confirm(
@@ -735,6 +792,7 @@ export default {
       );
       if (!confirmed) return;
 
+      this.assigningEmployee = true;
       try {
         const payload = { documentId: this.doc._id || this.doc.id };
         if (this.assignRole === 'teamleiter') {
@@ -751,6 +809,7 @@ export default {
         }
 
         logger.info(`Assigned ${employee.vorname} ${employee.nachname} as ${this.assignRole}`);
+        this.assigningEmployee = false;
         this.closeAssignModal();
         this.closeDoc();
         await this.dataCache.loadDocuments(true);
@@ -758,13 +817,21 @@ export default {
       } catch (error) {
         logger.error('Assignment error:', error);
         alert('❌ Fehler beim Zuweisen: ' + (error.response?.data?.error || error.message));
+      } finally {
+        this.assigningEmployee = false;
       }
     },
 
     async exportPdf() {
-      this.menuOpen = false;
+      if (this.exportLoading) return;
+      this.closeMenuAndFocus();
       const title = [this.doc.docType, this.doc.bezeichnung].filter(Boolean).join(' – ') || 'Dokument';
-      await this.$refs.modalFrame.exportToPdf({ title });
+      this.exportLoading = true;
+      try {
+        await this.$refs.modalFrame.exportToPdf({ title });
+      } finally {
+        this.exportLoading = false;
+      }
     },
 
     getEmployeeId(role) {
@@ -891,6 +958,7 @@ export default {
     },
 
     cancelEditFeedback() {
+      if (this.savingFeedbackId) return;
       this.editingFeedbackId = null;
       this.editingFeedbackText = '';
     },
@@ -904,7 +972,8 @@ export default {
         await api.patch(`/api/personal/eventreport/${this.doc._id}/feedback/${fb._id}`, { text });
         const entry = this.doc.details?.mitarbeiter_feedback?.find(f => String(f._id) === String(fb._id));
         if (entry) entry.text = text;
-        this.cancelEditFeedback();
+        this.editingFeedbackId = null;
+        this.editingFeedbackText = '';
       } catch (err) {
         console.error('Feedback-Bearbeitungsfehler:', err);
         alert('Fehler beim Speichern: ' + (err.response?.data?.msg || err.message));
@@ -914,7 +983,7 @@ export default {
     },
 
     async deleteFeedback(fb) {
-      if (!fb._id || this.deletingFeedbackId) return;
+      if (!fb._id || this.deletingFeedbackId || this.savingFeedbackId) return;
       if (!confirm(`Feedback von ${fb.mitarbeiter?.vorname ?? 'Unbekannt'} wirklich löschen?`)) return;
       this.deletingFeedbackId = fb._id;
       try {
@@ -947,37 +1016,11 @@ export default {
 }
 
 .copy-link-btn {
-  /* Matches ModalFrame's mf-close / mf-minimize control sizing */
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 1rem;
+  --app-button-icon-size: 32px;
   flex-shrink: 0;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  }
 
   &--copied {
-    color: var(--ok, #21a26a) !important;
-    background: color-mix(in srgb, var(--ok, #21a26a) 10%, transparent) !important;
-    border-color: color-mix(in srgb, var(--ok, #21a26a) 30%, transparent) !important;
-  }
-
-  &--active {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+    color: var(--status-success-text);
   }
 }
 
@@ -1022,9 +1065,19 @@ export default {
 
   &:hover {
     background: color-mix(in srgb, var(--primary) 10%, transparent);
-    color: var(--primary);
+    color: var(--action-accent-text);
 
-    svg { color: var(--primary); }
+    svg { color: var(--action-accent-text); }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    color: var(--control-disabled-text);
+    cursor: not-allowed;
   }
 }
 
@@ -1072,6 +1125,9 @@ export default {
 }
 
 .bezeichnung {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.25;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -1140,28 +1196,12 @@ export default {
 }
 
 .link-btn {
-  background: transparent;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
+  min-height: 26px;
   padding: 2px 4px;
-  border-radius: 4px;
-  transition: 140ms ease;
-  font-family: inherit;
+  color: var(--action-accent-text);
   font-size: inherit;
   text-align: left;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
-  }
-
-  .link-icon {
-    font-size: 11px;
-    opacity: 0.7;
-  }
+  white-space: normal;
 }
 
 .unassigned-name {
@@ -1174,37 +1214,14 @@ export default {
 }
 
 .warn-icon {
-  color: #f6a019;
+  color: var(--status-warning-text);
   font-size: 0.85em;
   opacity: 0.8;
 }
 
 .btn-icon-tiny {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: 140ms ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  
-  &:hover {
-    background: var(--soft, var(--hover));
-    color: var(--primary);
-  }
-
-  &.filter-active {
-    color: #ff8c00;
-    background: color-mix(in srgb, #ff8c00 15%, transparent);
-    
-    &:hover {
-      color: #ff8c00;
-      background: color-mix(in srgb, #ff8c00 25%, transparent);
-    }
-  }
+  --app-button-icon-size: 26px;
+  min-height: 26px;
 }
 
 .asana-icon {
@@ -1374,58 +1391,19 @@ export default {
   -webkit-appearance: none;
   appearance: none;
 
-  &:focus {
-    outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 2px;
     border-color: var(--primary);
   }
+
+  &:disabled { color: var(--control-disabled-text); }
 }
 
 .comment-send-btn {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 7px;
-  padding: 5px 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: 140ms ease;
-
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--primary) 85%, black);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-}
-
-/* Buttons */
-.btn {
-  border: 1px solid var(--border);
-  background: var(--surface, var(--panel));
-  color: var(--text);
-  border-radius: 8px;
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: 140ms ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  
-  &:hover {
-    background: var(--soft, var(--hover));
-  }
 }
 
 /* Feedback Section */
@@ -1439,7 +1417,7 @@ export default {
   padding: 4px 0;
 
   .pending-icon {
-    color: #f6a019;
+    color: var(--status-warning-text);
     opacity: 0.85;
   }
 }
@@ -1494,37 +1472,8 @@ export default {
 }
 
 .feedback-action-btn {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  background: none;
-  border: none;
-  padding: 2px 6px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 12px;
-  border-radius: 4px;
-
-  &:hover {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
-  }
-
-  &--delete {
-    &:hover {
-      color: var(--bad, #e25555);
-      background: color-mix(in srgb, var(--bad, #e25555) 10%, transparent);
-    }
-  }
-
-  &:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed;
-  }
-}
-
-.feedback-item--hoverable:hover .feedback-action-btn,
-.feedback-item--editing .feedback-action-btn {
-  opacity: 1;
+  --app-button-icon-size: 26px;
+  min-height: 26px;
 }
 
 .feedback-edit-textarea {
@@ -1539,12 +1488,14 @@ export default {
   font-size: 0.9rem;
   line-height: 1.5;
   font-family: inherit;
-  outline: none;
   margin-top: 4px;
 
-  &:focus {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 2px;
   }
+
+  &:disabled { color: var(--control-disabled-text); }
 }
 
 .feedback-edit-actions {
@@ -1571,21 +1522,6 @@ export default {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
   color: var(--primary);
   letter-spacing: 0.3px;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-  
-  &:hover {
-    background: color-mix(in srgb, var(--primary) 85%, black);
-  }
 }
 
 .assign-info {
@@ -1627,22 +1563,7 @@ export default {
     pointer-events: none;
   }
 
-  input {
-    box-sizing: border-box;
-    width: 100%;
-    padding: 10px 12px 10px 36px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface, var(--panel));
-    color: var(--text);
-    font: inherit;
-
-    &:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
-    }
-  }
+  .app-text-input { padding-left: 36px; }
 }
 
 .assign-loading,
@@ -1673,10 +1594,11 @@ export default {
   border-radius: 8px;
   background: var(--surface, var(--panel));
   color: var(--text);
+  font: inherit;
   cursor: pointer;
   text-align: left;
 
-  &:hover {
+  &:hover:not(:disabled) {
     border-color: var(--primary);
     background: var(--hover);
 
@@ -1685,6 +1607,13 @@ export default {
       transform: translateX(2px);
     }
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--control-focus-ring);
+    outline-offset: 2px;
+  }
+
+  &:disabled { color: var(--control-disabled-text); cursor: not-allowed; }
 }
 
 .employee-info {

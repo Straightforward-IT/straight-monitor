@@ -16,6 +16,7 @@ export interface ModalDefinition<TProps extends ModalProps = ModalProps> {
   readonly id: string
   readonly title: string
   readonly component: Component
+  readonly icon?: string
   readonly props?: TProps
   /** Opt-in descriptor for restoring this modal in a future app session. */
   readonly persistence?: ModalPersistence
@@ -44,6 +45,9 @@ export interface ModalManager {
   open<TProps extends ModalProps = ModalProps>(
     definition: ModalDefinition<TProps>,
   ): ModalRecord<TProps>
+  updateTitle(id: string, title: string): boolean
+  setCloseHandler(id: string, handler: () => void): () => void
+  requestClose(id: string): boolean
   minimize(id: string): boolean
   restore(id: string): boolean
   remove(id: string): boolean

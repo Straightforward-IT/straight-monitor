@@ -1,7 +1,7 @@
 <template>
-  <div class="leads-tab" :class="{ 'sidebar-open': !!selectedLead }">
+  <div class="leads-tab" :class="{ 'sidebar-open': !!selectedLead, 'leads-tab--hosted': !!hostedLead }">
     <!-- Main Content -->
-    <div class="main-content">
+    <div v-if="!hostedLead" class="main-content">
       <!-- Toolbar -->
       <Toolbar wrap>
         <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetLeadFilters">
@@ -140,7 +140,7 @@
 
     <!-- Mobile FAB: new lead -->
     <button
-      v-if="isMobile && !selectedLead"
+      v-if="!hostedLead && isMobile && !selectedLead"
       class="mobile-fab"
       title="Neuen Lead anlegen"
       @click="openCreateModal"
@@ -853,7 +853,7 @@
           </section>
 
         <template v-if="leadPanelPresentation === 'modal'" #modal-footer>
-          <div id="lead-chronik-modal-host" class="lead-chronik-modal-host"></div>
+          <div :id="`lead-chronik-modal-${selectedLead._id}`" class="lead-chronik-modal-host"></div>
         </template>
       </LeadDetailPanel>
 
@@ -862,7 +862,7 @@
       :show="!!selectedLead && !isMobile"
       :side-panel-open="!!selectedLead && leadPanelPresentation === 'panel'"
       :embedded="leadPanelPresentation === 'modal'"
-      embedded-target="#lead-chronik-modal-host"
+      :embedded-target="`#lead-chronik-modal-${selectedLead?._id}`"
       :count="chronikEntries.length + (chronikLead?.aktivitaeten?.length || 0)"
       :context-title="chronikLead?.title || ''"
       storage-key="leads_chronik_drawer"
@@ -1046,13 +1046,6 @@
     </ModalFrame>
 
     <!-- Kontakt Anlegen Modal -->
-    <KontaktAnlegenModal
-      v-if="showKontaktAnlegenModal"
-      :prefilled-company-name="kontaktAnlegenPrefill.companyName"
-      :prefilled-team="kontaktAnlegenPrefill.team"
-      @close="showKontaktAnlegenModal = false"
-      @created="onKontaktAngelegt"
-    />
 
     <!-- Contact Card Modal -->
     <ContactCard
@@ -1374,7 +1367,9 @@ import Toolbar from '@/components/ui-elements/Toolbar.vue';
 import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import ToolbarIconButton from '@/components/ui-elements/ToolbarIconButton.vue';
-import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
+import { defineAsyncComponent } from 'vue';
+import { useDockedModals, useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikActivityItem from './leads/LeadChronikActivityItem.vue';
@@ -1407,7 +1402,15 @@ const auth = useAuth();
 // ─── Props ───────────────────────────────────────────────────────────
 const props = defineProps({
   initialLeadId: { type: String, default: null },
+  hostedLead: { type: Object, default: null },
+  hostedForm: { type: Object, default: null },
+  canDock: { type: Function, default: undefined },
+  onDock: { type: Function, default: undefined },
 });
+const modalManager = useDockedModals();
+const currentModal = useCurrentDockedModal();
+const HostedLeadWorkspace = defineAsyncComponent(() => import('./LeadsTab.vue'));
+const ownerAlive = ref(true);
 
 const hasSelectedLead = computed({
   get: () => !!selectedLead.value,
@@ -1427,6 +1430,7 @@ const sidebarActionMenuOptions = computed(() => [
   {
     label: leadPanelPresentation.value === 'panel' ? 'Abdocken' : 'In Seitenleiste öffnen',
     action: leadPanelPresentation.value === 'panel' ? 'open-modal' : 'open-panel',
+    disabled: !!props.hostedLead && !props.canDock?.(),
     icon: 'fa-solid fa-arrow-up-right-from-square',
     variant: 'primary',
   },
@@ -1612,6 +1616,13 @@ const sidebarSearchInput = ref(null);
 
 // KontaktAnlegenModal state
 const showKontaktAnlegenModal = ref(false);
+const { openContact } = useAdditionalModals();
+watch(showKontaktAnlegenModal, open => {
+  if (!open) return;
+  showKontaktAnlegenModal.value = false;
+  openContact({ prefilledCompanyName: kontaktAnlegenPrefill.companyName,
+    prefilledTeam: kontaktAnlegenPrefill.team }, onKontaktAngelegt);
+});
 // context: 'create' (within create-lead modal) | 'sidebar' (sidebar link)
 const kontaktAnlegenContext = ref('sidebar');
 const kontaktAnlegenPrefill = reactive({ companyName: '', team: 'hamburg' });
@@ -2107,8 +2118,13 @@ async function prefetchContacts() {
 }
 
 onMounted(async () => {
+  if (props.hostedLead) {
+    openLead(props.hostedLead);
+    leadPanelPresentation.value = 'modal';
+    if (props.hostedForm) Object.assign(detailForm, props.hostedForm);
+  }
   await loadAll();
-  if (props.initialLeadId) {
+  if (!props.hostedLead && props.initialLeadId) {
     const target = leads.value.find(l => l._id === props.initialLeadId);
     if (target) openLead(target);
   }
@@ -2159,6 +2175,10 @@ function openLead(lead) {
 }
 
 function closeSidebar() {
+  if (props.hostedLead) {
+    currentModal.remove();
+    return;
+  }
   selectedLead.value = null;
   chronikLead.value = null;
   clearChronik();
@@ -2175,8 +2195,26 @@ function openSidebarActionMenu(event) {
 }
 
 function handleSidebarAction(action) {
-  if (action === 'open-modal') leadPanelPresentation.value = 'modal';
-  if (action === 'open-panel') leadPanelPresentation.value = 'panel';
+  if (action === 'open-modal') {
+    const lead = JSON.parse(JSON.stringify(selectedLead.value));
+    const form = JSON.parse(JSON.stringify(detailForm));
+    const id = `lead-${lead._id}`;
+    if (modalManager.get(id)) modalManager.restore(id);
+    else modalManager.open({ id, title: lead.title || 'Lead', component: HostedLeadWorkspace,
+      props: { hostedLead: lead, hostedForm: form,
+        canDock: () => ownerAlive.value,
+        onDock: (updatedLead, updatedForm) => {
+          if (!ownerAlive.value) return;
+          openLead(updatedLead);
+          Object.assign(detailForm, updatedForm);
+        },
+      } });
+    closeSidebar();
+  }
+  if (action === 'open-panel' && props.canDock?.()) {
+    props.onDock?.(JSON.parse(JSON.stringify(selectedLead.value)), JSON.parse(JSON.stringify(detailForm)));
+    currentModal.remove();
+  }
   if (action === 'archive') archiveLead();
 }
 
@@ -3178,6 +3216,7 @@ function formatBytes(bytes) {
 
 // Close sidebar with ESC
 function handleEsc(e) {
+  if (props.hostedLead) return;
   if (e.key === 'Escape') {
     if (showAddressModal.value) { closeAddressModal(); return; }
     if (showCreateModal.value) showCreateModal.value = false;
@@ -3191,6 +3230,7 @@ onMounted(() => {
 });
 import { onBeforeUnmount } from 'vue';
 onBeforeUnmount(() => {
+  ownerAlive.value = false;
   document.removeEventListener('keydown', handleEsc);
   window.removeEventListener('resize', onResizeMobile);
 });
@@ -3202,6 +3242,10 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   width: 100%;
   min-height: 600px;
+}
+
+.leads-tab--hosted {
+  display: contents;
 }
 
 .main-content {

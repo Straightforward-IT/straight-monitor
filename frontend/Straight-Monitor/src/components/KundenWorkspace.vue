@@ -187,11 +187,6 @@
       @close="showReportModal = false"
     />
 
-    <KontaktAnlegenModal
-      v-if="showKontaktAnlegenModal"
-      @close="showKontaktAnlegenModal = false"
-      @created="onKontaktAngelegt"
-    />
 
     <!-- Card Context Menu -->
     <ContextMenu
@@ -285,7 +280,7 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarLabel from '@/components/ui-elements/ToolbarLabel.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import CustomerListCard from '@/components/customer/CustomerListCard.vue';
-import KontaktAnlegenModal from '@/components/Modals/KontaktAnlegenModal.vue';
+import { useAdditionalModals } from '@/composables/useAdditionalModals';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
@@ -649,6 +644,12 @@ const editForm = ref({});
 const editSaving = ref(false);
 const editError = ref('');
 const showKontaktAnlegenModal = ref(false);
+const { openContact } = useAdditionalModals();
+watch(showKontaktAnlegenModal, open => {
+  if (!open) return;
+  showKontaktAnlegenModal.value = false;
+  openContact({}, onKontaktAngelegt);
+});
 
 function onKontaktAngelegt(contact) {
   showKontaktAnlegenModal.value = false;

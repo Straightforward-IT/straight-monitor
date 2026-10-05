@@ -30,6 +30,7 @@ export function useDocumentModals() {
       id,
       title,
       component: DocumentCard,
+      icon: 'document',
       props: {
         doc: document,
         filteredTeamleiter: options.filteredTeamleiter ?? null,

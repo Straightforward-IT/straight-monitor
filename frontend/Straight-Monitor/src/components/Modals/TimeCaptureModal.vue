@@ -30,15 +30,16 @@
     </template>
     <template #actions>
       <CustomTooltip text="Neu laden">
-        <button
-          type="button"
+        <AppIconButton
           class="time-capture__header-action"
-          aria-label="Neu laden"
+          label="Neu laden"
+          variant="ghost"
+          size="sm"
           :disabled="busy || loading"
           @click="reload"
         >
           <FontAwesomeIcon :icon="faRotateRight" />
-        </button>
+        </AppIconButton>
       </CustomTooltip>
     </template>
     <div class="time-capture">
@@ -69,8 +70,9 @@
           >
             <FontAwesomeIcon :icon="faBriefcase" />
             <span class="time-capture__sr-only">Auftrag</span>
-            <select
+            <AppSelect
               v-model="selectedOrder"
+              size="sm"
               aria-label="Auftrag"
               :disabled="busy || loading || dirty"
               @change="loadReview"
@@ -81,7 +83,7 @@
                 :key="order.auftragNr"
                 :value="order.auftragNr"
               >{{ orderOptionLabel(order) }}</option>
-            </select>
+            </AppSelect>
           </label>
         </template>
         <OrderDocuments
@@ -151,20 +153,19 @@
         role="alert"
       >
         <span class="time-capture__confirm-message">Ungespeicherte Änderungen verwerfen?</span>
-        <button
-          type="button"
-          class="time-capture__confirm-discard"
+        <AppButton
+          size="sm"
+          variant="danger"
           @click="runConfirmed"
         >
           Verwerfen
-        </button>
-        <button
-          type="button"
-          class="time-capture__confirm-continue"
+        </AppButton>
+        <AppButton
+          size="sm"
           @click="confirmAction = null"
         >
           Weiter bearbeiten
-        </button>
+        </AppButton>
       </div>
     </div>
   </ModalFrame>
@@ -185,6 +186,9 @@ import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import SearchBar from '@/components/SearchBar.vue';
 import Stundenschnellerfassung from '@/components/ui-elements/Stundenschnellerfassung.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, employeeName: { type: String, default: '' }, preselectFirstOrder: { type: Boolean, default: true }, minimizeId: { type: String, required: true } });
 const emit = defineEmits(['update:modelValue']);
 const router = useRouter();
@@ -291,31 +295,22 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
 .time-capture__toolbar :deep(.order-documents--compact summary) { box-sizing: border-box; height: 28px; min-height: 28px; padding: 3px 7px; font-size: 10px; background: var(--surface); }
 .time-capture__control { display: inline-flex; align-items: center; gap: 5px; height: 28px; min-width: 0; padding-left: 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--muted); }
 .time-capture__control > svg { flex: 0 0 auto; width: 12px; font-size: 11px; }
-.time-capture__control :is(input, select) { min-width: 0; height: 26px; padding: 2px 6px 2px 0; color: var(--text); background: transparent; border: 0; outline: 0; font: inherit; font-size: 10px; }
+.time-capture__control .app-select { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 2px 6px 2px 0; border: 0; background: transparent; font-size: 10px; }
 .time-capture__control--order { flex: 1 1 360px; max-width: 520px; }
-.time-capture__control--order select { width: 100%; }
 .time-capture__control:focus-within { border-color: var(--primary); outline: 2px solid color-mix(in srgb, var(--primary) 24%, transparent); outline-offset: 0; }
-.time-capture__header-action { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
-.time-capture__header-action:hover:not(:disabled), .time-capture__header-action:focus-visible { border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
-.time-capture__header-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.time-capture__header-action { --app-button-icon-size: 26px; min-height: 26px; font-size: 11px; }
 .time-capture__header-titles { min-width: 0; }
 .time-capture__header-title { margin: 0; color: var(--text); font-size: .9rem; font-weight: 600; line-height: 1.2; }
 .time-capture__header-details { margin: 2px 0 0; overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .time-capture__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .time-capture :disabled { opacity: .55; cursor: default; }
 .time-capture__notice { padding: 6px 10px; margin: 0; font-size: 10px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
-.time-capture__notice--error { color: #c75048; }
+.time-capture__notice--error { color: var(--status-danger-text); }
 .time-capture__history { flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border); font-size: 10px; max-height: 120px; overflow: auto; }
 .time-capture__history div { padding: 3px 0; }
 .time-capture__history summary { cursor: pointer; }
-.time-capture__confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 9px 10px; border: 1px solid color-mix(in srgb, #c75048 38%, var(--border)); border-radius: 6px; background: color-mix(in srgb, #c75048 6%, var(--surface)); box-shadow: 0 2px 8px color-mix(in srgb, #c75048 10%, transparent); }
+.time-capture__confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--status-danger-text) 38%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--status-danger-text) 6%, var(--surface)); box-shadow: 0 2px 8px color-mix(in srgb, var(--status-danger-text) 10%, transparent); }
 .time-capture__confirm-message { flex: 1 1 240px; color: var(--text); font-size: 11px; font-weight: 600; }
-.time-capture__confirm button { min-height: 30px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font: inherit; font-size: 10px; font-weight: 600; transition: border-color .15s, background-color .15s, color .15s; }
-.time-capture__confirm button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.time-capture__confirm-discard { border-color: color-mix(in srgb, #c75048 60%, var(--border)) !important; background: var(--surface); color: #b7443d; }
-.time-capture__confirm-discard:hover { border-color: #c75048 !important; background: color-mix(in srgb, #c75048 9%, var(--surface)); }
-.time-capture__confirm-continue { border-color: var(--primary) !important; background: var(--primary); color: #27221c; }
-.time-capture__confirm-continue:hover { background: color-mix(in srgb, var(--primary) 88%, #fff); }
 @media (max-width: 860px) {
   .time-capture { gap: 4px; padding: 6px; }
   .time-capture__toolbar { align-items: stretch; flex-wrap: wrap; gap: 5px; padding: 4px 6px; overflow: visible; }
@@ -326,6 +321,6 @@ onMounted(() => props.auftragNr ? loadReview() : loadOrders());
   .time-capture__control--order { grid-column: 1 / -1; width: 100%; max-width: none; flex-basis: auto; }
   .time-capture__confirm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .time-capture__confirm-message { grid-column: 1 / -1; }
-  .time-capture__confirm button { width: 100%; min-height: 40px; }
+  .time-capture__confirm .app-button { width: 100%; min-height: 40px; }
 }
 </style>

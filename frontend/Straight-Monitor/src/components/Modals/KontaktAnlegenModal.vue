@@ -3,11 +3,12 @@
     class="kontakt-anlegen-modal"
     layer="elevated"
     minimizable
-    isolate-minimize
+    :close-on-backdrop="!saving"
+    :close-on-escape="!saving"
     minimize-id="kontakt-anlegen"
     minimize-title="Kontakt anlegen"
     style="--mf-max-width: 520px; --mf-body-padding: 20px"
-    @close="$emit('close')"
+    @close="!saving && emit('close')"
   >
     <template #header>
       <h3 class="kontakt-title">

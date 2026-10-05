@@ -110,14 +110,14 @@
                 {{ scope.label }}
               </button>
             </div>
-            <button
-              type="button"
-              class="tm-button"
+            <AppButton
+              size="sm"
+              variant="secondary"
               :disabled="!!held || !!slider"
               @click="openEntry(selectedDate)"
             >
               <span aria-hidden="true">＋</span> Tageseintrag
-            </button>
+            </AppButton>
             <div v-if="bucketEnabled && !preparationMode" class="tm-new-source">
               <button
                 type="button"
@@ -127,8 +127,9 @@
               >
                 <span aria-hidden="true">＋</span> Neue Stunden
               </button>
-              <select
+              <AppSelect
                 v-model.number="newMinutes"
+                size="sm"
                 aria-label="Neue Stunden pro voller Entnahme"
                 title="Shift + Rechtsklick erzeugt diese Menge"
               >
@@ -141,7 +142,7 @@
                 </option><option :value="960">
                   Shift: 16 h
                 </option>
-              </select>
+              </AppSelect>
             </div>
             <button
               type="button"
@@ -388,45 +389,44 @@
       <div class="tm-bucket-bar__content">
         <strong data-testid="bucket-total">{{ held ? `${formatMinutes(held)} im Eimer` : bucketEnabled ? 'Dein Eimer ist leer' : 'Eimer-Modus ausgeschaltet' }}</strong><span>{{ held ? bucketOrigins : bucketEnabled ? 'Rechtsklick auf eine Schicht oder das Zeitkonto, um Stunden zu sammeln.' : 'Aktiviere den Eimer in der Toolbar, um Stunden zu sammeln und abzulegen.' }}</span>
       </div>
-      <button
+      <AppButton
         v-if="held"
-        type="button"
-        class="tm-button"
+        size="sm"
+        variant="secondary"
         @click="cancel"
       >
         Alles zurücklegen <kbd>Esc</kbd>
-      </button>
+      </AppButton>
       <span
         class="tm-status"
         role="status"
         aria-live="polite"
       >{{ message }}</span>
       <div class="tm-actions">
-        <button
-          type="button"
-          class="tm-button"
+        <AppButton
+          size="sm"
+          variant="secondary"
           :disabled="!workspace.history.length && !held"
           @click="undo"
         >
           ↶ Rückgängig
-        </button>
-        <button
-          type="button"
-          class="tm-button"
+        </AppButton>
+        <AppButton
+          size="sm"
+          variant="secondary"
           :disabled="!dirty && !held"
           @click="revert"
         >
           Verwerfen
-        </button>
-        <button
-          type="button"
-          class="tm-button tm-button--primary"
+        </AppButton>
+        <AppButton
+          size="sm"
           :disabled="!saveEnabled || !dirty || !!held || !!slider"
           :title="!saveEnabled ? 'Umbuchungen sind hier noch eine Vorschau' : held ? 'Zuerst den Eimer leeren oder Escape drücken' : 'Änderungen für diese Demo übernehmen'"
           @click="save"
         >
           {{ saveEnabled ? 'Demo speichern' : 'Umbuchungs-Vorschau' }}
-        </button>
+        </AppButton>
       </div>
     </footer>
 
@@ -460,13 +460,15 @@
         @keydown.esc.stop.prevent="cancel"
       >
         <header>
-          <span>{{ slider.operation === 'collect' ? 'Minuten sammeln' : 'Minuten ablegen' }}</span><button
-            type="button"
-            aria-label="Minutenwahl abbrechen"
+          <span>{{ slider.operation === 'collect' ? 'Minuten sammeln' : 'Minuten ablegen' }}</span><AppIconButton
+            class="tm-minute-picker__close"
+            label="Minutenwahl abbrechen"
+            variant="ghost"
+            size="sm"
             @click="slider = null"
           >
             ×
-          </button>
+          </AppIconButton>
         </header>
         <p>{{ slider.label }}</p>
         <strong>{{ formatMinutes(Number(slider.amount)) }}</strong>
@@ -483,24 +485,23 @@
         <div class="tm-minute-picker__scale">
           <span>0 min</span><span>{{ formatMinutes(slider.max) }}</span>
         </div>
-        <label>Exakt<input
+        <label>Exakt<AppTextInput
           v-model.number="slider.amount"
           type="number"
           min="0"
           :max="slider.max"
           step="1"
           aria-label="Exakte Minuten"
-        > min</label>
+        /> min</label>
         <p class="tm-minute-picker__help">
           {{ slider.modifier ? '⌘ / Ctrl loslassen, um die Auswahl zu übernehmen.' : 'Minuten wählen und übernehmen.' }} Escape legt die laufende Sammlung zurück.
         </p>
-        <button
-          type="button"
-          class="tm-button tm-button--primary"
+        <AppButton
+          size="sm"
           @click="applySlider"
         >
           Übernehmen
-        </button>
+        </AppButton>
       </section>
     </Teleport>
   </section>
@@ -512,6 +513,10 @@ import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import HourBucket from '@/components/ui-elements/HourBucket.vue';
 import TimeMonthMatrix from '@/components/ui-elements/TimeMonthMatrix.vue';
 import TimeDayEntryModal from '@/components/Modals/TimeDayEntryModal.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, timeTypeBreakdown, undoTime } from '@/utils/timeManagement';
 
@@ -750,10 +755,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .time-management, .tm-details-content { --tm-blue: #7f98b0; --tm-purple: #a997d0; --tm-green: #62b58f; color: var(--text); font-size: 12px; line-height: 1.4; }
 .time-management *, .tm-details-content *, .tm-minute-picker * { box-sizing: border-box; }
-.time-management button, .time-management input, .time-management select, .tm-details-content button, .tm-details-content input, .tm-details-content select, .tm-minute-picker button, .tm-minute-picker input { font: inherit; }
-.time-management button, .tm-details-content button { color: inherit; }
-.time-management button:disabled, .tm-details-content button:disabled { cursor: default; opacity: .48; }
-.tm-details-content button:focus-visible, .tm-details-content select:focus-visible, .time-management button:focus-visible, .time-management select:focus-visible, .tm-table-scroll:focus-visible, .tm-minute-picker input:focus-visible, .tm-minute-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.time-management :is(button:not(.app-button), input:not(.app-text-input), select:not(.app-select)), .tm-details-content :is(button:not(.app-button), input:not(.app-text-input), select:not(.app-select)), .tm-minute-picker :is(button:not(.app-button), input:not(.app-text-input)) { font: inherit; }
+.time-management button:not(.app-button), .tm-details-content button:not(.app-button) { color: inherit; }
+.time-management button:not(.app-button):disabled, .tm-details-content button:not(.app-button):disabled { cursor: default; opacity: .48; }
+.tm-details-content button:not(.app-button):focus-visible, .tm-details-content select:focus-visible, .time-management button:not(.app-button):focus-visible, .time-management select:focus-visible, .tm-table-scroll:focus-visible, .tm-minute-picker input:not(.app-text-input):focus-visible { outline: 2px solid var(--control-focus-ring, var(--primary)); outline-offset: 2px; }
 .tm-context { display: grid; grid-template-columns: 100px minmax(145px, 1.15fr) 140px 95px minmax(140px, 1.25fr) minmax(115px, 1fr) minmax(90px, .8fr); gap: 8px; margin: 0 0 14px; }
 .tm-context > div { min-width: 0; }
 .tm-context dt { margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 500; }
@@ -796,12 +801,12 @@ onBeforeUnmount(() => {
 .tm-scope button[aria-pressed=true], .tm-tools button[aria-pressed=true] { background: color-mix(in srgb, var(--primary) 25%, var(--surface)); color: var(--text); font-weight: 500; }
 .tm-tools { margin-left: auto; }
 .tm-new-source { display: flex; align-items: center; border-left: 1px solid var(--border); padding-left: 10px; }
-.tm-new-source select { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; color: var(--muted); padding: 4px; font-size: 10px; }
+.tm-new-source .app-select { font-size: 10px; }
 .tm-source { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; padding: 5px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; cursor: pointer; font-size: 10px; white-space: nowrap; }
 .tm-source > span { font-size: 15px; }
 .tm-source small { font-size: 9px; color: var(--muted); }
 .tm-source:hover { background: var(--hover); border-color: var(--border); }
-.tm-source--remove > span { color: #ce675f; }
+.tm-source--remove > span { color: var(--status-danger-text); }
 .tm-detail-tabs { display: flex; align-items: stretch; gap: 3px; padding: 0 8px; border-bottom: 1px solid var(--border); background: var(--hover); overflow-x: auto; }
 .tm-detail-tabs > button { padding: 9px 10px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 11px; white-space: nowrap; cursor: pointer; }
 .tm-detail-tabs > button[aria-pressed=true] { border-bottom-color: var(--primary); color: var(--text); background: var(--surface); font-weight: 500; }
@@ -845,10 +850,6 @@ onBeforeUnmount(() => {
 .tm-guide { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 2px; color: var(--muted); font-size: 10px; }
 .tm-guide__note { margin-left: auto; font-size: 9px; }
 kbd { display: inline-block; padding: 1px 3px; margin-right: 3px; border: 1px solid var(--border); border-radius: 3px; font-family: inherit; font-size: 9px; color: var(--text); }
-.tm-button { display: inline-flex; gap: 5px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 4px; padding: 6px 9px; background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; font-size: 11px; }
-.tm-button:hover:not(:disabled) { border-color: var(--primary); background: var(--hover); }
-.tm-button--primary, .time-management .tm-button--primary { color: #2c2219; border-color: var(--primary); background: var(--primary); font-weight: 600; }
-.tm-button--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 90%, #fff); }
 .tm-bucket-bar { position: sticky; bottom: 8px; z-index: 20; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 0; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--surface); box-shadow: 0 3px 16px #0000000b; }
 .tm-bucket-bar--filled { border-color: var(--primary); }
 .tm-bucket-bar__icon { width: 42px; height: 42px; flex: 0 0 auto; }
@@ -862,13 +863,13 @@ kbd { display: inline-block; padding: 1px 3px; margin-right: 3px; border: 1px so
 .tm-cursor > span { display: block; width: max-content; max-width: 98px; text-align: center; border: 1px solid var(--border); border-radius: 4px; padding: 3px 5px; background: var(--surface); color: var(--muted); font-size: 9px; }
 .tm-minute-picker { position: fixed; z-index: 1800; box-sizing: border-box; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; padding: 16px; border: 1px solid var(--primary); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 12px 40px #0003; font-size: 12px; }
 .tm-minute-picker header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-.tm-minute-picker header button { border: 0; background: transparent; color: var(--muted); padding: 0 3px; cursor: pointer; font-size: 20px; }
+.tm-minute-picker__close { font-size: 20px; }
 .tm-minute-picker p { color: var(--muted); margin: 8px 0 12px; }
 .tm-minute-picker > strong { display: block; font-size: 30px; font-weight: 600; margin: 14px 0; font-variant-numeric: tabular-nums; }
 .tm-minute-picker input[type=range] { width: 100%; accent-color: var(--primary); cursor: ew-resize; }
 .tm-minute-picker__scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
 .tm-minute-picker label { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.tm-minute-picker input[type=number] { width: 80px; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--surface); color: var(--text); }
+.tm-minute-picker .app-text-input { width: 80px; }
 .tm-minute-picker .tm-minute-picker__help { font-size: 10px; line-height: 1.6; margin: 16px 0 12px; }
 
 .tm-details-content--panel .tm-details { margin-top: 12px; }

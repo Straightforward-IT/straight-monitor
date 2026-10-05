@@ -18,6 +18,7 @@ interface MutableModalRecord<TProps extends ModalProps = ModalProps> {
   id: string
   title: string
   component: Component
+  icon?: string
   props?: TProps
   persistence?: ModalDefinition<TProps>['persistence']
   onRemove?: (id: string) => void
@@ -75,6 +76,7 @@ export function createModalManager(
   const maxModals = resolveMaxModals(options.maxModals)
   const records = shallowRef<MutableModalRecord[]>([])
   const recordsById = new Map<string, MutableModalRecord>()
+  const closeHandlers = new Map<string, () => void>()
 
   const modals = computed<readonly ModalRecord[]>(() => records.value)
   const openModals = computed<readonly ModalRecord[]>(() =>
@@ -100,6 +102,7 @@ export function createModalManager(
     const existing = recordsById.get(id)
     if (existing) {
       existing.title = title
+      existing.icon = definition.icon
       existing.props = definition.props ? { ...definition.props } : undefined
       existing.persistence = definition.persistence
       existing.onRemove = definition.onRemove
@@ -121,6 +124,7 @@ export function createModalManager(
       id,
       title,
       component: markRaw(definition.component),
+      icon: definition.icon,
       props: definition.props ? { ...definition.props } : undefined,
       persistence: definition.persistence,
       onRemove: definition.onRemove,
@@ -132,6 +136,14 @@ export function createModalManager(
     recordsById.set(id, record as MutableModalRecord)
     records.value = [...records.value, record as MutableModalRecord]
     return record as ModalRecord<TProps>
+  }
+
+  function updateTitle(id: string, title: string): boolean {
+    const record = recordsById.get(id)
+    if (!record) return false
+    record.title = normalizeTitle(title)
+    record.updatedAt = Date.now()
+    return true
   }
 
   function setStatus(id: string, status: ModalStatus): boolean {
@@ -157,11 +169,28 @@ export function createModalManager(
     return setStatus(id, 'open')
   }
 
+  function setCloseHandler(id: string, handler: () => void): () => void {
+    closeHandlers.set(id, handler)
+    return () => {
+      if (closeHandlers.get(id) === handler) closeHandlers.delete(id)
+    }
+  }
+
+  function requestClose(id: string): boolean {
+    if (!recordsById.has(id)) return false
+    const handler = closeHandlers.get(id)
+    if (!handler) return remove(id)
+    restore(id)
+    handler()
+    return !recordsById.has(id)
+  }
+
   function remove(id: string): boolean {
     const record = recordsById.get(id)
     if (!record) return false
 
     recordsById.delete(id)
+    closeHandlers.delete(id)
     records.value = records.value.filter(candidate => candidate !== record)
     record.onRemove?.(record.id)
     return true
@@ -170,6 +199,7 @@ export function createModalManager(
   function removeAll(): number {
     const removedRecords = records.value
     recordsById.clear()
+    closeHandlers.clear()
     records.value = []
     for (const record of removedRecords) record.onRemove?.(record.id)
     return removedRecords.length
@@ -181,6 +211,9 @@ export function createModalManager(
     minimizedModals,
     get,
     open,
+    updateTitle,
+    setCloseHandler,
+    requestClose,
     minimize,
     restore,
     remove,

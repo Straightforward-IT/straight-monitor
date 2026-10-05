@@ -1,9 +1,7 @@
 <template>
   <component
-    :is="localMinimizable ? MinimizableRegion : PassThrough"
-    v-if="!minimizable || open"
-    v-slot="region"
-    v-bind="regionProps"
+    :is="PassThrough"
+    v-if="open"
   >
     <Teleport
       to="body"
@@ -14,7 +12,7 @@
         :appear="minimizable"
       >
         <div
-          v-if="open && !region?.minimized"
+          v-if="open"
           ref="overlayRef"
           class="mf-overlay"
           :class="{ 'mf-overlay--elevated': layer === 'elevated', 'mf-overlay--full-bleed': fullBleed }"
@@ -122,7 +120,6 @@
 
 <script>
 import {
-  MinimizableRegion,
   MinimizeButton,
   useCurrentDockedModal,
 } from '@bleck-it/vue-modal-dock';
@@ -180,12 +177,8 @@ const props = defineProps({
   lockScroll: { type: Boolean, default: true },
   /** Opt-in integration with @bleck-it/vue-modal-dock. */
   minimizable: { type: Boolean, default: false },
-  /** Give a nested modal its own dock region instead of targeting its host. */
-  isolateMinimize: { type: Boolean, default: false },
   minimizeId: { type: String, default: '' },
   minimizeTitle: { type: String, default: '' },
-  restoreRequest: { type: Function, default: undefined },
-  persistOnUnmount: { type: Boolean, default: false },
   /** Shows a PDF export button in the header controls. */
   pdfExport: { type: Boolean, default: false },
   /** Renders a minimizable modal above app-shell stacking contexts. */
@@ -204,12 +197,10 @@ const titleId = `${uid}-title`;
 const overlayRef = ref(null);
 const dialogRef = ref(null);
 const open = computed(() => props.modelValue !== false);
-// A DockedModalHost already owns lifetime and visibility. A nested dialog can
-// explicitly create its own page-local region so it does not target its host.
-const canMinimize = computed(() => props.minimizable);
-const localMinimizable = computed(() =>
-  props.minimizable && (!dockedModal || props.isolateMinimize)
-);
+const canMinimize = computed(() => props.minimizable && !!dockedModal);
+if (import.meta.env.DEV && props.minimizable && !dockedModal) {
+  console.warn('Dockable ModalFrame must be opened through the global modal host.');
+}
 
 /** Export the whole modal content as a readable, text-selectable PDF. */
 async function exportToPdf(options = {}) {
@@ -227,17 +218,10 @@ const hasHeader = computed(
     !!(props.title || props.subtitle || slots.header || slots.actions || props.showClose)
 );
 
-const regionProps = computed(() =>
-  localMinimizable.value
-    ? {
-        id: props.minimizeId || uid,
-        title: props.minimizeTitle || props.title || 'Fenster',
-        restoreRequest: props.restoreRequest,
-        persistOnUnmount: props.persistOnUnmount,
-        onRemove: requestClose,
-      }
-    : {}
-);
+const releaseCloseHandler = canMinimize.value
+  ? dockedModal.setCloseHandler(requestClose)
+  : undefined;
+onBeforeUnmount(() => releaseCloseHandler?.());
 
 function requestClose() {
   emit('update:modelValue', false);
@@ -250,7 +234,6 @@ function onBackdrop() {
 
 /* ── Escape handling + scroll lock (shared across all frames) ── */
 function isVisible() {
-  // getClientRects() is empty when the MinimizableRegion hides minimized content
   return overlayRef.value && overlayRef.value.getClientRects().length > 0;
 }
 
@@ -290,7 +273,7 @@ function activateFrame() {
   openStack.push(uid);
   window.addEventListener('keydown', onKeydown);
   // Minimizable modals keep the page usable while docked, so no scroll lock
-  if (props.lockScroll && !canMinimize.value) lockBodyScroll();
+  if (props.lockScroll && !props.minimizable) lockBodyScroll();
 }
 
 watch(open, val => (val ? activateFrame() : deactivateFrame()), {

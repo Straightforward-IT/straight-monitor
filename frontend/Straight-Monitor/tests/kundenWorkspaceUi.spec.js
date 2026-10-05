@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => mocks.cache }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
+vi.mock('@/composables/useAdditionalModals', () => ({ useAdditionalModals: () => ({ openContact: vi.fn() }) }));
 vi.mock('@/composables/useCustomerModals', () => ({ useCustomerModals: () => ({ openCustomer: mocks.openCustomer }) }));
 vi.mock('vue-router', async importOriginal => ({ ...(await importOriginal()), useRoute: () => mocks.route }));
 

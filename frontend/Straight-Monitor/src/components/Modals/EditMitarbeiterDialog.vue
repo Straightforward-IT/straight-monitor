@@ -5,13 +5,15 @@
     size="lg"
     layer="elevated"
     minimizable
-    isolate-minimize
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle"
+    :show-close="!saving"
+    :close-on-backdrop="!saving"
+    :close-on-escape="!saving"
     class="edit-mitarbeiter-dialog"
-    @close="emit('close')"
+    @close="requestClose"
   >
-    <div class="edit-form">
+    <fieldset class="edit-form" :disabled="saving" :aria-busy="saving || undefined">
       <section class="form-section form-section--first">
         <div class="form-section__heading">
           <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-user" /></span>
@@ -19,17 +21,17 @@
         </div>
         <div class="form-grid form-grid--three">
           <div class="form-group">
-            <label>Vorname</label>
-            <input v-model="form.vorname" type="text" class="form-input" />
+            <label :for="fieldId('vorname')">Vorname</label>
+            <AppTextInput :id="fieldId('vorname')" v-model="form.vorname" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Nachname</label>
-            <input v-model="form.nachname" type="text" class="form-input" />
+            <label :for="fieldId('nachname')">Nachname</label>
+            <AppTextInput :id="fieldId('nachname')" v-model="form.nachname" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Personalnr</label>
-            <input v-model="form.personalnr" type="text" class="form-input" />
-            <p class="help-text">
+            <label :for="fieldId('personalnr')">Personalnr</label>
+            <AppTextInput :id="fieldId('personalnr')" v-model="form.personalnr" class="form-input" :aria-describedby="fieldId('personalnr-help')" />
+            <p :id="fieldId('personalnr-help')" class="help-text">
               Änderungen hier aktualisieren die aktuelle Personalnummer.
             </p>
           </div>
@@ -37,52 +39,52 @@
 
         <div class="form-grid form-grid--three">
           <div class="form-group">
-            <label>E-Mail</label>
-            <input v-model="form.email" type="email" class="form-input" />
+            <label :for="fieldId('email')">E-Mail</label>
+            <AppTextInput :id="fieldId('email')" v-model="form.email" type="email" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Telefon</label>
-            <input v-model="form.telefon" type="tel" class="form-input" />
+            <label :for="fieldId('telefon')">Telefon</label>
+            <AppTextInput :id="fieldId('telefon')" v-model="form.telefon" type="tel" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Geburtsdatum</label>
-            <input v-model="form.geburtsdatum" type="date" class="form-input" />
-          </div>
-        </div>
-
-        <div class="form-grid form-grid--three">
-          <div class="form-group">
-            <label>Geburtsname</label>
-            <input v-model="form.geburtsname" type="text" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label>Geburtsort</label>
-            <input v-model="form.geburtsort" type="text" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label>IBAN</label>
-            <input v-model="form.iban" type="text" class="form-input" :class="{ 'form-input--missing': !form.iban }" autocomplete="off" />
-            <p v-if="!form.iban" class="help-text help-text--missing">IBAN fehlt!</p>
+            <label :for="fieldId('geburtsdatum')">Geburtsdatum</label>
+            <AppTextInput :id="fieldId('geburtsdatum')" v-model="form.geburtsdatum" type="date" class="form-input" />
           </div>
         </div>
 
         <div class="form-grid form-grid--three">
           <div class="form-group">
-            <label>Konfektionsgröße</label>
-            <input v-model.trim="form.konfektionsgroesse" type="text" class="form-input" />
+            <label :for="fieldId('geburtsname')">Geburtsname</label>
+            <AppTextInput :id="fieldId('geburtsname')" v-model="form.geburtsname" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Schuhgröße</label>
-            <input v-model.trim="form.schuhgroesse" type="text" class="form-input" />
+            <label :for="fieldId('geburtsort')">Geburtsort</label>
+            <AppTextInput :id="fieldId('geburtsort')" v-model="form.geburtsort" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Staatsangehörigkeit</label>
-            <select v-model="form.nationalitaet" class="form-input">
+            <label :for="fieldId('iban')">IBAN</label>
+            <AppTextInput :id="fieldId('iban')" v-model="form.iban" class="form-input" :class="{ 'form-input--missing': !form.iban }" :aria-invalid="!form.iban || undefined" :aria-describedby="!form.iban ? fieldId('iban-help') : undefined" autocomplete="off" />
+            <p v-if="!form.iban" :id="fieldId('iban-help')" class="help-text help-text--missing">IBAN fehlt!</p>
+          </div>
+        </div>
+
+        <div class="form-grid form-grid--three">
+          <div class="form-group">
+            <label :for="fieldId('konfektionsgroesse')">Konfektionsgröße</label>
+            <AppTextInput :id="fieldId('konfektionsgroesse')" v-model.trim="form.konfektionsgroesse" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label :for="fieldId('schuhgroesse')">Schuhgröße</label>
+            <AppTextInput :id="fieldId('schuhgroesse')" v-model.trim="form.schuhgroesse" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label :for="fieldId('nationalitaet')">Staatsangehörigkeit</label>
+            <AppSelect :id="fieldId('nationalitaet')" v-model="form.nationalitaet" class="form-input">
               <option value="">— nicht gesetzt —</option>
               <option v-for="nationalitaet in nationalitaeten" :key="nationalitaet.schluessel" :value="String(nationalitaet.schluessel)">
                 {{ nationalitaetOptionLabel(nationalitaet) }}
               </option>
-            </select>
+            </AppSelect>
           </div>
         </div>
       </section>
@@ -94,26 +96,26 @@
         </div>
         <div class="form-grid form-grid--employment">
           <div class="form-group form-group--employment-type">
-            <label>Personengruppe</label>
-            <select v-model="form.persgruppe" class="form-input">
+            <label :for="fieldId('persgruppe')">Personengruppe</label>
+            <AppSelect :id="fieldId('persgruppe')" v-model="form.persgruppe" class="form-input">
               <option :value="null">— nicht gesetzt —</option>
               <option :value="101">101 – Festangestellt (Festi)</option>
               <option :value="110">110 – Kurzfristig angestellt (KZF)</option>
               <option :value="109">109 – Geringfügig angestellt (Mini)</option>
               <option :value="106">106 – Werkstudent (Werkst.)</option>
-            </select>
+            </AppSelect>
             <label class="checkbox-label">
               <input v-model="form.persgruppe_set_explicitly" type="checkbox" />
               Manuell gesetzt – nicht vom Import überschreiben
             </label>
           </div>
           <div class="form-group">
-            <label>Vorarbeitgeber-Tage</label>
-            <input v-model.number="form.vorarbeitgebertage.days" type="number" min="0" step="1" class="form-input" />
+            <label :for="fieldId('vorarbeitgebertage-days')">Vorarbeitgeber-Tage</label>
+            <AppTextInput :id="fieldId('vorarbeitgebertage-days')" v-model.number="form.vorarbeitgebertage.days" type="number" min="0" step="1" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Kalenderjahr</label>
-            <input v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
+            <label :for="fieldId('vorarbeitgebertage-year')">Kalenderjahr</label>
+            <AppTextInput :id="fieldId('vorarbeitgebertage-year')" v-model.number="form.vorarbeitgebertage.year" type="number" min="2000" step="1" class="form-input" />
           </div>
         </div>
       </section>
@@ -127,20 +129,20 @@
           <h5>Hauptadresse</h5>
           <div class="form-grid form-grid--address">
             <div class="form-group form-group--street">
-              <label>Straße</label>
-              <input v-model="form.adresse.strasse" type="text" class="form-input" />
+              <label :for="fieldId('adresse-strasse')">Straße</label>
+              <AppTextInput :id="fieldId('adresse-strasse')" v-model="form.adresse.strasse" class="form-input" />
             </div>
             <div class="form-group">
-              <label>PLZ</label>
-              <input v-model="form.adresse.plz" type="text" class="form-input" />
+              <label :for="fieldId('adresse-plz')">PLZ</label>
+              <AppTextInput :id="fieldId('adresse-plz')" v-model="form.adresse.plz" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Ort</label>
-              <input v-model="form.adresse.ort" type="text" class="form-input" />
+              <label :for="fieldId('adresse-ort')">Ort</label>
+              <AppTextInput :id="fieldId('adresse-ort')" v-model="form.adresse.ort" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Land</label>
-              <input v-model="form.adresse.land" type="text" class="form-input" />
+              <label :for="fieldId('adresse-land')">Land</label>
+              <AppTextInput :id="fieldId('adresse-land')" v-model="form.adresse.land" class="form-input" />
             </div>
           </div>
         </div>
@@ -151,30 +153,30 @@
           </div>
           <div class="form-grid form-grid--address">
             <div class="form-group form-group--street">
-              <label>Straße</label>
-              <input v-model="form.adresse2.strasse" type="text" class="form-input" />
+              <label :for="fieldId('adresse2-strasse')">Straße</label>
+              <AppTextInput :id="fieldId('adresse2-strasse')" v-model="form.adresse2.strasse" class="form-input" />
             </div>
             <div class="form-group">
-              <label>PLZ</label>
-              <input v-model="form.adresse2.plz" type="text" class="form-input" />
+              <label :for="fieldId('adresse2-plz')">PLZ</label>
+              <AppTextInput :id="fieldId('adresse2-plz')" v-model="form.adresse2.plz" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Ort</label>
-              <input v-model="form.adresse2.ort" type="text" class="form-input" />
+              <label :for="fieldId('adresse2-ort')">Ort</label>
+              <AppTextInput :id="fieldId('adresse2-ort')" v-model="form.adresse2.ort" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Land</label>
-              <input v-model="form.adresse2.land" type="text" class="form-input" />
+              <label :for="fieldId('adresse2-land')">Land</label>
+              <AppTextInput :id="fieldId('adresse2-land')" v-model="form.adresse2.land" class="form-input" />
             </div>
           </div>
           <div class="form-grid form-grid--two">
             <div class="form-group">
-              <label>Telefon</label>
-              <input v-model="form.adresse2.telefon" type="tel" class="form-input" />
+              <label :for="fieldId('adresse2-telefon')">Telefon</label>
+              <AppTextInput :id="fieldId('adresse2-telefon')" v-model="form.adresse2.telefon" type="tel" class="form-input" />
             </div>
             <div class="form-group">
-              <label>E-Mail</label>
-              <input v-model="form.adresse2.email" type="email" class="form-input" />
+              <label :for="fieldId('adresse2-email')">E-Mail</label>
+              <AppTextInput :id="fieldId('adresse2-email')" v-model="form.adresse2.email" type="email" class="form-input" />
             </div>
           </div>
         </div>
@@ -191,24 +193,24 @@
             :key="index"
             class="item-row"
           >
-            <input
+            <AppTextInput
               v-model="form.additionalEmails[index]"
               type="email"
               class="form-input"
+              :aria-label="`Alternative E-Mail ${index + 1}`"
             />
-            <button
-              type="button"
-              class="btn btn-sm btn-icon btn-danger"
+            <AppIconButton
+              size="sm"
+              variant="ghost"
+              :label="`Alternative E-Mail ${index + 1} entfernen`"
               @click="removeEmail(index)"
-              aria-label="E-Mail entfernen"
-              title="E-Mail entfernen"
             >
               <font-awesome-icon icon="fa-solid fa-trash" />
-            </button>
+            </AppIconButton>
           </div>
-          <button type="button" class="btn btn-sm btn-secondary mt-2" @click="addEmail">
+          <AppButton size="sm" variant="secondary" class="mt-2" @click="addEmail">
             <font-awesome-icon icon="fa-solid fa-plus" /> E-Mail hinzufügen
-          </button>
+          </AppButton>
         </div>
       </section>
 
@@ -230,21 +232,20 @@
                   {{ formatDate(entry.updatedAt) }} ({{ entry.source }})
                 </span>
               </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-icon btn-danger"
+              <AppIconButton
+                size="sm"
+                variant="ghost"
+                :label="`Historieneintrag ${entry.value} entfernen`"
                 @click="removeHistory(index)"
-                aria-label="Historieneintrag entfernen"
-                title="Eintrag entfernen"
               >
                 <font-awesome-icon icon="fa-solid fa-trash" />
-              </button>
+              </AppIconButton>
             </div>
           </div>
           <p v-else class="empty-state">Keine Historie vorhanden.</p>
         </div>
       </section>
-    </div>
+    </fieldset>
 
     <template #footer>
       <div v-if="conflictInfo" class="edit-footer edit-footer--conflict">
@@ -254,23 +255,20 @@
           Trotzdem zuweisen? <em>{{ conflictInfo.name }} verliert dadurch die Personalnr.</em>
         </div>
         <div class="conflict-actions">
-          <button type="button" class="btn btn-ghost" @click="$emit('cancel-conflict')">Abbrechen</button>
-          <button type="button" class="btn btn-danger" :disabled="saving" @click="saveForce">
-            <font-awesome-icon :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-right-left'" :class="{ 'fa-spin': saving }" />
+          <AppButton variant="ghost" :disabled="saving" @click="emit('cancel-conflict')">Abbrechen</AppButton>
+          <AppButton variant="danger" :loading="saving" @click="saveForce">
+            <font-awesome-icon v-if="!saving" icon="fa-solid fa-right-left" />
             Trotzdem zuweisen
-          </button>
+          </AppButton>
         </div>
       </div>
       <div v-else class="edit-footer">
         <div class="modal-footer-actions">
-          <button type="button" class="btn btn-ghost" @click="emit('close')">Abbrechen</button>
-          <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
-            <font-awesome-icon
-              :icon="saving ? 'fa-solid fa-spinner' : 'fa-solid fa-save'"
-              :class="{ 'fa-spin': saving }"
-            />
+          <AppButton variant="ghost" :disabled="saving" @click="requestClose">Abbrechen</AppButton>
+          <AppButton :loading="saving" @click="save">
+            <font-awesome-icon v-if="!saving" icon="fa-solid fa-save" />
             Speichern
-          </button>
+          </AppButton>
         </div>
       </div>
     </template>
@@ -278,10 +276,14 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, useId, watch } from "vue";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import ModalFrame from "@/components/frames/ModalFrame.vue";
+import AppButton from "@/components/ui-elements/AppButton.vue";
+import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
+import AppTextInput from "@/components/ui-elements/AppTextInput.vue";
+import AppSelect from "@/components/ui-elements/AppSelect.vue";
 
 const props = defineProps({
   mitarbeiter: {
@@ -303,6 +305,12 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
+const formId = useId();
+const fieldId = (field) => `${formId}-${field}`;
+
+function requestClose() {
+  if (!props.saving) emit("close");
+}
 
 const employeeName = computed(() =>
   [props.mitarbeiter?.vorname, props.mitarbeiter?.nachname].filter(Boolean).join(" ")
@@ -394,14 +402,17 @@ watch(
 );
 
 function addEmail() {
+  if (props.saving) return;
   form.value.additionalEmails.push("");
 }
 
 function removeEmail(index) {
+  if (props.saving) return;
   form.value.additionalEmails.splice(index, 1);
 }
 
 function removeHistory(index) {
+  if (props.saving) return;
   if (confirm("Diesen Historien-Eintrag wirklich löschen?")) {
     form.value.personalnrHistory.splice(index, 1);
   }
@@ -436,6 +447,7 @@ function archiveOldPersonalnrIfChanged() {
 }
 
 function save() {
+  if (props.saving) return;
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
@@ -444,6 +456,7 @@ function save() {
 }
 
 function saveForce() {
+  if (props.saving) return;
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
@@ -483,6 +496,10 @@ function saveForce() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .form-section {
@@ -562,33 +579,14 @@ function saveForce() {
 .form-input {
   width: 100%;
   min-height: 40px;
-  padding: 9px 11px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg, var(--tile-bg));
-  color: var(--text);
-  font-size: 0.9rem;
-  box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-
-  &:hover:not(:focus) {
-    border-color: color-mix(in srgb, var(--border) 55%, var(--text));
-  }
-
-  &:focus {
-    border-color: var(--primary);
-    outline: none;
-    background: var(--tile-bg, var(--surface));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
-  }
 }
 
 .form-input--missing {
-  border-color: #dc2626;
+  border-color: var(--status-danger-text, #c43d3d);
 
   &:focus {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px color-mix(in srgb, #dc2626 16%, transparent);
+    border-color: var(--status-danger-text, #c43d3d);
+    outline-color: color-mix(in srgb, var(--status-danger-text, #c43d3d) 42%, transparent);
   }
 }
 
@@ -600,7 +598,7 @@ function saveForce() {
 }
 
 .help-text--missing {
-  color: #dc2626;
+  color: var(--status-danger-text, #c43d3d);
   font-weight: 600;
 }
 
@@ -667,6 +665,15 @@ function saveForce() {
     flex: 1;
   }
 
+  .app-icon-button {
+    color: var(--status-danger-text, #c43d3d);
+  }
+
+  .app-icon-button:hover:not(:disabled) {
+    color: var(--status-danger-text, #c43d3d);
+    background: color-mix(in srgb, var(--status-danger-text, #c43d3d) 10%, transparent);
+  }
+
   &.history-row {
     justify-content: space-between;
     min-height: 42px;
@@ -701,65 +708,6 @@ function saveForce() {
   font-size: 0.9rem;
 }
 
-.btn {
-  min-height: 36px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-
-  &.btn-primary {
-    background: var(--primary);
-    color: white;
-    &:hover {
-      background: color-mix(in srgb, var(--primary) 88%, black);
-    }
-  }
-
-  &.btn-secondary {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    &:hover {
-      background: var(--hover);
-    }
-  }
-
-  &.btn-ghost {
-    background: transparent;
-    color: var(--muted);
-    &:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
-  }
-
-  &.btn-danger {
-    background: rgba(220, 53, 69, 0.1);
-    color: #dc3545;
-    &:hover {
-      background: rgba(220, 53, 69, 0.2);
-    }
-  }
-
-  &.btn-icon {
-    width: 36px;
-    padding: 0;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
 .conflict-warning {
   flex: 1;
   font-size: 0.875rem;
@@ -767,7 +715,7 @@ function saveForce() {
   line-height: 1.5;
 
   svg {
-    color: #f59e0b;
+    color: var(--status-warning-text, #a66b00);
     margin-right: 0.4rem;
   }
 
@@ -834,7 +782,7 @@ function saveForce() {
   .modal-footer-actions {
     width: 100%;
 
-    .btn {
+    .app-button {
       flex: 1;
     }
   }
