@@ -531,8 +531,9 @@ const signNavTarget = computed(() => {
 });
 
 const navigationItems = computed(() => {
-  const child = (id, label, to, active, icon = ['fas', 'layer-group'], mobileLabel = label) => ({
-    id, label, mobileLabel, to, active, icon, disabled: false
+  const userRoles = auth.user?.roles || [];
+  const child = (id, label, to, active, icon = ['fas', 'layer-group'], mobileLabel = label, roles) => ({
+    id, label, mobileLabel, to, active, icon, roles, disabled: false
   });
   const items = [
     {
@@ -607,9 +608,9 @@ const navigationItems = computed(() => {
       mobileLabel: 'Kunden', icon: ['fas', 'building'], active: isKundenSectionActive.value, devRole: isDev, groupClass: 'nav-group--kunden',
       children: [
         child('kunden-default', 'Kunden', '/kunden', route.name === 'Kunden' && !route.query.tab, ['fas', 'layer-group'], 'Übersicht'),
-        child('kunden-analytics', 'Analytics', { path: '/kunden', query: { tab: 'analytics' } }, route.name === 'Kunden' && route.query.tab === 'analytics', ['fas', 'chart-line']),
-        child('kunden-leads', 'Leads', { path: '/kunden', query: { tab: 'leads' } }, route.name === 'Kunden' && route.query.tab === 'leads', ['fas', 'bullseye']),
-        child('kunden-watchlist', 'Watchlist', { path: '/kunden', query: { tab: 'watchlist' } }, route.name === 'Kunden' && route.query.tab === 'watchlist', ['fas', 'star']),
+        child('kunden-analytics', 'Analytics', { path: '/kunden', query: { tab: 'analytics' } }, route.name === 'Kunden' && route.query.tab === 'analytics', ['fas', 'chart-line'], 'Analytics', ['ADMIN', 'VERTRIEB']),
+        child('kunden-leads', 'Leads', { path: '/kunden', query: { tab: 'leads' } }, route.name === 'Kunden' && route.query.tab === 'leads', ['fas', 'bullseye'], 'Leads', ['ADMIN', 'VERTRIEB']),
+        child('kunden-watchlist', 'Watchlist', { path: '/kunden', query: { tab: 'watchlist' } }, route.name === 'Kunden' && route.query.tab === 'watchlist', ['fas', 'star'], 'Watchlist', ['ADMIN', 'VERTRIEB']),
         child('kunden-contacts', 'Kontakte', { path: '/kunden', query: { tab: 'kontakte' } }, route.name === 'Kunden' && route.query.tab === 'kontakte', ['fas', 'address-book'])
       ]
     },
@@ -621,9 +622,12 @@ const navigationItems = computed(() => {
 
   return items.map((item) => ({
     ...item,
-    children: item.children.map((entry) => ({ ...entry, disabled: item.disabled })),
+    children: item.children
+      .filter((entry) => !entry.roles || entry.roles.some((role) => userRoles.includes(role)))
+      .map((entry) => ({ ...entry, disabled: item.disabled })),
     desktopChildren: (item.desktopChildren || item.children
       .filter((entry) => entry.label !== item.label))
+      .filter((entry) => !entry.roles || entry.roles.some((role) => userRoles.includes(role)))
       .map((entry) => ({ ...entry, disabled: item.disabled }))
   }));
 });
