@@ -1328,7 +1328,13 @@ function ensureLohnvorschussSignerSlots() {
     const signer = resolveLocationSigner(existing, slot);
     return {
       ...slot,
-      ...signer,
+      ...(slot.role === 'Erste Partei'
+        ? {
+            name: locationSigner.name,
+            email: locationSigner.email,
+            embedded: locationSigner.embedded,
+          }
+        : signer),
     };
   });
 }
@@ -1338,6 +1344,7 @@ watch(
     isLohnvorschussFlow,
     () => form.value.mitarbeiterId,
     () => form.value.locationId,
+    () => selectedLocation.value?._id,
     () => selectedLocation.value?.locationManager?._id,
     () => selectedMitarbeiter.value?._id,
   ],
@@ -1615,18 +1622,24 @@ watch(() => modal.requestVersion, async () => {
   asanaSearchQuery.value = '';
   asanaSearchResults.value = [];
   pendingAction.value = { taskGid: '', taskName: '', type: 'complete', comment: '' };
+  if (modal.context.locationId) {
+    form.value.locationId = typeof modal.context.locationId === 'object'
+      ? modal.context.locationId._id || null
+      : modal.context.locationId;
+  }
 
   // Kick off data loads
   const typenRequest = loadTypen();
-  loadLocations();
+  const locationsRequest = loadLocations();
   const templatesRequest = loadTemplates();
   const graphContactsRequest = loadGraphContacts();
   const kundenRequest = dataCache.loadKunden?.();
   const mitarbeiterRequest = dataCache.loadMitarbeiter?.();
 
-  await Promise.all([typenRequest, templatesRequest, graphContactsRequest, kundenRequest, mitarbeiterRequest]);
+  await Promise.all([typenRequest, locationsRequest, templatesRequest, graphContactsRequest, kundenRequest, mitarbeiterRequest]);
   if (!modal.open || modal.requestVersion !== requestVersion) return;
   await hydrateFromContext();
+  if (isLohnvorschussFlow.value) ensureLohnvorschussSignerSlots();
   normalizeSubmitterNames();
   syncSignerDeliveryRecipients();
 }, { immediate: true });

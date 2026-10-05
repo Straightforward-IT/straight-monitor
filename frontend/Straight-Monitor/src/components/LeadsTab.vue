@@ -439,26 +439,29 @@
 
             <!-- Add activity button (shown when form is closed) -->
             <div v-if="!showAktForm" class="add-contact-row">
-              <button class="btn-add-contact" @click="openAktForm">
+              <AppButton variant="secondary" size="sm" @click="openAktForm">
                 <font-awesome-icon :icon="['fas', 'plus']" /> Aktivität planen
-              </button>
+              </AppButton>
             </div>
 
             <!-- Inline create form -->
             <div v-if="showAktForm" class="akt-form">
               <!-- Asana button — top-right corner -->
-              <button
+              <AppIconButton
                 class="btn-asana-corner"
-                :class="{ active: asanaView.mode === 'create' }"
+                variant="ghost"
+                size="sm"
+                :label="asanaView.mode === 'create' ? 'Asana-Task-Ansicht schließen' : 'Asana-Task-Ansicht öffnen'"
+                :active="asanaView.mode === 'create'"
+                :disabled="savingAkt"
                 @click="toggleAsanaView('create')"
-                title="Als Asana-Task planen"
               >
                 <svg class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                   <circle cx="120" cy="28" r="28"/>
                   <circle cx="52" cy="152" r="28"/>
                   <circle cx="188" cy="152" r="28"/>
                 </svg>
-              </button>
+              </AppIconButton>
 
               <!-- Normal activity form -->
               <template v-if="asanaView.mode !== 'create'">
@@ -467,6 +470,7 @@
                     v-for="t in AKT_TYPES" :key="t.value"
                     class="akt-type-btn"
                     :class="{ active: aktForm.type === t.value }"
+                    :aria-pressed="aktForm.type === t.value"
                     @click="aktForm.type = t.value"
                     :title="t.label"
                   >
@@ -474,9 +478,9 @@
                     <span>{{ t.label }}</span>
                   </button>
                 </div>
-                <input
+                <AppTextInput
                   v-model="aktForm.titel"
-                  class="form-input"
+                  aria-label="Titel der Aktivität"
                   placeholder="Titel / Betreff (optional)"
                 />
                 <div class="akt-datetime-row">
@@ -486,15 +490,18 @@
                     <input v-model="aktForm.date" type="date" class="akt-date-hidden" />
                   </label>
                   <div class="akt-time-picker">
-                    <input
+                    <AppTextInput
                       v-model="aktForm.timeHour"
                       type="number" min="0" max="23"
-                      class="form-input akt-time-hour"
+                      class="akt-time-hour"
+                      aria-label="Stunde"
                       placeholder="Std"
                     />
                     <div class="akt-min-btns">
                       <button v-for="m in ['00','15','30','45']" :key="m" type="button"
                         class="akt-min-btn" :class="{ active: aktForm.timeMin === m }"
+                        :aria-pressed="aktForm.timeMin === m"
+                        :aria-label="`${m} Minuten`"
                         @click="aktForm.timeMin = m"
                       >{{ m }}</button>
                     </div>
@@ -507,36 +514,37 @@
                         @change="e => { applyManualTime(aktForm, e.target.value); aktTimeManual = false }"
                         @blur="aktTimeManual = false"
                       />
-                      <span v-else class="akt-time-result" @click="aktTimeManual = true">
+                      <button v-else type="button" class="akt-time-result" aria-label="Uhrzeit manuell bearbeiten" @click="aktTimeManual = true">
                         {{ String(aktForm.timeHour).padStart(2,'0') }}:{{ aktForm.timeMin }}
-                      </span>
+                      </button>
                     </template>
                   </div>
                 </div>
-                <select
+                <AppSelect
                   v-if="leadContacts.length > 0"
                   v-model="aktForm.kontaktId"
-                  class="form-input"
+                  aria-label="Kontakt für Aktivität"
                 >
                   <option value="">Kein Kontakt</option>
                   <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
-                </select>
+                </AppSelect>
                 <div class="akt-form-actions">
-                  <button class="btn btn-secondary" @click="showAktForm = false">Abbrechen</button>
+                  <AppButton variant="secondary" size="sm" :disabled="savingAkt" @click="showAktForm = false">Abbrechen</AppButton>
                   <div class="btn-save-wrap">
-                    <button class="btn btn-primary" :disabled="!aktForm.date || savingAkt" @click="saveAkt">
-                      <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
-                      <svg v-else-if="asanaView.enabled" class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
+                    <AppButton size="sm" :disabled="!aktForm.date" :loading="savingAkt" @click="saveAkt">
                       Erstellen
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppIconButton
                       class="btn-asana-badge"
-                      :class="{ active: asanaView.enabled }"
-                      :title="asanaView.enabled ? 'Asana Task wird erstellt' : 'Kein Asana Task'"
+                      variant="ghost"
+                      size="sm"
+                      :label="asanaView.enabled ? 'Asana-Task-Erstellung deaktivieren' : 'Asana-Task-Erstellung aktivieren'"
+                      :active="asanaView.enabled"
+                      :disabled="savingAkt"
                       @click.stop="asanaView.enabled = !asanaView.enabled"
                     >
                       <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
-                    </button>
+                    </AppIconButton>
                   </div>
                 </div>
               </template>
@@ -553,7 +561,7 @@
                 </div>
                 <div class="asana-view-field">
                   <label class="asana-view-label">Titel</label>
-                  <input v-model="asanaView.titel" class="form-input" placeholder="Task-Titel" />
+                  <AppTextInput v-model="asanaView.titel" aria-label="Asana-Task-Titel" placeholder="Task-Titel" />
                 </div>
                 <div class="asana-view-field">
                   <label class="asana-view-label">Fälligkeitsdatum</label>
@@ -569,7 +577,7 @@
                 </div>
                 <div class="asana-view-field">
                   <label class="asana-view-label">Beschreibung</label>
-                  <textarea v-model="asanaView.notes" class="form-input asana-notes-area" rows="3" placeholder="Beschreibung" />
+                  <AppTextarea v-model="asanaView.notes" class="asana-notes-area" aria-label="Asana-Task-Beschreibung" rows="3" placeholder="Beschreibung" />
                 </div>
                 <div v-if="asanaView.result" class="asana-view-result">
                   <font-awesome-icon :icon="['fas', 'circle-check']" />
@@ -580,7 +588,7 @@
                   <font-awesome-icon :icon="['fas', 'circle-exclamation']" /> {{ asanaView.error }}
                 </div>
                 <div class="akt-form-actions">
-                  <button class="btn btn-secondary" @click="toggleAsanaView(null)">Zurück</button>
+                  <AppButton variant="secondary" size="sm" @click="toggleAsanaView(null)">Zurück</AppButton>
                 </div>
               </div>
             </div>
@@ -594,18 +602,21 @@
                 <!-- Inline edit form -->
                 <div v-if="editingAktId === akt._id" class="akt-form">
                   <!-- Asana button — top-right corner -->
-                  <button
+                  <AppIconButton
                     class="btn-asana-corner"
-                    :class="{ active: asanaView.mode === 'edit' }"
+                    variant="ghost"
+                    size="sm"
+                    :label="asanaView.mode === 'edit' ? 'Asana-Task-Ansicht schließen' : 'Asana-Task-Ansicht öffnen'"
+                    :active="asanaView.mode === 'edit'"
+                    :disabled="savingAkt"
                     @click="toggleAsanaView('edit')"
-                    title="Als Asana-Task planen"
                   >
                     <svg class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                       <circle cx="120" cy="28" r="28"/>
                       <circle cx="52" cy="152" r="28"/>
                       <circle cx="188" cy="152" r="28"/>
                     </svg>
-                  </button>
+                  </AppIconButton>
 
                   <!-- Normal edit form -->
                   <template v-if="asanaView.mode !== 'edit'">
@@ -614,6 +625,7 @@
                         v-for="t in AKT_TYPES" :key="t.value"
                         class="akt-type-btn"
                         :class="{ active: editAktForm.type === t.value }"
+                        :aria-pressed="editAktForm.type === t.value"
                         @click="editAktForm.type = t.value"
                         :title="t.label"
                       >
@@ -621,7 +633,7 @@
                         <span>{{ t.label }}</span>
                       </button>
                     </div>
-                    <input v-model="editAktForm.titel" class="form-input" placeholder="Titel / Betreff (optional)" />
+                    <AppTextInput v-model="editAktForm.titel" aria-label="Titel der Aktivität" placeholder="Titel / Betreff (optional)" />
                     <div class="akt-datetime-row">
                       <label class="akt-date-label" @click.prevent="$event.currentTarget.querySelector('input[type=date]').showPicker()">
                         <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
@@ -629,15 +641,18 @@
                         <input v-model="editAktForm.date" type="date" class="akt-date-hidden" />
                       </label>
                       <div class="akt-time-picker">
-                        <input
+                        <AppTextInput
                           v-model="editAktForm.timeHour"
                           type="number" min="0" max="23"
-                          class="form-input akt-time-hour"
+                          class="akt-time-hour"
+                          aria-label="Stunde"
                           placeholder="Std"
                         />
                         <div class="akt-min-btns">
                           <button v-for="m in ['00','15','30','45']" :key="m" type="button"
                             class="akt-min-btn" :class="{ active: editAktForm.timeMin === m }"
+                            :aria-pressed="editAktForm.timeMin === m"
+                            :aria-label="`${m} Minuten`"
                             @click="editAktForm.timeMin = m"
                           >{{ m }}</button>
                         </div>
@@ -650,32 +665,33 @@
                             @change="e => { applyManualTime(editAktForm, e.target.value); editAktTimeManual = false }"
                             @blur="editAktTimeManual = false"
                           />
-                          <span v-else class="akt-time-result" @click="editAktTimeManual = true">
+                          <button v-else type="button" class="akt-time-result" aria-label="Uhrzeit manuell bearbeiten" @click="editAktTimeManual = true">
                             {{ String(editAktForm.timeHour).padStart(2,'0') }}:{{ editAktForm.timeMin }}
-                          </span>
+                          </button>
                         </template>
                       </div>
                     </div>
-                    <select v-if="leadContacts.length > 0" v-model="editAktForm.kontaktId" class="form-input">
+                    <AppSelect v-if="leadContacts.length > 0" v-model="editAktForm.kontaktId" aria-label="Kontakt für Aktivität">
                       <option value="">Kein Kontakt</option>
                       <option v-for="c in leadContacts" :key="c.id" :value="c.id">{{ c.displayName }}</option>
-                    </select>
+                    </AppSelect>
                     <div class="akt-form-actions">
-                      <button class="btn btn-secondary" @click="editingAktId = null">Abbrechen</button>
+                      <AppButton variant="secondary" size="sm" :disabled="savingAkt" @click="editingAktId = null">Abbrechen</AppButton>
                       <div class="btn-save-wrap">
-                        <button class="btn btn-primary" :disabled="!editAktForm.date || savingAkt" @click="saveEditAkt(akt)">
-                          <font-awesome-icon v-if="savingAkt" :icon="['fas', 'spinner']" spin />
-                          <svg v-else-if="asanaView.enabled" class="asana-logo-icon" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
-                          Update
-                        </button>
-                        <button
+                        <AppButton size="sm" :disabled="!editAktForm.date" :loading="savingAkt" @click="saveEditAkt(akt)">
+                          Speichern
+                        </AppButton>
+                        <AppIconButton
                           class="btn-asana-badge"
-                          :class="{ active: asanaView.enabled }"
-                          :title="asanaView.enabled ? 'Asana Task wird erstellt' : 'Kein Asana Task'"
+                          variant="ghost"
+                          size="sm"
+                          :label="asanaView.enabled ? 'Asana-Task-Erstellung deaktivieren' : 'Asana-Task-Erstellung aktivieren'"
+                          :active="asanaView.enabled"
+                          :disabled="savingAkt"
                           @click.stop="asanaView.enabled = !asanaView.enabled"
                         >
                           <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="120" cy="28" r="28"/><circle cx="52" cy="152" r="28"/><circle cx="188" cy="152" r="28"/></svg>
-                        </button>
+                        </AppIconButton>
                       </div>
                     </div>
                   </template>
@@ -692,7 +708,7 @@
                     </div>
                     <div class="asana-view-field">
                       <label class="asana-view-label">Titel</label>
-                      <input v-model="asanaView.titel" class="form-input" placeholder="Task-Titel" />
+                      <AppTextInput v-model="asanaView.titel" aria-label="Asana-Task-Titel" placeholder="Task-Titel" />
                     </div>
                     <div class="asana-view-field">
                       <label class="asana-view-label">Fälligkeitsdatum</label>
@@ -708,7 +724,7 @@
                     </div>
                     <div class="asana-view-field">
                       <label class="asana-view-label">Beschreibung</label>
-                      <textarea v-model="asanaView.notes" class="form-input asana-notes-area" rows="3" placeholder="Beschreibung" />
+                      <AppTextarea v-model="asanaView.notes" class="asana-notes-area" aria-label="Asana-Task-Beschreibung" rows="3" placeholder="Beschreibung" />
                     </div>
                     <div v-if="asanaView.result" class="asana-view-result">
                       <font-awesome-icon :icon="['fas', 'circle-check']" />
@@ -719,7 +735,7 @@
                       <font-awesome-icon :icon="['fas', 'circle-exclamation']" /> {{ asanaView.error }}
                     </div>
                     <div class="akt-form-actions">
-                      <button class="btn btn-secondary" @click="toggleAsanaView(null)">Zurück</button>
+                      <AppButton variant="secondary" size="sm" @click="toggleAsanaView(null)">Zurück</AppButton>
                     </div>
                   </div>
                 </div>
@@ -730,14 +746,16 @@
                   class="akt-item"
                   :class="{ 'akt-item--done': akt.erledigt, 'akt-item--overdue': isOverdue(akt), 'akt-item--has-asana': !!akt.asanaTaskUrl }"
                 >
-                  <button
+                  <AppIconButton
                     class="akt-check"
-                    :class="{ done: akt.erledigt }"
+                    variant="ghost"
+                    size="sm"
+                    :active="Boolean(akt.erledigt)"
+                    :label="akt.erledigt ? 'Aktivität als offen markieren' : 'Aktivität als erledigt markieren'"
                     @click="toggleAktErledigt(akt)"
-                    :title="akt.erledigt ? 'Erledigt (Klick zum Rückgängig)' : 'Als erledigt markieren'"
                   >
                     <font-awesome-icon :icon="['fas', akt.erledigt ? 'circle-check' : 'circle']" />
-                  </button>
+                  </AppIconButton>
                   <div class="akt-info">
                     <div class="akt-top-row">
                       <span class="akt-type-icon" :title="aktTypeLabel(akt.type)">
@@ -767,12 +785,12 @@
                         <circle cx="200" cy="160" r="40"/>
                       </svg>
                     </a>
-                    <button class="akt-edit" @click="openEditAkt(akt)" title="Bearbeiten">
+                    <AppIconButton class="akt-edit" variant="ghost" size="sm" :label="`${akt.titel || aktTypeLabel(akt.type)} bearbeiten`" @click="openEditAkt(akt)">
                       <font-awesome-icon :icon="['fas', 'pen']" />
-                    </button>
-                    <button class="akt-delete" @click="deleteAkt(akt)" title="Löschen">
+                    </AppIconButton>
+                    <AppIconButton class="akt-delete" variant="ghost" size="sm" :label="`${akt.titel || aktTypeLabel(akt.type)} löschen`" @click="deleteAkt(akt)">
                       <font-awesome-icon :icon="['fas', 'trash']" />
-                    </button>
+                    </AppIconButton>
                   </div>
                 </div>
               </template>
@@ -796,11 +814,10 @@
               @drop.prevent="onAttachDrop"
             >
               <input ref="attachInput" type="file" multiple class="attach-file-input" @change="onAttachFileChange" />
-              <button class="btn-add-contact" @click="attachInput.click()" :disabled="attachUploading">
-                <font-awesome-icon v-if="attachUploading" :icon="['fas', 'spinner']" spin />
-                <font-awesome-icon v-else :icon="['fas', 'plus']" />
+              <AppButton variant="secondary" size="sm" :loading="attachUploading" @click="attachInput.click()">
+                <font-awesome-icon v-if="!attachUploading" :icon="['fas', 'plus']" />
                 {{ attachUploading ? 'Lädt hoch…' : 'Dateien wählen oder hier ablegen' }}
-              </button>
+              </AppButton>
             </div>
 
             <!-- Upload progress -->
@@ -819,15 +836,15 @@
                 </span>
                 <span class="attach-name" :title="att.filename">{{ att.filename }}</span>
                 <span class="attach-size">{{ formatBytes(att.size) }}</span>
-                <button v-if="isPreviewable(att)" class="attach-btn" @click="openAttachment(att)" title="Im Browser öffnen">
+                <AppIconButton v-if="isPreviewable(att)" class="attach-btn" variant="ghost" size="sm" :label="`${att.filename} öffnen`" @click="openAttachment(att)">
                   <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                </button>
-                <button class="attach-btn" @click="downloadAttachment(att)" title="Herunterladen">
+                </AppIconButton>
+                <AppIconButton class="attach-btn" variant="ghost" size="sm" :label="`${att.filename} herunterladen`" @click="downloadAttachment(att)">
                   <font-awesome-icon :icon="['fas', 'download']" />
-                </button>
-                <button class="attach-btn attach-btn--delete" @click="deleteAttachment(att)" title="Löschen">
+                </AppIconButton>
+                <AppIconButton class="attach-btn attach-btn--delete" variant="ghost" size="sm" :label="`${att.filename} löschen`" @click="deleteAttachment(att)">
                   <font-awesome-icon :icon="['fas', 'trash']" />
-                </button>
+                </AppIconButton>
               </li>
             </ul>
           </section>
@@ -5015,55 +5032,28 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   position: absolute;
   top: 8px;
   right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  --app-button-icon-size: 26px;
+  --action-ghost-text: var(--muted);
+  min-height: 26px;
 
-  &:hover { color: #f06a6a; border-color: rgba(240, 106, 106, 0.4); }
-  &.active { color: #f06a6a; border-color: #f06a6a; background: rgba(240, 106, 106, 0.08); }
+  &:hover:not(:disabled),
+  &.app-icon-button--active:not(:disabled) { color: #f06a6a; }
 }
 
 .btn-save-wrap {
-  position: relative;
   display: inline-flex;
-
-  .btn { padding-right: 28px; }
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-asana-badge {
-  position: absolute;
-  top: -9px;
-  right: -9px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border);
-  background: var(--tile-bg);
-  color: #bbb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-  z-index: 1;
+  --action-ghost-text: var(--muted);
 
   svg { width: 11px; height: 11px; }
 
-  &:hover { color: #d08080; border-color: #d9b0b0; background: #fdf5f5; }
-  &.active {
+  &:hover:not(:disabled),
+  &.app-icon-button--active:not(:disabled) {
     color: #e07070;
-    border-color: #e09090;
-    background: #fdeaea;
   }
 }
 
@@ -5161,10 +5151,11 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 
   &.active {
     border-color: var(--primary);
-    color: var(--primary);
+    color: var(--action-accent-text);
     background: transparent;
   }
   &:hover:not(.active) { background: var(--hover); color: var(--text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 }
 
 .akt-date-label {
@@ -5219,6 +5210,7 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 }
 
 .akt-time-hour {
+  flex: 0 0 52px;
   width: 52px;
   text-align: center;
   padding-left: 6px;
@@ -5250,10 +5242,13 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 
   &:hover { background: var(--hover); }
-  &.active { background: transparent; border-color: var(--primary); color: var(--primary); }
+  &.active { background: transparent; border-color: var(--primary); color: var(--action-accent-text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 }
 
 .akt-time-result {
+  background: var(--tile-bg);
+  font: inherit;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
@@ -5264,7 +5259,8 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   white-space: nowrap;
   transition: border-color 0.12s, color 0.12s;
 
-  &:hover { border-color: var(--primary); color: var(--primary); }
+  &:hover { border-color: var(--primary); color: var(--action-accent-text); }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 }
 
 .akt-time-override {
@@ -5315,18 +5311,14 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 }
 
 .akt-check {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--muted);
-  padding: 2px;
+  --app-button-icon-size: 26px;
+  --action-ghost-text: var(--muted);
+  min-height: 26px;
   font-size: 1.05rem;
   flex-shrink: 0;
   margin-top: 1px;
-  transition: color 0.15s;
 
-  &.done { color: #10b981; }
-  &:hover { color: var(--primary); }
+  &.app-icon-button--active:not(:disabled) { color: var(--status-success-text); }
 }
 
 .akt-info {
@@ -5380,24 +5372,19 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   transition: opacity 0.15s;
 
   .akt-item:hover & { opacity: 1; }
+  .akt-item:focus-within & { opacity: 1; }
 }
 
 .akt-edit,
 .akt-delete {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  transition: color 0.15s, background 0.15s;
-
-  &:hover { background: var(--hover); }
+  --action-ghost-text: var(--muted);
 }
 
-.akt-edit:hover { color: var(--primary); }
-.akt-delete:hover { color: #ef4444; }
+.akt-delete:hover:not(:disabled) { color: var(--status-danger-text); }
+
+@media (hover: none) {
+  .akt-actions { opacity: 1; }
+}
 
 .akt-asana-link {
   display: flex;
@@ -5505,16 +5492,9 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 
 .attach-btn {
   flex-shrink: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--muted);
-  padding: 3px 5px;
-  border-radius: 4px;
-  transition: color 0.15s;
+  --action-ghost-text: var(--muted);
 
-  &:hover { color: var(--primary); }
-  &.attach-btn--delete:hover { color: #ef4444; }
+  &.attach-btn--delete:hover:not(:disabled) { color: var(--status-danger-text); }
 }
 
 /* ─────────────────────────────────────────────────────────────
