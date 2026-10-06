@@ -304,6 +304,10 @@
       </div>
     </section>
 
+    <section v-else-if="activeTab === 'tarif'" class="tarif">
+      <p class="hint-text">Tarifbereiche werden hier künftig als Tabs ergänzt.</p>
+    </section>
+
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
       <nav class="subtabs" aria-label="Qualifikationen und Berufe">
         <button type="button" :class="{ active: qualiSubTab === 'qualifikation' }" @click="qualiSubTab = 'qualifikation'">
@@ -695,6 +699,7 @@ const managementTabs = [
   { id: 'emailTemplates', label: 'E-Mail-Vorlagen', icon: ['fas', 'envelope-open-text'] },
   { id: 'qualifikationen', label: 'Qualif. & Berufe', icon: ['fas', 'graduation-cap'] },
   { id: 'lohn', label: 'Lohn', icon: ['fas', 'money-bill-wave'] },
+  { id: 'tarif', label: 'Tarif', icon: ['fas', 'file-lines'] },
 ];
 
 const auth = useAuth();

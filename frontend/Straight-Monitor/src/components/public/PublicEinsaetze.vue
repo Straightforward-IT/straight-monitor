@@ -1,5 +1,20 @@
 <template>
   <div class="public-page">
+    <ModalFrame
+      v-if="calendarNoticeOpen"
+      title="Hinweis"
+      size="sm"
+      :show-close="false"
+      :close-on-backdrop="false"
+      :close-on-escape="false"
+      class="calendar-notice-modal"
+    >
+      <div class="calendar-notice">
+        <p><span aria-hidden="true">&#9432;</span> Daten wie Uhrzeiten und Personallisten in dieser App sind nicht Live-Updated und können von denen in der Zvoove Work App abweichen.</p>
+        <button type="button" class="calendar-notice__confirm" @click="confirmCalendarNotice">Bestätigen</button>
+      </div>
+    </ModalFrame>
+
     <!-- Loading -->
     <LoadingSpinner v-if="loading" label="Daten werden geladen..." class="full-page-loader" />
 
@@ -177,6 +192,7 @@ import PublicJobDetail from './PublicJobDetail.vue';
 import PublicEventReport from './PublicEventReport.vue';
 import PublicDevPortal from './dev/PublicDevPortal.vue';
 import { isPublicDevUser } from './dev/debugAccess';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 
 const route = useRoute();
 
@@ -342,6 +358,7 @@ const selectedLaufzettel = ref(null);
 const eventReportRef = ref(null);
 const laufzettelRef = ref(null);
 const draftSaveStatus = ref('hidden');
+const calendarNoticeOpen = ref(false);
 
 function setDraftSaveStatus(status) {
   draftSaveStatus.value = ['hidden', 'saving', 'saved'].includes(status) ? status : 'hidden';
@@ -371,8 +388,7 @@ function restoreNavState() {
     if (!raw) return;
     const state = JSON.parse(raw);
     // Only restore non-sensitive views (not job-detail/eventreport without data)
-    const allowedViews = ['dashboard', 'laufzettel', 'vergangene-jobs', 'evaluierungen'];
-    if (isTeamleiter.value) allowedViews.push('kalender');
+    const allowedViews = ['dashboard', 'kalender', 'laufzettel', 'vergangene-jobs', 'evaluierungen'];
     if (state.currentView && allowedViews.includes(state.currentView)) {
       currentView.value = state.currentView;
       previousView.value = state.previousView || 'dashboard';
@@ -476,11 +492,20 @@ function handleBack() {
 }
 
 function navigateTo(view) {
-  // Guard: calendar is Teamleiter-only
-  if (view === 'kalender' && !isTeamleiter.value) return;
+  if (view === 'kalender' && !isTeamleiter.value) {
+    previousView.value = currentView.value;
+    currentView.value = view;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    calendarNoticeOpen.value = true;
+    return;
+  }
   previousView.value = currentView.value;
   currentView.value = view;
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function confirmCalendarNotice() {
+  calendarNoticeOpen.value = false;
 }
 
 function openJob(einsatz) {
@@ -621,6 +646,34 @@ onMounted(async () => {
 
 .full-page-loader {
   min-height: 60vh;
+}
+
+.calendar-notice {
+  display: grid;
+  gap: 1rem;
+}
+
+.calendar-notice p {
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.calendar-notice p span {
+  color: var(--primary);
+  margin-right: 0.25rem;
+}
+
+.calendar-notice__confirm {
+  justify-self: end;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.65rem 1rem;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
 }
 
 .error-state {

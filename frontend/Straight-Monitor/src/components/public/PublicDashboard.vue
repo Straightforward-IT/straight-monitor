@@ -93,13 +93,13 @@
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
 
-      <div v-if="isTeamleiter" class="tile tile--availability" @click="$emit('navigate', 'kalender')">
+      <div class="tile" @click="$emit('navigate', 'kalender')">
         <div class="tile-icon tile-icon--blue">
           <img :src="imgCalender" class="tile-img" alt="Kalender" />
         </div>
         <div class="tile-content">
           <h3>Kalender</h3>
-          <p>Update: Verfügbarkeiten eintragen</p>
+          <p>Einsatz-Kalendar und Verfügbarkeiten eintragen</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
@@ -110,7 +110,7 @@
         </div>
         <div class="tile-content">
           <h3>Laufzettel</h3>
-          <p>Deine Dokumente & Unterlagen</p>
+          <p>Laufzettel von einem Teamleiter anfordern</p>
         </div>
         <font-awesome-icon icon="fa-solid fa-chevron-right" class="tile-arrow" />
       </div>
@@ -154,8 +154,8 @@
 
     </div>
 
-    <!-- Upcoming jobs (Teamleiter only) -->
-    <div v-if="isTeamleiter" class="section">
+    <!-- Upcoming jobs -->
+    <div class="section">
       <p class="data-hint">
         <span>&#9432;</span> Daten wie Uhrzeiten und Personallisten in dieser App sind nicht Live-Updated und können von denen in der Zvoove Work App abweichen.
       </p>
@@ -387,11 +387,6 @@ const upcomingEinsaetze = computed(() => {
 .tile:active {
   transform: scale(0.98);
   background: var(--hover);
-}
-
-.tile--availability {
-  border-color: var(--primary);
-  background: rgba(255, 117, 24, 0.05);
 }
 
 .tile-icon {
