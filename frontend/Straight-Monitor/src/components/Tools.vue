@@ -52,11 +52,6 @@
         <span>Dokumente nachpflegen</span>
       </button>
 
-      <button class="s-btn" @click="go('/pdf-vorlagen')">
-        <img :src="logoSrc" alt="" />
-        <span>PDF-Vorlagen</span>
-      </button>
-
       <div class="sep"></div>
 
       <!-- Flip integriert -->

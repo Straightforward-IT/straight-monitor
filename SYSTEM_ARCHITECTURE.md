@@ -135,10 +135,6 @@ frontend/Straight-Monitor/
 │   │   ├── Bewerber/
 │   │   │   ├── BewerberCreate.vue    # New applicant
 │   │   │   └── BewerberCard.vue      # Applicant details
-│   │   ├── PDF/
-│   │   │   ├── PdfBuilder.vue        # PDF template editor
-│   │   │   ├── PdfFormFill.vue       # PDF form completion
-│   │   │   └── PdfVorgaenge.vue      # Signature workflow
 │   │   ├── Signaturen/
 │   │   │   ├── SignaturenPage.vue    # Signature documents
 │   │   │   └── SignaturCard.vue      # Document details
@@ -198,8 +194,6 @@ frontend/Straight-Monitor/
 - `/kunden` — Customer management
 - `/bewerber` — Applicant management
 - `/dispo` — Staffing/scheduling
-- `/pdf-vorlagen` — PDF template builder
-- `/pdf-ausfuellen/:id` — PDF form completion
 - `/signaturen` — Digital signature documents
 
 **Admin Routes**:
@@ -223,7 +217,7 @@ roles: ['VERTRIEB']      → Must have VERTRIEB (sales) role
 | **Employees** | PeopleDocsModern, EmployeeCard | Employee list, profiles, documents |
 | **Applicants** | BewerberCreate, BewerberCard, BewerberManagementTab | Hiring workflow, document uploads |
 | **Work Orders** | AuftraegePage, AuftragDetail | Assignment tracking, staff scheduling |
-| **Document Signing** | PdfBuilder, PdfFormFill, SignaturenPage | PDF template creation, form filling, signature tracking |
+| **Document Signing** | SignaturenPage | Signature document tracking |
 | **Data Import** | DatenImport | Excel parsing for Zvoove data |
 | **Integration** | FlipCreate, FlipProfile, FlipActions | Flip-specific UI and workflows |
 | **Navigation** | HeaderBar, FilterPanel, SearchBar | Common UI elements |
@@ -362,8 +356,6 @@ api/
 │   ├── Location.js                # Office location
 │   ├── SignaturVorgang.js         # Signature workflow
 │   ├── DocuSealVorgang.js         # DocuSeal submission
-│   ├── PdfTemplate.js             # PDF form template
-│   ├── PdfVorgang.js              # PDF form instance
 │   ├── ImportLog.js               # Data import audit trail
 │   ├── DispoEintrag.js            # Disposition entry
 │   └── [30+ other schemas]
@@ -381,7 +373,6 @@ api/
 │   ├── zvooveRoutes.js            # Zvoove import/sync
 │   ├── docusealRoutes.js          # DocuSeal submissions
 │   ├── graphRoutes.js             # Microsoft Graph (email, OneDrive)
-│   ├── pdfTemplateRoutes.js       # PDF template CRUD
 │   ├── signaturRoutes.js          # Signature document management
 │   ├── dispoRoutes.js             # Scheduling/disposition
 │   ├── publicRoutes.js            # Public integration endpoints
@@ -407,7 +398,6 @@ api/
 ├── utils/
 │   ├── logger.js                  # Structured logging
 │   ├── encryption.js              # Data encryption/decryption
-│   ├── pdfRender.js               # PDF rendering helper
 │   └── signaturR2Path.js          # R2 storage path builder
 │
 └── assets/                        # Static files (if any)
@@ -540,8 +530,6 @@ router.get("/", asyncHandler(async (req, res) => {
 | `/api/zvoove/*` | zvooveRoutes.js | GET/POST Zvoove sync | Staffing import |
 | `/api/docuseal/*` | docusealRoutes.js | GET/POST signature requests | Document signing |
 | `/api/graph/*` | graphRoutes.js | GET email, OneDrive; DELETE messages | Microsoft Graph |
-| `/api/pdf-templates` | pdfTemplateRoutes.js | GET/POST/PUT/DELETE PDF templates | PDF builder |
-| `/api/pdf-vorgaenge` | pdfVorgangRoutes.js | GET/POST PDF instances | Form completion tracking |
 | `/api/signaturen` | signaturRoutes.js | GET/POST signature documents | R2 document management |
 | `/api/dispo` | dispoRoutes.js | GET/POST disposition entries | Scheduling |
 | `/api/import/*` | dataImportRoutes.js | POST Excel import | Data import |
@@ -1629,23 +1617,6 @@ GET    /api/graph/me/drive/root/children   # List OneDrive files
 POST   /api/graph/subscriptions            # Create webhook subscription
 ```
 
-### PDF Form Templates (`/api/pdf-templates`)
-```
-GET    /api/pdf-templates            # List templates
-GET    /api/pdf-templates/:id        # Get template details
-POST   /api/pdf-templates            # Create template
-PUT    /api/pdf-templates/:id        # Update template
-DELETE /api/pdf-templates/:id        # Delete template
-```
-
-### PDF Form Instances (`/api/pdf-vorgaenge`)
-```
-GET    /api/pdf-vorgaenge            # List form instances
-GET    /api/pdf-vorgaenge/:id        # Get instance details
-POST   /api/pdf-vorgaenge            # Create form instance
-PUT    /api/pdf-vorgaenge/:id        # Fill and submit form
-```
-
 ### Signature Documents (`/api/signaturen`)
 ```
 GET    /api/signaturen               # List signature documents
@@ -1754,7 +1725,6 @@ ENABLE_ROUTINES=flip_token,flipUserRoutine
 
 **Backend**:
 - Manual API testing (Postman, curl)
-- Example: `test-db.js` in root for database queries
 - Logging output in terminal
 
 ### Debugging Tips

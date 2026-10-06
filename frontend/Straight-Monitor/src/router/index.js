@@ -33,12 +33,8 @@ const AuftraegePage = () => import('@/components/AuftraegePage.vue');
 const KundenPage = () => import('@/components/KundenPage.vue');
 const TeamleiterAuswertung = () => import('@/components/TeamleiterAuswertung.vue');
 const DokumenteNachpflegen = () => import('@/components/DokumenteNachpflegen.vue');
-const PdfBuilder = () => import('@/components/PdfBuilder.vue');
-const PdfFormFill = () => import('@/components/PdfFormFill.vue');
-const PdfVorgaenge = () => import('@/components/PdfVorgaenge.vue');
 const DocuSealVorgaenge = () => import('@/components/DocuSealVorgaenge.vue');
 const SignaturenPage = () => import('@/components/SignaturenPage.vue');
-const PdfMitarbeiterForm = () => import('@/components/PdfMitarbeiterForm.vue');
 const DispoTable = () => import('@/components/DispoTable.vue');
 const UserManagement = () => import('@/components/UserManagement.vue');
 const UserSettings = () => import('@/components/UserSettings.vue');
@@ -57,7 +53,6 @@ const routes = [
   { path: '/integration/capacity-counter/localhost', name: 'CapacityCounterLocalhost', beforeEnter: () => { window.location.href = 'http://localhost:5173/integration/capacity-counter'; return false; }, component: CapacityCounter, meta: { requiresAuth: false } },
   { path: '/integration/task-bestaetigen', name: 'TaskBestaetigen', component: TaskBestaetigen, meta: { requiresAuth: false } },
   { path: '/integration/monitor-login', name: 'FlipMonitorLogin', component: FlipMonitorLogin, meta: { requiresAuth: false } },
-  { path: '/formular/:token', name: 'PdfMitarbeiterForm', component: PdfMitarbeiterForm, meta: { requiresAuth: false } },
   { path: '/bewerbung/:accessToken', name: 'BewerberEinladung', component: () => import('@/components/public/BewerberInvitationForm.vue'), meta: { requiresAuth: false } },
 
   // Authentifizierter Bereich unter Layout:
@@ -87,11 +82,8 @@ const routes = [
       { path: 'kunden', name: 'Kunden', component: KundenPage },
       { path: 'teamleiter-auswertung', name: 'TeamleiterAuswertung', component: TeamleiterAuswertung },
       { path: 'dokumente-nachpflegen', name: 'DokumenteNachpflegen', component: DokumenteNachpflegen },
-      { path: 'pdf-vorlagen', name: 'PdfVorlagen', component: PdfBuilder },
-      { path: 'pdf-vorgaenge', name: 'PdfVorgaenge', component: PdfVorgaenge },
       { path: 'signaturen', name: 'SignaturenPage', component: SignaturenPage },
       { path: 'signaturen-legacy', name: 'DocuSealVorgaenge', component: DocuSealVorgaenge, meta: { roles: ['ADMIN'] } },
-      { path: 'pdf-ausfuellen/:id', name: 'PdfAusfuellen', component: PdfFormFill },
       { path: 'dispo', name: 'Dispo', component: DispoTable },
       { path: 'einstellungen', name: 'UserSettings', component: UserSettings },
       { path: 'benutzer-verwaltung', name: 'BenutzerVerwaltung', component: UserManagement, meta: { roles: ['ADMIN'] } },

@@ -22,10 +22,10 @@ The preview server runs on port 4174 and proxies `/api` to `http://localhost:505
 ## What is already modeled
 
 - External systems: Cloudflare, Microsoft Graph, Asana, Flip, Zvoove, YouSign
-- Internal surfaces: office frontend, public monitor, API, public routes, routines, PDF and signature flow
+- Internal surfaces: office frontend, public monitor, API, public routes, routines, and signature flow
 - Data stores: MongoDB, R2
 - Domain model: User, Mitarbeiter, Auftrag, Schicht, Einsatz
-- Document model: Laufzettel, EventReport, PdfTemplate, PdfVorgang
+- Document model: Laufzettel, EventReport, SignaturVorgang
 
 ## Why the layouts are manual
 
