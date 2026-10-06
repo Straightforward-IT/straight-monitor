@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AppButton from '../src/components/ui-elements/AppButton.vue';
+import AppHiddenItemsButton from '../src/components/ui-elements/AppHiddenItemsButton.vue';
 import AppIconButton from '../src/components/ui-elements/AppIconButton.vue';
 import AppSegmentedControl from '../src/components/ui-elements/AppSegmentedControl.vue';
 import AppTextInput from '../src/components/ui-elements/AppTextInput.vue';
@@ -28,6 +29,30 @@ describe('shared UI controls', () => {
 
     expect(wrapper.get('button').attributes('aria-label')).toBe('Ansicht aktualisieren');
     expect(wrapper.get('button').attributes('title')).toBe('Ansicht aktualisieren');
+  });
+
+  it('shares the hidden-items toggle with readable inactive and return states', async () => {
+    const wrapper = mount(AppHiddenItemsButton, {
+      props: {
+        inactiveLabel: '2 ausgeblendet',
+        inactiveAriaLabel: '2 ausgeblendete Mitarbeiter anzeigen',
+        activeAriaLabel: 'Alle Mitarbeiter anzeigen',
+      },
+      global: { stubs: { 'font-awesome-icon': true } },
+    });
+
+    const button = wrapper.get('button');
+    expect(button.classes()).toContain('app-button--secondary');
+    expect(button.attributes('aria-pressed')).toBe('false');
+    expect(button.attributes('aria-label')).toBe('2 ausgeblendete Mitarbeiter anzeigen');
+    await button.trigger('click');
+    expect(wrapper.emitted('click')).toHaveLength(1);
+
+    await wrapper.setProps({ active: true });
+    expect(button.classes()).toContain('is-active');
+    expect(button.attributes('aria-pressed')).toBe('true');
+    expect(button.attributes('aria-label')).toBe('Alle Mitarbeiter anzeigen');
+    expect(button.text()).toContain('Zurück');
   });
 
   it('emits selected segmented values with radio semantics', async () => {

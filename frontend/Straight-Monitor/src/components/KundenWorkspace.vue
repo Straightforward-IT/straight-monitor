@@ -299,7 +299,7 @@ const showReportModal = ref(false);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const currentPage = ref(1);
-const itemsPerPage = ref(25);
+const itemsPerPage = ref(50);
 const pageOptions = [25, 50, 100];
 const customerSortOptions = [
   { value: 'name', label: 'Name' },

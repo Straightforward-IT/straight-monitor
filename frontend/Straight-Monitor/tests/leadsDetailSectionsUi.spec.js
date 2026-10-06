@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createModalDock } from '@bleck-it/vue-modal-dock';
 import LeadsTab from '@/components/LeadsTab.vue';
+import AddressModal from '@/components/Modals/AddressModal.vue';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -104,6 +105,33 @@ describe('Lead detail activity and file sections', () => {
     expect(detail.querySelector('button[aria-label="Büro bearbeiten"].app-button')).not.toBeNull();
     expect(detail.querySelector('button[aria-label="Celina Kirsten öffnen"]')).not.toBeNull();
     expect(detail.querySelector('button[aria-label="Verknüpfung mit Celina Kirsten lösen"].app-icon-button')).not.toBeNull();
+  });
+
+  it('opens the global address modal and persists its submitted value as a lead custom field', async () => {
+    const baseGet = mocks.api.get.getMockImplementation();
+    mocks.api.get.mockImplementation(url => {
+      if (url === '/api/leads') return Promise.resolve({ data: [{
+        ...lead, customFields: { office: { street: 'Alte Straße', city: 'Berlin' } },
+      }] });
+      if (url === '/api/leads/labels') return Promise.resolve({ data: [
+        { _id: 'office', key: 'office', name: 'Büro', fieldType: 'address', isActive: true },
+      ] });
+      return baseGet(url);
+    });
+    mocks.api.patch.mockImplementation((_url, payload) => Promise.resolve({ data: { ...lead, ...payload } }));
+    await render();
+
+    await wrapper.get('button[aria-label="Büro bearbeiten"]').trigger('click');
+    const modal = wrapper.getComponent(AddressModal);
+    expect(modal.props('modelValue')).toBe(true);
+    expect(modal.props('address')).toMatchObject({ street: 'Alte Straße', city: 'Berlin' });
+    modal.vm.$emit('save', { street: 'Neue Straße', zip: '12345', city: 'Hamburg', country: 'Deutschland' });
+    await flushPromises();
+
+    expect(mocks.api.patch).toHaveBeenCalledWith('/api/leads/lead-1', expect.objectContaining({
+      customFields: { office: { street: 'Neue Straße', zip: '12345', city: 'Hamburg', country: 'Deutschland' } },
+    }));
+    expect(modal.props('modelValue')).toBe(false);
   });
 
   it('uses shared, labelled controls for existing activity and file actions', async () => {

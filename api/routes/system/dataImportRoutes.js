@@ -2207,7 +2207,11 @@ router.post('/kundenpreis', auth, extendTimeout, upload.single('file'), async (r
 
       operations.push({
         updateOne: {
-          filter: { sourceId },
+          filter: {
+            kunde: kunde._id,
+            qualifikation: qualifikation._id,
+            validFrom,
+          },
           update: {
             $set: { validTill, hourlyRateCents },
             $setOnInsert: {

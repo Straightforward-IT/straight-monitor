@@ -206,6 +206,9 @@
     class="support-modal"
     title="Support anfragen"
     size="md"
+    :close-on-escape="!isSubmitting"
+    :close-on-backdrop="!isSubmitting"
+    :show-close="!isSubmitting"
     @close="resetSupportForm"
   >
       <form class="support-form" @submit.prevent="submitSupportRequest">
@@ -310,15 +313,15 @@
             style="display: none;"
           />
           
-          <!-- Custom File Upload Button -->
-          <button 
-            type="button" 
-            class="custom-file-btn"
+          <AppButton
+            class="support-file-button"
+            variant="secondary"
+            :disabled="isSubmitting"
             @click="$refs.fileInput.click()"
           >
             <font-awesome-icon :icon="['fas', 'paperclip']" />
             Dateien auswählen
-          </button>
+          </AppButton>
           
           <small class="file-info">
             Screenshots, Logs oder andere relevante Dateien (max. 10MB pro Datei)
@@ -328,21 +331,27 @@
             <h4>Angehängte Dateien:</h4>
             <div v-for="(file, index) in supportForm.files" :key="index" class="file-item">
               <span class="file-name">{{ file.name }}</span>
-              <button type="button" @click="removeFile(index)" class="remove-file">
+              <AppIconButton
+                class="support-file-remove"
+                variant="ghost"
+                size="sm"
+                :label="`${file.name} entfernen`"
+                :disabled="isSubmitting"
+                @click="removeFile(index)"
+              >
                 <font-awesome-icon :icon="['fas', 'times']" />
-              </button>
+              </AppIconButton>
             </div>
           </div>
         </div>
 
         <div class="form-actions">
-          <button type="button" @click="closeSupportModal" class="btn-cancel">
+          <AppButton variant="secondary" :disabled="isSubmitting" @click="closeSupportModal">
             Abbrechen
-          </button>
-          <button type="submit" class="btn-submit" :disabled="isSubmitting">
-            <font-awesome-icon v-if="isSubmitting" :icon="['fas', 'spinner']" spin />
+          </AppButton>
+          <AppButton type="submit" :loading="isSubmitting">
             {{ isSubmitting ? 'Wird gesendet...' : 'Senden' }}
-          </button>
+          </AppButton>
         </div>
       </form>
   </ModalFrame>
@@ -359,6 +368,8 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import CustomTooltip from './CustomTooltip.vue';
 import CommentBubbleBadge from './CommentBubbleBadge.vue';
 import ModalFrame from './frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import api from '@/utils/api';
 import { setTheme } from '@getflip/bridge';
 
@@ -782,7 +793,7 @@ function logout() {
 
 // ESC key handler
 const handleEscapeKey = (event) => {
-  if (event.key === 'Escape' && showSupportModal.value) {
+  if (event.key === 'Escape' && showSupportModal.value && !isSubmitting.value) {
     closeSupportModal();
   }
 };
@@ -1454,36 +1465,7 @@ button {
   color: var(--muted);
 }
 
-/* Custom File Upload Button */
-.custom-file-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 14px;
-  transition: all 0.2s ease;
-  margin-bottom: 6px;
-}
-
-.custom-file-btn:hover {
-  background: var(--hover);
-  border-color: #007acc;
-}
-
-.custom-file-btn:active {
-  transform: scale(0.98);
-}
-
-.custom-file-btn svg {
-  font-size: 16px;
-  opacity: 0.8;
-}
+.support-file-button { margin-bottom: 6px; }
 
 .attached-files {
   margin-top: 12px;
@@ -1518,18 +1500,9 @@ button {
   flex: 1;
 }
 
-.remove-file {
-  background: none;
-  border: none;
-  color: #dc3545;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-.remove-file:hover {
-  background: rgba(220, 53, 69, 0.1);
+.support-file-remove {
+  --action-ghost-text: var(--status-danger-text);
+  --action-accent-text: var(--status-danger-text);
 }
 
 .form-actions {
@@ -1539,45 +1512,6 @@ button {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
-}
-
-.btn-cancel {
-  padding: 10px 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.btn-cancel:hover {
-  background: var(--hover);
-}
-
-.btn-submit {
-  padding: 10px 16px;
-  border: 1px solid #ff9500;
-  background: #ff9500;
-  color: white;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.btn-submit:hover:not(:disabled) {
-  background: #e6850e;
-  border-color: #cc7700;
-}
-
-.btn-submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {

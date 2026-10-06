@@ -145,6 +145,28 @@ describe('CustomerCard shared controls', () => {
     expect(wrapper.findAll('.address-card .address-name').map(item => item.text())).toEqual(['Zentrale', 'Filiale']);
   });
 
+  it('uses the shared hidden-items button to switch between active and inactive Einsatzorte', async () => {
+    mocks.api.get.mockImplementation(async (url) => url.endsWith('/einsatzorte')
+      ? { data: [
+        { _id: 'place-active', bezeichnung: 'Aktiv', isActive: true },
+        { _id: 'place-inactive', bezeichnung: 'Inaktiv', isActive: false },
+      ] }
+      : { data: [] });
+    await render();
+
+    const toggle = wrapper.get('button[aria-label="1 inaktive Einsatzorte anzeigen"]');
+    expect(toggle.attributes('aria-pressed')).toBe('false');
+    expect(wrapper.findAll('.address-card .address-name').map(item => item.text())).toEqual(['Aktiv']);
+
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-pressed')).toBe('true');
+    expect(toggle.attributes('aria-label')).toBe('Aktive Einsatzorte anzeigen');
+    expect(wrapper.findAll('.address-card .address-name').map(item => item.text())).toEqual(['Inaktiv']);
+
+    await toggle.trigger('click');
+    expect(wrapper.findAll('.address-card .address-name').map(item => item.text())).toEqual(['Aktiv']);
+  });
+
   it('names the contact menu action without triggering the contact card', async () => {
     customer.kuerzel = 'ACME';
     mocks.api.get.mockImplementation(async (url) => url === '/api/graph/contacts'

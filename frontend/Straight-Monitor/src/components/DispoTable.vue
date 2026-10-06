@@ -125,20 +125,16 @@
         </CustomTooltip>
 
         <!-- Hidden employees -->
-        <AppButton
+        <AppHiddenItemsButton
           v-if="hiddenCount > 0"
-          class="show-hidden-btn show-hidden-btn--topline"
-          :class="{ active: showHidden }"
-          variant="secondary"
-          size="sm"
-          :aria-pressed="showHidden"
-          :aria-label="showHidden ? 'Zur normalen Dispo-Ansicht zurück' : `${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
+          :active="showHidden"
+          :inactive-label="`${hiddenCount} ausgeblendet`"
+          :inactive-aria-label="`${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
+          active-aria-label="Zur normalen Dispo-Ansicht zurück"
+          inactive-title="Ausgeblendete Mitarbeiter anzeigen"
+          active-title="Zur normalen Ansicht zurück"
           @click="toggleHiddenView"
-          :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
-        >
-          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
-          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </AppButton>
+        />
         <FilterChip :active="sortField === 'letzterEinsatz'" @click="toggleLetzterEinsatzColumn">
           Letzter Einsatz
         </FilterChip>
@@ -230,20 +226,16 @@
           @select="onEmployeeSearchSelect"
           @filters-change="onEmployeeSearchFiltersChange"
         />
-        <AppButton
+        <AppHiddenItemsButton
           v-if="hiddenCount > 0"
-          class="show-hidden-btn show-hidden-btn--topline"
-          :class="{ active: showHidden }"
-          variant="secondary"
-          size="sm"
-          :aria-pressed="showHidden"
-          :aria-label="showHidden ? 'Zur normalen Dispo-Ansicht zurück' : `${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
+          :active="showHidden"
+          :inactive-label="`${hiddenCount} ausgeblendet`"
+          :inactive-aria-label="`${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
+          active-aria-label="Zur normalen Dispo-Ansicht zurück"
+          inactive-title="Ausgeblendete Mitarbeiter anzeigen"
+          active-title="Zur normalen Ansicht zurück"
           @click="toggleHiddenView"
-          :title="showHidden ? 'Zur normalen Ansicht zurück' : 'Ausgeblendete Mitarbeiter anzeigen'"
-        >
-          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
-          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </AppButton>
+        />
         <transition name="sel-chip">
           <span v-if="selectedCells.size > 0" class="selection-chip">
             <font-awesome-icon icon="fa-solid fa-table-cells" />
@@ -767,16 +759,16 @@
           @select="onEmployeeSearchSelect"
           @filters-change="onEmployeeSearchFiltersChange"
         />
-        <button
+        <AppHiddenItemsButton
           v-if="hiddenCount > 0"
-          class="show-hidden-btn show-hidden-btn--topline"
-          :class="{ active: showHidden }"
+          :active="showHidden"
+          :inactive-label="`${hiddenCount} ausgeblendet`"
+          :inactive-aria-label="`${hiddenCount} ausgeblendete Mitarbeiter anzeigen`"
+          active-aria-label="Zur normalen Dispo-Ansicht zurück"
+          :inactive-title="`${hiddenCount} ausgeblendet`"
+          active-title="Zur normalen Ansicht zurück"
           @click="toggleHiddenView"
-          :title="showHidden ? 'Zur normalen Ansicht zurück' : `${hiddenCount} ausgeblendet`"
-        >
-          <font-awesome-icon :icon="showHidden ? 'fa-solid fa-arrow-left' : 'fa-solid fa-eye-slash'" />
-          {{ showHidden ? 'Zurück' : `${hiddenCount} ausgeblendet` }}
-        </button>
+        />
       </Toolbar>
 
       <!-- KW chips row -->
@@ -1442,50 +1434,65 @@
     />
 
     <!-- Comment Thread Modal -->
-    <teleport to="body">
-      <div v-if="chatModal.open" class="modal-overlay" @click="closeChatModal">
-        <div class="chat-modal" @click.stop>
-          <div class="chat-modal-header">
-            <div class="chat-modal-title">
-              <font-awesome-icon icon="fa-solid fa-comments" />
-              <span>{{ formatEmployeeName(chatModal.ma) }} · {{ formatIsoDate(chatModal.day) }}</span>
-            </div>
-            <button class="close-btn" @click="closeChatModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-          </div>
-          <div class="chat-thread" ref="chatThreadRef">
-            <p v-if="!chatModal.comments.length" class="chat-empty">Noch keine Kommentare.</p>
-            <div
-              v-for="c in chatModal.comments"
-              :key="c._id"
-              class="chat-message"
-              :class="{ 'chat-message--own': isOwnComment(c) }"
+    <ModalFrame
+      :model-value="chatModal.open"
+      :title="chatModal.ma ? `${formatEmployeeName(chatModal.ma)} · ${formatIsoDate(chatModal.day)}` : 'Kommentare'"
+      size="sm"
+      style="--mf-max-width: 460px; --mf-max-height: 80vh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+      @close="closeChatModal"
+    >
+      <template #header="{ titleId }">
+        <h3 :id="titleId" class="chat-modal-title">
+          <font-awesome-icon icon="fa-solid fa-comments" />
+          {{ formatEmployeeName(chatModal.ma) }} · {{ formatIsoDate(chatModal.day) }}
+        </h3>
+      </template>
+      <div ref="chatThreadRef" class="chat-thread">
+        <p v-if="!chatModal.comments.length" class="chat-empty">Noch keine Kommentare.</p>
+        <div
+          v-for="c in chatModal.comments"
+          :key="c._id"
+          class="chat-message"
+          :class="{ 'chat-message--own': isOwnComment(c) }"
+        >
+          <div class="chat-message-meta">
+            <span class="chat-message-author">{{ c.author }}</span>
+            <span class="chat-message-time">{{ formatDateTime(c.timestamp) }}</span>
+            <AppIconButton
+              v-if="isOwnComment(c)"
+              class="chat-delete-btn"
+              variant="ghost"
+              size="sm"
+              label="Kommentar löschen"
+              @click="deleteKommentar(c._id)"
             >
-              <div class="chat-message-meta">
-                <span class="chat-message-author">{{ c.author }}</span>
-                <span class="chat-message-time">{{ formatDateTime(c.timestamp) }}</span>
-                <button v-if="isOwnComment(c)" class="chat-delete-btn" @click="deleteKommentar(c._id)" title="Löschen">
-                  <font-awesome-icon icon="fa-solid fa-trash" />
-                </button>
-              </div>
-              <p class="chat-message-text">{{ c.text }}</p>
-            </div>
+              <font-awesome-icon icon="fa-solid fa-trash" />
+            </AppIconButton>
           </div>
-          <div class="chat-input-row">
-            <textarea
-              v-model="chatModal.newText"
-              class="chat-textarea"
-              placeholder="Kommentar schreiben… (Ctrl+Enter senden)"
-              rows="2"
-              @keydown.ctrl.enter.prevent="postComment"
-              @keydown.meta.enter.prevent="postComment"
-            ></textarea>
-            <button class="chat-send-btn" @click="postComment" :disabled="!chatModal.newText.trim() || chatModal.loading">
-              <font-awesome-icon icon="fa-solid fa-paper-plane" />
-            </button>
-          </div>
+          <p class="chat-message-text">{{ c.text }}</p>
         </div>
       </div>
-    </teleport>
+      <form class="chat-input-row" @submit.prevent="postComment">
+        <AppTextarea
+          v-model="chatModal.newText"
+          class="chat-textarea"
+          aria-label="Kommentar schreiben"
+          placeholder="Kommentar schreiben… (Ctrl+Enter senden)"
+          rows="2"
+          @keydown.ctrl.enter.prevent="postComment"
+          @keydown.meta.enter.prevent="postComment"
+        />
+        <AppIconButton
+          class="chat-send-btn"
+          type="submit"
+          size="sm"
+          label="Kommentar senden"
+          :disabled="!chatModal.newText.trim() || chatModal.loading"
+        >
+          <font-awesome-icon icon="fa-solid fa-paper-plane" />
+        </AppIconButton>
+      </form>
+    </ModalFrame>
 
     <!-- Cell Context Menu (desktop only — mobile uses bottom-sheet) -->
     <ContextMenu
@@ -1671,7 +1678,9 @@ import FilterGroup from '@/components/FilterGroup.vue';
 import flipIconUrl from '@/assets/flip.png';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppHiddenItemsButton from '@/components/ui-elements/AppHiddenItemsButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextarea from '@/components/ui-elements/AppTextarea.vue';
 import FilterDivider from '@/components/ui-elements/FilterDivider.vue';
 import LocationFilter from '@/components/ui-elements/LocationFilter.vue';
 import FilterDropdown from '@/components/FilterDropdown.vue';
@@ -6169,24 +6178,6 @@ function onNameTouchEnd() {
   }
 }
 
-.show-hidden-btn {
-  min-height: 32px;
-  padding: 3px 10px;
-  font-size: 0.78rem;
-  border-radius: 20px;
-  user-select: none;
-
-  &.active {
-    --app-button-background: color-mix(in srgb, var(--primary) 12%, var(--surface));
-    --app-button-border: var(--primary);
-    --app-button-color: var(--action-accent-text);
-  }
-}
-
-.show-hidden-btn--topline {
-  padding-inline: 10px;
-}
-
 // ─── KW Chips ───
 .kw-chips {
   display: flex;
@@ -6550,36 +6541,16 @@ function onNameTouchEnd() {
 }
 
 // ─── Chat Modal ───
-.chat-modal {
-  background: var(--modal-bg);
-  border-radius: 12px;
-  width: 460px;
-  max-width: 92vw;
-  max-height: 80vh;
+.chat-modal-title {
   display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  overflow: hidden;
-}
-
-.chat-modal-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 
-  .chat-modal-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-
-    svg { color: var(--primary); }
-  }
+  svg { color: var(--primary); }
 }
 
 .chat-thread {
@@ -6622,9 +6593,9 @@ function onNameTouchEnd() {
     }
   }
 
-  &:hover .chat-delete-btn {
+  &:hover .chat-delete-btn,
+  &:focus-within .chat-delete-btn {
     opacity: 1;
-    pointer-events: auto;
   }
 
   .chat-message-meta {
@@ -6645,27 +6616,15 @@ function onNameTouchEnd() {
   }
 
   .chat-delete-btn {
+    --app-button-icon-size: 22px;
     position: absolute;
     bottom: -6px;
     right: -6px;
-    background: var(--surface);
-    border: 1px solid var(--border);
     border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    cursor: pointer;
+    min-height: 22px;
     font-size: 10px;
-    padding: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease, color 0.15s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    opacity: 0.65;
     z-index: 2;
-    &:hover { color: #ef4444; }
   }
 
   .chat-message-text {
@@ -6691,38 +6650,16 @@ function onNameTouchEnd() {
 
   .chat-textarea {
     flex: 1;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
+    min-height: 54px;
     font-size: 13px;
-    color: var(--text);
-    background: var(--bg);
     resize: none;
-    font-family: inherit;
-    outline: none;
-    box-sizing: border-box;
-    line-height: 1.4;
-
-    &:focus { border-color: var(--primary); }
   }
 
   .chat-send-btn {
+    --app-button-icon-size: 36px;
     flex-shrink: 0;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    width: 36px;
-    height: 36px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    min-height: 36px;
     font-size: 14px;
-    transition: opacity 0.15s;
-
-    &:disabled { opacity: 0.4; cursor: not-allowed; }
-    &:hover:not(:disabled) { opacity: 0.85; }
   }
 }
 
@@ -7028,28 +6965,6 @@ function onNameTouchEnd() {
 
   &:hover { background: var(--hover); }
   &.selected { color: var(--primary); font-weight: 600; }
-}
-
-// ─── Shared Modal ───
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px;
-
-  &:hover { color: var(--text); }
 }
 
 // ─── Employee Card Modal ───

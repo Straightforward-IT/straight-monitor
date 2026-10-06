@@ -1267,46 +1267,13 @@
       </div>
     </teleport>
 
-    <!-- Address modal -->
-    <teleport to="body">
-      <div v-if="showAddressModal" class="modal-overlay" @click.self="closeAddressModal">
-        <div class="modal-content address-modal">
-          <header class="modal-header">
-            <h3>
-              <span class="addr-modal-icon"><font-awesome-icon :icon="['fas', 'address-card']" /></span>
-              Adresse eingeben
-            </h3>
-            <button class="btn-icon" @click="closeAddressModal" title="Schließen">
-              <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
-          </header>
-          <div class="addr-form">
-            <div class="addr-field addr-field--full">
-              <label class="addr-label">Straße &amp; Hausnummer</label>
-              <input v-model="addressDraft.street" class="addr-input" placeholder="Musterstraße 42" @keydown.enter="saveAddress" />
-            </div>
-            <div class="addr-row">
-              <div class="addr-field">
-                <label class="addr-label">PLZ</label>
-                <input v-model="addressDraft.zip" class="addr-input" placeholder="12345" @keydown.enter="saveAddress" />
-              </div>
-              <div class="addr-field" style="flex:2">
-                <label class="addr-label">Stadt</label>
-                <input v-model="addressDraft.city" class="addr-input" placeholder="Berlin" @keydown.enter="saveAddress" />
-              </div>
-            </div>
-            <div class="addr-field addr-field--full">
-              <label class="addr-label">Land</label>
-              <input v-model="addressDraft.country" class="addr-input" placeholder="Deutschland" @keydown.enter="saveAddress" />
-            </div>
-          </div>
-          <footer class="modal-footer">
-            <button class="btn" @click="closeAddressModal">Abbrechen</button>
-            <button class="btn btn-primary" @click="saveAddress">Speichern</button>
-          </footer>
-        </div>
-      </div>
-    </teleport>
+    <AddressModal
+      :model-value="showAddressModal"
+      :address="detailForm.customFields[addressModalKey]"
+      :saving="savingDetail"
+      @close="closeAddressModal"
+      @save="saveAddress"
+    />
 
     <ColumnCustomizerPopover
       v-model="showColPanel"
@@ -1355,6 +1322,7 @@ import RecordChronikTimeline from '@/components/workflow/RecordChronikTimeline.v
 import { useRecordChronik } from '@/composables/useRecordChronik';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AddressModal from '@/components/Modals/AddressModal.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import ToolbarFilter from '@/components/ui-elements/ToolbarFilter.vue';
 import FilterGroup from '@/components/FilterGroup.vue';
@@ -1583,7 +1551,6 @@ const columnCustomizerItems = computed(() => colConfig.value.map((column) => ({
 const expectedCloseDateInput = ref(null);
 const showAddressModal = ref(false);
 const addressModalKey = ref('');
-const addressDraft = reactive({ street: '', city: '', zip: '', country: '' });
 const creating = ref(false);
 const createError = ref('');
 const creatingField = ref(false);
@@ -2887,11 +2854,6 @@ function addressMapsUrl(addr) {
 
 function openAddressModal(key) {
   addressModalKey.value = key;
-  const existing = detailForm.customFields[key] || {};
-  addressDraft.street  = existing.street  || '';
-  addressDraft.city    = existing.city    || '';
-  addressDraft.zip     = existing.zip     || '';
-  addressDraft.country = existing.country || '';
   showAddressModal.value = true;
 }
 
@@ -2899,8 +2861,8 @@ function closeAddressModal() {
   showAddressModal.value = false;
 }
 
-function saveAddress() {
-  detailForm.customFields[addressModalKey.value] = { ...addressDraft };
+function saveAddress(address) {
+  detailForm.customFields[addressModalKey.value] = address;
   saveDetail();
   closeAddressModal();
 }
@@ -4157,65 +4119,6 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   }
 }
 
-/* ── Modals ──────────────────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 10px;
-  width: 90%;
-  max-width: 540px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-
-  h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px 8px;
-
-  &:hover {
-    color: var(--text);
-  }
-}
-
-.modal-footer {
-  padding: 12px 18px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 /* Field manager — label cards */
 .label-card-list {
   display: flex;
@@ -4904,68 +4807,6 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   &:hover {
     background: color-mix(in oklab, var(--primary) 12%, transparent);
   }
-}
-
-.address-modal {
-  max-width: 400px;
-}
-
-.addr-modal-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--primary) 15%, transparent);
-  color: var(--primary);
-  font-size: 0.8rem;
-}
-
-.addr-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px 20px 8px;
-}
-
-.addr-row {
-  display: flex;
-  gap: 12px;
-}
-
-.addr-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1;
-
-  &--full { flex: none; width: 100%; }
-}
-
-.addr-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.addr-input {
-  height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.15s;
-  width: 100%;
-  box-sizing: border-box;
-
-  &::placeholder { color: var(--muted); opacity: 0.6; }
-  &:focus { border-color: var(--primary); background: var(--tile-bg); }
 }
 
 /* ── Aktivitäten ─────────────────────────────────────────────────── */
@@ -5837,29 +5678,6 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   .kv-grid {
     grid-template-columns: 1fr !important;
     gap: 8px;
-  }
-
-  /* Modal full-screen on mobile */
-  .modal-content {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    border-radius: 0 !important;
-    margin: 0 !important;
-  }
-  .modal-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: var(--tile-bg);
-  }
-  .modal-footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
-    background: var(--tile-bg);
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Aktivitäten form */

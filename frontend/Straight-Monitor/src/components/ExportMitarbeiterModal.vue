@@ -171,6 +171,21 @@ const ALL_FIELDS = [
   { key: 'einsatzCount', label: 'Einsatzanzahl', get: ma => ma.einsatzCount ?? '' },
   { key: 'konfektionsgroesse', label: 'Konfektionsgröße', get: ma => ma.konfektionsgroesse || '' },
   { key: 'schuhgroesse', label: 'Schuhgröße', get: ma => ma.schuhgroesse || '' },
+  {
+    key: 'fuehrerscheine',
+    label: 'Führerscheine',
+    get: ma => {
+      const licenses = ma.fuehrerscheine?.length
+        ? ma.fuehrerscheine
+        : ma.fuehrerschein
+          ? [ma.fuehrerschein]
+          : [];
+      return licenses
+        .map(license => typeof license === 'string' ? license : license?.klasse)
+        .filter(Boolean)
+        .join(', ');
+    },
+  },
   { key: 'locationV2', label: 'Location', get: ma => locationLabel(ma.locationV2) },
   { key: 'persgruppe', label: 'Personengruppe', get: ma => ma.persgruppe ? (PERSGRUPPE_MAP[ma.persgruppe] || String(ma.persgruppe)) : '' },
   { key: 'erstellt_von', label: 'Erstellt von', get: ma => ma.erstellt_von || '' },

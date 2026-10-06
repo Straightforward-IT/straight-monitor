@@ -440,15 +440,13 @@
           <font-awesome-icon :icon="['fas', 'map-location-dot']" /> Einsatzorte
           <span class="badge">{{ visibleEinsatzorte.length }}</span>
           <AppSegmentedControl v-model="einsatzortSort" class="address-sort" size="sm" label="Einsatzortsortierung" :options="einsatzortSortOptions" />
-          <FilterChip
-            class="einsatzorte-inactive-toggle"
+          <AppHiddenItemsButton
             :active="showInactiveEinsatzorte"
-            :hide-mode="true"
+            :inactive-label="inactiveEinsatzorte.length ? `Inaktive (${inactiveEinsatzorte.length})` : 'Inaktive'"
+            :inactive-aria-label="`${inactiveEinsatzorte.length} inaktive Einsatzorte anzeigen`"
+            active-aria-label="Aktive Einsatzorte anzeigen"
             @click="showInactiveEinsatzorte = !showInactiveEinsatzorte"
-          >
-            <font-awesome-icon :icon="['fas', showInactiveEinsatzorte ? 'eye' : 'eye-slash']" />
-            Inaktive{{ inactiveEinsatzorte.length ? ` (${inactiveEinsatzorte.length})` : '' }}
-          </FilterChip>
+          />
           <AppButton class="section-action-btn--push" size="sm" variant="secondary" @click="openCreateEinsatzort">
             <font-awesome-icon :icon="['fas', 'plus']" /> Einsatzort anlegen
           </AppButton>
@@ -702,7 +700,8 @@
         </div>
       </section>
 
-      <section v-if="activeTab === 'preise'" class="section kundenpreise-section">
+      <section v-if="activeTab === 'rechnung'" class="section kundenpreise-section">
+        <div class="kundenpreise-section__conditions">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'percent']" /> Zuschlagskonditionen
         </h4>
@@ -755,7 +754,9 @@
             </tbody>
           </table>
         </div>
+        </div>
 
+        <div class="kundenpreise-section__prices">
         <h4 class="section-title">
           <font-awesome-icon :icon="['fas', 'coins']" /> Kundenpreise
         </h4>
@@ -862,6 +863,7 @@
             </table>
           </div>
         </template>
+        </div>
 
         <!-- Add Qualification Dialog -->
         <ModalFrame
@@ -1032,6 +1034,7 @@ import ContactCard from '@/components/ContactCard.vue';
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppHiddenItemsButton from '@/components/ui-elements/AppHiddenItemsButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
@@ -1064,7 +1067,6 @@ const tabs = [
   { id: 'einsaetze', label: 'Einsätze', icon: 'calendar-days' },
   { id: 'signatur', label: 'Signatur', icon: 'file-signature' },
   { id: 'einsatzinfos', label: 'Vorlagen', icon: 'envelope-open-text' },
-  { id: 'preise', label: 'Preise', icon: 'coins' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
   { id: 'einstellungen', label: 'Einstellungen', icon: 'gear' },
 ];
@@ -1085,7 +1087,7 @@ const canSeeSensitiveKpi = computed(() => {
 const visibleTabs = computed(() => tabs.filter((tab) =>
   tab.id !== 'statistik' || canSeeSensitiveKpi.value
 ));
-const normalizeCustomerTab = (tab) => tab === 'lohn' ? 'preise' : tab;
+const normalizeCustomerTab = (tab) => (tab === 'lohn' || tab === 'preise' ? 'rechnung' : tab);
 const activeTab = ref(visibleTabs.value.some((tab) => tab.id === normalizeCustomerTab(props.initialTab))
   ? normalizeCustomerTab(props.initialTab) : 'allgemein');
 
@@ -1791,7 +1793,7 @@ async function saveNewQualifikation() {
 }
 
 watch(activeTab, (tab) => {
-  if (tab === 'preise') {
+  if (tab === 'rechnung') {
     loadKundenpreise();
     loadKundenkonditionen();
   }
@@ -2547,14 +2549,27 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 /* Customer qualification prices */
 .kundenpreise-section {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
+  order: -1;
 }
 
-.kundenpreise-section > .section-title:not(:first-child) {
+.kundenpreise-section__prices {
+  order: 1;
+}
+
+.kundenpreise-section__conditions {
+  order: 2;
+}
+
+.rechnung-section {
+  flex: 0 0 auto;
+}
+
+.kundenpreise-section__conditions {
   margin-top: 28px;
   padding-top: 20px;
-  border-top: 1px solid var(--border);
 }
 
 .konditionen-table-wrap {
@@ -2943,17 +2958,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape, true
 .signature-contact-collapse-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 
 .address-sort { flex-shrink: 0; }
-
-:deep(.einsatzorte-inactive-toggle.filter-chip) {
-  height: 24px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-
-  svg { font-size: 10px; }
-}
 
 .badge {
   background: var(--soft);

@@ -6,7 +6,7 @@ import KundenwunschModal from '../src/components/Modals/KundenwunschModal.vue';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
-  comments: { zvooveItems: [], fetch: vi.fn(), fetchChronikBatch: vi.fn(), getCellComments: vi.fn(), cellUnreadCount: vi.fn(), chronikForMa: vi.fn() },
+  comments: { zvooveItems: [], fetch: vi.fn(), fetchChronikBatch: vi.fn(), getCellComments: vi.fn(), cellUnreadCount: vi.fn(), chronikForMa: vi.fn(), markRead: vi.fn(), post: vi.fn(), delete: vi.fn() },
   dispoEntries: [],
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
@@ -27,6 +27,7 @@ const stubs = {
   ModalFrame: frameStub,
   AppButton: false,
   AppIconButton: false,
+  AppTextarea: false,
   'font-awesome-icon': true,
 };
 const dialog = () => new DOMWrapper(document.querySelector('[role="dialog"]'));
@@ -50,6 +51,9 @@ beforeEach(() => {
   mocks.api.post.mockResolvedValue({ data: { _id: 'entry-1' } });
   mocks.comments.fetch.mockResolvedValue();
   mocks.comments.fetchChronikBatch.mockResolvedValue();
+  mocks.comments.getCellComments.mockReturnValue([]);
+  mocks.comments.post.mockResolvedValue();
+  mocks.comments.delete.mockResolvedValue();
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -129,6 +133,33 @@ describe('Dispo availability modal shared controls', () => {
     ]);
     expect(dialog().findAll('button').find(button => button.text().includes('speichern')).attributes('disabled')).toBeUndefined();
     expect(mocks.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('Dispo comment dialog', () => {
+  it('uses the shared frame and sends a comment from the labelled composer', async () => {
+    await render();
+    wrapper.vm.closeVerfModal();
+    await wrapper.vm.openChatModal(
+      { _id: 'employee-1', vorname: 'Ada', nachname: 'Test' },
+      { iso: '2026-10-06' },
+    );
+    await flushPromises();
+
+    const frame = wrapper.findAllComponents(ModalFrame).find(item => item.props('title')?.includes('Ada Test'));
+    expect(frame.props('modelValue')).toBe(true);
+    expect(dialog().get('h3').attributes('id')).toBe('test-title');
+    await dialog().get('textarea[aria-label="Kommentar schreiben"]').setValue('Neue Nachricht');
+    await dialog().get('button[aria-label="Kommentar senden"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.comments.post).toHaveBeenCalledWith({
+      scope: 'dispo_day', text: 'Neue Nachricht',
+      context: { mitarbeiter: 'employee-1', datum: '2026-10-06' },
+    });
+    frame.vm.$emit('close');
+    await wrapper.vm.$nextTick();
+    expect(frame.props('modelValue')).toBe(false);
   });
 });
 
