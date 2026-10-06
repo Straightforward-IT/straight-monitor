@@ -120,7 +120,7 @@
         </div>
       </section>
 
-      <section class="form-section">
+      <section class="form-section form-section--licenses">
         <div class="form-section__heading">
           <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-id-card" /></span>
           <h4>Führerscheine</h4>
@@ -154,7 +154,7 @@
               <font-awesome-icon icon="fa-solid fa-trash" />
             </AppIconButton>
           </div>
-          <AppButton size="sm" variant="secondary" class="mt-2" @click="addLicense">
+          <AppButton size="sm" variant="secondary" @click="addLicense">
             <font-awesome-icon icon="fa-solid fa-plus" /> Führerschein hinzufügen
           </AppButton>
         </div>
@@ -727,15 +727,6 @@ function saveForce() {
     flex: 1;
   }
 
-  .license-row {
-    display: grid;
-    grid-template-columns: minmax(90px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-
   .app-icon-button {
     color: var(--status-danger-text, #c43d3d);
   }
@@ -752,6 +743,38 @@ function saveForce() {
     border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
     background: var(--tile-bg, var(--surface));
     border-radius: 6px;
+  }
+}
+
+.form-section--licenses {
+  padding-top: 12px;
+  padding-bottom: 14px;
+
+  .form-section__heading {
+    margin-bottom: 10px;
+  }
+
+  .form-section__icon {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+    font-size: 0.72rem;
+  }
+
+  .form-section__heading h4 {
+    font-size: 0.88rem;
+  }
+}
+
+.license-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.8fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+
+  .form-input {
+    min-height: 34px;
   }
 }
 
@@ -849,6 +872,19 @@ function saveForce() {
     margin-bottom: 14px;
   }
 
+  .form-section--licenses {
+    padding-top: 12px;
+    padding-bottom: 14px;
+  }
+
+  .license-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+
+    .form-input:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+
   .conflict-actions,
   .modal-footer-actions {
     width: 100%;
@@ -869,6 +905,14 @@ function saveForce() {
   .form-group--employment-type,
   .form-group--street {
     grid-column: 1 / -1;
+  }
+
+  .license-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+
+    .form-input:first-child {
+      grid-column: 1 / -1;
+    }
   }
 }
 </style>
