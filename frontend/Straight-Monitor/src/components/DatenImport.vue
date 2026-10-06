@@ -1,6 +1,6 @@
 <template>
+  <PageLayout title="Daten Import" width="wide" content-variant="flush">
   <div class="window">
-    <h1>Daten Import</h1>
     
     <div class="info-text">
       Hochladen von Erweiterten Listen aus L1.
@@ -48,21 +48,7 @@
             <span v-if="einsatzFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area" 
-              :class="{ 'has-file': einsatzFile }"
-              @dragover.prevent 
-              @drop="(e) => handleDragAndDrop(e, 'einsatz')"
-              @click="triggerFileInput('einsatz-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="einsatzFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!einsatzFile"><strong>Zvoove Export hier ablegen</strong><br>Importiert alles in einem Schritt</span>
-                  <span v-else class="file-name">{{ einsatzFile.name }}</span>
-                </div>
-              </div>
-              <input id="einsatz-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatz')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Zvoove Export" prompt="Zvoove Export hier ablegen" hint="Importiert alles in einem Schritt" :file="einsatzFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'einsatz')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -91,21 +77,7 @@
             <span v-if="personalFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': personalFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'personal')"
-              @click="triggerFileInput('personal-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="personalFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!personalFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ personalFile.name }}</span>
-                </div>
-              </div>
-              <input id="personal-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personal')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Personal Import" :file="personalFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'personal')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -142,21 +114,7 @@
             <span v-if="verfuegbarkeitFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': verfuegbarkeitFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'verfuegbarkeit')"
-              @click="triggerFileInput('verfuegbarkeit-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="verfuegbarkeitFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!verfuegbarkeitFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ verfuegbarkeitFile.name }}</span>
-                </div>
-              </div>
-              <input id="verfuegbarkeit-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'verfuegbarkeit')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Verfügbarkeiten" :file="verfuegbarkeitFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'verfuegbarkeit')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -195,21 +153,7 @@
             <span v-if="adressenFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': adressenFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'adressen')"
-              @click="triggerFileInput('adressen-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="adressenFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!adressenFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ adressenFile.name }}</span>
-                </div>
-              </div>
-              <input id="adressen-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'adressen')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Adressen" :file="adressenFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'adressen')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -235,21 +179,7 @@
             <span v-if="einsatzortFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': einsatzortFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'einsatzort')"
-              @click="triggerFileInput('einsatzort-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="einsatzortFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!einsatzortFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ einsatzortFile.name }}</span>
-                </div>
-              </div>
-              <input id="einsatzort-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'einsatzort')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Einsatzorte" :file="einsatzortFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'einsatzort')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -274,21 +204,7 @@
             <span v-if="kundenFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': kundenFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'kunden')"
-              @click="triggerFileInput('kunden-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="kundenFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!kundenFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ kundenFile.name }}</span>
-                </div>
-              </div>
-              <input id="kunden-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kunden')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Kunden" :file="kundenFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'kunden')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -314,21 +230,7 @@
             <span v-if="berufFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area" 
-              :class="{ 'has-file': berufFile }"
-              @dragover.prevent 
-              @drop="(e) => handleDragAndDrop(e, 'beruf')"
-              @click="triggerFileInput('beruf-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="berufFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!berufFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ berufFile.name }}</span>
-                </div>
-              </div>
-              <input id="beruf-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'beruf')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Berufe" :file="berufFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'beruf')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -350,21 +252,7 @@
             <span v-if="qualifikationFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area" 
-              :class="{ 'has-file': qualifikationFile }"
-              @dragover.prevent 
-              @drop="(e) => handleDragAndDrop(e, 'qualifikation')"
-              @click="triggerFileInput('qualifikation-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="qualifikationFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!qualifikationFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ qualifikationFile.name }}</span>
-                </div>
-              </div>
-              <input id="qualifikation-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'qualifikation')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Qualifikationen" :file="qualifikationFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'qualifikation')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -386,21 +274,7 @@
             <span v-if="nationalitaetFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': nationalitaetFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'nationalitaet')"
-              @click="triggerFileInput('nationalitaet-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="nationalitaetFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!nationalitaetFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ nationalitaetFile.name }}</span>
-                </div>
-              </div>
-              <input id="nationalitaet-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'nationalitaet')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Nationalitäten" :file="nationalitaetFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'nationalitaet')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -423,21 +297,7 @@
             <span v-if="lohnartFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': lohnartFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'lohnart')"
-              @click="triggerFileInput('lohnart-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="lohnartFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!lohnartFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ lohnartFile.name }}</span>
-                </div>
-              </div>
-              <input id="lohnart-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'lohnart')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Lohnarten" :file="lohnartFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'lohnart')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -459,10 +319,7 @@
             <span v-if="vorarbeitgebertageFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area" :class="{ 'has-file': vorarbeitgebertageFile }" @dragover.prevent @drop="(e) => handleDragAndDrop(e, 'vorarbeitgebertage')" @click="triggerFileInput('vorarbeitgebertage-upload')">
-              <div class="upload-content"><i class="fas fa-file-excel upload-icon"></i><span class="upload-text"><span v-if="vorarbeitgebertageFile" class="file-name">{{ vorarbeitgebertageFile.name }}</span><span v-else>Datei auswählen oder hier ablegen</span></span></div>
-              <input id="vorarbeitgebertage-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'vorarbeitgebertage')" accept=".xlsx,.xls" />
-            </div>
+            <AppFileDropzone label="70-Tage Vorarbeitgeber" :file="vorarbeitgebertageFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'vorarbeitgebertage')" />
           </div>
         </div>
 
@@ -476,21 +333,7 @@
             <span v-if="personalnrHistoryFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': personalnrHistoryFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'personalnr-history')"
-              @click="triggerFileInput('personalnr-history-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="personalnrHistoryFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!personalnrHistoryFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ personalnrHistoryFile.name }}</span>
-                </div>
-              </div>
-              <input id="personalnr-history-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'personalnr-history')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Personalnr. Historien" :file="personalnrHistoryFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'personalnr-history')" />
             <div class="requirements-hint">
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
@@ -523,21 +366,7 @@
             <span v-if="rechnungFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': rechnungFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'rechnung')"
-              @click="triggerFileInput('rechnung-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="rechnungFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!rechnungFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ rechnungFile.name }}</span>
-                </div>
-              </div>
-              <input id="rechnung-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'rechnung')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Rechnungen" :file="rechnungFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'rechnung')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -569,21 +398,7 @@
             <span v-if="kundenkonditionFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': kundenkonditionFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'kundenkondition')"
-              @click="triggerFileInput('kundenkondition-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="kundenkonditionFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!kundenkonditionFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ kundenkonditionFile.name }}</span>
-                </div>
-              </div>
-              <input id="kundenkondition-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kundenkondition')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Kundenkonditionen" :file="kundenkonditionFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'kundenkondition')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -609,21 +424,7 @@
             <span v-if="kundenpreisFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
           </div>
           <div class="card-content">
-            <div class="upload-area"
-              :class="{ 'has-file': kundenpreisFile }"
-              @dragover.prevent
-              @drop="(e) => handleDragAndDrop(e, 'kundenpreis')"
-              @click="triggerFileInput('kundenpreis-upload')"
-            >
-              <div class="upload-content">
-                <i class="upload-icon" :class="kundenpreisFile ? 'fas fa-file-excel' : 'fas fa-cloud-upload-alt'"></i>
-                <div class="upload-text">
-                  <span v-if="!kundenpreisFile">Datei hier ablegen oder klicken</span>
-                  <span v-else class="file-name">{{ kundenpreisFile.name }}</span>
-                </div>
-              </div>
-              <input id="kundenpreis-upload" type="file" class="hidden-input" @change="(e) => handleFileUpload(e, 'kundenpreis')" accept=".xlsx, .xls" />
-            </div>
+            <AppFileDropzone label="Kundenpreise" :file="kundenpreisFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'kundenpreis')" />
             <div class="requirements-hint">
               <details>
                 <summary>Erwartete SQL-Export Struktur</summary>
@@ -643,21 +444,23 @@
     </div><!-- End Finanzen -->
 
     <div class="actions-bar">
-      <button class="primary-btn large" @click="processFiles" :disabled="!hasAnyFile() || loading">
-        <span v-if="loading"><i class="fas fa-spinner fa-spin"></i> Import läuft...</span>
-        <span v-else><i class="fas fa-file-import"></i> {{ hasAnyFile() ? 'Ausgewählte Dateien importieren' : 'Dateien auswählen zum Starten' }}</span>
-      </button>
+      <AppButton size="lg" :loading="loading" :disabled="!hasAnyFile()" @click="processFiles">
+        {{ loading ? 'Import läuft…' : 'Ausgewählte Dateien importieren' }}
+      </AppButton>
     </div>
 
 
     <!-- Import Result Modal -->
-    <div v-if="showResultModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>{{ resultModalData.success ? '✓ Import Ergebnis' : '⚠️ Import mit Warnungen' }}</h2>
-          <button class="close-btn" @click="closeModal">&times;</button>
-        </div>
-        
+    <ModalFrame
+      v-if="showResultModal"
+      :title="resultModalData.success ? 'Import-Ergebnis' : 'Import mit Warnungen'"
+      size="lg"
+      style="--mf-max-width: 700px; --mf-max-height: 80vh; --mf-body-padding: 0"
+      :show-close="!assigningNow"
+      :close-on-backdrop="!assigningNow"
+      :close-on-escape="!assigningNow"
+      @close="closeModal"
+    >
         <div class="modal-body">
           <p class="result-message" v-html="resultModalData.message"></p>
           
@@ -818,30 +621,35 @@
                   <span class="email">{{ entry.email }}</span>
                   <span class="personalnr-badge"> Personalnr: {{ entry.personalnr }}</span>
                 </div>
-                <button 
+                <AppButton
                   v-if="!assigningEntry || assigningEntry.email !== entry.email"
-                  class="assign-btn" 
+                  variant="secondary"
+                  size="sm"
+                  :disabled="assigningNow"
                   @click="startAssign(entry)"
                 >
                   Mitarbeiter suchen
-                </button>
+                </AppButton>
                 
                 <!-- Search & Assign UI -->
                 <div v-if="assigningEntry?.email === entry.email" class="assign-panel">
-                  <input 
+                  <AppTextInput
                     v-model="searchQuery"
                     type="text"
                     placeholder="Name suchen..."
-                    class="search-input"
-                    @input="searchMitarbeiter"
+                    aria-label="Mitarbeiter für E-Mail-Zuordnung suchen"
+                    :disabled="assigningNow"
+                    @update:model-value="searchMitarbeiter($event)"
                   />
-                  <button class="cancel-btn" @click="cancelAssign">Abbrechen</button>
+                  <AppButton variant="ghost" size="sm" :disabled="assigningNow" @click="cancelAssign">Abbrechen</AppButton>
                   
                   <div v-if="searchResults.length > 0" class="search-results">
-                    <div 
+                    <button
                       v-for="ma in searchResults" 
                       :key="ma._id" 
+                      type="button"
                       class="search-result-item"
+                      :disabled="assigningNow"
                       @click="assignEntryToMitarbeiter(entry, ma)"
                     >
                       <strong>{{ ma.vorname }} {{ ma.nachname }}</strong>
@@ -853,7 +661,7 @@
                       <span v-if="ma.additionalEmails?.length" class="additional-count">
                         +{{ ma.additionalEmails.length }} weitere E-Mails
                       </span>
-                    </div>
+                    </button>
                   </div>
                   <div v-else-if="searchQuery.length >= 2 && !searching" class="no-results">
                     Keine Mitarbeiter gefunden
@@ -865,12 +673,12 @@
           </div>
         </div>
 
-        <div class="modal-footer">
-          <button class="primary-btn" @click="closeModal">Schließen</button>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <AppButton variant="secondary" :disabled="assigningNow" @click="closeModal">Schließen</AppButton>
+      </template>
+    </ModalFrame>
   </div>
+  </PageLayout>
 </template>
 
 <script>
@@ -878,9 +686,15 @@ import api from "../utils/api";
 import { useAuth } from "../stores/auth";
 import { useDataCache } from "../stores/dataCache";
 import * as XLSX from 'xlsx';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 
 export default {
   name: "DatenImport",
+  components: { PageLayout, ModalFrame, AppButton, AppTextInput, AppFileDropzone },
   setup() {
     const authStore = useAuth();
     const dataCache = useDataCache();
@@ -919,6 +733,8 @@ export default {
       searchQuery: "",
       searchResults: [],
       searching: false,
+      searchRequestId: 0,
+      assigningNow: false,
       searchTimeout: null,
       lastUploads: {},
       loadingHistory: false
@@ -970,21 +786,8 @@ export default {
         hour: '2-digit', minute: '2-digit'
       });
     },
-    triggerFileInput(id) {
-      document.getElementById(id).click();
-    },
-    handleFileUpload(event, type) {
-      const file = event.target.files[0];
-      if (file) this.setFile(file, type);
-      // Reset input value so same file can be selected again if needed
-      event.target.value = '';
-    },
-    handleDragAndDrop(event, type) {
-      event.preventDefault();
-      const file = event.dataTransfer.files[0];
-      if (file) this.setFile(file, type);
-    },
     async setFile(file, type) {
+      if (this.loading) return;
       // Validate Prüffeld for einsatz/personal imports
       const expectedCode = type === 'einsatz' ? 7001 : type === 'personal' ? 7002 : type === 'verfuegbarkeit' ? 7003 : type === 'adressen' ? 7034 : type === 'einsatzort' ? 3202 : type === 'kunden' ? 3203 : type === 'rechnung' ? 6001 : type === 'kundenpreis' ? 3202 : type === 'personalnr-history' ? 3201 : null;
       if (expectedCode) {
@@ -1040,6 +843,7 @@ export default {
       });
     },
     async processFiles() {
+      if (this.loading) return;
       if (!this.hasAnyFile()) {
         alert("Bitte wählen Sie zuerst mindestens eine Datei aus.");
         return;
@@ -1270,23 +1074,29 @@ export default {
       }
     },
     closeModal() {
+      if (this.assigningNow) return;
       this.showResultModal = false;
       this.resultModalData = {};
       this.cancelAssign();
     },
     startAssign(entry) {
+      this.cancelAssign();
       this.assigningEntry = entry;
-      this.searchQuery = "";
-      this.searchResults = [];
     },
     cancelAssign() {
+      clearTimeout(this.searchTimeout);
+      this.searchTimeout = null;
+      this.searchRequestId += 1;
       this.assigningEntry = null;
       this.searchQuery = "";
       this.searchResults = [];
+      this.searching = false;
     },
-    searchMitarbeiter() {
+    searchMitarbeiter(query = this.searchQuery) {
+      this.searchQuery = query;
       // Debounce search
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      const requestId = ++this.searchRequestId;
       
       if (this.searchQuery.length < 2) {
         this.searchResults = [];
@@ -1297,6 +1107,7 @@ export default {
         this.searching = true;
         try {
           const response = await api.get('/api/personal/mitarbeiter');
+          if (requestId !== this.searchRequestId) return;
           const query = this.searchQuery.toLowerCase();
           this.searchResults = (response.data?.data || [])
             .filter(ma => {
@@ -1305,14 +1116,17 @@ export default {
             })
             .slice(0, 10); // Limit to 10 results
         } catch (error) {
+          if (requestId !== this.searchRequestId) return;
           console.error("Search error:", error);
           this.searchResults = [];
         } finally {
-          this.searching = false;
+          if (requestId === this.searchRequestId) this.searching = false;
         }
       }, 300);
     },
     async assignEntryToMitarbeiter(entry, mitarbeiter) {
+      if (this.assigningNow) return;
+      this.assigningNow = true;
       try {
         // 1. Add email to additionalEmails
         await api.post(`/api/personal/mitarbeiter/${mitarbeiter._id}/additional-email`, {
@@ -1346,6 +1160,8 @@ export default {
         } else {
           alert("Fehler beim Zuweisen: " + (error.response?.data?.message || error.message));
         }
+      } finally {
+        this.assigningNow = false;
       }
     },
     // ... assign methods ... same as before ... 
@@ -1373,27 +1189,19 @@ export default {
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 
-    handleEscapeKey(event) {
-      if (event.key === 'Escape' && this.showResultModal) {
-        this.closeModal();
-      }
-    }
   },
 
   mounted() {
     this.fetchLastUploads();
-    document.addEventListener('keydown', this.handleEscapeKey);
   },
-
   beforeUnmount() {
-    document.removeEventListener('keydown', this.handleEscapeKey);
+    clearTimeout(this.searchTimeout);
+    this.searchRequestId += 1;
   }
 };
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss";
-
 .last-import-section {
   margin-bottom: 30px;
   
@@ -1470,9 +1278,9 @@ export default {
 }
 
 .window {
-  width: 900px;
-  max-width: 96vw; /* Ensure it doesn't overflow small screens */
-  margin: 30px auto;
+  width: min(900px, 100%);
+  box-sizing: border-box;
+  margin: 0 auto;
   padding: 30px;
   background: var(--tile-bg);
   color: var(--text);
@@ -1481,12 +1289,6 @@ export default {
   box-shadow: 0 8px 16px rgba(0,0,0,.12);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
 
-  h1 {
-    text-align: center;
-    margin-bottom: 10px;
-    font-size: 2.0rem;
-    color: var(--text);
-  }
 }
 
 .info-text {
@@ -1581,56 +1383,6 @@ export default {
   }
 }
 
-.upload-area {
-  border: 2px dashed var(--border);
-  border-radius: 8px;
-  padding: 30px 20px;
-  cursor: pointer;
-  background: var(--bg-tertiary);
-  transition: all 0.2s;
-  text-align: center;
-  position: relative;
-  
-  &:hover {
-    border-color: var(--primary);
-    background: rgba(var(--primary-rgb), 0.02);
-  }
-  
-  &.has-file {
-    border-style: solid;
-    border-color: #4ade80;
-    background: rgba(74, 222, 128, 0.05);
-    
-    .upload-icon {
-      color: #4ade80;
-    }
-  }
-  
-  .upload-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    
-    .upload-icon {
-      font-size: 2rem;
-      color: var(--text-muted);
-      transition: color 0.2s;
-    }
-    
-    .upload-text {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      
-      .file-name {
-        color: var(--text);
-        font-weight: 500;
-        word-break: break-all;
-      }
-    }
-  }
-}
-
 .requirements-hint {
   margin-top: 15px;
   font-size: 0.85rem;
@@ -1674,93 +1426,16 @@ export default {
   padding-top: 20px;
   border-top: 1px solid var(--border);
   
-  .primary-btn.large {
-    padding: 12px 24px;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-}
-
-.hidden-input {
-  display: none;
 }
 
 /* Mobile Optimierungen */
 @media (max-width: 768px) {
   .window {
-    width: calc(100vw - 32px);
-    margin: 16px;
+    width: 100%;
+    margin: 0;
     padding: 20px;
   }
-  
-  .actions {
-    flex-direction: column;
-    button {
-      width: 100%;
-    }
-  }
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 12px;
-  max-width: 700px;
-  width: 100%;
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border);
-  
-  h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    color: var(--text);
-  }
-  
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    
-    &:hover {
-      color: var(--text);
-    }
-  }
+  .actions-bar :deep(.app-button) { width: 100%; }
 }
 
 .modal-body {
@@ -1991,19 +1666,6 @@ export default {
     color: var(--text);
   }
   
-  .assign-btn {
-    padding: 6px 12px;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    
-    &:hover {
-      filter: brightness(0.9);
-    }
-  }
 }
 
 .assign-panel {
@@ -2013,34 +1675,9 @@ export default {
   flex-wrap: wrap;
   gap: 8px;
   
-  .search-input {
+  :deep(.app-text-input) {
     flex: 1;
     min-width: 200px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--text);
-    font-size: 0.9rem;
-    
-    &:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-  }
-  
-  .cancel-btn {
-    padding: 8px 12px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    cursor: pointer;
-    
-    &:hover {
-      background: var(--hover);
-      color: var(--text);
-    }
   }
 }
 
@@ -2055,7 +1692,14 @@ export default {
 }
 
 .search-result-item {
+  display: block;
+  width: 100%;
   padding: 10px 12px;
+  border: 0;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   
@@ -2066,6 +1710,8 @@ export default {
   &:hover {
     background: var(--hover);
   }
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
+  &:disabled { opacity: .6; cursor: wait; }
   
   strong {
     display: block;
@@ -2117,39 +1763,4 @@ export default {
   font-size: 0.9rem;
 }
 
-.primary-btn {
-  /* Default styling for primary button if not globally defined */
-  background-color: var(--primary, #3b82f6);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 600;
-
-  &:hover {
-    filter: brightness(0.9);
-  }
-}
-
-.modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: flex-end;
-  
-  .primary-btn {
-    padding: 10px 20px;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    
-    &:hover {
-      filter: brightness(0.9);
-    }
-  }
-}
 </style>

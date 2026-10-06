@@ -1,301 +1,171 @@
 <template>
-    <div class="window">
-      <h1>Flip Austritte</h1>
-      <div class="info-box">
-        <p><strong>⚠ Bitte beachten:</strong> Die Excel-Datei muss folgende Spalten enthalten:</p>
-        <table class="sample-table">
-          <thead>
-            <tr>
-              <th>Personal-Nr</th>
-              <th>Nachname</th>
-              <th>Vorname</th>
-            </tr>
-          </thead>
-        </table>
-      </div>
-
-      <div class="upload-section">
-        <div class="drag-drop-area" @dragover.prevent @drop="handleDragAndDrop">
-          Excel hierher ziehen
+  <PageLayout title="Flip: Austritte" width="standard" content-variant="flush">
+    <div class="flip-exit">
+      <section class="flip-exit__card" aria-labelledby="flip-exit-upload-title">
+        <h2 id="flip-exit-upload-title">Excel-Datei hochladen</h2>
+        <p>Die erste Zeile muss die Spalten Personal-Nr, Nachname und Vorname enthalten.</p>
+        <div class="flip-exit__columns" aria-label="Erwartete Spalten">
+          <span>Personal-Nr</span><span>Nachname</span><span>Vorname</span>
         </div>
-        <label for="file-upload">Oder manuell hochladen</label>
-        <input id="file-upload" type="file" @change="handleFileUpload" accept=".xlsx, .xls" />
-      </div>
-  
-      <div class="file-name">
-        <p>Hochgeladen: <strong>{{ fileName }}</strong></p>
-      </div>
-  
-      <button @click="submitUsers" :disabled="!userList.length">Nutzer löschen</button>
-  
-      <div v-if="notFound.length">
-        <h3>Nicht gefundene Nutzer:</h3>
-        <ul>
-          <li v-for="name in notFound" :key="name">{{ name }}</li>
-        </ul>
-      </div>
+
+        <div
+          class="flip-exit__dropzone"
+          :class="{ 'flip-exit__dropzone--active': dragging }"
+          @dragenter.prevent="dragging = true"
+          @dragover.prevent
+          @dragleave.prevent="dragging = false"
+          @drop.prevent="handleDrop"
+        >
+          <span>Excel-Datei hier ablegen</span>
+          <span class="flip-exit__muted">oder</span>
+          <AppButton variant="secondary" :disabled="busy" @click="fileInput?.click()">Datei auswählen</AppButton>
+          <input
+            ref="fileInput"
+            class="flip-exit__file-input"
+            type="file"
+            accept=".xlsx,.xls"
+            aria-label="Excel-Datei für Flip-Austritte auswählen"
+            tabindex="-1"
+            :disabled="busy"
+            @change="handleFileInput"
+          >
+        </div>
+
+        <p v-if="fileName" class="flip-exit__summary" role="status">
+          <strong>{{ fileName }}</strong> · {{ users.length }} {{ users.length === 1 ? 'Person' : 'Personen' }} bereit
+        </p>
+        <p v-if="error" class="flip-exit__error" role="alert">{{ error }}</p>
+
+        <div class="flip-exit__actions">
+          <AppButton variant="danger" :disabled="!users.length || parsing" :loading="submitting" @click="submitUsers">
+            {{ users.length === 1 ? '1 Nutzer löschen' : `${users.length} Nutzer löschen` }}
+          </AppButton>
+        </div>
+      </section>
+
+      <section v-if="completed" class="flip-exit__card" aria-live="polite">
+        <h2>Verarbeitung abgeschlossen</h2>
+        <p>{{ users.length - notFound.length }} von {{ users.length }} Personen verarbeitet.</p>
+        <div v-if="notFound.length">
+          <h3>Nicht gefundene Nutzer</h3>
+          <ul><li v-for="(name, index) in notFound" :key="`${name}-${index}`">{{ name }}</li></ul>
+        </div>
+      </section>
     </div>
-  </template>
-  
-  <script>
-  import * as XLSX from 'xlsx';
-  import api from "../utils/api";
-  
-  export default {
-    data() {
-      return {
-        fileName: "",
-        userList: [],
-        notFound: [],
-        token: localStorage.getItem("token") || null,
-      };
-    },
-    methods: {
-      handleFileUpload(event) {
-        const file = event.target.files[0];
-        this.fileName = file.name;
-        this.readExcel(file);
-      },
-      handleDragAndDrop(event) {
-        const file = event.dataTransfer.files[0];
-        this.fileName = file.name;
-        this.readExcel(file);
-      },
-      readExcel(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-  
-          this.userList = json.slice(1).map(row => ({
-            personalnr: row[0] ? String(row[0]).trim() : null,
-            nachname: row[1],
-            vorname: row[2],
-          }));
-        };
-        reader.readAsArrayBuffer(file);
-      },
-      async submitUsers() {
-        try {
-          const response = await api.post("/api/personal/flip/exit", this.userList, {
-            headers: { "Content-Type": "application/json" }
-          });
-          this.notFound = response.data.notFound;
-          alert('Verarbeitung abgeschlossen.');
-        } catch (error) {
-          console.error("Fehler beim Löschen:", error);
-          alert("Es ist ein Fehler aufgetreten.");
-        }
-      },
-      switchToDashboard() {
-        const userConfirmed = window.confirm(
-          "Bist du Sicher? Alle ungespeicherten Änderungen gehen verloren."
-        );
-        if (userConfirmed) {
-          this.$router.push("/");
-        }
-      },
-    },
-  };
-  </script>
-  <style scoped lang="scss">
-@import "@/assets/styles/global.scss";
+  </PageLayout>
+</template>
 
-.window{
-  width: 600px;
-  margin: 30px auto;
-  padding: 24px;
-  background: var(--tile-bg);
-  color: var(--text);
-  border:1px solid var(--border);
-  border-radius:10px;
-  box-shadow: 0 8px 16px rgba(0,0,0,.12);
-  text-align:center;
+<script setup>
+import { ref } from 'vue';
+import * as XLSX from 'xlsx';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import api from '@/utils/api';
 
-  h1{ margin: 8px 0 16px; font-size:1.8rem; color: var(--text); }
+const fileInput = ref(null);
+const fileName = ref('');
+const users = ref([]);
+const notFound = ref([]);
+const error = ref('');
+const completed = ref(false);
+const dragging = ref(false);
+const parsing = ref(false);
+const submitting = ref(false);
+const busy = ref(false);
+
+function handleFileInput(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (file) void readExcel(file);
 }
 
-.leftAlign{ text-align:left; margin-bottom: 8px; }
-.discrete{
-  display:inline-block; padding:5px 10px;
-  color: var(--muted); text-decoration:none; font-weight:600;
-  transition: color .2s ease;
-}
-.discrete:hover{ color: var(--primary); }
-
-.upload-section{ margin: 12px 0 8px; }
-
-.drag-drop-area{
-  width:100%; height:110px;
-  border:2px dashed var(--border);
-  border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
-  margin-bottom: 14px; font-size:.95rem; color: var(--muted);
-  background: var(--tile-bg);
-  cursor:pointer;
-  transition: background .2s, border-color .2s, color .2s;
-
-  &:hover{ background: var(--hover); border-color: var(--primary); color: var(--text); }
-  &:active{ background: color-mix(in oklab, var(--hover) 60%, var(--tile-bg)); }
+function handleDrop(event) {
+  dragging.value = false;
+  if (busy.value) return;
+  const file = event.dataTransfer?.files?.[0];
+  if (file) void readExcel(file);
 }
 
-#file-upload{ display:none; }
-
-.upload-section label{
-  display:inline-block; padding:10px 18px;
-  background: var(--primary); color:#fff; font-weight:700; border-radius:8px;
-  cursor:pointer; transition: transform .08s ease, filter .2s ease;
-}
-.upload-section label:hover{ filter: brightness(.95); transform: translateY(-1px); }
-.upload-section label:active{ filter: brightness(.9); transform: translateY(0); }
-
-.file-name{
-  margin-top: 14px; font-size:.95rem; color: var(--muted);
-  p{ margin: 4px 0; }
-  strong{ color: var(--text); }
-}
-
-button{
-  margin: 12px 0 4px;
-  padding: 10px 20px;
-  background: var(--primary);
-  color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;
-  transition: transform .08s ease, filter .2s ease;
-}
-button:disabled{ opacity:.6; cursor:not-allowed; }
-button:hover:not(:disabled){ filter: brightness(.95); transform: translateY(-1px); }
-button:active:not(:disabled){ filter: brightness(.9); transform: translateY(0); }
-
-h3{ margin-top: 16px; font-size: 1.05rem; }
-ul{ padding-left: 18px; text-align:left; }
-
-.info-box{
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 20px;
-  text-align:left;
-  color: var(--text);
-  font-size:.95rem;
-}
-
-.sample-table{
-  width:100%; border-collapse:collapse; table-layout:fixed; margin-top:8px;
-  th{
-    padding:10px; border:1px solid var(--border);
-    font-size:.85rem; text-align:center; white-space:nowrap; color: var(--text);
-    background: var(--hover);
+async function readExcel(file) {
+  if (busy.value) return;
+  fileName.value = '';
+  users.value = [];
+  notFound.value = [];
+  completed.value = false;
+  error.value = '';
+  if (!/\.xlsx?$/i.test(file.name)) {
+    error.value = 'Bitte eine Excel-Datei im Format .xlsx oder .xls auswählen.';
+    return;
   }
-}
-
-/* Mobile Optimierungen */
-@media (max-width: 768px) {
-  .window {
-    width: calc(100vw - 32px);
-    margin: 16px;
-    padding: 20px;
-    
-    h1 {
-      font-size: 1.6rem;
-      margin: 6px 0 14px;
+  parsing.value = true;
+  busy.value = true;
+  try {
+    const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!worksheet) throw new Error('Empty workbook');
+    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    const parsed = rows.slice(1).map(row => ({
+      personalnr: row[0] != null ? String(row[0]).trim() : null,
+      nachname: row[1],
+      vorname: row[2],
+    })).filter(person => person.personalnr || (person.vorname && person.nachname));
+    if (!parsed.length) {
+      error.value = 'Die Datei enthält keine verwendbaren Personendaten.';
+      return;
     }
-  }
-  
-  .info-box {
-    padding: 12px;
-    margin-bottom: 16px;
-    font-size: 0.9rem;
-  }
-  
-  .sample-table th {
-    padding: 6px 4px;
-    font-size: 0.75rem;
-  }
-  
-  .upload-section {
-    margin: 10px 0 6px;
-    
-    .drag-drop-area {
-      height: 90px;
-      margin-bottom: 12px;
-      font-size: 0.9rem;
-    }
-    
-    label {
-      padding: 14px 18px;
-      font-size: 16px; /* Verhindert Auto-Zoom auf iOS */
-      width: 100%;
-      text-align: center;
-      border-radius: 12px;
-      box-sizing: border-box;
-    }
-  }
-  
-  .file-name {
-    margin-top: 12px;
-    font-size: 0.9rem;
-    
-    p {
-      margin: 3px 0;
-    }
-  }
-  
-  button {
-    margin: 10px 0 3px;
-    padding: 14px 20px;
-    font-size: 16px; /* Verhindert Auto-Zoom */
-    width: 100%;
-    border-radius: 12px;
-  }
-  
-  h3 {
-    margin-top: 14px;
-    font-size: 1rem;
-  }
-  
-  ul {
-    padding-left: 16px;
-    font-size: 0.9rem;
+    users.value = parsed;
+    fileName.value = file.name;
+  } catch (cause) {
+    console.error('Excel-Datei konnte nicht gelesen werden:', cause);
+    error.value = 'Die Excel-Datei konnte nicht gelesen werden.';
+  } finally {
+    parsing.value = false;
+    busy.value = false;
   }
 }
 
-/* Kleine Mobile Geräte */
-@media (max-width: 480px) {
-  .window {
-    width: calc(100vw - 16px);
-    margin: 8px;
-    padding: 16px;
-    
-    h1 {
-      font-size: 1.4rem;
-    }
+async function submitUsers() {
+  if (!users.value.length || busy.value) return;
+  if (!window.confirm(`${users.value.length} Flip-Nutzer wirklich löschen?`)) return;
+  submitting.value = true;
+  busy.value = true;
+  error.value = '';
+  completed.value = false;
+  try {
+    const response = await api.post('/api/personal/flip/exit', users.value, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    notFound.value = response.data.notFound || [];
+    completed.value = true;
+  } catch (cause) {
+    console.error('Fehler beim Löschen der Flip-Nutzer:', cause);
+    error.value = 'Die Nutzer konnten nicht verarbeitet werden. Bitte erneut versuchen.';
+  } finally {
+    submitting.value = false;
+    busy.value = false;
   }
-  
-  .upload-section {
-    .drag-drop-area {
-      height: 70px;
-      font-size: 0.85rem;
-    }
-    
-    label {
-      padding: 12px 16px;
-    }
-  }
-  
-  .sample-table th {
-    padding: 4px 2px;
-    font-size: 0.7rem;
-  }
-  
-  button {
-    padding: 12px 18px;
-  }
-  
-  .info-box {
-    padding: 10px;
-  }
+}
+</script>
+
+<style scoped>
+.flip-exit { display: grid; gap: 16px; max-width: 720px; }
+.flip-exit__card { padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--tile-bg); color: var(--text); }
+.flip-exit__card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.flip-exit__card h3 { margin: 18px 0 8px; font-size: 1rem; }
+.flip-exit__card p { margin: 0 0 16px; line-height: 1.5; }
+.flip-exit__columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 18px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.85rem; }
+.flip-exit__columns span { padding: 10px; background: var(--hover); text-align: center; }
+.flip-exit__columns span + span { border-left: 1px solid var(--border); }
+.flip-exit__dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 150px; padding: 16px; border: 2px dashed var(--border); border-radius: 10px; background: var(--panel); text-align: center; }
+.flip-exit__dropzone--active { border-color: var(--primary); background: var(--hover); }
+.flip-exit__muted { color: var(--muted); font-size: 0.85rem; }
+.flip-exit__file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.flip-exit__summary { margin-top: 16px !important; overflow-wrap: anywhere; }
+.flip-exit__error { margin-top: 16px !important; color: var(--status-danger-text); }
+.flip-exit__actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.flip-exit__card ul { margin: 0; padding-left: 20px; }
+@media (max-width: 600px) {
+  .flip-exit__card { padding: 16px; }
+  .flip-exit__actions > * { width: 100%; }
 }
 </style>

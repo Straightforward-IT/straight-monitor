@@ -9,16 +9,14 @@
     <div class="staff-map">
       <Toolbar v-if="initialized" v-model:location-v2="locationId" :locations="locations" show-location-filter wrap>
         <template #filter>
-          <div class="staff-map__modes" role="group" aria-label="Karteninhalt">
-            <button v-for="mode in modes" :key="mode.value" type="button" :aria-pressed="entityType === mode.value" @click="setMode(mode.value)">{{ mode.label }}</button>
-          </div>
+          <AppSegmentedControl :model-value="entityType" :options="modes" label="Karteninhalt" size="sm" @update:model-value="setMode" />
         </template>
-        <button type="button" class="staff-map__refresh" :disabled="loading" @click="loadData()">Aktualisieren</button>
+        <AppButton variant="secondary" size="sm" :loading="loading" @click="loadData()">Aktualisieren</AppButton>
       </Toolbar>
 
       <div v-if="error" class="staff-map__message staff-map__message--error" role="alert">
         <span>{{ error }}</span>
-        <button type="button" :disabled="loading" @click="initialized ? loadData() : initialize()">Erneut versuchen</button>
+        <AppButton variant="secondary" size="sm" :loading="loading" @click="initialized ? loadData() : initialize()">Erneut versuchen</AppButton>
       </div>
       <div v-if="payload && !payload.configuration.geocodingAvailable" class="staff-map__message" role="status">
         Die Adressauflösung ist noch nicht eingerichtet. Bereits hinterlegte Kartenpunkte werden angezeigt.
@@ -57,12 +55,12 @@
           <section v-if="entityType === 'mitarbeiter'" class="staff-map__section">
             <h4>Fahrzeit ab Einsatzort</h4>
             <label for="staff-map-site-search">Einsatzort suchen</label>
-            <input id="staff-map-site-search" v-model="siteSearch" type="search" placeholder="Name, Kunde oder Adresse" :disabled="!initialized" />
+            <AppTextInput id="staff-map-site-search" v-model="siteSearch" type="search" placeholder="Name, Kunde oder Adresse" :disabled="!initialized" />
             <label class="sr-only" for="staff-map-site">Einsatzort auswählen</label>
-            <select id="staff-map-site" v-model="selectedSiteId" :disabled="!initialized">
+            <AppSelect id="staff-map-site" v-model="selectedSiteId" :disabled="!initialized">
               <option value="">Ohne Fahrzeitvergleich</option>
               <option v-for="site in matchingSites" :key="site.einsatzortId" :value="site.einsatzortId">{{ site.name }}{{ site.customerLabel ? ` · ${site.customerLabel}` : '' }}</option>
-            </select>
+            </AppSelect>
             <p v-if="!loading && !matchingSites.length" class="staff-map__muted">Keine passenden Einsatzorte im gewählten Standort.</p>
             <p v-if="siteMatchCount > 200" class="staff-map__muted">Bitte die Suche eingrenzen. Es werden 200 Treffer angezeigt.</p>
             <p class="staff-map__muted">PKW-Fahrzeit vom Einsatzort zur Wohnadresse, ohne Live-Verkehr.</p>
@@ -70,7 +68,7 @@
 
           <section v-if="payload?.origin" class="staff-map__section staff-map__origin">
             <span class="staff-map__eyebrow">Ausgewählter Einsatzort</span>
-            <button type="button" class="staff-map__text-button" @click="focusEntry(payload.origin.id)">{{ payload.origin.name }}</button>
+            <AppButton variant="ghost" size="sm" class="staff-map__text-button" @click="focusEntry(payload.origin.id)">{{ payload.origin.name }}</AppButton>
             <p>{{ payload.origin.address }}</p>
             <p v-if="payload.nearest?.error" class="staff-map__muted" role="status">{{ payload.nearest.error.message }}</p>
           </section>
@@ -107,7 +105,7 @@
               <span class="staff-map__count">{{ payload?.summary.total || 0 }}</span>
             </div>
             <label class="sr-only" for="staff-map-entry-search">Adressen durchsuchen</label>
-            <input id="staff-map-entry-search" v-model="entrySearch" type="search" placeholder="Name oder Adresse suchen" />
+            <AppTextInput id="staff-map-entry-search" v-model="entrySearch" type="search" placeholder="Name oder Adresse suchen" />
             <p v-if="payload" class="staff-map__muted">{{ payload.summary.mapped }} Kartenpunkte · {{ payload.summary.unresolved }} nicht aufgelöst</p>
             <ul class="staff-map__entry-list">
               <li v-for="entry in visibleEntries" :key="entry.id">
@@ -115,11 +113,11 @@
                   <span class="staff-map__dot" :style="{ background: entry.location?.color || '#64748b' }" />
                   <span><strong>{{ entry.name }}</strong><small>{{ entry.customerLabel || addressKind(entry) }}</small><small>{{ entry.address }}</small><small v-if="!entry.coordinates || excludedById.has(entry.id)" class="staff-map__status">{{ stateLabel(excludedById.get(entry.id)?.state || entry.state) }}</small></span>
                 </button>
-                <button v-if="entityType === 'einsatzort'" type="button" class="staff-map__choose" @click="chooseSite(entry)">Mitarbeiter nach Fahrzeit</button>
+                <AppButton v-if="entityType === 'einsatzort'" variant="ghost" size="sm" class="staff-map__choose" @click="chooseSite(entry)">Mitarbeiter nach Fahrzeit</AppButton>
               </li>
             </ul>
             <p v-if="!loading && !filteredEntries.length" class="staff-map__muted">Keine passenden Einträge.</p>
-            <button v-if="filteredEntries.length > visibleCount" type="button" class="staff-map__more" @click="visibleCount += 100">Weitere Adressen anzeigen</button>
+            <AppButton v-if="filteredEntries.length > visibleCount" variant="secondary" size="sm" @click="visibleCount += 100">Weitere Adressen anzeigen</AppButton>
           </section>
         </aside>
       </div>
@@ -131,6 +129,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 import EmployeeLocationMap from '@/components/maps/EmployeeLocationMap.vue';
 import api from '@/utils/api';
 import { useAuth } from '@/stores/auth';
@@ -322,17 +324,11 @@ onBeforeUnmount(() => {
 .staff-map__section-heading { display: flex; align-items: center; justify-content: space-between; }
 .staff-map__section p { margin: 0; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
 .staff-map__section label { font-size: 12px; font-weight: 600; }
-.staff-map__section input, .staff-map__section select { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--modal-bg, #fff); color: var(--text); font: inherit; font-size: 12px; }
-.staff-map button { font: inherit; cursor: pointer; }
-.staff-map button:disabled { opacity: .5; cursor: wait; }
-.staff-map button:focus-visible, .staff-map input:focus-visible, .staff-map select:focus-visible { outline: 2px solid var(--primary, #2563eb); outline-offset: 2px; }
-.staff-map__modes { display: flex; padding: 3px; background: var(--modal-bg); border: 1px solid var(--border); border-radius: 9px; }
-.staff-map__modes button { border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: 8px 12px; font-size: 12px; font-weight: 600; }
-.staff-map__modes button[aria-pressed="true"] { background: var(--primary, #2563eb); color: white; }
-.staff-map__refresh, .staff-map__message button, .staff-map__more { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--tile-bg); color: var(--text); font-size: 12px !important; }
-.staff-map__refresh { margin-left: auto; }
+.staff-map__section :deep(.app-text-input), .staff-map__section :deep(.app-select) { width: 100%; font-size: 12px; }
+.staff-map__result:focus-visible, .staff-map__entry:focus-visible, .staff-map__address-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
+.staff-map :deep(.app-segmented-control) { flex-shrink: 0; }
 .staff-map__message { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--tile-bg); font-size: 12px; }
-.staff-map__message--error { border-color: #dc2626; }
+.staff-map__message--error { border-color: var(--status-danger-text); color: var(--status-danger-text); }
 .staff-map__progress, .staff-map__empty { position: absolute; left: 12px; top: 90px; right: 12px; z-index: 600; margin: auto; width: fit-content; max-width: calc(100% - 40px); padding: 10px 14px; border-radius: 10px; background: var(--tile-bg, white); color: var(--text); box-shadow: 0 4px 16px #0002; font-size: 12px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
 .staff-map__spinner { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: map-spin 1s linear infinite; }
 .staff-map__legend { display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 10px 12px; background: var(--tile-bg); color: var(--muted); font-size: 10px; border-top: 1px solid var(--border); }
@@ -345,7 +341,7 @@ onBeforeUnmount(() => {
 .staff-map__muted { color: var(--muted); }
 .staff-map__eyebrow { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
 .staff-map__origin, .staff-map__selection { background: color-mix(in srgb, var(--primary) 5%, var(--tile-bg)); }
-.staff-map__text-button { border: 0; background: transparent; color: var(--text); padding: 0; text-align: left; font-weight: 700 !important; font-size: 14px !important; }
+.staff-map__text-button { width: fit-content; padding-left: 0; text-align: left; font-weight: 700; }
 .staff-map__address-link { display: flex; flex-direction: column; gap: 3px; border: 0; background: transparent; color: var(--text); padding: 4px 0; text-align: left; font-size: 12px !important; }
 .staff-map__count { border-radius: 20px; padding: 2px 7px; background: var(--hover); font-size: 11px; font-weight: 600; }
 .staff-map__ranked, .staff-map__entry-list { list-style: none; padding: 0; margin: 0; }
@@ -359,7 +355,7 @@ onBeforeUnmount(() => {
 .staff-map__travel { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; flex-shrink: 0; }
 .staff-map__travel strong { font-size: 11px; }
 .staff-map__dot { margin-top: 4px; }
-.staff-map__choose { padding: 0 4px 10px 21px; border: 0; background: none; color: var(--primary); font-size: 11px !important; text-align: left; }
+.staff-map__choose { margin: 0 4px 8px 12px; font-size: 11px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 @keyframes map-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .staff-map__spinner { animation: none; } }

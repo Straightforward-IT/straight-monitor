@@ -181,39 +181,36 @@
 
           <!-- Standard Fields -->
           <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.daten }">
-            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('daten')">
-              <font-awesome-icon :icon="['fas', 'info-circle']" /> Lead-Daten
-              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.daten ? 'chevron-up' : 'chevron-down']" />
-            </h4>
+            <LeadDetailSectionHeading title="Lead-Daten" :icon="['fas', 'info-circle']" :mobile="isMobile" :expanded="mobileSectionsOpen.daten" @toggle="toggleMobileSection('daten')" />
             <div class="kv-grid">
               <div class="kv-item">
                 <label>Organisation</label>
-                <input v-model="detailForm.title" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.title" aria-label="Organisation" @blur="saveDetail" />
               </div>
 
               <div class="kv-item">
                 <label>Standort <span class="req">*</span></label>
-                <select v-model="detailForm.locationV2" class="form-input" @change="saveDetail">
+                <AppSelect v-model="detailForm.locationV2" aria-label="Standort" @change="saveDetail">
                   <option v-for="location in locations" :key="location._id" :value="location._id">
                     {{ location.nameFull }}
                   </option>
-                </select>
+                </AppSelect>
               </div>
 
               <div class="kv-item">
                 <label>Quelle</label>
-                <select v-model="detailForm.quelle" class="form-input" @change="saveDetail">
+                <AppSelect v-model="detailForm.quelle" aria-label="Quelle" @change="saveDetail">
                   <option :value="null">—</option>
                   <option v-for="opt in leadConfig.quelleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                </select>
+                </AppSelect>
               </div>
               <div class="kv-item">
                 <label>Erw. Abschluss</label>
-                <input
+                <AppTextInput
                   ref="expectedCloseDateInput"
                   v-model="detailForm.erwartetesAbschlussDatum"
                   type="date"
-                  class="form-input"
+                  aria-label="Erwarteter Abschluss"
                   @click="openExpectedCloseDatePicker"
                   @blur="saveDetail"
                 />
@@ -246,70 +243,70 @@
                     </a>
                   </label>
 
-                  <input
+                  <AppTextInput
                     v-if="lbl.fieldType === 'text' || lbl.fieldType === 'phone' || lbl.fieldType === 'email' || lbl.fieldType === 'url'"
                     v-model="detailForm.customFields[lbl.key]"
-                    :type="lbl.fieldType === 'text' ? 'text' : lbl.fieldType"
-                    class="form-input"
+                    :type="lbl.fieldType === 'phone' ? 'tel' : lbl.fieldType"
+                    :aria-label="lbl.name"
                     @blur="saveDetail"
                   />
 
-                  <input
+                  <AppTextInput
                     v-else-if="lbl.fieldType === 'number' || lbl.fieldType === 'currency'"
                     v-model.number="detailForm.customFields[lbl.key]"
                     type="number"
                     step="any"
-                    class="form-input"
+                    :aria-label="lbl.name"
                     @blur="saveDetail"
                   />
 
-                  <input
+                  <AppTextInput
                     v-else-if="lbl.fieldType === 'date'"
                     v-model="detailForm.customFields[lbl.key]"
                     type="date"
-                    class="form-input"
+                    :aria-label="lbl.name"
                     @blur="saveDetail"
                   />
 
-                  <label v-else-if="lbl.fieldType === 'checkbox'" class="checkbox-row">
-                    <input
-                      type="checkbox"
-                      :checked="!!detailForm.customFields[lbl.key]"
-                      @change="setCustomCheckbox(lbl.key, $event.target.checked)"
-                    />
-                    Aktiv
-                  </label>
+                  <AppToggleChip
+                    v-else-if="lbl.fieldType === 'checkbox'"
+                    label="Aktiv"
+                    :accessible-label="lbl.name"
+                    :model-value="Boolean(detailForm.customFields[lbl.key])"
+                    @update:model-value="setCustomCheckbox(lbl.key, $event)"
+                  />
 
-                  <select
+                  <AppSelect
                     v-else-if="lbl.fieldType === 'dropdown'"
-                    v-model="detailForm.customFields[lbl.key]"
-                    class="form-input"
+                    :model-value="detailForm.customFields[lbl.key] ?? ''"
+                    :aria-label="lbl.name"
+                    @update:model-value="detailForm.customFields[lbl.key] = $event"
                     @change="saveDetail"
                   >
-                    <option :value="undefined">—</option>
+                    <option value="">—</option>
                     <option v-for="opt in lbl.options" :key="opt.value" :value="opt.value">
                       {{ opt.label }}
                     </option>
-                  </select>
+                  </AppSelect>
 
                   <div v-else-if="lbl.fieldType === 'multiselect'" class="multiselect-row">
-                    <label v-for="opt in lbl.options" :key="opt.value" class="checkbox-row">
-                      <input
-                        type="checkbox"
-                        :checked="isMultiSelected(lbl.key, opt.value)"
-                        @change="toggleMulti(lbl.key, opt.value)"
-                      />
-                      {{ opt.label }}
-                    </label>
+                    <AppToggleChip
+                      v-for="opt in lbl.options"
+                      :key="opt.value"
+                      :label="opt.label"
+                      :accessible-label="`${lbl.name}: ${opt.label}`"
+                      :model-value="isMultiSelected(lbl.key, opt.value)"
+                      @update:model-value="toggleMulti(lbl.key, opt.value)"
+                    />
                   </div>
 
-                  <div v-else-if="lbl.fieldType === 'address'" class="address-preview" @click="openAddressModal(lbl.key)">
+                  <AppButton v-else-if="lbl.fieldType === 'address'" variant="secondary" size="sm" class="address-preview" :aria-label="`${lbl.name} bearbeiten`" @click="openAddressModal(lbl.key)">
                     <span v-if="detailForm.customFields[lbl.key]?.street || detailForm.customFields[lbl.key]?.city" class="address-preview-text">
                       {{ [detailForm.customFields[lbl.key]?.street, [detailForm.customFields[lbl.key]?.zip, detailForm.customFields[lbl.key]?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') }}
                     </span>
                     <span v-else class="address-placeholder">Adresse eingeben…</span>
                     <font-awesome-icon :icon="['fas', 'sliders']" class="address-edit-icon" />
-                  </div>
+                  </AppButton>
                 </div>
               </template>
             </div>
@@ -320,6 +317,8 @@
                 :key="s.value"
                 class="stufe-step"
                 :class="[`stufe-step--${s.value}`, { active: detailForm.stufe === s.value, done: isStufeBeforeActive(s.value) }]"
+                :aria-pressed="detailForm.stufe === s.value"
+                :disabled="savingDetail"
                 @click="detailForm.stufe = s.value; saveDetail()"
                 :title="s.label"
               >
@@ -331,61 +330,58 @@
 
           <!-- Contact Info -->
           <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.kontakte }">
-            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('kontakte')">
-              <font-awesome-icon :icon="['fas', 'address-book']" /> Kontakte
-              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.kontakte ? 'chevron-up' : 'chevron-down']" />
-            </h4>
+            <LeadDetailSectionHeading title="Kontakte" :icon="['fas', 'address-book']" :mobile="isMobile" :expanded="mobileSectionsOpen.kontakte" @toggle="toggleMobileSection('kontakte')" />
             <!-- Microsoft Contact badges (one per linked contact) -->
             <div
               v-for="c in leadContacts"
               :key="c.id"
-              class="ms-contact-badge ms-contact-badge--clickable"
-              @click="openContactCard(c)"
+              class="ms-contact-badge"
             >
-              <div class="ms-logo-grid" aria-hidden="true">
-                <span style="background:#f25022"></span>
-                <span style="background:#7fba00"></span>
-                <span style="background:#00a4ef"></span>
-                <span style="background:#ffb900"></span>
-              </div>
-              <div class="badge-info">
-                <span class="badge-name">{{ c.displayName }}</span>
-                <span class="badge-email">{{ c.email }}</span>
-              </div>
-              <div class="badge-actions" @click.stop>
-                <button class="btn-link" @click="openContactCard(c)" title="Kontakt öffnen">
-                  <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                </button>
-                <button class="btn-link danger" @click="unlinkMsContact(c.id)" title="Verknüpfung lösen">
+              <button class="ms-contact-main" :aria-label="`${c.displayName || 'Kontakt'} öffnen`" @click="openContactCard(c)">
+                <span class="ms-logo-grid" aria-hidden="true">
+                  <span style="background:#f25022"></span>
+                  <span style="background:#7fba00"></span>
+                  <span style="background:#00a4ef"></span>
+                  <span style="background:#ffb900"></span>
+                </span>
+                <span class="badge-info">
+                  <span class="badge-name">{{ c.displayName }}</span>
+                  <span class="badge-email">{{ c.email }}</span>
+                </span>
+              </button>
+              <div class="badge-actions">
+                <AppIconButton variant="ghost" size="sm" class="ms-contact-unlink" :label="`Verknüpfung mit ${c.displayName || 'Kontakt'} lösen`" :disabled="savingDetail" @click="unlinkMsContact(c.id)">
                   <font-awesome-icon :icon="['fas', 'link-slash']" />
-                </button>
+                </AppIconButton>
               </div>
             </div>
             <!-- Add contact button / inline search -->
             <div v-if="!addingContact" class="add-contact-row">
-              <button class="btn-add-contact" @click="startAddContact">
+              <AppButton variant="secondary" size="sm" :disabled="savingDetail" @click="startAddContact">
                 <font-awesome-icon :icon="['fas', 'link']" /> Verknüpfen
-              </button>
-              <button
-                class="btn-add-contact btn-add-contact--new"
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                size="sm"
+                :disabled="savingDetail"
                 @click="openKontaktAnlegenModal('sidebar')"
               >
                 <font-awesome-icon :icon="['fas', 'plus']" /> Neu anlegen
-              </button>
+              </AppButton>
             </div>
             <div v-else class="inline-contact-search">
               <div class="search-input-wrap">
-                <input
+                <AppTextInput
                   ref="sidebarSearchInput"
                   v-model="sidebarContactQuery"
-                  class="form-input"
+                  aria-label="Kontakt suchen"
                   placeholder="Name oder E-Mail suchen…"
-                  @input="debouncedSidebarSearch"
+                  @update:model-value="debouncedSidebarSearch($event)"
                   @keydown.esc="cancelAddContact"
                 />
-                <button class="search-cancel" @click="cancelAddContact" title="Abbrechen">
+                <AppIconButton variant="ghost" size="sm" label="Kontaktsuche abbrechen" @click="cancelAddContact">
                   <font-awesome-icon :icon="['fas', 'xmark']" />
-                </button>
+                </AppIconButton>
               </div>
               <div v-if="sidebarContactResults.length > 0" class="contact-results-list">
                 <button
@@ -409,33 +405,30 @@
             <div v-if="leadContacts.length === 0" class="kv-grid">
               <div class="kv-item">
                 <label>Firma</label>
-                <input v-model="detailForm.kontakt.firma" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.kontakt.firma" aria-label="Firma" @blur="saveDetail" />
               </div>
               <div class="kv-item">
                 <label>Vorname</label>
-                <input v-model="detailForm.kontakt.vorname" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.kontakt.vorname" aria-label="Vorname" @blur="saveDetail" />
               </div>
               <div class="kv-item">
                 <label>Nachname</label>
-                <input v-model="detailForm.kontakt.nachname" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.kontakt.nachname" aria-label="Nachname" @blur="saveDetail" />
               </div>
               <div class="kv-item">
                 <label>E-Mail</label>
-                <input v-model="detailForm.kontakt.email" type="email" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.kontakt.email" type="email" aria-label="E-Mail" @blur="saveDetail" />
               </div>
               <div class="kv-item">
                 <label>Telefon</label>
-                <input v-model="detailForm.kontakt.telefon" class="form-input" @blur="saveDetail" />
+                <AppTextInput v-model="detailForm.kontakt.telefon" type="tel" aria-label="Telefon" @blur="saveDetail" />
               </div>
             </div>
           </section>
 
           <!-- ─── Aktivitäten ─────────────────────────────── -->
           <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.aktivitaeten }">
-            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('aktivitaeten')">
-              <font-awesome-icon :icon="['fas', 'calendar-check']" /> Aktivitäten
-              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.aktivitaeten ? 'chevron-up' : 'chevron-down']" />
-            </h4>
+            <LeadDetailSectionHeading title="Aktivitäten" :icon="['fas', 'calendar-check']" :mobile="isMobile" :expanded="mobileSectionsOpen.aktivitaeten" @toggle="toggleMobileSection('aktivitaeten')" />
 
             <!-- Add activity button (shown when form is closed) -->
             <div v-if="!showAktForm" class="add-contact-row">
@@ -799,11 +792,7 @@
 
           <!-- ─── Dateien ─────────────────────────────────── -->
           <section class="info-section" :class="{ 'mobile-collapsed': isMobile && !mobileSectionsOpen.dateien }">
-            <h4 class="section-title" :class="{ 'section-title--mobile-clickable': isMobile }" @click="isMobile && toggleMobileSection('dateien')">
-              <font-awesome-icon :icon="['fas', 'paperclip']" /> Dateien
-              <span v-if="selectedLead.attachments?.length" class="section-count">{{ selectedLead.attachments.length }}</span>
-              <font-awesome-icon v-if="isMobile" class="section-chevron" :icon="['fas', mobileSectionsOpen.dateien ? 'chevron-up' : 'chevron-down']" />
-            </h4>
+            <LeadDetailSectionHeading title="Dateien" :icon="['fas', 'paperclip']" :count="selectedLead.attachments?.length || 0" :mobile="isMobile" :expanded="mobileSectionsOpen.dateien" @toggle="toggleMobileSection('dateien')" />
 
             <!-- Upload area -->
             <div
@@ -851,11 +840,7 @@
 
           <!-- ─── Chronik (Mobile-only) ──────────────────── -->
           <section v-if="isMobile" class="info-section info-section--chronik-mobile" :class="{ 'mobile-collapsed': !mobileSectionsOpen.chronik }">
-            <h4 class="section-title section-title--mobile-clickable" @click="toggleMobileSection('chronik')">
-              <font-awesome-icon :icon="['fas', 'clock-rotate-left']" /> Chronik
-              <span v-if="mergedTimeline.length" class="section-count">{{ mergedTimeline.length - (mergedTimeline.some((item) => item.kind === 'divider') ? 1 : 0) }}</span>
-              <font-awesome-icon class="section-chevron" :icon="['fas', mobileSectionsOpen.chronik ? 'chevron-up' : 'chevron-down']" />
-            </h4>
+            <LeadDetailSectionHeading title="Chronik" :icon="['fas', 'clock-rotate-left']" :count="mergedTimeline.length - (mergedTimeline.some((item) => item.kind === 'divider') ? 1 : 0)" mobile :expanded="mobileSectionsOpen.chronik" @toggle="toggleMobileSection('chronik')" />
             <RecordChronikTimeline
               :items="mergedTimeline"
               :loading="loadingChronik"
@@ -1363,6 +1348,7 @@ import LeadBoard from './leads/LeadBoard.vue';
 import LeadCard from './leads/LeadCard.vue';
 import LeadChronikActivityItem from './leads/LeadChronikActivityItem.vue';
 import LeadDetailPanel from './leads/LeadDetailPanel.vue';
+import LeadDetailSectionHeading from './leads/LeadDetailSectionHeading.vue';
 import RecordChronikDrawer from '@/components/workflow/RecordChronikDrawer.vue';
 import RecordChronikComposer from '@/components/workflow/RecordChronikComposer.vue';
 import RecordChronikTimeline from '@/components/workflow/RecordChronikTimeline.vue';
@@ -2650,8 +2636,8 @@ function cancelAddContact() {
   sidebarContactResults.value = [];
 }
 
-function debouncedSidebarSearch() {
-  const q = sidebarContactQuery.value.trim().toLowerCase();
+function debouncedSidebarSearch(query = sidebarContactQuery.value) {
+  const q = query.trim().toLowerCase();
   if (q.length < 1) { sidebarContactResults.value = []; return; }
   const existingIds = new Set(leadContacts.value.map((c) => c.id));
   sidebarContactResults.value = allMsContacts.value
@@ -3761,19 +3747,10 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   color: #ef4444;
 }
 
-.checkbox-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--text);
-}
-
 .multiselect-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* ── Inline Chronik row ─────────────────────────────────────────── */
@@ -4650,12 +4627,24 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   margin-bottom: 12px;
   transition: border-color 0.15s, background 0.15s;
 
-  &--clickable {
+  &:hover {
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  }
+
+  .ms-contact-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
     cursor: pointer;
-    &:hover {
-      background: var(--soft);
-      border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-    }
+    text-align: left;
+    font: inherit;
+
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 3px; }
   }
 
   .ms-logo-grid {
@@ -4689,19 +4678,8 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
     flex-shrink: 0;
   }
 
-  .btn-link {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 5px;
-    transition: background 0.12s, color 0.12s;
-
-    &:hover { background: var(--soft); color: var(--text); }
-    &.danger { &:hover { color: #ef4444; } }
-  }
+  .ms-contact-unlink { --action-ghost-text: var(--muted); }
+  .ms-contact-unlink:hover:not(:disabled) { color: var(--status-danger-text); }
 }
 
 /* Add-contact row below badges */
@@ -4709,32 +4687,8 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   margin-top: 4px;
   display: flex;
   gap: 6px;
-}
 
-.btn-add-contact {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 1px dashed var(--border);
-  border-radius: 7px;
-  padding: 7px 12px;
-  font-size: 0.82rem;
-  color: var(--muted);
-  cursor: pointer;
-  flex: 1;
-  justify-content: center;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 6%, transparent);
-  }
-}
-
-.btn-add-contact--new {
-  flex: 0 0 auto;
+  > .app-button:first-child:not(:last-child) { flex: 1; }
 }
 
 /* Inline contact search inside sidebar */
@@ -4747,21 +4701,10 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
     align-items: center;
     gap: 6px;
 
-    input { flex: 1; }
+    .app-text-input { flex: 1; }
   }
 
-  .search-cancel {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 5px 8px;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 0.8rem;
-    flex-shrink: 0;
-    transition: color 0.12s;
-    &:hover { color: var(--text); }
-  }
+  .app-icon-button { --action-ghost-text: var(--muted); flex-shrink: 0; }
 
   .contact-results-list {
     margin-top: 4px;
@@ -4784,6 +4727,7 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 
     &:last-child { border-bottom: none; }
     &:hover { background: var(--hover); }
+    &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: -2px; }
 
     .result-name { font-size: 0.875rem; color: var(--text); }
     .result-sub  { font-size: 0.78rem; color: var(--muted); }
@@ -4838,6 +4782,9 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   padding: 0 2px;
   position: relative;
   z-index: 1;
+
+  &:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
+  &:disabled { cursor: not-allowed; opacity: 0.65; }
 
   .step-dot {
     width: 20px;
@@ -4912,6 +4859,14 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
   font-size: 0.85rem;
   color: var(--text);
   min-height: 36px;
+  width: 100%;
+  white-space: normal;
+
+  :deep(.app-button__content) {
+    width: 100%;
+    justify-content: space-between;
+    text-align: left;
+  }
 
   &:hover {
     border-color: var(--primary);
@@ -5405,16 +5360,6 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 }
 
 /* ── Dateien / Attachments ──────────────────────────────────────── */
-.section-count {
-  margin-left: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--primary);
-  color: #fff;
-  border-radius: 10px;
-  padding: 1px 7px;
-}
-
 .attach-upload-area {
   margin-bottom: 8px;
   border: 2px dashed transparent;
@@ -5764,22 +5709,6 @@ defineExpose({ selectedLead, savingDetail, sidebarActionMenu, sidebarActionMenuO
 }
 
 /* Section accordion (mobile) */
-.section-title--mobile-clickable {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  padding-right: 28px;
-  min-height: 44px;
-
-  .section-chevron {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    font-size: 12px;
-  }
-}
 .info-section.mobile-collapsed {
   > *:not(.section-title) {
     display: none !important;

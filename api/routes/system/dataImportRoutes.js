@@ -1345,7 +1345,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (nachname) setFields.nachname = nachname;
       if (vorname) setFields.vorname = vorname;
       if (iban) setFields.iban = iban;
-      if (hasNewFormat) setFields.fuehrerschein = fuehrerschein;
+      if (hasNewFormat) {
+        setFields.fuehrerscheine = fuehrerschein
+          ? [{ ...fuehrerschein, source: 'import' }]
+          : [];
+      }
       if (geburtsdatum) setFields.geburtsdatum = geburtsdatum;
       if (geburtsname) setFields.geburtsname = geburtsname;
       if (geburtsort) setFields.geburtsort = geburtsort;
@@ -1572,6 +1576,23 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
                 reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-prefix',
               });
             }
+          }
+
+          if (op.setFields.fuehrerscheine !== undefined) {
+            const existingLicenses = Array.isArray(ma.fuehrerscheine)
+              ? ma.fuehrerscheine.map((license) => license.toObject ? license.toObject() : license)
+              : ma.fuehrerschein
+                ? [{ ...(ma.fuehrerschein.toObject ? ma.fuehrerschein.toObject() : ma.fuehrerschein), source: 'import' }]
+                : [];
+            const importedIndex = existingLicenses.findIndex((license) => license.source === 'import');
+            const legacyImportedIndex = importedIndex >= 0 ? importedIndex : (existingLicenses.length ? 0 : -1);
+            const manualLicenses = existingLicenses.filter((license, index) =>
+              index !== legacyImportedIndex && license.source !== 'import'
+            );
+            const importedLicense = op.setFields.fuehrerscheine[0];
+            op.setFields.fuehrerscheine = importedLicense
+              ? [...manualLicenses, importedLicense]
+              : manualLicenses;
           }
 
           const updateOps = { $set: op.setFields };

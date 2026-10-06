@@ -122,6 +122,46 @@
 
       <section class="form-section">
         <div class="form-section__heading">
+          <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-id-card" /></span>
+          <h4>Führerscheine</h4>
+        </div>
+        <div class="list-editor">
+          <div v-for="(license, index) in form.fuehrerscheine" :key="index" class="license-row">
+            <AppTextInput
+              v-model.trim="license.klasse"
+              class="form-input"
+              :aria-label="`Führerscheinklasse ${index + 1}`"
+              placeholder="Klasse, z. B. B"
+            />
+            <AppTextInput
+              v-model="license.gueltigVon"
+              type="date"
+              class="form-input"
+              :aria-label="`Führerschein gültig von ${index + 1}`"
+            />
+            <AppTextInput
+              v-model="license.gueltigBis"
+              type="date"
+              class="form-input"
+              :aria-label="`Führerschein gültig bis ${index + 1}`"
+            />
+            <AppIconButton
+              size="sm"
+              variant="ghost"
+              :label="`Führerschein ${index + 1} entfernen`"
+              @click="removeLicense(index)"
+            >
+              <font-awesome-icon icon="fa-solid fa-trash" />
+            </AppIconButton>
+          </div>
+          <AppButton size="sm" variant="secondary" class="mt-2" @click="addLicense">
+            <font-awesome-icon icon="fa-solid fa-plus" /> Führerschein hinzufügen
+          </AppButton>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="form-section__heading">
           <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-location-dot" /></span>
           <h4>Adressen</h4>
         </div>
@@ -346,6 +386,7 @@ const form = ref({
   vorarbeitgebertage: { year: new Date().getFullYear(), days: 0 },
   adresse: { strasse: "", plz: "", ort: "", land: "" },
   adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
+  fuehrerscheine: [],
 });
 
 // yyyy-MM-dd for <input type="date">
@@ -395,6 +436,17 @@ watch(
           telefon: newVal.adresse2?.telefon || "",
           email: newVal.adresse2?.email || "",
         },
+        fuehrerscheine: (Array.isArray(newVal.fuehrerscheine)
+          ? newVal.fuehrerscheine
+          : newVal.fuehrerschein
+            ? [newVal.fuehrerschein]
+            : []
+        ).map((license) => ({
+          klasse: license.klasse || "",
+          gueltigVon: toDateInput(license.gueltigVon),
+          gueltigBis: toDateInput(license.gueltigBis),
+          source: license.source || "manual",
+        })),
       };
     }
   },
@@ -409,6 +461,16 @@ function addEmail() {
 function removeEmail(index) {
   if (props.saving) return;
   form.value.additionalEmails.splice(index, 1);
+}
+
+function addLicense() {
+  if (props.saving) return;
+  form.value.fuehrerscheine.push({ klasse: "", gueltigVon: "", gueltigBis: "", source: "manual" });
+}
+
+function removeLicense(index) {
+  if (props.saving) return;
+  form.value.fuehrerscheine.splice(index, 1);
 }
 
 function removeHistory(index) {
@@ -664,6 +726,15 @@ function saveForce() {
   .form-input {
     flex: 1;
   }
+
+  .license-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
 
   .app-icon-button {
     color: var(--status-danger-text, #c43d3d);

@@ -24,9 +24,9 @@
           <span class="location-row__short" :style="{ color: location.color || '#6b7280' }">{{ location.shortName }}</span>
           <span class="location-row__details"><b>{{ location.nameFull }}</b><small>{{ formatLocationAddress(location.address) || 'Keine Adresse hinterlegt' }}</small><small v-if="location.locationManager">Leitung: {{ location.locationManager.name || location.locationManager.email }}</small></span>
           <span class="location-row__status">{{ location.isActive ? 'Aktiv' : 'Inaktiv' }}</span>
-          <button type="button" class="btn-icon" title="Standort bearbeiten" @click="openLocationEdit(location)">
+          <AppIconButton variant="ghost" size="sm" label="Standort bearbeiten" @click="openLocationEdit(location)">
             <font-awesome-icon icon="fa-solid fa-pen" />
-          </button>
+          </AppIconButton>
         </div>
       </div>
     </section>
@@ -51,49 +51,49 @@
         <div class="modal-body">
           <template v-if="locationModal.activeTab === 'general'">
           <div class="form-grid">
-            <div class="form-group"><label>Name <span class="required">*</span></label><input v-model="locationForm.nameFull" type="text" required /></div>
-            <div class="form-group"><label>Kürzel <span class="required">*</span></label><input v-model="locationForm.shortName" type="text" maxlength="8" required /></div>
+            <div class="form-group"><label for="location-name">Name <span class="required">*</span></label><AppTextInput id="location-name" v-model="locationForm.nameFull" type="text" required :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-short">Kürzel <span class="required">*</span></label><AppTextInput id="location-short" v-model="locationForm.shortName" type="text" maxlength="8" required :disabled="locationSaving" /></div>
           </div>
           <div class="form-grid">
             <div class="form-group"><label>Standortfarbe</label><input v-model="locationForm.color" class="location-color-input" type="color" /></div>
           </div>
           <div class="form-grid location-form-grid--address">
-            <div class="form-group"><label>Straße</label><input v-model="locationForm.address.street" type="text" /></div>
-            <div class="form-group"><label>Hausnummer</label><input v-model="locationForm.address.houseNumber" type="text" /></div>
-            <div class="form-group"><label>PLZ</label><input v-model="locationForm.address.postalCode" type="text" inputmode="numeric" /></div>
-            <div class="form-group"><label>Ort</label><input v-model="locationForm.address.city" type="text" /></div>
+            <div class="form-group"><label for="location-street">Straße</label><AppTextInput id="location-street" v-model="locationForm.address.street" type="text" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-house-number">Hausnummer</label><AppTextInput id="location-house-number" v-model="locationForm.address.houseNumber" type="text" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-postal-code">PLZ</label><AppTextInput id="location-postal-code" v-model="locationForm.address.postalCode" type="text" inputmode="numeric" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-city">Ort</label><AppTextInput id="location-city" v-model="locationForm.address.city" type="text" :disabled="locationSaving" /></div>
           </div>
           <div class="form-grid">
-            <div class="form-group"><label>Land</label><input v-model="locationForm.address.country" type="text" /></div>
-            <div class="form-group"><label>Standortleitung</label><select v-model="locationForm.locationManager"><option value="">Nicht zugeordnet</option><option v-for="user in users" :key="user._id" :value="user._id">{{ user.name || user.email }}</option></select></div>
+            <div class="form-group"><label for="location-country">Land</label><AppTextInput id="location-country" v-model="locationForm.address.country" type="text" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-manager">Standortleitung</label><AppSelect id="location-manager" v-model="locationForm.locationManager" :disabled="locationSaving"><option value="">Nicht zugeordnet</option><option v-for="user in users" :key="user._id" :value="user._id">{{ user.name || user.email }}</option></AppSelect></div>
           </div>
           <div class="form-grid">
             <div class="form-group">
-              <label>Office-Kunde</label>
-              <select v-model="locationForm.officeKunde">
+              <label for="location-office-customer">Office-Kunde</label>
+              <AppSelect id="location-office-customer" v-model="locationForm.officeKunde" :disabled="locationSaving">
                 <option value="">Nicht zugeordnet</option>
                 <option v-for="kunde in officeCustomers" :key="kunde._id" :value="kunde._id">
                   {{ kunde.kundenNr }} · {{ kunde.kuerzel }} · {{ kunde.kundName || 'Ohne Namen' }}
                 </option>
-              </select>
+              </AppSelect>
               <small class="hint-text">Kunde mit Kürzel &gt;S für die Office-Besetzung dieses Standorts.</small>
             </div>
           </div>
           </template>
           <template v-else-if="locationModal.activeTab === 'contact'">
           <div class="form-grid">
-            <div class="form-group"><label>Haupt-E-Mail</label><input v-model="locationForm.contact.mainEmail" type="email" /></div>
-            <div class="form-group"><label>Telefon</label><input v-model="locationForm.contact.phone" type="tel" /></div>
+            <div class="form-group"><label for="location-email">Haupt-E-Mail</label><AppTextInput id="location-email" v-model="locationForm.contact.mainEmail" type="email" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-phone">Telefon</label><AppTextInput id="location-phone" v-model="locationForm.contact.phone" type="tel" :disabled="locationSaving" /></div>
           </div>
           <div class="form-grid">
-            <div class="form-group"><label>Zeitzone</label><input v-model="locationForm.timeZone" type="text" /></div>
+            <div class="form-group"><label for="location-timezone">Zeitzone</label><AppTextInput id="location-timezone" v-model="locationForm.timeZone" type="text" :disabled="locationSaving" /></div>
           </div>
           <div class="form-grid">
-            <div class="form-group"><label>Rechtsträger</label><input v-model="locationForm.legal.legalName" type="text" /></div>
-            <div class="form-group"><label>USt-ID</label><input v-model="locationForm.legal.vatId" type="text" /></div>
+            <div class="form-group"><label for="location-legal-name">Rechtsträger</label><AppTextInput id="location-legal-name" v-model="locationForm.legal.legalName" type="text" :disabled="locationSaving" /></div>
+            <div class="form-group"><label for="location-vat-id">USt-ID</label><AppTextInput id="location-vat-id" v-model="locationForm.legal.vatId" type="text" :disabled="locationSaving" /></div>
           </div>
           <div class="form-grid">
-            <div class="form-group"><label>Handelsregister</label><input v-model="locationForm.legal.registrationNumber" type="text" /></div>
+            <div class="form-group"><label for="location-registration">Handelsregister</label><AppTextInput id="location-registration" v-model="locationForm.legal.registrationNumber" type="text" :disabled="locationSaving" /></div>
           </div>
           </template>
           <section v-else-if="locationModal.activeTab === 'hours'" class="opening-hours">
@@ -102,12 +102,12 @@
               <span class="opening-hours__day-name">{{ day.label }}</span>
               <div class="opening-hours__slots">
                 <div v-for="(slot, index) in locationForm.openingHours[day.key]" :key="index" class="opening-hours__slot">
-                  <input v-model="slot.start" type="time" :aria-label="`${day.label} von`" />
+                  <AppTextInput v-model="slot.start" type="time" :aria-label="`${day.label} von`" :disabled="locationSaving" />
                   <span>bis</span>
-                  <input v-model="slot.end" type="time" :aria-label="`${day.label} bis`" />
-                  <button type="button" class="btn-icon" title="Zeitfenster entfernen" @click="removeOpeningHour(day.key, index)"><font-awesome-icon icon="fa-solid fa-trash" /></button>
+                  <AppTextInput v-model="slot.end" type="time" :aria-label="`${day.label} bis`" :disabled="locationSaving" />
+                  <AppIconButton variant="ghost" size="sm" :label="`Zeitfenster für ${day.label} entfernen`" :disabled="locationSaving" @click="removeOpeningHour(day.key, index)"><font-awesome-icon icon="fa-solid fa-trash" /></AppIconButton>
                 </div>
-                <button type="button" class="opening-hours__add" @click="addOpeningHour(day.key)"><font-awesome-icon icon="fa-solid fa-plus" /> Zeitfenster</button>
+                <AppButton variant="outlined" size="sm" :disabled="locationSaving" @click="addOpeningHour(day.key)"><font-awesome-icon icon="fa-solid fa-plus" /> Zeitfenster</AppButton>
               </div>
             </div>
           </section>
@@ -116,27 +116,27 @@
             <div v-for="signatureType in signatureTypes" :key="signatureType._id" class="signature-defaults__row">
               <strong>{{ signatureType.label }}</strong>
               <div class="form-grid">
-                <div class="form-group"><label>Name</label><input v-model="signatureDefaultFor(signatureType._id).name" type="text" /></div>
-                <div class="form-group"><label>E-Mail</label><input v-model="signatureDefaultFor(signatureType._id).email" type="email" /></div>
+                <div class="form-group"><label :for="`signature-name-${signatureType._id}`">Name</label><AppTextInput :id="`signature-name-${signatureType._id}`" v-model="signatureDefaultFor(signatureType._id).name" type="text" :disabled="locationSaving" /></div>
+                <div class="form-group"><label :for="`signature-email-${signatureType._id}`">E-Mail</label><AppTextInput :id="`signature-email-${signatureType._id}`" v-model="signatureDefaultFor(signatureType._id).email" type="email" :disabled="locationSaving" /></div>
               </div>
-              <label class="checkbox-label"><input v-model="signatureDefaultFor(signatureType._id).embedded" type="checkbox" /> Im Monitor unterzeichnen</label>
+              <AppToggleChip v-model="signatureDefaultFor(signatureType._id).embedded" label="Im Monitor unterzeichnen" :disabled="locationSaving" />
             </div>
           </section>
           <template v-else-if="locationModal.activeTab === 'space'">
-          <div class="form-group"><label>OneDrive-Team</label><input v-model="locationForm.spaceFolder.teamKey" type="text" placeholder="z. B. hamburg" /></div>
-          <div class="form-group"><label>Space-Ordner-ID</label><input v-model="locationForm.spaceFolder.folderId" type="text" placeholder="OneDrive-Ordner-ID" /></div>
+          <div class="form-group"><label for="location-space-team">OneDrive-Team</label><AppTextInput id="location-space-team" v-model="locationForm.spaceFolder.teamKey" type="text" placeholder="z. B. hamburg" :disabled="locationSaving" /></div>
+          <div class="form-group"><label for="location-space-folder">Space-Ordner-ID</label><AppTextInput id="location-space-folder" v-model="locationForm.spaceFolder.folderId" type="text" placeholder="OneDrive-Ordner-ID" :disabled="locationSaving" /></div>
           <p class="hint-text">Dieser Ordner ist der Einstiegspunkt für den Standort-Space im Dashboard.</p>
           </template>
           <template v-else>
-          <div class="form-group"><label>Externe ID</label><input v-model="locationForm.externalId" type="text" /></div>
+          <div class="form-group"><label for="location-external-id">Externe ID</label><AppTextInput id="location-external-id" v-model="locationForm.externalId" type="text" :disabled="locationSaving" /></div>
           <div class="form-group"><label>Anlieferhinweise</label><textarea v-model="locationForm.deliveryNotes" rows="3" /></div>
           </template>
           <p v-if="locationModal.error" class="modal-error">{{ locationModal.error }}</p>
         </div>
       </form>
       <template #footer>
-        <button type="button" class="btn btn-ghost" @click="closeLocationModal">Abbrechen</button>
-        <button type="submit" form="location-form" class="btn btn-primary" :disabled="locationSaving || !canCreateLocation"><font-awesome-icon :icon="locationSaving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="locationSaving" /> {{ locationModal.isNew ? 'Anlegen' : 'Speichern' }}</button>
+        <AppButton variant="secondary" :disabled="locationSaving" @click="closeLocationModal">Abbrechen</AppButton>
+        <AppButton type="submit" form="location-form" :loading="locationSaving" :disabled="!canCreateLocation">{{ locationModal.isNew ? 'Anlegen' : 'Speichern' }}</AppButton>
       </template>
     </ModalFrame>
     </template>
@@ -213,31 +213,33 @@
             </td>
             <td>{{ formatDate(u.date) }}</td>
             <td class="td-actions">
-              <button class="btn-icon" title="Bearbeiten" @click="openEdit(u)">
+              <div class="td-actions__controls">
+              <AppIconButton size="sm" variant="ghost" label="Benutzer bearbeiten" @click="openEdit(u)">
                 <font-awesome-icon icon="fa-solid fa-pen" />
-              </button>
-              <button
-                class="btn-icon btn-icon--link"
-                :title="u.mitarbeiter ? 'Mitarbeiter-Verknüpfung bearbeiten' : 'Mit Mitarbeiter verknüpfen'"
+              </AppIconButton>
+              <AppIconButton
+                size="sm" variant="ghost"
+                :label="u.mitarbeiter ? 'Mitarbeiter-Verknüpfung bearbeiten' : 'Mit Mitarbeiter verknüpfen'"
                 @click="openLink(u)"
               >
-                <font-awesome-icon :icon="u.mitarbeiter ? 'fa-solid fa-link' : 'fa-solid fa-link'" />
-              </button>
-              <button
-                class="btn-icon btn-icon--asana"
-                :title="u.asana_id ? 'Asana-Verknüpfung bearbeiten' : 'Mit Asana-User verknüpfen'"
+                <font-awesome-icon icon="fa-solid fa-link" />
+              </AppIconButton>
+              <AppIconButton
+                size="sm" variant="ghost"
+                :label="u.asana_id ? 'Asana-Verknüpfung bearbeiten' : 'Mit Asana-User verknüpfen'"
                 @click="openAsanaLink(u)"
               >
                 <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
-              </button>
-              <button
-                class="btn-icon btn-icon--danger"
-                title="Löschen"
+              </AppIconButton>
+              <AppIconButton
+                size="sm" variant="ghost"
+                label="Benutzer löschen"
                 :disabled="u._id === currentUserId"
                 @click="openDelete(u)"
               >
                 <font-awesome-icon icon="fa-solid fa-trash" />
-              </button>
+              </AppIconButton>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -372,9 +374,9 @@
                   <span v-else class="ma-unlinked">0</span>
                 </td>
                 <td class="td-actions">
-                  <button type="button" class="btn-icon" title="Bearbeiten" @click="openQualiEdit(q)">
+                  <AppIconButton variant="ghost" size="sm" label="Qualifikation bearbeiten" @click="openQualiEdit(q)">
                     <font-awesome-icon icon="fa-solid fa-pen" />
-                  </button>
+                  </AppIconButton>
                 </td>
               </tr>
               <tr v-if="!filteredQualifikationen.length">
@@ -425,9 +427,9 @@
                 <span v-else class="ma-unlinked">0</span>
               </td>
               <td class="td-actions">
-                <button type="button" class="btn-icon" title="Bearbeiten" @click="openBerufEdit(b)">
+                <AppIconButton variant="ghost" size="sm" label="Beruf bearbeiten" @click="openBerufEdit(b)">
                   <font-awesome-icon icon="fa-solid fa-pen" />
-                </button>
+                </AppIconButton>
               </td>
             </tr>
             <tr v-if="!filteredBerufe.length">
@@ -440,98 +442,80 @@
     </section>
 
     <!-- Beruf Create/Edit Modal -->
-    <div v-if="berufModal.open" class="modal-backdrop" @click.self="closeBerufModal">
-      <form class="modal-content modal-content--sm" @submit.prevent="saveBeruf">
-        <header class="modal-header">
-          <h3>{{ berufModal.isNew ? 'Beruf anlegen' : 'Beruf bearbeiten' }}</h3>
-          <button type="button" class="close-btn" @click="closeBerufModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-        </header>
+    <ModalFrame :model-value="berufModal.open" :title="berufModal.isNew ? 'Beruf anlegen' : 'Beruf bearbeiten'" size="sm" :close-on-escape="!berufModal.saving" :close-on-backdrop="!berufModal.saving" :show-close="!berufModal.saving" @close="closeBerufModal">
+      <form id="beruf-form" @submit.prevent="saveBeruf">
         <div class="modal-body">
           <div class="form-group">
-            <label>Schlüssel <span class="required">*</span></label>
-            <input v-model.number="berufModal.form.jobKey" type="number" required disabled />
+            <label for="beruf-key">Schlüssel <span class="required">*</span></label>
+            <AppTextInput id="beruf-key" v-model.number="berufModal.form.jobKey" type="number" required disabled />
           </div>
           <div class="form-group">
-            <label>Bezeichnung <span class="required">*</span></label>
-            <input v-model="berufModal.form.designation" type="text" required />
+            <label for="beruf-designation">Bezeichnung <span class="required">*</span></label>
+            <AppTextInput id="beruf-designation" v-model="berufModal.form.designation" type="text" required :disabled="berufModal.saving" />
           </div>
           <div class="form-group">
-            <label>Tätigkeitsschlüssel</label>
-            <input v-model="berufModal.form.taetigkeitsschluessel" type="text" />
+            <label for="beruf-taetigkeit">Tätigkeitsschlüssel</label>
+            <AppTextInput id="beruf-taetigkeit" v-model="berufModal.form.taetigkeitsschluessel" type="text" :disabled="berufModal.saving" />
           </div>
           <p v-if="berufModal.error" class="modal-error">{{ berufModal.error }}</p>
         </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-ghost" @click="closeBerufModal">Abbrechen</button>
-          <button type="submit" class="btn btn-primary" :disabled="berufModal.saving">
-            <font-awesome-icon :icon="berufModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="berufModal.saving" />
-            {{ berufModal.isNew ? 'Anlegen' : 'Speichern' }}
-          </button>
-        </footer>
       </form>
-    </div>
+      <template #footer>
+          <AppButton variant="secondary" :disabled="berufModal.saving" @click="closeBerufModal">Abbrechen</AppButton>
+          <AppButton type="submit" form="beruf-form" :loading="berufModal.saving">
+            {{ berufModal.isNew ? 'Anlegen' : 'Speichern' }}
+          </AppButton>
+      </template>
+    </ModalFrame>
 
     <!-- Qualifikation Create/Edit Modal -->
-    <div v-if="qualiModal.open" class="modal-backdrop" @click.self="closeQualiModal">
-      <form class="modal-content modal-content--sm" @submit.prevent="saveQualifikation">
-        <header class="modal-header">
-          <h3>{{ qualiModal.isNew ? 'Qualifikation anlegen' : 'Qualifikation bearbeiten' }}</h3>
-          <button type="button" class="close-btn" @click="closeQualiModal"><font-awesome-icon icon="fa-solid fa-times" /></button>
-        </header>
+    <ModalFrame :model-value="qualiModal.open" :title="qualiModal.isNew ? 'Qualifikation anlegen' : 'Qualifikation bearbeiten'" size="sm" :close-on-escape="!qualiModal.saving" :close-on-backdrop="!qualiModal.saving" :show-close="!qualiModal.saving" @close="closeQualiModal">
+      <form id="quali-form" @submit.prevent="saveQualifikation">
         <div class="modal-body">
           <div class="form-group">
-            <label>Schlüssel <span class="required">*</span></label>
-            <input v-model.number="qualiModal.form.qualificationKey" type="number" required disabled />
+            <label for="quali-key">Schlüssel <span class="required">*</span></label>
+            <AppTextInput id="quali-key" v-model.number="qualiModal.form.qualificationKey" type="number" required disabled />
           </div>
           <div class="form-group">
-            <label>Bezeichnung <span class="required">*</span></label>
-            <input v-model="qualiModal.form.designation" type="text" required />
+            <label for="quali-designation">Bezeichnung <span class="required">*</span></label>
+            <AppTextInput id="quali-designation" v-model="qualiModal.form.designation" type="text" required :disabled="qualiModal.saving" />
           </div>
           <div class="form-group">
-            <label>Beruf</label>
-            <select v-model="qualiModal.form.beruf">
+            <label for="quali-beruf">Beruf</label>
+            <AppSelect id="quali-beruf" v-model="qualiModal.form.beruf" :disabled="qualiModal.saving">
               <option :value="null">— Kein Beruf —</option>
               <option v-for="b in berufe" :key="b._id" :value="b._id">#{{ b.jobKey }} {{ b.designation }}</option>
-            </select>
+            </AppSelect>
           </div>
           <p v-if="qualiModal.error" class="modal-error">{{ qualiModal.error }}</p>
         </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-ghost" @click="closeQualiModal">Abbrechen</button>
-          <button type="submit" class="btn btn-primary" :disabled="qualiModal.saving">
-            <font-awesome-icon :icon="qualiModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'" :spin="qualiModal.saving" />
-            {{ qualiModal.isNew ? 'Anlegen' : 'Speichern' }}
-          </button>
-        </footer>
       </form>
-    </div>
+      <template #footer>
+          <AppButton variant="secondary" :disabled="qualiModal.saving" @click="closeQualiModal">Abbrechen</AppButton>
+          <AppButton type="submit" form="quali-form" :loading="qualiModal.saving">
+            {{ qualiModal.isNew ? 'Anlegen' : 'Speichern' }}
+          </AppButton>
+      </template>
+    </ModalFrame>
 
     <!-- Edit / Create Modal -->
-    <div v-if="editModal.open" class="modal-backdrop" @click.self="closeEdit">
-      <div class="modal-content">
-        <header class="modal-header">
-          <h3>{{ editModal.isNew ? 'Neuen Benutzer anlegen' : 'Benutzer bearbeiten' }}</h3>
-          <button class="close-btn" @click="closeEdit">
-            <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
-        </header>
-
+    <ModalFrame :model-value="editModal.open" :title="editModal.isNew ? 'Neuen Benutzer anlegen' : 'Benutzer bearbeiten'" size="md" :close-on-escape="!editModal.saving" :close-on-backdrop="!editModal.saving" :show-close="!editModal.saving" @close="closeEdit">
         <div class="modal-body">
           <div class="form-grid">
             <div class="form-group">
-              <label>Name</label>
-              <input v-model="editModal.form.name" type="text" placeholder="Max Mustermann" />
+              <label for="user-name">Name</label>
+              <AppTextInput id="user-name" v-model="editModal.form.name" type="text" placeholder="Max Mustermann" :disabled="editModal.saving" />
             </div>
             <div class="form-group">
-              <label>Standort (Legacy)</label>
-              <input v-model="editModal.form.location" type="text" placeholder="Hamburg" />
+              <label for="user-location-legacy">Standort (Legacy)</label>
+              <AppTextInput id="user-location-legacy" v-model="editModal.form.location" type="text" placeholder="Hamburg" :disabled="editModal.saving" />
             </div>
             <div class="form-group">
-              <label>Standort v2</label>
-              <select v-model="editModal.form.locationV2">
+              <label for="user-location">Standort v2</label>
+              <AppSelect id="user-location" v-model="editModal.form.locationV2" :disabled="editModal.saving">
                 <option value="">Nicht zugeordnet</option>
                 <option v-for="location in activeLocations" :key="location._id" :value="location._id">{{ location.nameFull }}</option>
-              </select>
+              </AppSelect>
             </div>
             <div class="form-group">
               <label>Space-Zugriff</label>
@@ -545,17 +529,17 @@
           </div>
 
           <div class="form-group">
-            <label>E-Mail <span class="required">*</span></label>
-            <input v-model="editModal.form.email" type="email" placeholder="name@straightforward.email" />
+            <label for="user-email">E-Mail <span class="required">*</span></label>
+            <AppTextInput id="user-email" v-model="editModal.form.email" type="email" placeholder="name@straightforward.email" :disabled="editModal.saving" />
           </div>
 
           <div class="form-group">
-            <label>
+            <label for="user-password">
               Passwort
               <span v-if="!editModal.isNew" class="hint">(leer lassen = nicht ändern)</span>
               <span v-else class="required">*</span>
             </label>
-            <input v-model="editModal.form.password" type="password" placeholder="Neues Passwort" autocomplete="new-password" />
+            <AppTextInput id="user-password" v-model="editModal.form.password" type="password" placeholder="Neues Passwort" autocomplete="new-password" :disabled="editModal.saving" />
           </div>
 
           <div class="form-grid">
@@ -579,29 +563,16 @@
           <div v-if="editModal.error" class="modal-error">{{ editModal.error }}</div>
         </div>
 
-        <footer class="modal-footer">
-          <button class="btn btn-ghost" @click="closeEdit">Abbrechen</button>
-          <button class="btn btn-primary" @click="saveUser" :disabled="editModal.saving">
-            <font-awesome-icon
-              :icon="editModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'"
-              :class="{ 'fa-spin': editModal.saving }"
-            />
+        <template #footer>
+          <AppButton variant="secondary" :disabled="editModal.saving" @click="closeEdit">Abbrechen</AppButton>
+          <AppButton :loading="editModal.saving" @click="saveUser">
             {{ editModal.isNew ? 'Anlegen' : 'Speichern' }}
-          </button>
-        </footer>
-      </div>
-    </div>
+          </AppButton>
+        </template>
+    </ModalFrame>
 
     <!-- MB Verknüpfen Modal -->
-    <div v-if="linkModal.open" class="modal-backdrop" @click.self="closeLink">
-      <div class="modal-content modal-content--sm">
-        <header class="modal-header">
-          <h3>Mit Mitarbeiter verknüpfen</h3>
-          <button class="close-btn" @click="closeLink">
-            <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
-        </header>
-
+    <ModalFrame :model-value="linkModal.open" title="Mit Mitarbeiter verknüpfen" size="sm" :close-on-escape="!linkModal.saving" :close-on-backdrop="!linkModal.saving" :show-close="!linkModal.saving" @close="closeLink">
         <div class="modal-body">
           <!-- Current link -->
           <div v-if="linkModal.mitarbeiterObj" class="current-link">
@@ -611,10 +582,10 @@
               {{ linkModal.mitarbeiterObj.vorname }} {{ linkModal.mitarbeiterObj.nachname }}
               <span v-if="linkModal.mitarbeiterObj.personalnr" class="ma-link-nr">#{{ linkModal.mitarbeiterObj.personalnr }}</span>
             </span>
-            <button class="btn-unlink" @click="clearLink" title="Verknüpfung entfernen">
+            <AppButton variant="danger" size="sm" :disabled="linkModal.saving" @click="clearLink" title="Verknüpfung entfernen">
               <font-awesome-icon icon="fa-solid fa-unlink" />
               Entfernen
-            </button>
+            </AppButton>
           </div>
           <p v-else class="hint-text">Kein Mitarbeiter verknüpft.</p>
 
@@ -631,29 +602,16 @@
           <div v-if="linkModal.error" class="modal-error">{{ linkModal.error }}</div>
         </div>
 
-        <footer class="modal-footer">
-          <button class="btn btn-ghost" @click="closeLink">Abbrechen</button>
-          <button class="btn btn-primary" @click="saveLink" :disabled="linkModal.saving">
-            <font-awesome-icon
-              :icon="linkModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'"
-              :class="{ 'fa-spin': linkModal.saving }"
-            />
+        <template #footer>
+          <AppButton variant="secondary" :disabled="linkModal.saving" @click="closeLink">Abbrechen</AppButton>
+          <AppButton :loading="linkModal.saving" @click="saveLink">
             Speichern
-          </button>
-        </footer>
-      </div>
-    </div>
+          </AppButton>
+        </template>
+    </ModalFrame>
 
     <!-- Asana Link Modal -->
-    <div v-if="asanaModal.open" class="modal-backdrop" @click.self="closeAsanaLink">
-      <div class="modal-content modal-content--sm">
-        <header class="modal-header">
-          <h3>Mit Asana-User verknüpfen</h3>
-          <button class="close-btn" @click="closeAsanaLink">
-            <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
-        </header>
-
+    <ModalFrame :model-value="asanaModal.open" title="Mit Asana-User verknüpfen" size="sm" :close-on-escape="!asanaModal.saving" :close-on-backdrop="!asanaModal.saving" :show-close="!asanaModal.saving" @close="closeAsanaLink">
         <div class="modal-body">
           <!-- Current Asana link -->
           <div v-if="asanaModal.currentAsanaUser" class="current-link">
@@ -663,20 +621,22 @@
               {{ asanaModal.currentAsanaUser.name }}
               <span v-if="asanaModal.currentAsanaUser.email" class="ma-link-nr">{{ asanaModal.currentAsanaUser.email }}</span>
             </span>
-            <button class="btn-unlink" @click="clearAsanaLink" title="Verknüpfung entfernen">
+            <AppButton variant="danger" size="sm" :disabled="asanaModal.saving" @click="clearAsanaLink" title="Verknüpfung entfernen">
               <font-awesome-icon icon="fa-solid fa-unlink" />
               Entfernen
-            </button>
+            </AppButton>
           </div>
           <p v-else class="hint-text">Kein Asana-User verknüpft.</p>
 
           <div class="form-group">
-            <label>{{ asanaModal.currentAsanaUser ? 'Anderen Asana-User auswählen' : 'Asana-User suchen' }}</label>
-            <input
+            <label for="asana-user-search">{{ asanaModal.currentAsanaUser ? 'Anderen Asana-User auswählen' : 'Asana-User suchen' }}</label>
+            <AppTextInput
+              id="asana-user-search"
               v-model="asanaModal.search"
               type="text"
               placeholder="Name oder E-Mail…"
-              @input="searchAsanaUsers"
+              :disabled="asanaModal.saving"
+              @update:model-value="searchAsanaUsers"
             />
             <div v-if="asanaModal.searching" class="asana-search-hint">
               <font-awesome-icon icon="fa-solid fa-spinner" spin /> Suche…
@@ -700,29 +660,16 @@
           <div v-if="asanaModal.error" class="modal-error">{{ asanaModal.error }}</div>
         </div>
 
-        <footer class="modal-footer">
-          <button class="btn btn-ghost" @click="closeAsanaLink">Abbrechen</button>
-          <button class="btn btn-primary" @click="saveAsanaLink" :disabled="asanaModal.saving || !asanaModal.selectedGid && !asanaModal.clearPending">
-            <font-awesome-icon
-              :icon="asanaModal.saving ? 'fa-solid fa-spinner' : 'fa-solid fa-floppy-disk'"
-              :class="{ 'fa-spin': asanaModal.saving }"
-            />
+        <template #footer>
+          <AppButton variant="secondary" :disabled="asanaModal.saving" @click="closeAsanaLink">Abbrechen</AppButton>
+          <AppButton :loading="asanaModal.saving" :disabled="!asanaModal.selectedGid && !asanaModal.clearPending" @click="saveAsanaLink">
             Speichern
-          </button>
-        </footer>
-      </div>
-    </div>
+          </AppButton>
+        </template>
+    </ModalFrame>
 
     <!-- Delete Confirm Modal -->
-    <div v-if="deleteModal.open" class="modal-backdrop" @click.self="closeDelete">
-      <div class="modal-content modal-content--sm">
-        <header class="modal-header">
-          <h3>Benutzer löschen</h3>
-          <button class="close-btn" @click="closeDelete">
-            <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
-        </header>
-
+    <ModalFrame :model-value="deleteModal.open" title="Benutzer löschen" size="sm" :close-on-escape="!deleteModal.deleting" :close-on-backdrop="!deleteModal.deleting" :show-close="!deleteModal.deleting" @close="closeDelete">
         <div class="modal-body">
           <p class="warning-text">
             Möchtest du den Benutzer <strong>{{ deleteModal.user?.name || deleteModal.user?.email }}</strong> wirklich löschen?
@@ -731,18 +678,13 @@
           <div v-if="deleteModal.error" class="modal-error">{{ deleteModal.error }}</div>
         </div>
 
-        <footer class="modal-footer">
-          <button class="btn btn-ghost" @click="closeDelete">Abbrechen</button>
-          <button class="btn btn-danger" @click="confirmDelete" :disabled="deleteModal.deleting">
-            <font-awesome-icon
-              :icon="deleteModal.deleting ? 'fa-solid fa-spinner' : 'fa-solid fa-trash'"
-              :class="{ 'fa-spin': deleteModal.deleting }"
-            />
+        <template #footer>
+          <AppButton variant="secondary" :disabled="deleteModal.deleting" @click="closeDelete">Abbrechen</AppButton>
+          <AppButton variant="danger" :loading="deleteModal.deleting" @click="confirmDelete">
             Löschen
-          </button>
-        </footer>
-      </div>
-    </div>
+          </AppButton>
+        </template>
+    </ModalFrame>
   </section>
   </PageLayout>
 </template>
@@ -760,6 +702,11 @@ import ToolbarGroup from '@/components/ui-elements/ToolbarGroup.vue';
 import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import PageLayout from '@/components/layout/PageLayout.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
@@ -1442,7 +1389,8 @@ function closeAsanaLink() {
   clearTimeout(searchDebounce);
 }
 
-function searchAsanaUsers() {
+function searchAsanaUsers(value) {
+  asanaModal.search = value;
   clearTimeout(searchDebounce);
   asanaModal.results = [];
   asanaModal.searched = false;
@@ -1504,7 +1452,6 @@ function formatDate(d) {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss";
 
 .um {
   color: var(--text);
@@ -1752,7 +1699,12 @@ function formatDate(d) {
 }
 
 .td-actions {
-  display: flex;
+  vertical-align: middle;
+}
+
+.td-actions__controls {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
@@ -1798,109 +1750,7 @@ function formatDate(d) {
   &--no { color: #dc3545; }
 }
 
-// Action Icon Buttons
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-
-  &:hover { background: var(--hover); border-color: var(--primary); color: var(--primary); }
-
-  &--danger {
-    &:hover { border-color: #dc3545; color: #dc3545; background: rgba(220, 53, 69, 0.08); }
-  }
-
-  &:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    &:hover { background: var(--tile-bg); border-color: var(--border); color: var(--text); }
-  }
-}
-
-// Buttons
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  &-primary {
-    background: var(--primary);
-    color: #fff;
-    border-color: var(--primary);
-    &:hover:not(:disabled) { filter: brightness(1.1); }
-  }
-
-  &-ghost {
-    background: transparent;
-    color: var(--text);
-    border-color: var(--border);
-    &:hover:not(:disabled) { background: var(--hover); }
-  }
-
-  &-danger {
-    background: #dc3545;
-    color: #fff;
-    border-color: #dc3545;
-    &:hover:not(:disabled) { background: color.adjust(#dc3545, $lightness: -8%); }
-  }
-}
-
-// Modal
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.modal-content {
-  background: var(--surface, var(--tile-bg));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-  overflow: auto;
-
-  &--sm { max-width: 400px; }
-  &--location { max-width: 700px; overflow: hidden; }
-}
-
 .location-modal-form { min-height: 0; }
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-
-  h3 { margin: 0; font-size: 1rem; font-weight: 600; }
-}
 
 .location-modal-tabs {
   display: flex;
@@ -1924,31 +1774,11 @@ function formatDate(d) {
   .location-modal-tabs__tab--active { border-bottom-color: var(--primary); color: var(--primary); font-weight: 700; }
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  opacity: 0.6;
-  transition: opacity 0.15s, background 0.15s;
-  &:hover { opacity: 1; background: var(--hover); }
-}
-
 .modal-body {
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.modal-footer {
-  padding: 12px 20px 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid var(--border);
 }
 
 .modal-error {
@@ -1999,23 +1829,8 @@ function formatDate(d) {
 .opening-hours__slot { display: flex; align-items: center; gap: 7px; }
 .opening-hours__slot input {
   width: 112px;
-  padding: 7px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--tile-bg);
-  color: var(--text);
 }
 .opening-hours__slot span { color: var(--muted); font-size: 0.8rem; }
-.opening-hours__add {
-  justify-self: start;
-  padding: 5px 0;
-  border: 0;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.78rem;
-}
 
 .signature-defaults {
   display: grid;
@@ -2042,7 +1857,7 @@ function formatDate(d) {
     opacity: 0.75;
   }
 
-  input, select {
+  input:not(.app-text-input):not([type="checkbox"]), select:not(.app-select) {
     padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -2131,18 +1946,6 @@ function formatDate(d) {
   opacity: 0.35;
 }
 
-// link modal styles
-.btn-icon--link {
-  &:hover { border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
-}
-
-.btn-icon--asana {
-  padding: 0 6px;
-  &:hover { border-color: #f06a6a; background: rgba(240, 106, 106, 0.08); }
-
-  .asana-icon { width: 14px; height: 14px; object-fit: contain; }
-}
-
 // Asana display in table
 .asana-link-tag {
   display: inline-flex;
@@ -2229,23 +2032,6 @@ function formatDate(d) {
     font-weight: 500;
     flex: 1;
   }
-}
-
-.btn-unlink {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.35);
-  color: #dc3545;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.78rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-  margin-left: auto;
-  &:hover { background: rgba(220, 53, 69, 0.15); }
 }
 
 .hint-text {

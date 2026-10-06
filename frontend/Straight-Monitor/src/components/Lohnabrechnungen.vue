@@ -1,6 +1,6 @@
 <template>
+  <PageLayout title="Lohnabrechnungen" width="standard" content-variant="flush">
   <div class="window">
-    <h1>Lohnabrechnungen</h1>
 <div class="info-box">
   <p><strong>⚠ Bitte beachten:</strong> Die Excel-Datei muss folgende Spalten enthalten:</p>
   <table class="sample-table">
@@ -19,32 +19,29 @@
     <div class="upload-section">
       <div class="dropdowns">
         <div class="dropdown-group">
-          <label>Dokumenttyp:</label>
-          <select v-model="dokumentart">
+          <label for="payroll-document-type">Dokumenttyp:</label>
+          <AppSelect id="payroll-document-type" v-model="dokumentart" :disabled="loading">
             <option value="LA">Lohnabrechnung</option>
             <option value="LST">Lohnsteuerbescheid</option>
-          </select>
+          </AppSelect>
         </div>
         
         <div class="dropdown-group" v-if="dokumentart === 'LST'">
-          <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <input type="checkbox" v-model="ganzesJahr" />
-            Ganzes Jahr
-          </label>
+          <AppToggleChip v-model="ganzesJahr" label="Ganzes Jahr" accessible-label="Ganzes Jahr" :disabled="loading" />
         </div>
 
         <div class="dropdown-group">
-          <label>Stadt:</label>
-          <select v-model="stadt">
+          <label for="payroll-city">Stadt:</label>
+          <AppSelect id="payroll-city" v-model="stadt" :disabled="loading">
             <option value="B">Berlin</option>
             <option value="HH">Hamburg</option>
             <option value="K">Köln</option>
-          </select>
+          </AppSelect>
         </div>
 
         <div class="dropdown-group" v-if="!ganzesJahr">
-          <label>Monat:</label>
-          <select v-model="monat">
+          <label for="payroll-month">Monat:</label>
+          <AppSelect id="payroll-month" v-model="monat" :disabled="loading">
             <option
               v-for="m in 12"
               :key="m"
@@ -52,43 +49,46 @@
             >
               {{ String(m).padStart(2, "0") }}
             </option>
-          </select>
+          </AppSelect>
         </div>
 
         <div class="dropdown-group">
-          <label>Jahr:</label>
-          <select v-model="jahr">
+          <label for="payroll-year">Jahr:</label>
+          <AppSelect id="payroll-year" v-model="jahr" :disabled="loading">
             <option v-for="y in availableYears" :key="y" :value="String(y)">
               {{ y }}
             </option>
-          </select>
+          </AppSelect>
         </div>
 
         <div class="dropdown-group">
-          <label style="cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--primary);">
-            <input type="checkbox" v-model="testMode" />
-            Testmodus (Emails an IT)
-          </label>
+          <AppToggleChip v-model="testMode" label="Testmodus (E-Mails an IT)" accessible-label="Testmodus (E-Mails an IT)" :disabled="loading" />
         </div>
       </div>
 
-      <div class="drag-drop-area" @dragover.prevent @drop="handleDrop">
+      <div class="drag-drop-area" @dragover.prevent @drop.prevent="handleDrop">
         PDF und Excel hierher ziehen
       </div>
 
       <div class="button-group">
-        <label for="pdf-upload" class="upload-btn">PDF hochladen</label>
+        <AppButton variant="secondary" :disabled="loading" @click="$refs.pdfUploadInput?.click()">PDF auswählen</AppButton>
         <input
           id="pdf-upload"
+          ref="pdfUploadInput"
           type="file"
+          aria-label="PDF-Datei für Lohnabrechnungen auswählen"
+          :disabled="loading"
           @change="handlePdfUpload"
           accept="application/pdf"
         />
 
-        <label for="excel-upload" class="upload-btn">Excel hochladen</label>
+        <AppButton variant="secondary" :disabled="loading" @click="$refs.excelUploadInput?.click()">Excel auswählen</AppButton>
         <input
           id="excel-upload"
+          ref="excelUploadInput"
           type="file"
+          aria-label="Excel-Datei für Lohnabrechnungen auswählen"
+          :disabled="loading"
           @change="handleExcelUpload"
           accept=".xlsx, .xls"
         />
@@ -102,28 +102,29 @@
       <p>
         Excel: <strong>{{ excelName }}</strong>
       </p>
-      <p v-if="fileCountValid === false" class="error">
+      <p v-if="fileCountValid === false" class="error" role="alert">
         ⚠ Anzahl Seiten und Zeilen stimmen nicht überein.
       </p>
     </div>
 
     <div class="actions">
-      <button class="preview-btn" @click="openPreview" :disabled="!readyToSplit">
+      <AppButton variant="secondary" @click="openPreview" :disabled="!readyToSplit || loading">
         Vorschau 👁️
-      </button>
-      <button @click="startSplitting" :disabled="!readyToSplit">
+      </AppButton>
+      <AppButton :loading="loading" :disabled="!readyToSplit" @click="startSplitting">
         Versenden 📧
-      </button>
+      </AppButton>
     </div>
     
 
     <!-- Preview Modal -->
-    <div v-show="showPreviewModal" class="modal-overlay" @click.self="closePreview">
-      <div class="modal-content fancy-modal">
-        <div class="modal-header">
-           <h2>Vorschau Seite {{ previewPageNum }} von {{ previewTotalPages }}</h2>
-           <button class="close-btn" @click="closePreview">×</button>
-        </div>
+    <ModalFrame
+      v-if="showPreviewModal"
+      :title="`Vorschau Seite ${previewPageNum} von ${previewTotalPages}`"
+      size="full"
+      style="--mf-max-width: min(1400px, 95vw); --mf-max-height: 90vh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+      @close="closePreview"
+    >
         
         <div class="preview-body-split">
             <!-- Left: Canvas Area with Pan/Zoom -->
@@ -146,13 +147,14 @@
                 <div class="sidebar-section">
                     <label>Suche</label>
                     <div class="search-box">
-                        <input 
+                        <AppTextInput
                             type="text" 
                             v-model="searchQuery" 
+                            aria-label="Name in Lohnabrechnungen suchen"
                             @keyup.enter="performSearch" 
                             placeholder="Name..." 
                         />
-                        <button @click="performSearch">🔍</button>
+                        <AppButton size="sm" @click="performSearch">Suchen</AppButton>
                     </div>
                 </div>
 
@@ -178,22 +180,23 @@
                 <div class="sidebar-section">
                     <label>Ansicht</label>
                     <div class="zoom-controls">
-                        <button @click="zoomOut" title="Zoom Out">-</button>
+                        <AppIconButton variant="ghost" size="sm" label="Vorschau verkleinern" @click="zoomOut">−</AppIconButton>
                         <span class="zoom-level">{{ Math.round(scale * 100) }}%</span>
-                        <button @click="zoomIn" title="Zoom In">+</button>
+                        <AppIconButton variant="ghost" size="sm" label="Vorschau vergrößern" @click="zoomIn">+</AppIconButton>
                     </div>
-                    <button class="reset-btn" @click="resetView">Ansicht zurücksetzen</button>
+                    <AppButton variant="secondary" size="sm" block @click="resetView">Ansicht zurücksetzen</AppButton>
                 </div>
             </div>
         </div>
 
-        <div class="modal-footer">
-            <button class="nav-btn" @click="prevPage" :disabled="previewPageNum <= 1">← Zurück</button>
+      <template #footer>
+        <div class="preview-footer-controls">
+            <AppButton variant="secondary" size="sm" @click="prevPage" :disabled="previewPageNum <= 1">← Zurück</AppButton>
             <span class="page-indicator">{{ previewPageNum }} / {{ previewTotalPages }}</span>
-            <button class="nav-btn" @click="nextPage" :disabled="previewPageNum >= previewTotalPages">Weiter →</button>
+            <AppButton variant="secondary" size="sm" @click="nextPage" :disabled="previewPageNum >= previewTotalPages">Weiter →</AppButton>
         </div>
-      </div>
-    </div>
+      </template>
+    </ModalFrame>
 
     <!-- Fortschrittsbalken -->
     <div v-if="progressActive" class="progress-wrapper">
@@ -211,6 +214,7 @@
     </div>
 
   </div>
+  </PageLayout>
 </template>
 
 <script>
@@ -219,11 +223,19 @@ import api from "../utils/api";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { markRaw } from "vue";
+import PageLayout from '@/components/layout/PageLayout.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export default {
   name: "Lohnabrechnungen",
+  components: { PageLayout, ModalFrame, AppButton, AppIconButton, AppSelect, AppTextInput, AppToggleChip },
   data() {
     return {
       token: localStorage.getItem("token") || null,
@@ -319,10 +331,12 @@ export default {
       event.stopPropagation();
     },
     handlePdfUpload(e) {
+      if (this.loading || !e.target.files?.[0]) return;
       this.pdfFile = e.target.files[0];
       this.pdfName = this.pdfFile.name;
     },
     handleExcelUpload(e) {
+      if (this.loading || !e.target.files?.[0]) return;
       const file = e.target.files[0];
       this.excelFile = file;
       this.excelName = file.name;
@@ -340,7 +354,7 @@ export default {
       reader.readAsArrayBuffer(file);
     },
     async openPreview() {
-      if (!this.pdfFile || !this.excelData.length) return;
+      if (!this.pdfFile || !this.excelData.length || this.loading) return;
       this.showPreviewModal = true;
       this.previewPageNum = 1;
 
@@ -409,41 +423,11 @@ export default {
     },
     
     // Zoom & Pan Logic
-    zoomIn() {
-        if(this.scale < 3.0) {
-            this.scale = Math.min(this.scale + 0.25, 3.0);
-            this.renderPage(this.previewPageNum);
-        }
-    },
-    zoomOut() {
-        if(this.scale > 0.5) {
-            this.scale = Math.max(this.scale - 0.25, 0.5);
-            this.renderPage(this.previewPageNum);
-        }
-    },
     resetView() {
         this.scale = 1.0; // Standard 100%
         this.panX = 0;
         this.panY = 0;
         if(this.previewPdfDoc) this.renderPage(this.previewPageNum);
-    },
-    startPan(e) {
-        // Only left mouse button
-        if(e.button !== 0) return;
-        this.isPanning = true;
-        this.panStartX = e.clientX - this.panX;
-        this.panStartY = e.clientY - this.panY;
-        e.preventDefault(); 
-    },
-    doPan(e) {
-        if (!this.isPanning) return;
-        requestAnimationFrame(() => {
-             this.panX = e.clientX - this.panStartX;
-             this.panY = e.clientY - this.panStartY;
-        });
-    },
-    endPan() {
-        this.isPanning = false;
     },
     handleWheel(e) {
         if (e.ctrlKey) {
@@ -519,6 +503,7 @@ export default {
         this.previewPdfDoc = null;
     },
     handleDrop(e) {
+      if (this.loading) return;
       const files = Array.from(e.dataTransfer.files);
       files.forEach((file) => {
         if (file.type === "application/pdf")
@@ -531,7 +516,7 @@ export default {
       this.fileCountValid = null; // placeholder
     },
     startSplitting() {
-      if (!this.pdfFile || !this.excelData.length) return;
+      if (!this.pdfFile || !this.excelData.length || this.loading) return;
 
       this.loading = true;
 
@@ -647,161 +632,10 @@ export default {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss";
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
-  z-index: 999;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  animation: fadeIn 0.2s;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 12px;
-  width: 95vw;
-  max-width: 1200px;
-  height: 90vh; /* Fixed height for modal */
-  display: flex;
-  flex-direction: column;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-  border: 1px solid var(--border);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-  gap: 20px;
-
-  .header-left {
-     flex: 1;
-     h2 { font-size: 1.4rem; margin: 0; color: var(--text); }
-  }
-
-  .header-center {
-     flex: 2;
-     display: flex;
-     gap: 10px;
-     justify-content: center;
-
-     .search-input {
-        padding: 8px 12px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: var(--bg);
-        color: var(--text);
-        width: 100%;
-        max-width: 300px;
-        font-size: 1rem;
-        
-        &:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
-        }
-     }
-     
-     .search-btn {
-        padding: 8px 16px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 1.1rem;
-        
-        &:hover { filter: brightness(0.9); }
-     }
-  }
-
-  .close-btn { 
-    background: none; border: none; font-size: 2rem; cursor: pointer; color: var(--muted);
-    padding: 0 8px;
-    &:hover { color: var(--text); }
-  }
-}
-
-.preview-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  overflow-y: auto; /* Scroll body content */
-  padding-bottom: 20px;
-}
-
-.canvas-container {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  /* Allow horizontal scroll if needed */
-  overflow-x: auto;
-  
-  canvas {
-     /* Remove max-width constraint or make it larger */
-     max-width: none; 
-     /* Let height be determined by aspect ratio if width is constrained by container, 
-        but here we want it large. Scale set in JS effectively sets pixel dimensions. */
-     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-     border: 1px solid var(--border);
-  }
-}
-
-.excel-info {
-  width: 100%;
-  background: var(--panel);
-  padding: 12px;
-  border-radius: 8px;
-  border-left: 4px solid var(--primary);
-  text-align: left;
-  margin-top: auto; /* Push to bottom if space allows */
-  
-  &.error {
-    border-color: #d33;
-    color: #d33;
-  }
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  
-  button {
-    padding: 8px 16px;
-    background: var(--hover);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s;
-    
-    &:hover:not(:disabled) { background: var(--border); }
-    &:disabled { opacity: 0.5; cursor: not-allowed; }
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 .window{
-  width: 720px;
-  margin: 30px auto;
+  width: min(720px, 100%);
+  box-sizing: border-box;
+  margin: 0 auto;
   padding: 28px;
   background: var(--tile-bg);
   color: var(--text);
@@ -810,7 +644,6 @@ export default {
   box-shadow: 0 8px 16px rgba(0,0,0,.12);
   text-align:center;
 
-  h1{ margin-bottom: 20px; font-size: 2rem; color: var(--text); }
 }
 
 .leftAlign{ text-align:left; margin-bottom: 12px; }
@@ -855,15 +688,7 @@ export default {
   .dropdown-group{
     display:flex; flex-direction:column; gap:6px; align-items:flex-start;
     label{ font-weight:500; color: var(--text); }
-    select{
-      padding:8px 12px; border-radius:8px; border:1px solid var(--border);
-      background: var(--tile-bg); color: var(--text);
-      transition: border-color .2s, box-shadow .2s;
-    }
-    select:focus{
-      outline:none; border-color: var(--primary);
-      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
-    }
+    :deep(.app-select){ min-width: 120px; }
   }
 
   .drag-drop-area{
@@ -879,14 +704,7 @@ export default {
 
   .button-group{
     display:flex; flex-direction:column; gap:12px; margin-top:16px;
-
-    .upload-btn{
-      display:inline-block; padding:12px 20px; border-radius:8px;
-      background: var(--primary); color:#fff; font-weight:600; cursor:pointer;
-      transition: transform .08s ease, filter .2s ease; text-align:center;
-    }
-    .upload-btn:hover{ filter: brightness(.95); transform: translateY(-1px); }
-    .upload-btn:active{ filter: brightness(.9); transform: translateY(0); }
+    :deep(.app-button){ width: 100%; }
   }
 
   input[type="file"]{ display:none; }
@@ -900,36 +718,13 @@ export default {
 
   p{ margin:6px 0; }
   strong{ color: var(--text); }
-  .error{ color: #d33; font-weight:600; } /* falls du --error willst, kannst du es global ergänzen */
+  .error{ color: var(--status-danger-text); font-weight:600; }
 }
 
 .actions{
   display: flex;
   gap: 12px;
   justify-content: center;
-
-  button{
-    padding: 12px 24px; border:none; border-radius:8px; font-weight:600;
-    background: var(--primary); color:#fff; cursor:pointer;
-    transition: transform .08s ease, filter .2s ease, box-shadow .2s ease;
-    box-shadow: 0 4px 10px -2px rgba(0,0,0,.15);
-  }
-
-  .preview-btn {
-      background: var(--tile-bg);
-      color: var(--text);
-      border: 2px solid var(--border);
-      box-shadow: none;
-      
-      &:hover:not(:disabled) {
-          border-color: var(--primary);
-          color: var(--primary);
-      }
-  }
-
-  button:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; transform:none; }
-  button:hover:not(:disabled){ filter: brightness(.95); transform: translateY(-1px); }
-  button:active:not(:disabled){ filter: brightness(.9); transform: translateY(0); }
 }
 
 .loader{
@@ -950,41 +745,6 @@ export default {
   transition: width .35s ease;
 }
 
-
-/* New Preview Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.6);
-  z-index: 1000;
-  display: flex; justify-content: center; align-items: center;
-}
-
-.modal-content.fancy-modal {
-  width: 95vw;
-  height: 90vh;
-  max-width: 1400px;
-  background: var(--tile-bg);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
-  overflow: hidden;
-}
-
-.modal-header {
-   padding: 16px 24px;
-   background: var(--panel);
-   border-bottom: 1px solid var(--border);
-   display: flex; justify-content: space-between; align-items: center;
-   
-   h2 { margin: 0; font-size: 1.25rem; color: var(--text); }
-   .close-btn { 
-      background: none; border: none; font-size: 2rem; 
-      line-height:1; cursor: pointer; color: var(--muted); 
-      &:hover { color: var(--error, #e53e3e); }
-   }
-}
 
 .preview-body-split {
    flex: 1;
@@ -1040,17 +800,7 @@ export default {
 .search-box {
     display: flex; 
     gap: 8px;
-    
-    input {
-       flex: 1; padding: 8px 12px; border-radius: 6px;
-       border: 1px solid var(--border); background: var(--tile-bg);
-       color: var(--text);
-       &:focus { outline: none; border-color: var(--primary); }
-    }
-    button {
-       padding: 8px 12px; background: var(--primary); border: none;
-       border-radius: 6px; cursor: pointer;
-    }
+    :deep(.app-text-input) { flex: 1; min-width: 0; }
 }
 
 .excel-card {
@@ -1060,8 +810,8 @@ export default {
     padding: 12px;
     
     &.error {
-        border-color: #e53e3e;
-        color: #e53e3e;
+        border-color: var(--status-danger-text);
+        color: var(--status-danger-text);
     }
     
     .card-row {
@@ -1096,56 +846,20 @@ export default {
     padding: 4px;
     margin-bottom: 8px;
     
-    button {
-       width: 32px; height: 32px;
-       border: none; background: transparent;
-       font-size: 1.2rem; font-weight: bold;
-       cursor: pointer; color: var(--text);
-       border-radius: 4px;
-       &:hover { background: var(--hover); }
-    }
-    
     .zoom-level {
        font-weight: 600;
        font-size: 0.9rem;
     }
 }
 
-.reset-btn {
-    width: 100%;
-    padding: 8px;
-    font-size: 0.85rem;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    border-radius: 6px;
-    cursor: pointer;
-    &:hover { border-color: var(--text); color: var(--text); }
-}
-
-.modal-footer {
-   padding: 16px 24px;
-   background: var(--panel);
-   border-top: 1px solid var(--border);
-   display: flex; justify-content: space-between; align-items: center;
-   
-   .page-indicator { font-weight: 600; color: var(--text); }
-   .nav-btn {
-      padding: 8px 16px;
-      /* reuse standard button styles */
-   }
-}
+.preview-footer-controls { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; }
+.page-indicator { font-weight: 600; color: var(--text); }
 
 @media (max-width: 768px) {
   .window {
-    width: calc(100vw - 32px);
-    margin: 16px;
+    width: 100%;
+    margin: 0;
     padding: 20px;
-    
-    h1 {
-      font-size: 1.6rem;
-      margin-bottom: 16px;
-    }
   }
   
   .info-box {
@@ -1170,11 +884,9 @@ export default {
       .dropdown-group {
         width: 100%;
         
-        select {
+        :deep(.app-select) {
           width: 100%;
-          padding: 12px 16px;
           font-size: 16px; /* Verhindert Auto-Zoom auf iOS */
-          border-radius: 12px;
         }
       }
     }
@@ -1188,11 +900,7 @@ export default {
     .button-group {
       gap: 10px;
       
-      .upload-btn {
-        padding: 14px 20px;
-        font-size: 16px; /* Verhindert Auto-Zoom */
-        border-radius: 12px;
-      }
+      :deep(.app-button) { font-size: 16px; }
     }
   }
   
@@ -1206,11 +914,9 @@ export default {
     }
   }
   
-  .actions button {
-    padding: 14px 24px;
+  .actions :deep(.app-button) {
     font-size: 16px; /* Verhindert Auto-Zoom */
     width: 100%;
-    border-radius: 12px;
   }
   
   .progress-wrapper {
@@ -1232,13 +938,9 @@ export default {
 /* Kleine Mobile Geräte */
 @media (max-width: 480px) {
   .window {
-    width: calc(100vw - 16px);
-    margin: 8px;
+    width: 100%;
+    margin: 0;
     padding: 16px;
-    
-    h1 {
-      font-size: 1.4rem;
-    }
   }
   
   .upload-section {
@@ -1249,9 +951,6 @@ export default {
       font-size: 0.9rem;
     }
     
-    .button-group .upload-btn {
-      padding: 12px 16px;
-    }
   }
   
   .sample-table th {
@@ -1259,8 +958,5 @@ export default {
     font-size: 0.7rem;
   }
   
-  .actions button {
-    padding: 12px 20px;
-  }
 }
 </style>

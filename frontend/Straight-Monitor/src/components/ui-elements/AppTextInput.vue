@@ -29,6 +29,10 @@ let composing = false;
 defineExpose({
   focus: () => inputRef.value?.focus(),
   select: () => inputRef.value?.select(),
+  showPicker: () => {
+    if (typeof inputRef.value?.showPicker === 'function') inputRef.value.showPicker();
+    else inputRef.value?.focus();
+  },
 });
 
 function onInput(event) {

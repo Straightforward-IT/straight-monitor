@@ -9,17 +9,16 @@
         </p>
       </div>
 
-      <button
-        class="mailbox-dashboard__refresh"
-        type="button"
-        :disabled="loadingAccounts || loadingTree || loadingInsights"
+      <AppButton
+        variant="secondary"
+        :loading="loadingAccounts || loadingTree || loadingInsights"
         @click="reloadCurrent"
       >
         Neu laden
-      </button>
+      </AppButton>
     </header>
 
-    <div v-if="error" class="mailbox-dashboard__error">
+    <div v-if="error" class="mailbox-dashboard__error" role="alert">
       {{ error }}
     </div>
 
@@ -50,15 +49,15 @@
               <p>{{ visibleFolders.length }} sichtbar</p>
             </div>
             <div class="panel-card__actions">
-              <button
+              <AppButton
                 v-if="folderTree.length"
-                class="panel-card__action-btn"
-                type="button"
+                variant="ghost"
+                size="sm"
                 :disabled="loadingTree"
                 @click="expandAllFolders"
               >
                 Alle aufklappen
-              </button>
+              </AppButton>
               <span v-if="loadingTree" class="panel-card__status">Lädt…</span>
             </div>
           </div>
@@ -80,6 +79,8 @@
                 v-if="entry.hasChildren"
                 class="folder-tree__caret"
                 type="button"
+                :aria-label="`${entry.node.displayName} ${expandedFolderIds.has(entry.node.id) ? 'zuklappen' : 'aufklappen'}`"
+                :aria-expanded="expandedFolderIds.has(entry.node.id)"
                 @click.stop="toggleExpanded(entry.node.id)"
               >
                 <span :class="expandedFolderIds.has(entry.node.id) ? 'caret caret--open' : 'caret'"></span>
@@ -89,6 +90,7 @@
               <button
                 class="folder-tree__item"
                 type="button"
+                :aria-pressed="entry.node.id === selectedFolderId"
                 @click="selectFolder(entry.node.id)"
               >
                 <span class="folder-tree__icon"></span>
@@ -118,6 +120,7 @@
                     class="detail-breadcrumb__link"
                     :class="{ 'is-current': index === breadcrumbEntries.length - 1 }"
                     type="button"
+                    :aria-current="entry.id === selectedFolderId ? 'location' : undefined"
                     :disabled="!entry.id || entry.id === selectedFolderId"
                     @click="entry.id && selectFolder(entry.id)"
                   >
@@ -239,6 +242,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 import api from '@/utils/api';
 
 const route = useRoute();
@@ -628,21 +632,6 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-.mailbox-dashboard__refresh {
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.mailbox-dashboard__refresh:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
 .mailbox-dashboard__filters {
   display: flex;
   flex-direction: column;
@@ -696,27 +685,6 @@ onMounted(async () => {
   gap: 10px;
 }
 
-.panel-card__action-btn {
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
-  background: transparent;
-  color: var(--text);
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.panel-card__action-btn:hover:not(:disabled) {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.panel-card__action-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
 .panel-card__head h2,
 .panel-card__head h3,
 .detail-header h2 {
@@ -762,6 +730,12 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.folder-tree__caret:focus-visible,
+.folder-tree__item:focus-visible,
+.detail-breadcrumb__link:focus-visible {
+  outline: 2px solid var(--control-focus-ring);
+  outline-offset: 2px;
 }
 
 .folder-tree__caret--ghost {
@@ -846,7 +820,7 @@ onMounted(async () => {
 }
 
 .folder-tree__unread {
-  color: var(--primary);
+  color: var(--action-accent-text);
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
@@ -885,14 +859,14 @@ onMounted(async () => {
 }
 
 .detail-breadcrumb__link:hover:not(:disabled) {
-  color: var(--primary);
+  color: var(--action-accent-text);
   background: color-mix(in srgb, var(--primary) 10%, var(--surface));
 }
 
 .detail-breadcrumb__link.is-current,
 .detail-breadcrumb__link:disabled {
   cursor: default;
-  color: var(--primary);
+  color: var(--action-accent-text);
   background: color-mix(in srgb, var(--primary) 14%, var(--surface));
 }
 
@@ -968,9 +942,9 @@ onMounted(async () => {
 .mailbox-dashboard__error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, #b3261e 35%, var(--border));
-  background: color-mix(in srgb, #b3261e 10%, var(--surface));
-  color: var(--text);
+  border: 1px solid var(--status-danger-text);
+  background: color-mix(in srgb, var(--status-danger-text) 10%, var(--surface));
+  color: var(--status-danger-text);
 }
 
 @media (max-width: 1200px) {

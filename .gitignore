@@ -57,6 +57,7 @@ temp/
 MAlonzo/**
 
 # Documentation (local-only, may contain sensitive information)
+/Documentation/Bachelorarbeit/
 WPFORMS_*.md
 LAUFZETTEL_*.md
 *_DEBUGGING.md

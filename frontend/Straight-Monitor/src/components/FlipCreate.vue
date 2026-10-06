@@ -1,11 +1,12 @@
 <template>
+  <PageLayout title="Bewerber erstellen" width="wide" content-variant="flush">
   <div class="window">
     <!-- Notification Banner -->
     <transition name="notify">
       <div v-if="notification.visible" :class="['notify-banner', `notify-${notification.type}`]" role="status">
         <span class="notify-dot" aria-hidden="true"></span>
         <span class="notify-text">{{ notification.message }}</span>
-        <button class="notify-close" @click="notification.visible = false" aria-label="Schließen">&times;</button>
+        <AppIconButton variant="ghost" size="sm" label="Meldung schließen" @click="notification.visible = false">&times;</AppIconButton>
       </div>
     </transition>
 
@@ -13,17 +14,16 @@
       <div class="create-panel">
         <!-- Top Panel -->
         <div class="top-panel">
-          <h2>Bewerber erstellen</h2>
+          <h2>Benutzerangaben</h2>
 
           <!-- Toggle Button -->
 
           <div class="action-buttons">
-            <button class="toggle-button" @click="showHinweise = !showHinweise">
+            <AppButton variant="secondary" :disabled="isSubmitting" @click="showHinweise = !showHinweise">
               {{ showHinweise ? "Hinweise verbergen" : "Hinweise anzeigen" }}
-            </button>
-            <button @click="resetNewUser">Formular Zurücksetzen</button>
-            <button @click="fetchAsanaTask">Asana Task neu laden</button>
-           <!-- <button @click="openReentryModal">Wiedereintritt MA</button> -->
+            </AppButton>
+            <AppButton variant="secondary" :disabled="isSubmitting" @click="resetNewUser">Formular zurücksetzen</AppButton>
+            <AppButton variant="secondary" :disabled="isSubmitting" @click="fetchAsanaTask">Asana Task neu laden</AppButton>
           </div>
 
           <!-- Hinweise Section (toggleable) -->
@@ -49,11 +49,12 @@
           <!-- Asana ID Input -->
           <div class="input-group">
             <div class="input-item">
-              <label class="input-label">Asana Task-ID</label>
-              <input
+              <label class="input-label" for="flip-asana-id">Asana Task-ID</label>
+              <AppTextInput
+                id="flip-asana-id"
                 type="text"
                 v-model="asana_id"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="e.g. 1209453587596953"
               />
               <div v-if="fieldStatus.asana_id.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.asana_id.state}`">
@@ -66,7 +67,7 @@
                       {{ fieldStatus.asana_id.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
                     </span>
                   </span>
-                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.asana_id.mitarbeiter)">Wiedereintritt</button>
+                  <AppButton variant="outlined" size="sm" :disabled="isSubmitting" @click="openReentryForMitarbeiter(fieldStatus.asana_id.mitarbeiter)">Wiedereintritt</AppButton>
                 </template>
               </div>
             </div>
@@ -75,29 +76,32 @@
           <!-- Name Inputs -->
           <div class="input-group">
             <div class="input-item">
-              <label class="input-label">Vorname*</label>
-              <input
+              <label class="input-label" for="flip-vorname">Vorname*</label>
+              <AppTextInput
+                id="flip-vorname"
                 type="text"
                 v-model="vorname"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="Vorname*"
               />
             </div>
             <div class="input-item">
-              <label class="input-label">Nachname*</label>
-              <input
+              <label class="input-label" for="flip-nachname">Nachname*</label>
+              <AppTextInput
+                id="flip-nachname"
                 type="text"
                 v-model="nachname"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="Nachname*"
               />
             </div>
             <div class="input-item">
-              <label class="input-label">E-Mail*</label>
-              <input
+              <label class="input-label" for="flip-email">E-Mail*</label>
+              <AppTextInput
+                id="flip-email"
                 type="email"
                 v-model="emailFormatted"
-                class="text-input email"
+                :disabled="isSubmitting"
                 placeholder="E-Mail*"
               />
               <div v-if="fieldStatus.email.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.email.state}`">
@@ -110,16 +114,17 @@
                       {{ fieldStatus.email.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
                     </span>
                   </span>
-                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.email.mitarbeiter)">Wiedereintritt</button>
+                  <AppButton variant="outlined" size="sm" :disabled="isSubmitting" @click="openReentryForMitarbeiter(fieldStatus.email.mitarbeiter)">Wiedereintritt</AppButton>
                 </template>
               </div>
             </div>
             <div class="input-item">
-              <label class="input-label">Personalnummer*</label>
-              <input
+              <label class="input-label" for="flip-personalnr">Personalnummer*</label>
+              <AppTextInput
+                id="flip-personalnr"
                 type="text"
                 v-model="personalnr"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="Personalnummer*"
               />
               <div v-if="fieldStatus.personalnr.state !== 'idle'" class="field-hint" :class="`hint-${fieldStatus.personalnr.state}`">
@@ -132,7 +137,7 @@
                       {{ fieldStatus.personalnr.mitarbeiter.isActive ? 'aktiv' : 'inaktiv' }}
                     </span>
                   </span>
-                  <button class="reentry-btn" @click="openReentryForMitarbeiter(fieldStatus.personalnr.mitarbeiter)">Wiedereintritt</button>
+                  <AppButton variant="outlined" size="sm" :disabled="isSubmitting" @click="openReentryForMitarbeiter(fieldStatus.personalnr.mitarbeiter)">Wiedereintritt</AppButton>
                 </template>
               </div>
             </div>
@@ -141,92 +146,54 @@
           <!-- Standort Selection -->
           <div class="input-group">
             <div class="input-item">
-              <label class="input-label">Standort*</label>
-              <select class="standort-dropdown" v-model="location" required>
+              <label class="input-label" for="flip-location">Standort*</label>
+              <AppSelect id="flip-location" v-model="location" :disabled="isSubmitting" required>
                 <option value="">-</option>
                 <option value="Hamburg">Hamburg</option>
                 <option value="Berlin">Berlin</option>
                 <option value="Köln">Köln</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
           <!-- Role Selection -->
           <div class="input-group checkbox-group">
-            <div class="check-item">
-              <label class="check-label"
-                >Service
-                <input type="checkbox" v-model="isService" class="check-input"
-              /></label>
-            </div>
-            <div class="check-item">
-              <label class="check-label"
-                >Logistik
-                <input type="checkbox" v-model="isLogistik" class="check-input"
-              /></label>
-            </div>
-            <div class="check-item">
-              <label class="check-label"
-                >Küche
-                <input type="checkbox" v-model="isKueche" class="check-input"
-              /></label>
-            </div>
-            <div class="check-item">
-              <label class="check-label"
-                >Teamleiter
-                <input
-                  type="checkbox"
-                  v-model="isTeamleiter"
-                  class="check-input"
-              /></label>
-            </div>
-            <div class="check-item">
-              <label class="check-label"
-                >Festangestellte
-                <input
-                  type="checkbox"
-                  v-model="isFestangestellt"
-                  class="check-input"
-              /></label>
-            </div>
-            <div class="check-item">
-              <label class="check-label"
-                >Office
-                <input type="checkbox" v-model="isOffice" class="check-input"
-              /></label>
-            </div>
+            <AppToggleChip v-model="isService" label="Service" :disabled="isSubmitting" />
+            <AppToggleChip v-model="isLogistik" label="Logistik" :disabled="isSubmitting" />
+            <AppToggleChip v-model="isKueche" label="Küche" :disabled="isSubmitting" />
+            <AppToggleChip v-model="isTeamleiter" label="Teamleiter" :disabled="isSubmitting" />
+            <AppToggleChip v-model="isFestangestellt" label="Festangestellte" :disabled="isSubmitting" />
+            <AppToggleChip v-model="isOffice" label="Office" :disabled="isSubmitting" />
           </div>
 
           <!-- Profile Information -->
           <div class="input-group">
             <div class="input-item">
-              <label class="input-label">Job Titel</label>
-              <input
+              <label class="input-label" for="flip-job-title">Job Titel</label>
+              <AppTextInput
+                id="flip-job-title"
                 type="text"
                 v-model="job_title"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="Job Titel"
               />
             </div>
             <div class="input-item">
-              <label class="input-label">Abteilung</label>
-              <input
+              <label class="input-label" for="flip-department">Abteilung</label>
+              <AppTextInput
+                id="flip-department"
                 type="text"
                 v-model="department"
-                class="text-input"
+                :disabled="isSubmitting"
                 placeholder="Abteilung"
               />
             </div>
           </div>
 
           <!-- Submit Button -->
-          <button 
-  class="submit-button" 
-  @click="submitNewUser"
-  :disabled="isSubmitting"
->
-  {{ isSubmitting ? "Erstellt..." : "Erstellen" }}
-</button>
+          <AppButton class="submit-button" :loading="isSubmitting" block @click="submitNewUser">
+            {{ isSubmitting ? "Erstellt..." : "Erstellen" }}
+          </AppButton>
 
         </div>
       </div>
@@ -239,12 +206,12 @@
           <h4>{{ asanaTask.name }}</h4>
 
           <!-- Project Memberships -->
-          <p>
+          <div>
             <strong>Projekte:</strong>
-            <p v-for="project in asanaTask.memberships">
+            <p v-for="project in asanaTask.memberships" :key="project.project?.gid || project.project?.name">
               {{ project.project.name }}
             </p>
-          </p>
+          </div>
 
           <h3>Beschreibung</h3>
           <div
@@ -262,59 +229,53 @@
     </div>
     
     <!-- Personalnr Hinweis Modal -->
-    <div v-if="showPersonalnrHinweis" class="modal">
-      <div class="modal-content info-modal">
-        <h3>ℹ Wichtige Information</h3>
+    <ModalFrame
+      :model-value="showPersonalnrHinweis"
+      title="Wichtige Information"
+      size="sm"
+      :show-close="false"
+      :close-on-escape="false"
+      :close-on-backdrop="false"
+    >
         <div class="info-content">
           <p><strong>Ab sofort ist die Personalnummer ein Pflichtfeld!</strong></p>
           <p>Bitte gib immer die Personalnummer des Mitarbeiters ein.</p>
           <p><strong>Falls die Personalnummer nicht verfügbar ist:</strong></p>
           <p>Trag eine <strong>0</strong> (Null) ein.</p>
         </div>
-        <button class="info-modal-btn" @click="closePersonalnrHinweis">
-          Verstanden
-        </button>
-      </div>
-    </div>
+      <template #footer>
+        <AppButton @click="closePersonalnrHinweis">Verstanden</AppButton>
+      </template>
+    </ModalFrame>
     
-    <div v-if="showReentryModal" class="modal">
-      <div class="modal-content">
-        <font-awesome-icon
-          class="close-modal"
-          :icon="['fas', 'times']"
-          @click="showReentryModal = false"
-        />
-        <h4>Wiedereintritt MA</h4>
-
+    <ModalFrame :model-value="showReentryModal" title="Wiedereintritt MA" size="sm" @close="showReentryModal = false">
         <!-- Input for Mitarbeiter search -->
         <div class="autocomplete-wrapper">
-          <input
+          <AppTextInput
             type="text"
             v-model="searchMitarbeiter"
             @keydown.down.prevent="highlightNext"
             @keydown.up.prevent="highlightPrev"
             @keydown.enter.prevent="selectHighlighted"
             placeholder="Mitarbeiter suchen..."
-            class="text-input"
+            aria-label="Mitarbeiter suchen"
           />
           <ul v-if="filteredMitarbeiter.length" class="mitarbeiter-list">
             <li
               v-for="(mitarbeiter, index) in filteredMitarbeiter"
               :key="mitarbeiter._id"
-              :class="{ highlighted: index === selectedIndex }"
               @mouseenter="highlightOption(index)"
-              @click="selectMitarbeiter(mitarbeiter)"
             >
-              {{ mitarbeiter.vorname }} {{ mitarbeiter.nachname }} ({{
-                mitarbeiter.email
-              }})
+              <button type="button" :class="{ highlighted: index === selectedIndex }" @click="selectMitarbeiter(mitarbeiter)">
+                {{ mitarbeiter.vorname }} {{ mitarbeiter.nachname }} ({{ mitarbeiter.email }})
+              </button>
             </li>
           </ul>
         </div>
-      </div>
-    </div>
+    </ModalFrame>
 
   </div>
+  </PageLayout>
 
   <!-- Wiedereintritt: EmployeeCard Modal -->
   <EmployeeCardModal
@@ -325,18 +286,30 @@
 </template>
 
 <script>
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import debounce from "lodash.debounce";
 import AsanaMappings from "@/assets/AsanaMappings.json";
 import FlipMappings from "@/assets/FlipMappings.json";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
+import PageLayout from "@/components/layout/PageLayout.vue";
+import ModalFrame from "@/components/frames/ModalFrame.vue";
+import AppButton from "@/components/ui-elements/AppButton.vue";
+import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
+import AppTextInput from "@/components/ui-elements/AppTextInput.vue";
+import AppSelect from "@/components/ui-elements/AppSelect.vue";
+import AppToggleChip from "@/components/ui-elements/AppToggleChip.vue";
 export default {
   name: "Erstellen",
   emits: [],
   components: {
-    FontAwesomeIcon,
     EmployeeCardModal,
+    PageLayout,
+    ModalFrame,
+    AppButton,
+    AppIconButton,
+    AppTextInput,
+    AppSelect,
+    AppToggleChip,
   },
   props: {},
   data() {
@@ -348,7 +321,6 @@ export default {
       userID: "",
       asanaTask: null,
       flipUsers: null,
-      userGroups: null,
       showHinweise: false,
       showReentryModal: false,
       showPersonalnrHinweis: false,
@@ -993,14 +965,11 @@ export default {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/global.scss";
-
 /* Wrapper */
 .window{
-  max-width: 1600px;
-  width: calc(100% - 60px);
-  margin: 30px auto;
-  padding: 30px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
   background: var(--tile-bg);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1039,24 +1008,9 @@ export default {
 
     .action-buttons{
       margin-bottom: 16px;
-      button{
-        background: transparent;
-        color: var(--primary);
-        border:1px solid var(--primary);
-        border-radius: 8px;
-        cursor:pointer;
-        font-weight:600;
-        padding: 8px 14px;
-        margin-right: 10px;
-        transition: background .2s, color .2s, transform .08s, border-color .2s;
-      }
-      button:hover{
-        background: var(--primary);
-        color:#fff;
-        transform: translateY(-1px);
-      }
-      button:active{ transform: translateY(0); }
-      button:disabled{ opacity:.6; cursor:not-allowed; }
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .hinweise{
@@ -1074,16 +1028,7 @@ export default {
 
   .bottom-panel{
     /* Submit */
-    .submit-button{
-      width: 100%; margin-top: 22px; height: 2.8rem;
-      font-size: 1.05rem; border-radius: 8px;
-      background: var(--primary); color:#fff; border:none; cursor:pointer;
-      transition: filter .2s, transform .08s, box-shadow .2s;
-      box-shadow: 0 4px 10px -2px rgba(0,0,0,.18);
-    }
-    .submit-button:hover{ filter: brightness(.95); transform: translateY(-1px); }
-    .submit-button:active{ filter: brightness(.9); transform: translateY(0); }
-    .submit-button:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; transform:none; }
+    .submit-button{ margin-top: 22px; }
   }
 }
 
@@ -1122,13 +1067,6 @@ export default {
   border-bottom: 1px solid var(--primary);
 }
 
-/* Checkbox Label */
-.check-label{
-  display:flex; align-items:center; gap:10px;
-  height: 2rem; padding-left: 10px; user-select:none;
-  color: var(--muted); border-left: 2px solid var(--primary);
-}
-
 /* Back link */
 .discrete{
   display:inline-block; margin: 0 0 12px; padding:6px 10px;
@@ -1141,109 +1079,17 @@ export default {
 .input-group{ display:flex; flex-wrap:wrap; gap:20px; margin-bottom: 22px; }
 .input-item{ flex:1; min-width: 220px; display:flex; flex-direction:column; }
 
-.text-input, .standort-dropdown{
-  border-radius: 8px;
-  background: rgba(var(--border-rgb), 0.03);
-  color: var(--text);
-  border: 1px solid rgba(var(--border-rgb), 0.3);
-  padding: 12px 14px; font-size: 1rem;
-  transition: border-color .2s, box-shadow .2s, background .2s;
-}
-.text-input:focus, .standort-dropdown:focus{
-  outline:none; border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
-}
-.text-input:hover, .standort-dropdown:hover{
-  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
-}
-.text-input.email{ text-transform: lowercase; }
-
 /* Checkbox Group */
 .checkbox-group{
-  display:grid; gap: 16px; padding: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  display:flex; gap: 10px; padding: 16px;
   background: rgba(var(--border-rgb), 0.1); 
   border: 1px solid rgba(var(--border-rgb), 0.3);
   border-radius: 8px;
 }
 
-/* Native checkbox mit Theme */
-.check-input{
-  width:18px; height:18px; min-width:18px; min-height:18px;
-  accent-color: var(--primary);
-  cursor:pointer; transition: transform .12s ease;
-}
-.check-input:hover{ transform: scale(1.06); }
-.check-input:active{ transform: scale(.98); }
-
-/* Modal */
-.modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: var(--overlay); z-index: 1000; }
-.modal-content{
-  position:relative;
-  background: var(--tile-bg); color: var(--text);
-  border: 1px solid rgba(var(--border-rgb), 0.3);
-  border-radius: 16px; padding: 28px; width: 420px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.15);
-}
-
-.info-modal {
-  max-width: 500px;
-  width: calc(100% - 32px);
-  
-  h3 {
-    margin: 0 0 16px;
-    font-size: 1.4rem;
-    color: var(--primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .info-content {
-    margin-bottom: 20px;
-    line-height: 1.6;
-    
-    p {
-      margin: 8px 0;
-      color: var(--text);
-      
-      strong {
-        color: var(--primary);
-      }
-    }
-  }
-  
-  .info-modal-btn {
-    width: 100%;
-    padding: 12px;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: filter .2s, transform .08s;
-    
-    &:hover {
-      filter: brightness(.95);
-      transform: translateY(-1px);
-    }
-    
-    &:active {
-      filter: brightness(.9);
-      transform: translateY(0);
-    }
-  }
-}
-
-.close-modal{
-  position:absolute; top:10px; right:10px; font-size:18px;
-  color: var(--muted); cursor:pointer; transition: color .2s;
-}
-.close-modal:hover{ color: var(--text); }
-
-.autocomplete-wrapper .text-input{ width: calc(100% - 2px); margin-bottom: 8px; }
+.info-content { line-height: 1.6; }
+.info-content p { margin: 8px 0; }
+.autocomplete-wrapper .app-text-input { margin-bottom: 8px; }
 .mitarbeiter-list{
   max-height: 260px; overflow:auto; 
   border: 1px solid rgba(var(--border-rgb), 0.2);
@@ -1253,13 +1099,16 @@ export default {
   box-shadow: 0 2px 8px rgba(0,0,0,.05); 
   padding: 0; margin: 0; list-style: none;
 }
-.mitarbeiter-list li{
-  padding: 10px 12px; border-bottom: 1px solid var(--border); cursor:pointer;
-}
+.mitarbeiter-list li{ border-bottom: 1px solid var(--border); }
 .mitarbeiter-list li:last-child{ border-bottom: none; }
-.mitarbeiter-list li.highlighted,
-.mitarbeiter-list li:hover{
-  background: var(--primary); color:#fff;
+.mitarbeiter-list button {
+  width: 100%; padding: 10px 12px; border: 0;
+  background: transparent; color: inherit; text-align: left; cursor: pointer;
+}
+.mitarbeiter-list button.highlighted,
+.mitarbeiter-list button:hover,
+.mitarbeiter-list button:focus-visible{
+  background: var(--action-ghost-hover, var(--hover)); color: var(--text);
 }
 
 /* ============= NOTIFICATION BANNER ============= */
@@ -1290,19 +1139,6 @@ export default {
     word-break: break-word;
   }
 
-  .notify-close {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    opacity: 0.35;
-    font-size: 1.15rem;
-    line-height: 1;
-    padding: 0 2px;
-    color: inherit;
-    transition: opacity 0.12s;
-    &:hover { opacity: 0.75; }
-  }
 }
 
 .notify-success {
@@ -1376,100 +1212,11 @@ export default {
 .badge-active   { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
 .badge-inactive { background: rgba(107, 114, 128, 0.12); color: var(--muted); }
 
-.reentry-btn {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  background: transparent;
-  color: var(--primary);
-  border: 1px solid var(--primary);
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  &:hover { background: var(--primary); color: #fff; }
-}
-
-/* ============= WIEDEREINTRITT MODAL ============= */
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--tile-bg);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 700px;
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-employee {
-  max-width: 900px;
-  width: 95%;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-
-  h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.4rem;
-    line-height: 1;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0 4px;
-    opacity: 0.6;
-    transition: opacity 0.12s;
-    &:hover { opacity: 1; }
-  }
-}
-
-.modal-body {
-  overflow-y: auto;
-}
-
-.modal-employee-body {
-  padding: 0;
-  max-height: 80vh;
-}
-
-.loading-employee {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 40px;
-  color: var(--muted);
-}
-
 /* ============= MOBILE RESPONSIVE OPTIMIERUNGEN ============= */
 
 @media (max-width: 1024px) {
   /* Tablets */
   .window {
-    width: calc(100vw - 32px);
-    margin: 16px;
     padding: 20px;
   }
   
@@ -1491,8 +1238,6 @@ export default {
 @media (max-width: 768px) {
   /* Mobile */
   .window {
-    width: calc(100vw - 16px);
-    margin: 8px;
     padding: 16px;
   }
   
@@ -1531,13 +1276,7 @@ export default {
         gap: 8px;
         margin-bottom: 12px;
         
-        button {
-          width: 100%;
-          padding: 12px 16px;
-          font-size: 16px; /* Anti-Zoom */
-          text-align: center;
-          margin-right: 0;
-        }
+        .app-button { width: 100%; }
       }
       
       .hinweise {
@@ -1575,40 +1314,10 @@ export default {
     padding-bottom: 3px;
   }
   
-  /* Inputs Touch-Optimiert */
-  .text-input, .standort-dropdown {
-    padding: 14px 16px;
-    font-size: 16px; /* Verhindert Auto-Zoom */
-    border-radius: 12px;
-  }
-  
   /* Checkbox Group Mobile */
   .checkbox-group {
-    grid-template-columns: 1fr 1fr; /* 2 Spalten auf Mobile */
     gap: 12px;
     padding: 12px;
-    
-    .check-label {
-      font-size: 0.9rem;
-      padding-left: 8px;
-      height: auto;
-      min-height: 2.5rem;
-    }
-    
-    .check-input {
-      width: 20px;
-      height: 20px;
-      min-width: 20px;
-      min-height: 20px;
-    }
-  }
-  
-  /* Submit Button Mobile */
-  .submit-button {
-    height: 3rem;
-    font-size: 16px; /* Anti-Zoom */
-    border-radius: 12px;
-    margin-top: 16px;
   }
   
   /* Asana Panel Mobile */
@@ -1634,33 +1343,14 @@ export default {
     }
   }
   
-  /* Modal Mobile */
-  .modal-content {
-    width: calc(100vw - 32px);
-    margin: 16px;
-    padding: 20px;
-  }
-  
-  .autocomplete-wrapper .text-input {
-    padding: 14px 16px;
-    font-size: 16px; /* Anti-Zoom */
-  }
-  
   .mitarbeiter-list {
     max-height: 200px;
-    
-    li {
-      padding: 12px;
-      font-size: 0.9rem;
-    }
   }
 }
 
 @media (max-width: 480px) {
   /* Kleine Mobile Geräte */
   .window {
-    width: calc(100vw - 8px);
-    margin: 4px;
     padding: 12px;
   }
   
@@ -1678,30 +1368,16 @@ export default {
       font-size: 1.2rem;
     }
     
-    .action-buttons button {
-      padding: 10px 14px;
-      font-size: 15px;
-    }
   }
   
   /* Checkbox Group - Single Column auf sehr kleinen Displays */
   .checkbox-group {
-    grid-template-columns: 1fr;
     gap: 8px;
     padding: 10px;
   }
   
   .input-label {
     font-size: 0.85rem;
-  }
-  
-  .text-input, .standort-dropdown {
-    padding: 12px 14px;
-  }
-  
-  .submit-button {
-    height: 2.8rem;
-    font-size: 15px;
   }
   
   .second-panel {
@@ -1731,8 +1407,5 @@ export default {
     flex: 1;
   }
   
-  .checkbox-group {
-    grid-template-columns: repeat(3, 1fr); /* 3 Spalten im Landscape */
-  }
 }
 </style>

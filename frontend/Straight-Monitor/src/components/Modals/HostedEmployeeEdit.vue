@@ -37,8 +37,15 @@ async function save(form, force = false) {
   conflict.value = null;
   const fields = ['vorname', 'nachname', 'personalnr', 'email', 'telefon', 'iban',
     'konfektionsgroesse', 'schuhgroesse', 'geburtsname', 'geburtsort', 'nationalitaet',
-    'additionalEmails', 'personalnrHistory', 'adresse', 'adresse2', 'vorarbeitgebertage'];
+    'additionalEmails', 'personalnrHistory', 'adresse', 'adresse2', 'vorarbeitgebertage',
+    'fuehrerscheine'];
   const payload = Object.fromEntries(fields.map(field => [field, form[field]]));
+  if (Array.isArray(payload.fuehrerscheine)) {
+    payload.fuehrerscheine = payload.fuehrerscheine.map((license) => ({
+      ...license,
+      source: license.source === 'import' ? 'import' : 'manual',
+    }));
+  }
   payload.geburtsdatum = form.geburtsdatum || null;
   if (force) payload.forcePersonalnr = true;
   try {

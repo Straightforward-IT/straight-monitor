@@ -9,17 +9,12 @@
         </p>
       </div>
 
-      <button
-        class="drive-dashboard__refresh"
-        type="button"
-        :disabled="loadingAccounts || loadingTree"
-        @click="reloadCurrent"
-      >
+      <AppButton variant="secondary" :loading="loadingAccounts || loadingTree" @click="reloadCurrent">
         Neu laden
-      </button>
+      </AppButton>
     </header>
 
-    <div v-if="error" class="drive-dashboard__error">{{ error }}</div>
+    <div v-if="error" class="drive-dashboard__error" role="alert">{{ error }}</div>
 
     <!-- Team-Chips -->
     <section class="drive-dashboard__filters">
@@ -48,13 +43,9 @@
               <p>{{ visibleFolders.length }} sichtbar</p>
             </div>
             <div class="panel-card__actions">
-              <button
-                class="panel-card__action-btn"
-                :disabled="!folderTree.length"
-                @click="expandAllFolders"
-              >
+              <AppButton variant="ghost" size="sm" :disabled="!folderTree.length || loadingTree" @click="expandAllFolders">
                 Alle aufklappen
-              </button>
+              </AppButton>
               <span v-if="loadingTree" class="panel-card__status">Lädt…</span>
             </div>
           </div>
@@ -75,13 +66,16 @@
               <button
                 v-if="entry.node.children?.length"
                 class="folder-tree__caret"
+                type="button"
+                :aria-label="`${entry.node.name} ${expandedFolderIds.has(entry.node.id) ? 'zuklappen' : 'aufklappen'}`"
+                :aria-expanded="expandedFolderIds.has(entry.node.id)"
                 @click.stop="toggleExpanded(entry.node.id)"
               >
                 <span class="caret" :class="{ 'caret--open': expandedFolderIds.has(entry.node.id) }"></span>
               </button>
               <span v-else class="folder-tree__caret folder-tree__caret--ghost"></span>
 
-              <button class="folder-tree__item" @click="selectFolder(entry.node.id)">
+              <button class="folder-tree__item" type="button" :aria-pressed="entry.node.id === selectedFolderId" @click="selectFolder(entry.node.id)">
                 <span class="folder-tree__icon"></span>
                 <span class="folder-tree__label">{{ entry.node.name }}</span>
                 <span v-if="entry.node.childCount !== null" class="folder-tree__count">
@@ -112,6 +106,8 @@
                   <button
                     class="detail-breadcrumb__link"
                     :class="{ 'is-current': idx === breadcrumbEntries.length - 1 }"
+                    type="button"
+                    :aria-current="idx === breadcrumbEntries.length - 1 ? 'location' : undefined"
                     :disabled="idx === breadcrumbEntries.length - 1"
                     @click="selectFolder(entry.id)"
                   >{{ entry.label }}</button>
@@ -120,9 +116,9 @@
               <div v-if="selectedFolderId" class="folder-id-row">
                 <span class="folder-id-label">Folder-ID</span>
                 <code class="folder-id-value">{{ selectedFolderId }}</code>
-                <button class="folder-id-copy" :class="{ copied: copiedFolderId }" @click="copyFolderId">
+                <AppButton variant="ghost" size="sm" :aria-label="`Folder-ID ${selectedFolderId} kopieren`" @click="copyFolderId">
                   {{ copiedFolderId ? 'Kopiert!' : 'Kopieren' }}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -159,6 +155,7 @@
                       <button
                         v-if="item.isFolder"
                         class="file-name-btn"
+                        type="button"
                         @click="selectFolder(item.id)"
                       >
                         <span class="file-icon file-icon--folder"></span>
@@ -172,9 +169,9 @@
                     <td>
                       <div class="id-cell">
                         <span class="item-id">{{ item.id }}</span>
-                        <button class="id-copy-btn" :title="'ID kopieren: ' + item.id" @click="copyItemId(item.id)">
+                        <AppButton variant="ghost" size="sm" class="id-copy-btn" :aria-label="`ID von ${item.name} kopieren`" @click="copyItemId(item.id)">
                           {{ copiedItemId === item.id ? '✓' : 'ID' }}
-                        </button>
+                        </AppButton>
                       </div>
                     </td>
                     <td>{{ item.isFolder ? 'Ordner' : fileTypeLabel(item) }}</td>
@@ -190,16 +187,9 @@
                             rel="noopener noreferrer"
                             class="action-btn"
                           >Download</a>
-                          <button
-                            class="action-btn"
-                            @click="openPreview(item)"
-                          >Vorschau</button>
+                          <AppButton variant="secondary" size="sm" :aria-label="`${item.name} als Vorschau öffnen`" @click="openPreview(item)">Vorschau</AppButton>
                         </template>
-                        <button
-                          v-else
-                          class="action-btn"
-                          @click="selectFolder(item.id)"
-                        >Öffnen</button>
+                        <AppButton v-else variant="secondary" size="sm" :aria-label="`${item.name} öffnen`" @click="selectFolder(item.id)">Öffnen</AppButton>
                       </div>
                     </td>
                   </tr>
@@ -222,75 +212,69 @@
                 ref="fileInputRef"
                 type="file"
                 class="upload-zone__input"
+                aria-label="Datei für OneDrive-Upload auswählen"
+                :disabled="uploading"
                 @change="onFileInputChange"
               />
               <span v-if="uploading" class="upload-zone__hint">Wird hochgeladen…</span>
               <span v-else class="upload-zone__hint">
                 Datei hierher ziehen oder
-                <button class="upload-zone__pick" @click="fileInputRef?.click()">auswählen</button>
+                <AppButton variant="ghost" size="sm" :disabled="uploading" @click="fileInputRef?.click()">auswählen</AppButton>
               </span>
             </div>
-            <p v-if="uploadError" class="upload-error">{{ uploadError }}</p>
-            <p v-if="uploadSuccess" class="upload-success">{{ uploadSuccess }}</p>
+            <p v-if="uploadError" class="upload-error" role="alert">{{ uploadError }}</p>
+            <p v-if="uploadSuccess" class="upload-success" role="status">{{ uploadSuccess }}</p>
           </div>
         </template>
       </section>
     </div>
 
     <!-- Preview Modal -->
-    <teleport to="body">
-      <div v-if="previewItem" class="preview-backdrop" @click.self="closePreview">
-        <div class="preview-modal">
-          <div class="preview-modal__head">
-            <span class="preview-modal__name">{{ previewItem.name }}</span>
-            <div class="preview-modal__actions">
-              <a
-                v-if="previewItem.downloadUrl"
-                :href="previewItem.downloadUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="action-btn"
-              >Download</a>
-              <button class="preview-modal__close" @click="closePreview">✕</button>
-            </div>
-          </div>
-
-          <div class="preview-modal__body">
-            <div v-if="loadingPreview" class="preview-modal__loading">Vorschau wird geladen…</div>
-            <div v-else-if="previewError" class="preview-modal__error">{{ previewError }}</div>
+    <ModalFrame v-if="previewItem" :title="previewItem.name" size="xl" style="--mf-max-width: min(1100px, 96vw); --mf-body-padding: 0" @close="closePreview">
+      <template #actions>
+        <a
+          v-if="previewItem.downloadUrl"
+          :href="previewItem.downloadUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn"
+        >Download</a>
+      </template>
+      <div class="preview-modal__body">
+        <div v-if="loadingPreview" class="preview-modal__loading">Vorschau wird geladen…</div>
+        <div v-else-if="previewError" class="preview-modal__error" role="alert">{{ previewError }}</div>
 
             <!-- Bild-Vorschau direkt via downloadUrl -->
-            <img
-              v-else-if="isImage(previewItem) && previewItem.downloadUrl"
-              :src="previewItem.downloadUrl"
-              :alt="previewItem.name"
-              class="preview-modal__img"
-            />
+        <img
+          v-else-if="isImage(previewItem) && previewItem.downloadUrl"
+          :src="previewItem.downloadUrl"
+          :alt="previewItem.name"
+          class="preview-modal__img"
+        />
 
             <!-- Office / PDF / allgemein via Microsoft-Embed-URL -->
-            <iframe
-              v-else-if="previewUrl"
-              :src="previewUrl"
-              class="preview-modal__frame"
-              frameborder="0"
-              allow="autoplay"
-            ></iframe>
+        <iframe
+          v-else-if="previewUrl"
+          :src="previewUrl"
+          :title="`Vorschau: ${previewItem.name}`"
+          class="preview-modal__frame"
+          frameborder="0"
+          allow="autoplay"
+        ></iframe>
 
-            <div v-else class="preview-modal__error">
-              Keine Vorschau für diesen Dateityp verfügbar.
-              <a
-                v-if="previewItem.downloadUrl"
-                :href="previewItem.downloadUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="action-btn"
-                style="margin-top: 12px; display: inline-block;"
-              >Direkt öffnen / herunterladen</a>
-            </div>
-          </div>
+        <div v-else class="preview-modal__error">
+          Keine Vorschau für diesen Dateityp verfügbar.
+          <a
+            v-if="previewItem.downloadUrl"
+            :href="previewItem.downloadUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="action-btn"
+            style="margin-top: 12px; display: inline-block;"
+          >Direkt öffnen / herunterladen</a>
         </div>
       </div>
-    </teleport>
+    </ModalFrame>
   </section>
 </template>
 
@@ -298,6 +282,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
 import api from '@/utils/api';
 
 const route = useRoute();
@@ -653,7 +639,7 @@ function closePreview() {
 
 /* -------- upload -------- */
 async function uploadFile(file) {
-  if (!file || !selectedFolderId.value) return;
+  if (!file || !selectedFolderId.value || uploading.value) return;
   uploadError.value = '';
   uploadSuccess.value = '';
   uploading.value = true;
@@ -749,21 +735,6 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-.drive-dashboard__refresh {
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 16px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.drive-dashboard__refresh:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
 /* Filters */
 .drive-dashboard__filters {
   display: flex;
@@ -819,24 +790,6 @@ onMounted(async () => {
   gap: 10px;
 }
 
-.panel-card__action-btn {
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
-  background: transparent;
-  color: var(--text);
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  &:disabled { opacity: 0.6; cursor: wait; }
-}
-
 .panel-card__empty,
 .panel-card__status {
   margin: 4px 0 0;
@@ -875,6 +828,14 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.folder-tree__caret:focus-visible,
+.folder-tree__item:focus-visible,
+.detail-breadcrumb__link:focus-visible,
+.file-name-btn:focus-visible,
+.action-btn:focus-visible {
+  outline: 2px solid var(--control-focus-ring);
+  outline-offset: 2px;
 }
 
 .folder-tree__caret--ghost { width: 24px; }
@@ -1024,22 +985,6 @@ onMounted(async () => {
   color: var(--text);
 }
 
-.folder-id-copy {
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
-  background: transparent;
-  color: var(--text);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.15s, border-color 0.15s;
-
-  &:hover { border-color: var(--primary); color: var(--primary); }
-  &.copied { border-color: #386a20; color: #386a20; }
-}
-
 /* File table */
 .table-wrap { overflow: auto; }
 
@@ -1083,17 +1028,7 @@ onMounted(async () => {
 }
 
 .id-copy-btn {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
   flex-shrink: 0;
-
-  &:hover { border-color: var(--primary); color: var(--primary); }
 }
 
 .row--folder td { font-weight: 500; }
@@ -1107,7 +1042,7 @@ onMounted(async () => {
 .file-name-btn {
   border: none;
   background: transparent;
-  color: var(--primary);
+  color: var(--action-accent-text);
   cursor: pointer;
   padding: 0;
   font-size: inherit;
@@ -1161,7 +1096,7 @@ onMounted(async () => {
 .action-btn {
   border: 1px solid color-mix(in srgb, var(--primary) 50%, var(--border));
   background: transparent;
-  color: var(--text);
+  color: var(--action-accent-text);
   border-radius: 999px;
   padding: 5px 10px;
   font-size: 12px;
@@ -1172,7 +1107,7 @@ onMounted(async () => {
 
   &:hover {
     border-color: var(--primary);
-    color: var(--primary);
+    color: var(--action-accent-text);
   }
 }
 
@@ -1204,85 +1139,19 @@ onMounted(async () => {
   font-size: 14px;
 }
 
-.upload-zone__pick {
-  border: none;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: inherit;
-  padding: 0;
-  text-decoration: underline;
-}
-
-.upload-error { color: #b3261e; margin: 8px 0 0; font-size: 13px; }
-.upload-success { color: #386a20; margin: 8px 0 0; font-size: 13px; }
+.upload-error { color: var(--status-danger-text); margin: 8px 0 0; font-size: 13px; }
+.upload-success { color: var(--status-success-text); margin: 8px 0 0; font-size: 13px; }
 
 /* Error banner */
 .drive-dashboard__error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, #b3261e 35%, var(--border));
-  background: color-mix(in srgb, #b3261e 10%, var(--surface));
-  color: var(--text);
+  border: 1px solid var(--status-danger-text);
+  background: color-mix(in srgb, var(--status-danger-text) 10%, var(--surface));
+  color: var(--status-danger-text);
 }
 
 /* Preview modal */
-.preview-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
-}
-
-.preview-modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  width: min(96vw, 1100px);
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.preview-modal__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.preview-modal__name {
-  font-weight: 600;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.preview-modal__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.preview-modal__close {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  border-radius: 999px;
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
 .preview-modal__body {
   flex: 1;
   overflow: auto;

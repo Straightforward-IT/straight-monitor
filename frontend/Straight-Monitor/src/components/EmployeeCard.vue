@@ -1424,6 +1424,14 @@
                 </span>
               </dd>
             </div>
+            <div v-if="fuehrerscheinAnzeige.length" class="stammdaten-field stammdaten-field--full-row">
+              <dt>Führerscheine</dt>
+              <dd class="stammdaten-detail-list">
+                <span v-for="(license, index) in fuehrerscheinAnzeige" :key="index">
+                  {{ license }}
+                </span>
+              </dd>
+            </div>
             <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'nationalitaet' }">
               <dt>Staatsangehörigkeit <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Staatsangehörigkeit bearbeiten" @click.stop="startEditStammdaten('nationalitaet')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
               <dd v-if="editingStammdatenField !== 'nationalitaet'">{{ nationalitaetLabel(resolvedMa.nationalitaet) || '—' }}</dd>
@@ -2072,6 +2080,17 @@ export default {
     resolvedMa() {
       return this.ma || this.selfLoadedMa;
     },
+    fuehrerscheinAnzeige() {
+      const plural = this.resolvedMa?.fuehrerscheine;
+      const singular = this.resolvedMa?.fuehrerschein;
+      const licenses = Array.isArray(plural) && plural.length === 0 && singular
+        ? singular
+        : plural ?? singular;
+      if (!licenses) return [];
+      return (Array.isArray(licenses) ? licenses : [licenses])
+        .map((license) => typeof license === 'string' ? license : license?.klasse)
+        .filter(Boolean);
+    },
     isAdmin() {
       return !!this.auth.user?.roles?.includes('ADMIN');
     },
@@ -2622,7 +2641,6 @@ export default {
         this.savingStammdatenField = false;
       }
     },
-
     async loadLinksData() {
       await this.ensureFlipDetails();
     },
@@ -7400,6 +7418,8 @@ export default {
 .stammdaten-grid > div,
 .arbeitszeit-grid > div,
 .arbeitsverhaeltnis-grid > div { min-width: 0; }
+
+.stammdaten-field--full-row { grid-column: 1 / -1; }
 
 .stammdaten-grid dt,
 .arbeitszeit-grid dt,

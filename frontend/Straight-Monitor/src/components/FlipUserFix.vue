@@ -1,8 +1,8 @@
 <template>
+  <PageLayout title="Quick Flip Fix" width="wide" content-variant="flush">
   <div class="flip-user-fix">
     <!-- Header -->
     <div class="page-header">
-      <h1>Quick Flip Fix</h1>
       <p class="subtitle">Flip-Benutzer filtern, auswählen und Attribute per Bulk-Update setzen.</p>
     </div>
 
@@ -10,40 +10,41 @@
     <div class="card filter-card">
       <div class="card-header">
         <span class="card-title">Filter</span>
-        <button class="btn-icon" @click="addFilter" title="Filter hinzufügen">
+        <AppIconButton variant="ghost" size="sm" label="Filter hinzufügen" @click="addFilter">
           <font-awesome-icon icon="fa-solid fa-plus" />
-        </button>
+        </AppIconButton>
       </div>
 
       <div class="filter-list" v-if="filterConditions.length > 0">
         <div class="filter-row" v-for="(cond, i) in filterConditions" :key="i">
-          <select v-model="cond.attribute" class="filter-select">
+          <AppSelect v-model="cond.attribute" class="filter-select" :aria-label="`Attribut für Filter ${i + 1}`">
             <option value="">— Attribut —</option>
             <option
               v-for="def in attributeDefs"
               :key="def.technical_name"
               :value="def.technical_name"
             >{{ def.title }} ({{ def.technical_name }})</option>
-          </select>
+          </AppSelect>
 
-          <select v-model="cond.operator" class="op-select">
+          <AppSelect v-model="cond.operator" class="op-select" :aria-label="`Operator für Filter ${i + 1}`">
             <option value="eq">= (gleich)</option>
             <option value="neq">≠ (ungleich)</option>
             <option value="contains">enthält</option>
             <option value="empty">ist leer</option>
-          </select>
+          </AppSelect>
 
-          <input
+          <AppTextInput
             v-if="cond.operator !== 'empty'"
             v-model="cond.value"
             class="filter-value"
+            :aria-label="`Wert für Filter ${i + 1}`"
             placeholder="Wert…"
             @keyup.enter="triggerLoad"
           />
 
-          <button class="btn-icon danger" @click="removeFilter(i)" title="Filter entfernen">
+          <AppIconButton variant="ghost" size="sm" class="filter-remove" :label="`Filter ${i + 1} entfernen`" @click="removeFilter(i)">
             <font-awesome-icon icon="fa-solid fa-times" />
-          </button>
+          </AppIconButton>
         </div>
       </div>
       <p v-else class="hint">Kein Filter → alle aktiven Flip-Benutzer werden geladen.</p>
@@ -51,19 +52,20 @@
       <div class="card-footer">
         <div class="status-filter-group">
           <span class="label-small">Status:</span>
-          <button
+          <AppToggleChip
             v-for="s in statusOptions"
             :key="s"
-            class="chip"
-            :class="{ active: selectedStatuses.includes(s) }"
-            @click="toggleStatus(s)"
-          >{{ s }}</button>
+            :label="s"
+            :accessible-label="`Status ${s}`"
+            :model-value="selectedStatuses.includes(s)"
+            :disabled="selectedStatuses.length === 1 && selectedStatuses.includes(s)"
+            @update:model-value="toggleStatus(s)"
+          />
         </div>
-        <button class="btn-primary" :disabled="usersLoading" @click="triggerLoad">
-          <font-awesome-icon v-if="usersLoading" icon="fa-solid fa-spinner" spin />
-          <font-awesome-icon v-else icon="fa-solid fa-magnifying-glass" />
+        <AppButton :loading="usersLoading" @click="triggerLoad">
+          <font-awesome-icon icon="fa-solid fa-magnifying-glass" />
           {{ usersLoading ? 'Lädt…' : 'Benutzer laden' }}
-        </button>
+        </AppButton>
       </div>
     </div>
 
@@ -77,12 +79,12 @@
         <font-awesome-icon icon="fa-solid fa-check-square" />
         {{ selectedIds.size }} ausgewählt
       </span>
-      <button class="btn-link" @click="selectAll" v-if="selectedIds.size < filteredUsers.length">
+      <AppButton v-if="selectedIds.size < filteredUsers.length" variant="ghost" size="sm" @click="selectAll">
         Alle auswählen
-      </button>
-      <button class="btn-link" @click="deselectAll" v-if="selectedIds.size > 0">
+      </AppButton>
+      <AppButton v-if="selectedIds.size > 0" variant="ghost" size="sm" @click="deselectAll">
         Auswahl aufheben
-      </button>
+      </AppButton>
     </div>
 
     <!-- User Table -->
@@ -94,6 +96,7 @@
               <th class="col-check">
                 <input
                   type="checkbox"
+                  aria-label="Alle angezeigten Benutzer auswählen"
                   :checked="filteredUsers.length > 0 && selectedIds.size === filteredUsers.length"
                   :indeterminate="selectedIds.size > 0 && selectedIds.size < filteredUsers.length"
                   @change="toggleSelectAll"
@@ -119,6 +122,7 @@
               <td class="col-check" @click.stop>
                 <input
                   type="checkbox"
+                  :aria-label="`${user.first_name} ${user.last_name} auswählen`"
                   :checked="selectedIds.has(user.id)"
                   @change="toggleUser(user.id)"
                 />
@@ -162,30 +166,30 @@
         <div class="bulk-row">
           <div class="field-group">
             <label class="field-label">Attribut</label>
-            <select v-model="updateAttribute" class="filter-select">
+            <AppSelect v-model="updateAttribute" class="filter-select" aria-label="Attribut für Bulk-Update">
               <option value="">— Attribut wählen —</option>
               <option
                 v-for="def in attributeDefs"
                 :key="def.technical_name"
                 :value="def.technical_name"
               >{{ def.title }} ({{ def.technical_name }})</option>
-            </select>
+            </AppSelect>
           </div>
 
           <div class="field-group">
             <label class="field-label">Neuer Wert</label>
-            <input v-model="updateValue" class="filter-value" placeholder="z.B. true / false / Hamburg" />
+            <AppTextInput v-model="updateValue" class="filter-value" aria-label="Neuer Attributwert" placeholder="z.B. true / false / Hamburg" />
           </div>
 
-          <button
-            class="btn-primary btn-apply"
+          <AppButton
+            class="btn-apply"
             :disabled="!updateAttribute || updateValue === '' || applyLoading"
+            :loading="applyLoading"
             @click="confirmApply"
           >
-            <font-awesome-icon v-if="applyLoading" icon="fa-solid fa-spinner" spin />
-            <font-awesome-icon v-else icon="fa-solid fa-bolt" />
+            <font-awesome-icon icon="fa-solid fa-bolt" />
             {{ applyLoading ? 'Wird angewendet…' : 'Anwenden' }}
-          </button>
+          </AppButton>
         </div>
 
         <!-- Result feedback -->
@@ -198,9 +202,9 @@
             <font-awesome-icon icon="fa-solid fa-circle-xmark" />
             {{ applyResult.failed }} fehlgeschlagen
           </span>
-          <button class="btn-link" v-if="applyResult.failed > 0" @click="showResultDetails = !showResultDetails">
+          <AppButton v-if="applyResult.failed > 0" variant="ghost" size="sm" :aria-expanded="showResultDetails" @click="showResultDetails = !showResultDetails">
             Details
-          </button>
+          </AppButton>
           <div class="result-detail" v-if="showResultDetails">
             <div v-for="r in applyResult.results" :key="r.id">
               <span v-if="!r.success" class="err-row">
@@ -213,25 +217,32 @@
     </Transition>
 
     <!-- Confirm Modal -->
-    <div class="modal-overlay" v-if="confirmVisible" @click.self="confirmVisible = false">
-      <div class="modal-box">
-        <h3>Bulk-Update bestätigen</h3>
+    <ModalFrame v-if="confirmVisible" title="Bulk-Update bestätigen" size="sm" @close="confirmVisible = false">
+      <div class="confirm-copy">
         <p>
           Attribut <strong>{{ updateAttribute }}</strong> bei
           <strong>{{ selectedIds.size }}</strong> Benutzer(n) auf
           <strong>{{ updateValue }}</strong> setzen?
         </p>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="confirmVisible = false">Abbrechen</button>
-          <button class="btn-primary" @click="applyBulkUpdate">Ja, anwenden</button>
-        </div>
       </div>
-    </div>
+      <template #footer>
+        <AppButton variant="secondary" @click="confirmVisible = false">Abbrechen</AppButton>
+        <AppButton @click="applyBulkUpdate">Ja, anwenden</AppButton>
+      </template>
+    </ModalFrame>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import PageLayout from '@/components/layout/PageLayout.vue';
+import ModalFrame from '@/components/frames/ModalFrame.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 import api from '@/utils/api';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -407,21 +418,13 @@ onMounted(loadAttributeDefs);
 
 <style scoped lang="scss">
 .flip-user-fix {
-  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 1400px;
-}
-
-.page-header h1 {
-  margin: 0 0 4px;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text);
+  min-width: 0;
 }
 .subtitle {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 13px;
   margin: 0;
 }
@@ -474,39 +477,19 @@ onMounted(loadAttributeDefs);
 .filter-select {
   flex: 2;
   min-width: 180px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--input-bg, var(--tile-bg));
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
 }
 .op-select {
   flex: 1;
   min-width: 130px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--input-bg, var(--tile-bg));
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
 }
 .filter-value {
   flex: 2;
   min-width: 140px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--input-bg, var(--tile-bg));
-  color: var(--text);
-  font-size: 13px;
 }
 .hint {
   padding: 14px 18px;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--muted);
   margin: 0;
 }
 
@@ -519,22 +502,7 @@ onMounted(loadAttributeDefs);
 }
 .label-small {
   font-size: 12px;
-  color: var(--text-muted);
-}
-.chip {
-  padding: 4px 12px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  &.active {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: transparent;
-  }
+  color: var(--muted);
 }
 
 /* Stats bar */
@@ -543,11 +511,11 @@ onMounted(loadAttributeDefs);
   align-items: center;
   gap: 16px;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--muted);
   flex-wrap: wrap;
 }
 .selected-hint {
-  color: var(--primary);
+  color: var(--action-accent-text);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -568,7 +536,7 @@ thead th {
   padding: 10px 12px;
   text-align: left;
   background: var(--hover);
-  color: var(--text-muted);
+  color: var(--muted);
   font-weight: 600;
   font-size: 12px;
   white-space: nowrap;
@@ -592,7 +560,7 @@ td {
   white-space: nowrap;
 }
 .col-check { width: 40px; text-align: center; }
-.col-email { color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.col-email { color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 .col-attr { text-align: center; }
 
 .status-badge {
@@ -601,9 +569,9 @@ td {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  &.active { background: #d4f0e0; color: #1a7a4e; }
-  &.locked { background: #fde8c8; color: #a05a00; }
-  &.pending_deletion { background: #fbd5d5; color: #c53030; }
+  &.active { background: color-mix(in srgb, var(--status-success-text) 12%, transparent); color: var(--status-success-text); }
+  &.locked { background: color-mix(in srgb, var(--status-warning-text) 12%, transparent); color: var(--status-warning-text); }
+  &.pending_deletion { background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); color: var(--status-danger-text); }
 }
 
 .attr-chip {
@@ -612,10 +580,10 @@ td {
   font-size: 11px;
   border: 1px solid var(--border);
   background: var(--hover);
-  &.true { background: #d4f0e0; color: #1a7a4e; border-color: transparent; }
-  &.false { background: #fbd5d5; color: #c53030; border-color: transparent; }
+  &.true { background: color-mix(in srgb, var(--status-success-text) 12%, transparent); color: var(--status-success-text); border-color: transparent; }
+  &.false { background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); color: var(--status-danger-text); border-color: transparent; }
 }
-.attr-empty { color: var(--text-muted); font-size: 12px; }
+.attr-empty { color: var(--muted); font-size: 12px; }
 
 /* Bulk Panel */
 .bulk-panel {
@@ -639,11 +607,10 @@ td {
 .field-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .btn-apply {
   min-width: 150px;
-  height: 36px;
 }
 
 /* Bulk Result */
@@ -656,89 +623,18 @@ td {
   font-size: 13px;
   flex-wrap: wrap;
 }
-.result-ok { color: #1a7a4e; display: flex; align-items: center; gap: 6px; font-weight: 600; }
-.result-err { color: #c53030; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.result-ok { color: var(--status-success-text); display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.result-err { color: var(--status-danger-text); display: flex; align-items: center; gap: 6px; font-weight: 600; }
 .result-detail {
   width: 100%;
   max-height: 120px;
   overflow-y: auto;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .err-row { display: block; padding: 2px 0; }
-
-/* Buttons */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  &:hover:not(:disabled) { opacity: 0.88; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-}
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--tile-bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  &:hover { background: var(--hover); }
-}
-.btn-icon {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
-  padding: 5px 8px;
-  cursor: pointer;
-  &:hover { background: var(--hover); color: var(--text); }
-  &.danger:hover { color: #c53030; border-color: #c53030; }
-}
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0;
-  text-decoration: underline;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-.modal-box {
-  background: var(--tile-bg);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 28px;
-  max-width: 420px;
-  width: 90%;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-}
-.modal-box h3 { margin: 0 0 12px; font-size: 17px; }
-.modal-box p { font-size: 14px; margin: 0 0 24px; color: var(--text-muted); line-height: 1.5; }
-.modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.filter-remove:hover:not(:disabled) { color: var(--status-danger-text); }
+.confirm-copy p { margin: 0; color: var(--muted); line-height: 1.5; }
 
 /* Transition */
 .slide-up-enter-active, .slide-up-leave-active {

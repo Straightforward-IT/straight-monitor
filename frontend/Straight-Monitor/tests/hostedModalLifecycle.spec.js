@@ -108,7 +108,7 @@ describe('globally hosted windows', () => {
   it('owns undocked lead state independently of the routed LeadsTab', async () => {
     await render(true);
     const page = wrapper.getComponent(LeadsTab);
-    await page.get('input.form-input').setValue('Pending organisation');
+    await page.get('input[aria-label="Organisation"]').setValue('Pending organisation');
     page.vm.handleSidebarAction('open-modal');
     await flushPromises();
     const record = manager.get('lead-lead-1');
@@ -130,7 +130,7 @@ describe('globally hosted windows', () => {
     manager.restore(record.id);
     await nextTick();
     expect(wrapper.getComponent(LeadModal).vm.$.uid).toBe(instanceId);
-    expect(wrapper.getComponent(LeadModal).get('input.form-input').element.value).toBe('Pending organisation');
+    expect(wrapper.getComponent(LeadModal).get('input[aria-label="Organisation"]').element.value).toBe('Pending organisation');
     expect(record.props.canDock()).toBe(false);
     manager.requestClose(record.id);
     expect(manager.get(record.id)).toBeUndefined();
@@ -139,14 +139,14 @@ describe('globally hosted windows', () => {
   it('returns an undocked lead draft to the still-mounted side panel', async () => {
     await render(true);
     const page = wrapper.getComponent(LeadsTab);
-    await page.get('input.form-input').setValue('Pending organisation');
+    await page.get('input[aria-label="Organisation"]').setValue('Pending organisation');
     page.vm.handleSidebarAction('open-modal');
     await flushPromises();
     const modal = wrapper.getComponent(LeadModal);
-    await modal.get('input.form-input').setValue('Updated draft');
+    await modal.get('input[aria-label="Organisation"]').setValue('Updated draft');
     modal.getComponent(LeadsTab).vm.handleSidebarAction('open-panel');
     await nextTick();
     expect(manager.get('lead-lead-1')).toBeUndefined();
-    expect(page.get('input.form-input').element.value).toBe('Updated draft');
+    expect(page.get('input[aria-label="Organisation"]').element.value).toBe('Updated draft');
   });
 });
