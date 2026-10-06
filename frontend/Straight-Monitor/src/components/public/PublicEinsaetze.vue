@@ -11,7 +11,7 @@
     >
       <div class="calendar-notice">
         <p><span aria-hidden="true">&#9432;</span> Daten wie Uhrzeiten und Personallisten in dieser App sind nicht Live-Updated und können von denen in der Zvoove Work App abweichen.</p>
-        <button type="button" class="calendar-notice__confirm" @click="confirmCalendarNotice">Bestätigen</button>
+        <button type="button" class="calendar-notice__confirm" @click="confirmCalendarNotice">Verstanden</button>
       </div>
     </ModalFrame>
 
