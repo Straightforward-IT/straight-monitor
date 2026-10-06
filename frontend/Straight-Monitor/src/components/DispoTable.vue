@@ -8076,6 +8076,7 @@ function onNameTouchEnd() {
 
 .verf-modal-footer {
   width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;

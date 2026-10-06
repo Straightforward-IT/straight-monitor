@@ -480,10 +480,6 @@
         <div v-else class="empty-contacts">Keine Einsatzorte vorhanden.</div>
       </section>
 
-      <section v-if="activeTab === 'einsatzinfos'" class="section einsatzinfos-section">
-        <EinsatzinformationenEditor :kunden-nr="kunde.kundenNr" :einsatzorte="einsatzorte" />
-      </section>
-
       <CustomerSignaturesPanel v-if="activeTab === 'signatur'" class="section" :kunde="kunde" />
       <section v-if="activeTab === 'einstellungen'" class="section customer-settings-section">
         <h4 class="section-title">
@@ -1041,7 +1037,6 @@ import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 import InformationCard from '@/components/ui-elements/InformationCard.vue';
 import CustomerSignaturesPanel from '@/components/customer/CustomerSignaturesPanel.vue';
-import EinsatzinformationenEditor from '@/components/customer/EinsatzinformationenEditor.vue';
 import CustomerOrderCalendar from '@/components/customer/CustomerOrderCalendar.vue';
 import api from '@/utils/api';
 
@@ -1066,7 +1061,6 @@ const tabs = [
   { id: 'kontakte', label: 'Kontakte', icon: 'address-book' },
   { id: 'einsaetze', label: 'Einsätze', icon: 'calendar-days' },
   { id: 'signatur', label: 'Signatur', icon: 'file-signature' },
-  { id: 'einsatzinfos', label: 'Vorlagen', icon: 'envelope-open-text' },
   { id: 'statistik', label: 'Statistik', icon: 'chart-bar' },
   { id: 'einstellungen', label: 'Einstellungen', icon: 'gear' },
 ];

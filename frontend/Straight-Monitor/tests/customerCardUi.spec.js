@@ -34,7 +34,6 @@ const stubs = {
   ContactCard: true,
   EmployeeCardModal: true,
   KundenAnalyticsEmbed: true,
-  EinsatzinformationenEditor: true,
   AdresseFormModal: true,
   EinsatzortFormModal: true,
   ContextMenu: true,
@@ -79,6 +78,13 @@ describe('CustomerCard shared controls', () => {
     expect(wrapper.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(active.attributes('id'));
     await active.trigger('keydown', { key: 'ArrowRight' });
     expect(wrapper.get('.customer-tab[aria-selected="true"]').text()).toContain('Rechnung');
+  });
+
+  it('does not expose the retired Einsatzinformationen templates tab', async () => {
+    await render('einsatzinfos');
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).not.toContain('Vorlagen');
+    expect(wrapper.get('.customer-tab[aria-selected="true"]').text()).toContain('Allgemein');
+    expect(wrapper.find('.einsatzinfos-section').exists()).toBe(false);
   });
 
   it('retains an editable abbreviation on failure and updates the shared customer after retry', async () => {
@@ -178,9 +184,10 @@ describe('CustomerCard shared controls', () => {
     expect(wrapper.find('contact-card-stub').exists()).toBe(false);
   });
 
-  it('opens Preise directly and keeps the legacy Lohn initial-tab alias', async () => {
+  it('opens Rechnung with customer prices from the legacy Lohn initial-tab alias', async () => {
     await render('lohn');
-    expect(wrapper.get('.customer-tab[aria-selected="true"]').text()).toContain('Preise');
+    expect(wrapper.get('.customer-tab[aria-selected="true"]').text()).toContain('Rechnung');
+    expect(wrapper.get('.kundenpreise-section').text()).toContain('Kundenpreise');
     expect(wrapper.findAll('.customer-tab').some(tab => tab.text().includes('Lohn'))).toBe(false);
     expect(mocks.api.get).toHaveBeenCalledWith('/api/kunden/123/preise');
     expect(mocks.api.get).toHaveBeenCalledWith('/api/kunden/123/konditionen');
@@ -229,7 +236,7 @@ describe('CustomerCard shared controls', () => {
     await flushPromises();
     expect(wrapper.findAllComponents(ModalFrame).map(frame => frame.props('title'))).toContain('Neue Qualifikation hinzufügen');
     await wrapper.findAll('.search-select-option')[0].trigger('click');
-    await wrapper.findAll('.search-select-option')[0].trigger('click');
+    expect(wrapper.find('.search-select-option').exists()).toBe(false);
     await wrapper.get('.add-quali-form input[inputmode="decimal"]').setValue('18,75');
     await wrapper.get('.add-quali-form input[type="date"]').setValue('2026-11-01');
 
