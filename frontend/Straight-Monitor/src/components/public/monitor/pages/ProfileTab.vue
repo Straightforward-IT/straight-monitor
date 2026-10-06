@@ -4,13 +4,23 @@
       <span class="profile-avatar-ring"><img v-if="profileImageUrl" :src="profileImageUrl" class="profile-avatar profile-avatar--large" alt="" /><span v-else class="profile-avatar profile-avatar--large">{{ initials }}</span></span>
       <div><h2>Profil <TlBadge v-if="isTeamleiter" /></h2><strong class="profile-name">{{ vorname }}</strong></div><button :class="['rank-test-button', `profile-rank--${nextProfileRank}`]" type="button" title="Nächsten Rang-Stil testen" @click="$emit('cycle-rank')"><font-awesome-icon icon="fa-solid fa-flask" />Rang testen</button>
     </section>
-    <div class="settings-list"><button type="button" @click="$emit('open-personal-data')"><font-awesome-icon icon="fa-solid fa-user" /><span><strong>Meine Daten</strong><small>Konfektionsgröße und Schuhgröße</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><button type="button" @click="$emit('open-documents')"><font-awesome-icon icon="fa-solid fa-folder-open" /><span><strong>Dokumente</strong><small>{{ missingDocumentCount }} offen · Unterlagen und Abrechnungen</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><template v-if="isTeamleiter"><button type="button" @click="$emit('open-event-reports')"><font-awesome-icon icon="fa-solid fa-file-lines" /><span><strong>Event Reports</strong><small>Berichte erstellen und verwalten</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><button class="teamleiter-evaluations" type="button" @click="$emit('open-evaluations')"><font-awesome-icon icon="fa-solid fa-clipboard-check" /><span><strong>Laufzettel ausfüllen</strong><small>Evaluierungen bearbeiten</small></span><i v-if="openLaufzettelCount" class="profile-count-badge">{{ openLaufzettelCount }}</i><font-awesome-icon icon="fa-solid fa-chevron-right" /></button></template><button type="button" @click="$emit('open-appearance')"><font-awesome-icon :icon="themeIsDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'" /><span><strong>Darstellung</strong><small>{{ themeIsDark ? 'Dunkler Modus aktiv' : 'Heller Modus aktiv' }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><button type="button" @click="$emit('reset')"><font-awesome-icon icon="fa-solid fa-rotate-left" /><span><strong>Prototyp zurücksetzen</strong><small>Alle lokalen Demo-Zustände löschen</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button></div>
+    <div class="settings-list">
+      <PublicListItem icon="fa-solid fa-user" title="Meine Daten" description="Hier kannst du dein Profil bearbeiten" @click="$emit('open-personal-data')" />
+      <PublicListItem icon="fa-solid fa-folder-open" title="Dokumente" :description="`${missingDocumentCount} offen · Unterlagen und Abrechnungen`" @click="$emit('open-documents')" />
+      <template v-if="isTeamleiter">
+        <PublicListItem icon="fa-solid fa-file-lines" title="Event Reports" description="Berichte erstellen und verwalten" @click="$emit('open-event-reports')" />
+        <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel ausfüllen" description="Evaluierungen bearbeiten" :badge="openLaufzettelCount || null" @click="$emit('open-evaluations')" />
+      </template>
+      <PublicListItem :icon="themeIsDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'" title="Darstellung" :description="themeIsDark ? 'Dunkler Modus aktiv' : 'Heller Modus aktiv'" @click="$emit('open-appearance')" />
+      <PublicListItem icon="fa-solid fa-rotate-left" title="Prototyp zurücksetzen" description="Alle lokalen Demo-Zustände löschen" @click="$emit('reset')" />
+    </div>
     <p v-if="resetMessage" class="inline-message">{{ resetMessage }}</p>
   </section>
 </template>
 
 <script setup>
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
+import PublicListItem from '@/components/public/PublicListItem.vue';
 
 defineProps({
   initials: { type: String, default: '' },

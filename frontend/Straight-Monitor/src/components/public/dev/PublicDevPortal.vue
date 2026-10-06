@@ -15,7 +15,6 @@
     >
       <template #navigation>
         <PublicMonitorTabNavigation
-          v-if="!detailView"
           mode="desktop"
           :active-tab="activeTab"
           :initials="initials"
@@ -132,13 +131,36 @@
           <p>Verwalte deine persönlichen Angaben.</p>
         </section>
         <div class="settings-list personal-data-menu">
-          <button type="button" @click="openApparelSizes">
-            <font-awesome-icon icon="fa-solid fa-shirt" />
-            <span><strong>Kleidergrößen</strong><small>Konfektionsgröße und Schuhgröße</small></span>
-            <font-awesome-icon icon="fa-solid fa-chevron-right" />
-          </button>
+          <PublicListItem icon="fa-solid fa-address-book" title="Kontakt" :description="`${personalDataEmail || 'E-Mail'} · ${personalDataTelefon || 'Telefon'}`" @click="openContactData" />
+          <PublicListItem icon="fa-solid fa-car" title="Führerschein" :description="personalDataLicenseClass || 'Noch nicht hinterlegt'" @click="openDrivingLicense" />
+          <PublicListItem icon="fa-solid fa-shirt" title="Kleidergrößen" description="Konfektionsgröße und Schuhgröße" @click="openApparelSizes" />
         </div>
       </template>
+
+      <form v-else-if="detailView === 'contact-data'" class="personal-data-form" @submit.prevent="saveContactData">
+        <section class="job-hero compact">
+          <span class="date-kicker">Meine Daten</span>
+          <h2>Kontakt</h2>
+          <p>Halte deine Kontaktdaten aktuell.</p>
+        </section>
+        <label><span>E-Mail</span><input v-model.trim="personalDataEmail" type="email" autocomplete="email" required /></label>
+        <label><span>Telefon</span><input v-model.trim="personalDataTelefon" type="tel" autocomplete="tel" maxlength="40" /></label>
+        <p v-if="personalDataError" class="inline-message personal-data-error">{{ personalDataError }}</p>
+        <button class="primary-button wide" type="submit" :disabled="personalDataSaving">{{ personalDataSaving ? 'Speichert ...' : personalDataSaved ? 'Gespeichert' : 'Speichern' }}</button>
+      </form>
+
+      <form v-else-if="detailView === 'driving-license'" class="personal-data-form" @submit.prevent="saveDrivingLicense">
+        <section class="job-hero compact">
+          <span class="date-kicker">Meine Daten</span>
+          <h2>Führerschein</h2>
+          <p>Hinterlege deine Führerscheinklasse und Gültigkeit.</p>
+        </section>
+        <label><span>Führerscheinklasse</span><input v-model.trim="personalDataLicenseClass" type="text" maxlength="20" placeholder="z. B. B, BE" /></label>
+        <label><span>Gültig von</span><input v-model="personalDataLicenseFrom" type="date" /></label>
+        <label><span>Gültig bis</span><input v-model="personalDataLicenseUntil" type="date" /></label>
+        <p v-if="personalDataError" class="inline-message personal-data-error">{{ personalDataError }}</p>
+        <button class="primary-button wide" type="submit" :disabled="personalDataSaving">{{ personalDataSaving ? 'Speichert ...' : personalDataSaved ? 'Gespeichert' : 'Speichern' }}</button>
+      </form>
 
       <form v-else-if="detailView === 'apparel-sizes'" class="personal-data-form" @submit.prevent="savePersonalData">
         <section class="job-hero compact">
@@ -166,8 +188,7 @@
           <input v-model.trim="personalDataShoeSize" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" maxlength="4" placeholder="z. B. 42" required />
         </label>
         <p v-if="personalDataError" class="inline-message personal-data-error">{{ personalDataError }}</p>
-        <p v-if="personalDataSaved" class="inline-message">Angaben gespeichert.</p>
-        <button class="primary-button wide" type="submit" :disabled="personalDataSaving">{{ personalDataSaving ? 'Speichert ...' : 'Speichern' }}</button>
+        <button class="primary-button wide" type="submit" :disabled="personalDataSaving">{{ personalDataSaving ? 'Speichert ...' : personalDataSaved ? 'Gespeichert' : 'Speichern' }}</button>
       </form>
 
       <template v-else-if="detailView === 'document' && selectedDocument">
@@ -181,10 +202,10 @@
 
       <template v-else-if="detailView === 'payroll' && selectedPayroll">
         <section class="document-preview payroll-preview">
-          <font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /><h2>Lohnabrechnung {{ selectedPayroll.month }}</h2>
-          <p>Bereitgestellt durch den zukünftigen Payroll-Anbieter</p><span>Schreibgeschützte Prototyp-Vorschau</span>
+          <font-awesome-icon icon="fa-solid fa-file-invoice-dollar" /><h2>{{ payrollTitle(selectedPayroll) }}</h2>
+          <p>Bereitgestellt als PDF</p><span>{{ payrollTypeLabel(selectedPayroll.type) }}</span>
         </section>
-        <button class="secondary-button wide" type="button" @click="previewMessage = 'Der Download ist im Prototyp deaktiviert.'">Download testen</button>
+        <button class="secondary-button wide" type="button" @click="downloadPayroll(selectedPayroll)">Abrechnung herunterladen</button>
         <p v-if="previewMessage" class="inline-message">{{ previewMessage }}</p>
       </template>
 
@@ -241,10 +262,41 @@
       />
 
       <template v-else-if="detailView === 'documents'">
-        <div class="intro-row"><div><h2>Meine Dokumente</h2><p>Unterlagen und Abrechnungen</p></div></div>
-        <div class="sub-tabs"><button type="button" :class="{ active: documentTab === 'documents' }" @click="documentTab = 'documents'">Dokumente</button><button type="button" :class="{ active: documentTab === 'payroll' }" @click="documentTab = 'payroll'">Abrechnungen</button></div>
-        <template v-if="documentTab === 'documents'"><div v-if="documentsLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Dokumente werden geladen</div><p v-else-if="documentsError" class="inline-message">{{ documentsError }}</p><div v-else-if="employeeDocuments.length" class="document-list"><article v-for="document in employeeDocuments" :key="document.id" class="document-row"><button type="button" @click="openDocument(document)"><span class="document-status" :class="document.status"><font-awesome-icon :icon="documentIcon(document.status)" /></span><span><strong>{{ document.label }}</strong><small>{{ documentDescription(document) }}</small></span><font-awesome-icon icon="fa-solid fa-chevron-right" /></button><label v-if="canUpload(document)" class="upload-button">{{ document.status === 'EXPIRED' ? 'Erneuern' : 'Hochladen' }}<input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="uploadingRequestId === document.id" @change="uploadDocument($event, document)" /></label></article></div><div v-else class="empty-state"><strong>Keine Dokumente offen</strong><p>Neue Anforderungen erscheinen hier.</p></div></template>
-        <template v-else><div class="empty-state"><strong>Noch keine Abrechnungen</strong><p>Bereitgestellte Abrechnungen erscheinen hier.</p></div></template>
+        <section class="job-hero compact">
+          <span class="date-kicker">Mein Profil</span>
+          <h2>Unterlagen</h2>
+          <p>Dokumente und Abrechnungen</p>
+        </section>
+        <div class="settings-list">
+          <PublicListItem icon="fa-solid fa-folder-open" title="Dokumente" :description="`${missingDocumentCount} offen · Unterlagen verwalten`" @click="openDocumentList" />
+          <PublicListItem icon="fa-solid fa-file-invoice-dollar" title="Abrechnungen" description="Lohnabrechnungen ansehen" @click="openPayroll({ month: 'Aktueller Monat' })" />
+        </div>
+      </template>
+
+      <template v-else-if="detailView === 'document-list'">
+        <section class="job-hero compact">
+          <span class="date-kicker">Unterlagen</span>
+          <h2>Dokumente</h2>
+          <p>Deine Unterlagen verwalten</p>
+        </section>
+        <div v-if="documentsLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Dokumente werden geladen</div>
+        <p v-else-if="documentsError" class="inline-message">{{ documentsError }}</p>
+        <div v-else-if="employeeDocuments.length" class="document-list"><PublicListItem v-for="document in employeeDocuments" :key="document.id" :icon="documentIcon(document.status)" :icon-class="`document-status-${(document.status || '').toLowerCase()}`" :title="document.label" :description="documentDescription(document)" @click="openDocument(document)"><template #actions><label v-if="canUpload(document)" class="upload-button">{{ document.status === 'EXPIRED' ? 'Erneuern' : 'Hochladen' }}<input type="file" accept=".pdf,.jpg,.jpeg,.png" :disabled="uploadingRequestId === document.id" @change="uploadDocument($event, document)" /></label></template></PublicListItem></div>
+        <PublicListItem v-else :clickable="false" icon="fa-solid fa-folder-open" title="Keine Dokumente offen" description="Neue Anforderungen erscheinen hier." />
+      </template>
+
+      <template v-else-if="detailView === 'payroll-list'">
+        <section class="job-hero compact">
+          <span class="date-kicker">Unterlagen</span>
+          <h2>Abrechnungen</h2>
+          <p>Deine gespeicherten Lohnabrechnungen</p>
+        </section>
+        <div v-if="payrollLoading" class="loading-row"><font-awesome-icon icon="fa-solid fa-spinner" spin /> Abrechnungen werden geladen</div>
+        <p v-else-if="payrollError" class="inline-message">{{ payrollError }}</p>
+        <div v-else-if="payrollDocuments.length" class="document-list">
+          <PublicListItem v-for="payroll in payrollDocuments" :key="payroll.fileName" icon="fa-solid fa-file-invoice-dollar" :title="payrollTitle(payroll)" :description="payrollDescription(payroll)" @click="openPayroll(payroll)" />
+        </div>
+        <PublicListItem v-else :clickable="false" icon="fa-solid fa-file-invoice-dollar" title="Keine Abrechnungen vorhanden" description="Bereitgestellte Abrechnungen erscheinen hier." />
       </template>
 
       <ProfileTab
@@ -272,7 +324,6 @@
     <PublicFooter />
 
     <PublicMonitorTabNavigation
-      v-if="!detailView"
       mode="mobile"
       :active-tab="activeTab"
       :initials="initials"
@@ -289,7 +340,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faArrowRightFromBracket,
+  faAddressBook,
   faBriefcase,
+  faCar,
   faCalendarDays,
   faChevronRight,
   faCircleCheck,
@@ -319,6 +372,7 @@ import PublicFooter from '../PublicFooter.vue';
 import PublicJobDetail from '../PublicJobDetail.vue';
 import PublicMonitorContentFrame from '../monitor/components/PublicMonitorContentFrame.vue';
 import PublicMonitorTabNavigation from '../monitor/components/PublicMonitorTabNavigation.vue';
+import PublicListItem from '../PublicListItem.vue';
 import HomeTab from '../monitor/pages/HomeTab.vue';
 import JobsTab from '../monitor/pages/JobsTab.vue';
 import CalendarTab from '../monitor/pages/CalendarTab.vue';
@@ -328,7 +382,7 @@ import '../monitor/assets/public-monitor.css';
 import { createDemoJobs, usePublicDevDemo } from './usePublicDevDemo';
 
 library.add(
-  faArrowRightFromBracket, faBriefcase, faCalendarDays, faChevronRight,
+  faArrowRightFromBracket, faAddressBook, faBriefcase, faCalendarDays, faCar, faChevronRight,
   faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faEllipsis,
   faFileCircleExclamation, faFileInvoiceDollar, faFilePdf, faFlask, faFolderOpen,
   faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser,
@@ -355,7 +409,6 @@ const selectedCalendarJob = ref(null);
 const selectedDocument = ref(null);
 const selectedPayroll = ref(null);
 const returnDetailView = ref(null);
-const documentTab = ref('documents');
 const jobFilter = ref('all');
 const jobs = ref([]);
 const jobsLoading = ref(true);
@@ -376,8 +429,17 @@ const rankPreviewTier = ref(null);
 const employeeDocuments = ref([]);
 const documentsLoading = ref(false);
 const documentsError = ref('');
+const payrollDocuments = ref([]);
+const payrollLoading = ref(false);
+const payrollError = ref('');
 const uploadingRequestId = ref('');
 const personalDataGender = ref('');
+const personalDataEmail = ref(props.mitarbeiter?.email || props.email);
+const personalDataTelefon = ref(props.mitarbeiter?.telefon || '');
+const initialLicense = props.mitarbeiter?.fuehrerscheine?.[0] || props.mitarbeiter?.fuehrerschein || {};
+const personalDataLicenseClass = ref(initialLicense.klasse || '');
+const personalDataLicenseFrom = ref(formatDateInput(initialLicense.gueltigVon));
+const personalDataLicenseUntil = ref(formatDateInput(initialLicense.gueltigBis));
 const personalDataClothingSize = ref('');
 const personalDataShoeSize = ref('');
 const personalDataSaving = ref(false);
@@ -439,7 +501,7 @@ const navigation = computed(() => [
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
-const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'apparel-sizes': 'Kleidergrößen', documents: 'Meine Dokumente', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
+const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'contact-data': 'Kontakt', 'driving-license': 'Führerschein', 'apparel-sizes': 'Kleidergrößen', documents: 'Unterlagen', 'document-list': 'Dokumente', 'payroll-list': 'Abrechnungen', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
 const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.status === 'running' && entry.startedAt ? Math.max(0, nowTick.value - new Date(entry.startedAt).getTime() - (entry.pauseMs || 0)) : entry.elapsedMs || 0; });
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
@@ -451,8 +513,30 @@ function openCalendarJob(einsatz) { selectedCalendarJob.value = einsatz; detailV
 function openTime() { detailView.value = 'time'; window.scrollTo(0, 0); }
 function openAppearance() { returnDetailView.value = 'profile'; detailView.value = 'appearance'; window.scrollTo(0, 0); }
 function openPersonalData() {
+  personalDataEmail.value = props.mitarbeiter?.email || props.email;
+  personalDataTelefon.value = props.mitarbeiter?.telefon || '';
   returnDetailView.value = 'profile';
   detailView.value = 'personal-data';
+  window.scrollTo(0, 0);
+}
+function openContactData() {
+  personalDataEmail.value = props.mitarbeiter?.email || props.email;
+  personalDataTelefon.value = props.mitarbeiter?.telefon || '';
+  personalDataError.value = '';
+  personalDataSaved.value = false;
+  returnDetailView.value = 'personal-data';
+  detailView.value = 'contact-data';
+  window.scrollTo(0, 0);
+}
+function openDrivingLicense() {
+  const license = props.mitarbeiter?.fuehrerscheine?.[0] || props.mitarbeiter?.fuehrerschein || {};
+  personalDataLicenseClass.value = license.klasse || '';
+  personalDataLicenseFrom.value = formatDateInput(license.gueltigVon);
+  personalDataLicenseUntil.value = formatDateInput(license.gueltigBis);
+  personalDataError.value = '';
+  personalDataSaved.value = false;
+  returnDetailView.value = 'personal-data';
+  detailView.value = 'driving-license';
   window.scrollTo(0, 0);
 }
 function openApparelSizes() {
@@ -467,8 +551,9 @@ function openApparelSizes() {
   window.scrollTo(0, 0);
 }
 function openDocuments() { detailView.value = 'documents'; window.scrollTo(0, 0); }
-function openDocument(document) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedDocument.value = document; detailView.value = 'document'; }
-function openPayroll(payroll) { returnDetailView.value = detailView.value === 'documents' ? 'documents' : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
+function openDocumentList() { returnDetailView.value = 'documents'; detailView.value = 'document-list'; window.scrollTo(0, 0); }
+function openDocument(document) { returnDetailView.value = detailView.value === 'document-list' ? 'document-list' : null; selectedDocument.value = document; detailView.value = 'document'; }
+function openPayroll(payroll) { returnDetailView.value = ['documents', 'payroll-list'].includes(detailView.value) ? detailView.value : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
 function applicationStatus(id) { return demoState.applications[id] || null; }
 function setApplication(id, status) { if (status) demoState.applications[id] = status; else delete demoState.applications[id]; }
 function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', confirmed: 'Bestätigt', waitlist: 'Warteliste' }[status] || status); }
@@ -499,11 +584,42 @@ async function savePersonalData() {
     personalDataSaving.value = false;
   }
 }
+async function saveContactData() {
+  await saveEditablePersonalData({
+    email: personalDataEmail.value,
+    telefon: personalDataTelefon.value,
+  });
+}
+async function saveDrivingLicense() {
+  await saveEditablePersonalData({
+    fuehrerschein: {
+      klasse: personalDataLicenseClass.value,
+      gueltigVon: personalDataLicenseFrom.value || null,
+      gueltigBis: personalDataLicenseUntil.value || null,
+    },
+  });
+}
+async function saveEditablePersonalData(payload) {
+  if (personalDataSaving.value) return;
+  personalDataSaving.value = true;
+  personalDataError.value = '';
+  personalDataSaved.value = false;
+  try {
+    const { data } = await props.api.patch('/api/public/mitarbeiter/persoenliche-daten', payload, { params: { email: props.email } });
+    emit('personal-data-saved', data);
+    personalDataSaved.value = true;
+  } catch (error) {
+    personalDataError.value = error.response?.data?.msg || 'Die Angaben konnten nicht gespeichert werden.';
+  } finally {
+    personalDataSaving.value = false;
+  }
+}
 function cycleProfileRank() {
   rankPreviewTier.value = nextProfileRank.value;
 }
 function formatDuration(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
 function formatClock(value) { return value ? new Date(value).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–'; }
+function formatDateInput(value) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10); }
 function normalizedTime(value) { return value ? String(value).slice(0, 5) : null; }
 function profileRankTier(count) {
   if (count >= 1000) return 'immortal';
@@ -566,6 +682,12 @@ function formatLongDate(value) { return new Date(value).toLocaleDateString('de-D
 function canUpload(document) { return ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(document.status); }
 function documentIcon(status) { return ['APPROVED', 'UPLOADED'].includes(status) ? 'fa-solid fa-circle-check' : ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(status) ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
 function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE')}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE')} hochladen` : 'Bitte hochladen'; }
+function payrollTitle(payroll) {
+  const period = payroll.month ? `${String(payroll.month).padStart(2, '0')}/${payroll.year}` : String(payroll.year);
+  return `${payrollTypeLabel(payroll.type)} ${period}`;
+}
+function payrollTypeLabel(type) { return type === 'LST' ? 'Lohnsteuerbescheid' : 'Lohnabrechnung'; }
+function payrollDescription(payroll) { return payroll.lastModified ? `Zuletzt aktualisiert ${formatLongDate(payroll.lastModified)}` : 'PDF-Abrechnung'; }
 async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } }); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
 async function loadNews() {
   newsLoading.value = true;
@@ -595,6 +717,8 @@ async function confirmNewsItem(item) {
   }
 }
 async function loadEmployeeDocuments() { documentsLoading.value = true; documentsError.value = ''; try { const response = await props.api.get('/api/public/employee-documents', { params: { email: props.email } }); employeeDocuments.value = response.data.requests || []; } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokumente konnten nicht geladen werden.'; } finally { documentsLoading.value = false; } }
+async function loadPayrollDocuments() { payrollLoading.value = true; payrollError.value = ''; try { const response = await props.api.get('/api/public/employee-documents/payroll', { params: { email: props.email } }); payrollDocuments.value = response.data.documents || []; } catch (error) { payrollError.value = error.response?.data?.msg || 'Abrechnungen konnten nicht geladen werden.'; } finally { payrollLoading.value = false; } }
+async function downloadPayroll(payroll) { previewMessage.value = ''; try { const response = await props.api.get('/api/public/employee-documents/payroll/download', { params: { email: props.email, fileName: payroll.fileName } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Abrechnung konnte nicht geladen werden.'; } }
 async function uploadDocument(event, document) { const file = event.target.files?.[0]; if (!file) return; uploadingRequestId.value = document.id; documentsError.value = ''; const formData = new FormData(); formData.append('document', file); try { await props.api.post(`/api/public/employee-documents/${document.id}/upload`, formData, { params: { email: props.email } }); await loadEmployeeDocuments(); } catch (error) { documentsError.value = error.response?.data?.msg || 'Dokument konnte nicht hochgeladen werden.'; } finally { uploadingRequestId.value = ''; event.target.value = ''; } }
 async function downloadDocument(document) { previewMessage.value = ''; try { const response = await props.api.get(`/api/public/employee-documents/${document.id}/download`, { params: { email: props.email } }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { previewMessage.value = error.response?.data?.msg || 'Dokument konnte nicht geladen werden.'; } }
 async function loadProfileImage() {
@@ -609,7 +733,7 @@ async function loadProfileImage() {
   }
 }
 
-onMounted(() => { loadJobs(); loadNews(); loadEmployeeDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
+onMounted(() => { loadJobs(); loadNews(); loadEmployeeDocuments(); loadPayrollDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
 onBeforeUnmount(() => { window.clearInterval(timer); if (profileImageUrl.value) URL.revokeObjectURL(profileImageUrl.value); });
 </script>
 
@@ -622,7 +746,6 @@ button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:tra
 .primary-button,.secondary-button,.danger-button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:46px; padding:.72rem 1rem; border-radius:6px; font-weight:750; cursor:pointer; }.primary-button { border:1px solid var(--primary); background:transparent; color:var(--primary); }.secondary-button { border:1px solid var(--border); background:var(--surface); color:var(--text); }.danger-button { border:1px solid var(--dev-red); background:transparent; color:var(--dev-red); }.wide,.today-shift .primary-button { width:100%; }
 .home-section { margin-top:1.4rem; }.section-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }.section-heading h3 { margin:0; font-size:.95rem; }.section-heading>span { display:grid; width:24px; height:24px; place-items:center; border-radius:50%; background:var(--primary); color:white; font-size:.7rem; }.section-heading button { border:0; background:none; color:var(--primary); font-size:.78rem; cursor:pointer; }
 .action-row,.compact-job,.settings-list button { display:grid; width:100%; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.75rem; min-height:62px; padding:.65rem 0; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }.action-row>span:nth-child(2),.compact-job>span:nth-child(2),.settings-list button>span { display:grid; gap:.15rem; }.action-row small,.compact-job small,.settings-list small { color:var(--muted); font-size:.72rem; }.action-row>svg,.settings-list button>svg:last-child { color:var(--muted); font-size:.72rem; }.action-icon { display:grid; width:38px; height:38px; place-items:center; border-radius:6px; }.action-icon.warning { background:#fff0d8; color:#b56200; }.action-icon.calm { background:#dceef3; color:var(--dev-blue); }.action-icon.success { background:#dff3e9; color:var(--dev-green); }.profile-count-badge { display:grid; min-width:20px; height:20px; padding:0 4px; place-items:center; border:1px solid var(--primary); border-radius:10px; color:var(--primary); font-size:.65rem; font-style:normal; font-weight:800; }
-.settings-list .teamleiter-evaluations { grid-template-columns:auto minmax(0,1fr) auto auto; }
 .compact-job { grid-template-columns:45px minmax(0,1fr) auto; }.job-date { display:grid; color:var(--primary); font-size:.65rem; text-align:center; }.job-date strong { font-size:1.1rem; }.places { color:var(--dev-green); font-size:.68rem; font-weight:750; }
 .bottom-nav { position:fixed; z-index:50; right:0; bottom:0; left:0; display:grid; grid-template-columns:repeat(4,1fr); min-height:66px; padding:5px max(6px,env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left)); background:color-mix(in srgb,var(--panel) 96%,transparent); border-top:1px solid var(--border); backdrop-filter:blur(16px); }.bottom-nav button { display:grid; min-width:0; place-items:center; gap:0; border:0; background:none; color:var(--muted); font-size:.62rem; cursor:pointer; }.bottom-nav button.active { color:var(--primary); }.nav-icon { position:relative; display:grid; width:30px; height:28px; place-items:center; font-size:1.05rem; }.nav-icon i { position:absolute; top:-5px; right:-4px; display:grid; min-width:16px; height:16px; padding:0 3px; place-items:center; border:1px solid var(--primary); border-radius:8px; background:var(--panel); color:var(--primary); font-size:.52rem; font-style:normal; }.desktop-nav { display:none; }
 .filter-row { display:flex; gap:.45rem; overflow-x:auto; margin:0 -1rem 1rem; padding:0 1rem; scrollbar-width:none; }.filter-row button,.sub-tabs button,.segmented-control button,.scenario-actions button { flex:0 0 auto; min-height:36px; padding:.45rem .75rem; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; }.filter-row button.active,.sub-tabs button.active,.segmented-control button.active { border-color:var(--primary); color:var(--primary); }

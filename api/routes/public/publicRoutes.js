@@ -132,6 +132,90 @@ async function resolvePublicMitarbeiter(req) {
   return Mitarbeiter.findOne({ $or: conditions }).select('_id').lean();
 }
 
+function isLocalLegacyPublicRequest(req) {
+  return ['localhost', '127.0.0.1', '::1'].includes(req.hostname)
+    && Boolean(String(req.query.email || '').trim());
+}
+
+function requirePersonalPublicRequest(req, res) {
+  if (!req.oidcEmail && !req.oidcFlipId && !isLocalLegacyPublicRequest(req)) {
+    res.status(403).json({ msg: 'Für diese Angabe ist eine persönliche Anmeldung erforderlich.' });
+    return false;
+  }
+  return true;
+}
+
+// PATCH /api/public/mitarbeiter/persoenliche-daten
+// Stores editable contact and driving licence details for the authenticated employee.
+router.patch(
+  '/mitarbeiter/persoenliche-daten',
+  asyncHandler(async (req, res) => {
+    if (!requirePersonalPublicRequest(req, res)) return;
+
+    const employee = await resolvePublicMitarbeiter(req);
+    if (!employee) return res.status(404).json({ msg: 'Mitarbeiter nicht gefunden.' });
+
+    const hasEmail = Object.prototype.hasOwnProperty.call(req.body || {}, 'email');
+    const hasTelefon = Object.prototype.hasOwnProperty.call(req.body || {}, 'telefon');
+    const hasLicense = Object.prototype.hasOwnProperty.call(req.body || {}, 'fuehrerschein');
+    const updates = {};
+
+    if (hasEmail) {
+      const email = String(req.body.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ msg: 'Bitte eine gültige E-Mail-Adresse eingeben.' });
+      }
+      const existingEmail = await Mitarbeiter.findOne({ email, _id: { $ne: employee._id } }).select('_id').lean();
+      if (existingEmail) return res.status(409).json({ msg: 'Diese E-Mail-Adresse wird bereits verwendet.' });
+
+      const currentEmployee = await Mitarbeiter.findById(employee._id).select('email').lean();
+      updates.email = email;
+      if (currentEmployee?.email && currentEmployee.email !== email) {
+        updates.$addToSet = { additionalEmails: currentEmployee.email };
+      }
+    }
+
+    if (hasTelefon) {
+      const telefon = String(req.body.telefon || '').trim();
+      if (telefon.length > 40) return res.status(400).json({ msg: 'Die Telefonnummer darf höchstens 40 Zeichen enthalten.' });
+      updates.telefon = telefon;
+    }
+
+    if (hasLicense) {
+      const licenseInput = req.body.fuehrerschein || {};
+      const klasse = String(licenseInput.klasse || '').trim().toUpperCase();
+      const gueltigVon = licenseInput.gueltigVon ? new Date(licenseInput.gueltigVon) : null;
+      const gueltigBis = licenseInput.gueltigBis ? new Date(licenseInput.gueltigBis) : null;
+      if (klasse.length > 20 || (gueltigVon && Number.isNaN(gueltigVon.getTime())) || (gueltigBis && Number.isNaN(gueltigBis.getTime()))) {
+        return res.status(400).json({ msg: 'Bitte gültige Führerscheindaten eingeben.' });
+      }
+      if (gueltigVon && gueltigBis && gueltigBis < gueltigVon) {
+        return res.status(400).json({ msg: 'Das Gültigkeitsende darf nicht vor dem Beginn liegen.' });
+      }
+      const license = { klasse: klasse || null, gueltigVon, gueltigBis, source: 'manual' };
+      updates.fuehrerscheine = klasse || gueltigVon || gueltigBis ? [license] : [];
+      updates.fuehrerschein = { klasse: license.klasse, gueltigVon, gueltigBis };
+    }
+
+    const mongoUpdate = { $set: updates };
+    if (updates.$addToSet) {
+      mongoUpdate.$addToSet = updates.$addToSet;
+      delete mongoUpdate.$set.$addToSet;
+    }
+    const updated = await Mitarbeiter.findByIdAndUpdate(employee._id, mongoUpdate, {
+      new: true,
+      runValidators: true,
+    }).select('email telefon fuehrerscheine');
+
+    logger.info(`Mitarbeiter ${employee._id} hat persönliche Daten aktualisiert`);
+    res.json({
+      email: updated.email,
+      telefon: updated.telefon || '',
+      fuehrerscheine: updated.fuehrerscheine || [],
+    });
+  })
+);
+
 async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
   if (!['job', 'teamleiter'].includes(document.audience)) return false;
 
@@ -307,7 +391,7 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-        .select("_id vorname nachname email personalnr flip_id rank publicMenuOptions konfektionsgroesse schuhgroesse qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+        .select("_id vorname nachname email telefon fuehrerscheine fuehrerschein personalnr flip_id rank publicMenuOptions konfektionsgroesse schuhgroesse qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
       .populate({
         path: "laufzettel_submitted",
         populate: [

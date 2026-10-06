@@ -230,7 +230,7 @@ const props = defineProps({
   openTimeEntryCount: { type: Number, default: 0 },
   konfektionsgroesse: { type: String, default: '' },
   schuhgroesse: { type: String, default: '' },
-  api: { type: Object, required: true },
+  api: { type: [Object, Function], required: true },
 });
 
 const emit = defineEmits(['navigate', 'open-job', 'toggle-debug-tl', 'toggle-debug-dev', 'apparel-sizes-saved']);
