@@ -257,7 +257,7 @@
               <details>
                 <summary>Benötigte Spalten anzeigen</summary>
                 <div class="table-scroll">
-                  <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td><td>Beruf-Nr (Col C, optional)</td></tr></tbody></table>
+                  <table class="req-table"><tbody><tr><td>Quali-Nr (Col A)</td><td>Bezeichnung (Col B)</td><td>Import ersetzt den Qualifikationskatalog</td></tr></tbody></table>
                 </div>
               </details>
             </div>

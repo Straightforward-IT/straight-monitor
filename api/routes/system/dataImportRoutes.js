@@ -21,6 +21,7 @@ const DispoEintrag = require('../../models/System/DispoEintrag');
 const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
 const Adresse = require('../../models/System/Adresse');
 const Einsatzort = require('../../models/Event/Einsatzort');
+const EinsatzinformationTemplate = require('../../models/Event/EinsatzinformationTemplate');
 const User = require('../../models/System/User');
 const logger = require('../../utils/logger');
 const { sendMail } = require('../../services/integrations/EmailService');
@@ -1727,52 +1728,55 @@ router.post('/beruf', auth, extendTimeout, upload.single('file'), async (req, re
     // Read as array of arrays to handle column positions
     const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const operations = [];
+    const recordsByKey = new Map();
 
-    // Skip potential header row? Let's check if first row is possibly header
-    // But user didn't specify, usually assumed. Let's start from 1 if row 0 looks like header, else 0.
-    // However, simplest is to iterate and check if column A is a number.
-    
     for (const row of rawData) {
       if (!row || row.length < 1) continue;
-      
-      // Column A (Index 0): Key
-      // Column C (Index 2): Designation
-      // Column D (Index 3): Tätigkeitsschlüssel (optional)
       const keyVal = row[0];
       const designationVal = row[2];
       const taetigkeitsschluesselVal = row[3];
 
       const jobKey = parseInt(keyVal, 10);
-      if (isNaN(jobKey)) continue; // Skip header or invalid rows
+      if (isNaN(jobKey)) continue;
 
       const designation = designationVal ? String(designationVal).trim() : '';
       if (!designation) continue;
 
-      const update = { designation };
-      if (taetigkeitsschluesselVal !== undefined && taetigkeitsschluesselVal !== '') {
-        update.taetigkeitsschluessel = String(taetigkeitsschluesselVal).trim();
-      }
-
-      operations.push({
-        updateOne: {
-          filter: { jobKey: jobKey },
-          update: { $set: update },
-          upsert: true
-        }
+      recordsByKey.set(jobKey, {
+        designation,
+        taetigkeitsschluessel: taetigkeitsschluesselVal ? String(taetigkeitsschluesselVal).trim() : '',
       });
     }
 
-    if (operations.length > 0) {
+    if (recordsByKey.size > 0) {
+      const importedKeys = [...recordsByKey.keys()];
+      const operations = [...recordsByKey.entries()].map(([jobKey, update]) => ({
+        updateOne: {
+          filter: { jobKey },
+          update: { $set: update },
+          upsert: true,
+        },
+      }));
       const result = await Beruf.bulkWrite(operations);
+      const staleBerufe = await Beruf.find({ jobKey: { $nin: importedKeys } }).select('_id').lean();
+      const staleIds = staleBerufe.map((beruf) => beruf._id);
+      let templatesDeactivated = 0;
+      if (staleIds.length) {
+        const [, templateResult] = await Promise.all([
+          Mitarbeiter.updateMany({ berufe: { $in: staleIds } }, { $pull: { berufe: { $in: staleIds } } }),
+          EinsatzinformationTemplate.updateMany({ beruf: { $in: staleIds }, isActive: true }, { $set: { isActive: false } }),
+        ]);
+        templatesDeactivated = templateResult.modifiedCount || 0;
+        await Beruf.deleteMany({ _id: { $in: staleIds } });
+      }
       const inserted = result.upsertedCount || 0;
       const updated = result.modifiedCount || 0;
       const unchanged = operations.length - inserted - updated;
-      
-      const response = { 
-        success: true, 
-        message: `${operations.length} Berufe verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
-        details: { total: operations.length, inserted, updated, unchanged }
+      const deleted = staleIds.length;
+      const response = {
+        success: true,
+        message: `${operations.length} Berufe ersetzt: ${inserted} neu, ${updated} aktualisiert, ${deleted} entfernt.`,
+        details: { total: operations.length, inserted, updated, unchanged, deleted, templatesDeactivated },
       };
 
       await logImport('beruf', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
@@ -1801,20 +1805,12 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const operations = [];
-
-    const allBerufeForQuali = await Beruf.find({}).select('_id jobKey').lean();
-    const berufByJobKey = new Map(allBerufeForQuali.map(b => [b.jobKey, b._id]));
+    const recordsByKey = new Map();
 
     for (const row of rawData) {
       if (!row || row.length < 1) continue;
-      
-      // Column A (Index 0): Key
-      // Column B (Index 1): Designation
-      // Column C (Index 2): Beruf jobKey (optional, clears assignment if empty)
       const keyVal = row[0];
       const designationVal = row[1];
-      const berufKeyVal = row[2];
 
       const qualificationKey = parseInt(keyVal, 10);
       if (isNaN(qualificationKey)) continue;
@@ -1822,28 +1818,43 @@ router.post('/qualifikation', auth, extendTimeout, upload.single('file'), async 
       const designation = designationVal ? String(designationVal).trim() : '';
       if (!designation) continue;
 
-      const berufJobKey = berufKeyVal !== undefined && berufKeyVal !== '' ? parseInt(berufKeyVal, 10) : null;
-      const berufId = (!isNaN(berufJobKey) && berufJobKey !== null) ? (berufByJobKey.get(berufJobKey) || null) : null;
-
-      operations.push({
-        updateOne: {
-          filter: { qualificationKey: qualificationKey },
-          update: { $set: { designation: designation, beruf: berufId } },
-          upsert: true
-        }
-      });
+      recordsByKey.set(qualificationKey, { designation });
     }
 
-    if (operations.length > 0) {
+    if (recordsByKey.size > 0) {
+      const importedKeys = [...recordsByKey.keys()];
+      const operations = [...recordsByKey.entries()].map(([qualificationKey, update]) => ({
+        updateOne: {
+          filter: { qualificationKey },
+          update: { $set: update, $unset: { beruf: 1 } },
+          upsert: true,
+        },
+      }));
       const result = await Qualifikation.bulkWrite(operations);
+      await Qualifikation.collection.updateMany(
+        { qualificationKey: { $in: importedKeys } },
+        { $unset: { beruf: '' } },
+      );
+      const staleQualifikationen = await Qualifikation.find({ qualificationKey: { $nin: importedKeys } }).select('_id').lean();
+      const staleIds = staleQualifikationen.map((qualifikation) => qualifikation._id);
+      let templatesDeactivated = 0;
+      if (staleIds.length) {
+        const [, , templateResult] = await Promise.all([
+          Mitarbeiter.updateMany({ qualifikationen: { $in: staleIds } }, { $pull: { qualifikationen: { $in: staleIds } } }),
+          Kundenpreis.deleteMany({ qualifikation: { $in: staleIds } }),
+          EinsatzinformationTemplate.updateMany({ qualifikation: { $in: staleIds }, isActive: true }, { $set: { isActive: false } }),
+        ]);
+        templatesDeactivated = templateResult.modifiedCount || 0;
+        await Qualifikation.deleteMany({ _id: { $in: staleIds } });
+      }
       const inserted = result.upsertedCount || 0;
       const updated = result.modifiedCount || 0;
       const unchanged = operations.length - inserted - updated;
-      
-      const response = { 
-        success: true, 
-        message: `${operations.length} Qualifikationen verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
-        details: { total: operations.length, inserted, updated, unchanged }
+      const deleted = staleIds.length;
+      const response = {
+        success: true,
+        message: `${operations.length} Qualifikationen ersetzt: ${inserted} neu, ${updated} aktualisiert, ${deleted} entfernt.`,
+        details: { total: operations.length, inserted, updated, unchanged, deleted, templatesDeactivated },
       };
 
       await logImport('qualifikation', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
@@ -2151,7 +2162,7 @@ router.post('/kundenpreis', auth, extendTimeout, upload.single('file'), async (r
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).map(cleanKeys);
     const [kunden, qualifikationen] = await Promise.all([
       Kunde.find({}).select('_id kundenNr').lean(),
-      Qualifikation.find({}).select('_id qualificationKey beruf').lean(),
+      Qualifikation.find({}).select('_id qualificationKey').lean(),
     ]);
     const kundeByNr = new Map(kunden.map((kunde) => [kunde.kundenNr, kunde]));
     const qualiByKey = new Map(qualifikationen.map((quali) => [quali.qualificationKey, quali]));
@@ -2182,7 +2193,7 @@ router.post('/kundenpreis', auth, extendTimeout, upload.single('file'), async (r
         invalid += 1;
         continue;
       }
-      if (!kunde || !qualifikation || !qualifikation.beruf) {
+      if (!kunde || !qualifikation) {
         unresolved += 1;
         continue;
       }
@@ -2476,10 +2487,13 @@ router.get('/berufe', async (req, res) => {
   try {
     const [berufe, counts] = await Promise.all([
       Beruf.find({}).sort({ jobKey: 1 }).lean(),
-      Qualifikation.aggregate([{ $match: { beruf: { $ne: null } } }, { $group: { _id: '$beruf', count: { $sum: 1 } } }]),
+      Mitarbeiter.aggregate([{ $unwind: '$berufe' }, { $group: { _id: '$berufe', count: { $sum: 1 } } }]),
     ]);
-    const countMap = new Map(counts.map(c => [String(c._id), c.count]));
-    const data = berufe.map(b => ({ ...b, qualifikationCount: countMap.get(String(b._id)) || 0 }));
+    const countMap = new Map(counts.map((count) => [String(count._id), count.count]));
+    const data = berufe.map((beruf) => ({
+      ...beruf,
+      mitarbeiterCount: countMap.get(String(beruf._id)) || 0,
+    }));
     res.json({ success: true, data });
   } catch (error) {
     logger.error('GET Berufe Error:', error);
@@ -2544,7 +2558,7 @@ router.delete('/berufe/:id', auth, async (req, res) => {
 router.get('/qualifikationen', async (req, res) => {
   try {
     const [qualifikationen, counts] = await Promise.all([
-      Qualifikation.find({}).sort({ qualificationKey: 1 }).populate('beruf', 'jobKey designation').lean(),
+      Qualifikation.find({}).sort({ qualificationKey: 1 }).lean(),
       Mitarbeiter.aggregate([{ $unwind: '$qualifikationen' }, { $group: { _id: '$qualifikationen', count: { $sum: 1 } } }]),
     ]);
     const countMap = new Map(counts.map(c => [String(c._id), c.count]));
@@ -2573,7 +2587,7 @@ router.get('/nationalitaeten', async (req, res) => {
 // --- POST create Qualifikation ---
 router.post('/qualifikationen', auth, async (req, res) => {
   try {
-    const { designation, beruf } = req.body;
+    const { designation } = req.body;
     if (!designation) {
       return res.status(400).json({ success: false, message: 'designation ist erforderlich.' });
     }
@@ -2582,10 +2596,8 @@ router.post('/qualifikationen', auth, async (req, res) => {
     const qual = new Qualifikation({
       qualificationKey,
       designation: designation.trim(),
-      beruf: beruf || null,
     });
     await qual.save();
-    await qual.populate('beruf', 'jobKey designation');
     res.status(201).json({ success: true, data: qual });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });
@@ -2597,7 +2609,7 @@ router.post('/qualifikationen', auth, async (req, res) => {
 // --- PUT update Qualifikation ---
 router.put('/qualifikationen/:id', auth, async (req, res) => {
   try {
-    const { qualificationKey, designation, beruf } = req.body;
+    const { qualificationKey, designation } = req.body;
     const qual = await Qualifikation.findById(req.params.id);
     if (!qual) return res.status(404).json({ success: false, message: 'Qualifikation nicht gefunden.' });
     if (qualificationKey !== undefined && parseInt(qualificationKey, 10) !== qual.qualificationKey) {
@@ -2605,10 +2617,8 @@ router.put('/qualifikationen/:id', auth, async (req, res) => {
     }
     const update = {};
     if (designation !== undefined) update.designation = designation.trim();
-    if (beruf !== undefined) update.beruf = beruf || null;
     Object.assign(qual, update);
     await qual.save();
-    await qual.populate('beruf', 'jobKey designation');
     res.json({ success: true, data: qual });
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ success: false, message: 'Ein Eintrag mit diesem Schlüssel existiert bereits.' });

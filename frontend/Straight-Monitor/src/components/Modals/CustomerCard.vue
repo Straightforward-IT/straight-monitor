@@ -767,7 +767,7 @@
           {{ preiseError }}
           <AppButton size="sm" variant="secondary" @click="loadKundenpreise(true)">Erneut laden</AppButton>
         </div>
-        <div v-else-if="preisBerufe.length === 0" class="empty-tab-state">
+        <div v-else-if="filteredPreisQualifikationen.length === 0" class="empty-tab-state">
           <font-awesome-icon :icon="['fas', 'coins']" />
           <p>Für diesen Kunden sind noch keine Qualifikationspreise hinterlegt.</p>
           <AppButton class="preise-add-btn" size="sm" variant="outlined" @click="openAddQualifikationDialog">
@@ -775,20 +775,6 @@
           </AppButton>
         </div>
         <template v-else>
-          <div class="preise-selector">
-            <span class="preise-selector-label">Beruf</span>
-            <div class="preise-chip-row">
-              <FilterChip
-                v-for="beruf in preisBerufe"
-                :key="beruf._id"
-                :active="selectedPreisBerufId === beruf._id"
-                @click="selectPreisBeruf(beruf._id)"
-              >
-                {{ beruf.designation }}
-              </FilterChip>
-            </div>
-          </div>
-
           <div class="preise-add-btn-row">
             <AppButton
               class="preise-add-btn"
@@ -891,44 +877,18 @@
         >
           <form class="add-quali-form" @submit.prevent="saveNewQualifikation">
                 <div class="search-select">
-                  <label for="add-price-beruf">Beruf</label>
-                  <AppTextInput
-                    id="add-price-beruf"
-                    v-model="berufSearchQuery"
-                    type="search"
-                    autocomplete="off"
-                    placeholder="Beruf oder Schlüssel suchen"
-                    :disabled="addPriceSaving"
-                    @focus="showBerufResults = true"
-                    @input="showBerufResults = true"
-                  />
-                  <div v-if="showBerufResults" class="search-select-results">
-                    <button
-                      v-for="beruf in matchingBerufe"
-                      :key="beruf._id"
-                      type="button"
-                      class="search-select-option"
-                      :disabled="addPriceSaving"
-                      @click="selectAddBeruf(beruf)"
-                    >
-                      <span>{{ beruf.designation }}</span><small>{{ beruf.jobKey }}</small>
-                    </button>
-                    <p v-if="matchingBerufe.length === 0" class="search-select-empty">Keine Berufe gefunden.</p>
-                  </div>
-                </div>
-                <div class="search-select">
                   <label for="add-price-qualifikation">Qualifikation</label>
                   <AppTextInput
                     id="add-price-qualifikation"
                     v-model="qualifikationSearchQuery"
                     type="search"
                     autocomplete="off"
-                    :disabled="!addQualifikationBerufId || addPriceSaving"
+                    :disabled="addPriceSaving"
                     placeholder="Qualifikation oder Schlüssel suchen"
                     @focus="showQualifikationResults = true"
                     @input="showQualifikationResults = true"
                   />
-                  <div v-if="showQualifikationResults && addQualifikationBerufId" class="search-select-results">
+                  <div v-if="showQualifikationResults" class="search-select-results">
                     <button
                       v-for="qualifikation in matchingQualifikationen"
                       :key="qualifikation._id"
@@ -1076,7 +1036,6 @@ import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
-import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import InformationCard from '@/components/ui-elements/InformationCard.vue';
 import CustomerSignaturesPanel from '@/components/customer/CustomerSignaturesPanel.vue';
 import EinsatzinformationenEditor from '@/components/customer/EinsatzinformationenEditor.vue';
@@ -1593,7 +1552,6 @@ const preiseLoading = ref(false);
 const preiseLoaded = ref(false);
 const preiseError = ref('');
 const preiseSaving = ref(false);
-const selectedPreisBerufId = ref('');
 const newPriceQualificationId = ref('');
 const newPriceAmount = ref('');
 const newPriceValidFrom = ref('');
@@ -1601,33 +1559,19 @@ const newPriceError = ref('');
 
 // Add Qualifikation Dialog
 const showAddQualifikationDialog = ref(false);
-const addQualifikationBerufId = ref('');
 const addQualifikationId = ref('');
-const berufSearchQuery = ref('');
 const qualifikationSearchQuery = ref('');
-const showBerufResults = ref(false);
 const showQualifikationResults = ref(false);
 const addPriceAmount = ref('');
 const addPriceValidFrom = ref('');
 const addPriceError = ref('');
 const addPriceSaving = ref(false);
 
-const preisBerufe = computed(() => {
-  const berufe = new Map();
-  for (const price of kundenpreise.value) {
-    const beruf = price.qualifikation?.beruf;
-    if (beruf?._id) berufe.set(String(beruf._id), { ...beruf, _id: String(beruf._id) });
-  }
-  return [...berufe.values()].sort((first, second) =>
-    first.designation.localeCompare(second.designation, 'de')
-  );
-});
-
 const filteredPreisQualifikationen = computed(() => {
   const grouped = new Map();
   for (const price of kundenpreise.value) {
     const qualifikation = price.qualifikation;
-    if (!qualifikation?._id || String(qualifikation.beruf?._id) !== selectedPreisBerufId.value) continue;
+    if (!qualifikation?._id) continue;
     const id = String(qualifikation._id);
     if (!grouped.has(id)) grouped.set(id, { qualifikation, versions: [] });
     grouped.get(id).versions.push(price);
@@ -1650,34 +1594,14 @@ const availableQualifikationen = computed(() => {
   if (!dataCache.qualifikationen || dataCache.qualifikationen.length === 0) return [];
   const assignedIds = new Set(kundenpreise.value.map((p) => String(p.qualifikation._id)));
   return dataCache.qualifikationen
-    .filter((q) => !assignedIds.has(String(q._id)) && String(q.beruf?._id) === selectedPreisBerufId.value)
+    .filter((q) => !assignedIds.has(String(q._id)))
     .sort((first, second) => first.qualificationKey - second.qualificationKey);
-});
-
-const allBerufeForDialog = computed(() => {
-  return [...dataCache.berufe].sort((a, b) => a.jobKey - b.jobKey);
-});
-
-const availableQualifikationenForDialog = computed(() => {
-  if (!dataCache.qualifikationen || dataCache.qualifikationen.length === 0 || !addQualifikationBerufId.value) return [];
-  const assignedIds = new Set(kundenpreise.value.map((p) => String(p.qualifikation._id)));
-  return dataCache.qualifikationen
-    .filter((q) => !assignedIds.has(String(q._id)) && String(q.beruf?._id) === addQualifikationBerufId.value)
-    .sort((first, second) => first.qualificationKey - second.qualificationKey);
-});
-
-const matchingBerufe = computed(() => {
-  const query = berufSearchQuery.value.trim().toLocaleLowerCase('de');
-  if (!query) return allBerufeForDialog.value;
-  return allBerufeForDialog.value.filter((beruf) =>
-    `${beruf.jobKey} ${beruf.designation}`.toLocaleLowerCase('de').includes(query)
-  );
 });
 
 const matchingQualifikationen = computed(() => {
   const query = qualifikationSearchQuery.value.trim().toLocaleLowerCase('de');
-  if (!query) return availableQualifikationenForDialog.value;
-  return availableQualifikationenForDialog.value.filter((qualifikation) =>
+  if (!query) return availableQualifikationen.value;
+  return availableQualifikationen.value.filter((qualifikation) =>
     `${qualifikation.qualificationKey} ${qualifikation.designation}`.toLocaleLowerCase('de').includes(query)
   );
 });
@@ -1690,9 +1614,6 @@ async function loadKundenpreise(force = false) {
     const { data } = await api.get(`/api/kunden/${props.kunde.kundenNr}/preise`);
     kundenpreise.value = data || [];
     preiseLoaded.value = true;
-    if (!preisBerufe.value.some((beruf) => beruf._id === selectedPreisBerufId.value)) {
-      selectedPreisBerufId.value = preisBerufe.value[0]?._id || '';
-    }
   } catch (error) {
     preiseError.value = error.response?.data?.message || 'Kundenpreise konnten nicht geladen werden.';
   } finally {
@@ -1752,11 +1673,6 @@ function formatNumber(value) {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 4 }).format(value);
 }
 
-function selectPreisBeruf(berufId) {
-  selectedPreisBerufId.value = berufId;
-  closeNewPrice();
-}
-
 function openNewPrice(entry) {
   if (preiseSaving.value) return;
   newPriceQualificationId.value = String(entry.qualifikation._id);
@@ -1811,17 +1727,14 @@ async function openAddQualifikationDialog() {
   showAddQualifikationDialog.value = true;
   addPriceError.value = '';
   try {
-    await Promise.all([dataCache.loadBerufe(), dataCache.loadQualifikationen()]);
+    await dataCache.loadQualifikationen();
   } catch (error) {
-    addPriceError.value = 'Berufe und Qualifikationen konnten nicht geladen werden.';
+    addPriceError.value = 'Qualifikationen konnten nicht geladen werden.';
     return;
   }
-  addQualifikationBerufId.value = '';
   addQualifikationId.value = '';
-  berufSearchQuery.value = '';
   qualifikationSearchQuery.value = '';
-  showBerufResults.value = true;
-  showQualifikationResults.value = false;
+  showQualifikationResults.value = true;
   addPriceAmount.value = '';
   addPriceValidFrom.value = new Date().toISOString().slice(0, 10);
 }
@@ -1833,24 +1746,12 @@ function closeAddQualifikationDialog() {
 
 function resetAddQualifikationDialog() {
   showAddQualifikationDialog.value = false;
-  addQualifikationBerufId.value = '';
   addQualifikationId.value = '';
-  berufSearchQuery.value = '';
   qualifikationSearchQuery.value = '';
-  showBerufResults.value = false;
   showQualifikationResults.value = false;
   addPriceAmount.value = '';
   addPriceValidFrom.value = '';
   addPriceError.value = '';
-}
-
-function selectAddBeruf(beruf) {
-  addQualifikationBerufId.value = String(beruf._id);
-  berufSearchQuery.value = `${beruf.jobKey} - ${beruf.designation}`;
-  addQualifikationId.value = '';
-  qualifikationSearchQuery.value = '';
-  showBerufResults.value = false;
-  showQualifikationResults.value = true;
 }
 
 function selectAddQualifikation(qualifikation) {

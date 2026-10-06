@@ -214,31 +214,31 @@
             <td>{{ formatDate(u.date) }}</td>
             <td class="td-actions">
               <div class="td-actions__controls">
-              <AppIconButton size="sm" variant="ghost" label="Benutzer bearbeiten" @click="openEdit(u)">
-                <font-awesome-icon icon="fa-solid fa-pen" />
-              </AppIconButton>
-              <AppIconButton
-                size="sm" variant="ghost"
-                :label="u.mitarbeiter ? 'Mitarbeiter-Verknüpfung bearbeiten' : 'Mit Mitarbeiter verknüpfen'"
-                @click="openLink(u)"
-              >
-                <font-awesome-icon icon="fa-solid fa-link" />
-              </AppIconButton>
-              <AppIconButton
-                size="sm" variant="ghost"
-                :label="u.asana_id ? 'Asana-Verknüpfung bearbeiten' : 'Mit Asana-User verknüpfen'"
-                @click="openAsanaLink(u)"
-              >
-                <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
-              </AppIconButton>
-              <AppIconButton
-                size="sm" variant="ghost"
-                label="Benutzer löschen"
-                :disabled="u._id === currentUserId"
-                @click="openDelete(u)"
-              >
-                <font-awesome-icon icon="fa-solid fa-trash" />
-              </AppIconButton>
+                <AppIconButton size="sm" variant="ghost" label="Benutzer bearbeiten" @click="openEdit(u)">
+                  <font-awesome-icon icon="fa-solid fa-pen" />
+                </AppIconButton>
+                <AppIconButton
+                  size="sm" variant="ghost"
+                  :label="u.mitarbeiter ? 'Mitarbeiter-Verknüpfung bearbeiten' : 'Mit Mitarbeiter verknüpfen'"
+                  @click="openLink(u)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-link" />
+                </AppIconButton>
+                <AppIconButton
+                  size="sm" variant="ghost"
+                  :label="u.asana_id ? 'Asana-Verknüpfung bearbeiten' : 'Mit Asana-User verknüpfen'"
+                  @click="openAsanaLink(u)"
+                >
+                  <img src="@/assets/asana.png" class="asana-icon" alt="Asana" />
+                </AppIconButton>
+                <AppIconButton
+                  size="sm" variant="ghost"
+                  label="Benutzer löschen"
+                  :disabled="u._id === currentUserId"
+                  @click="openDelete(u)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-trash" />
+                </AppIconButton>
               </div>
             </td>
           </tr>
@@ -330,33 +330,12 @@
       <p v-if="qualiError" class="um__error">{{ qualiError }}</p>
       <p v-else-if="qualiLoading" class="qualifikationen__state">Qualifikationen werden geladen…</p>
       <template v-else>
-        <nav class="quali-beruf-tabs" aria-label="Berufsgruppe">
-          <button
-            type="button"
-            :class="{ 'quali-beruf-tabs__tab--active': selectedBerufFilter === null }"
-            @click="selectedBerufFilter = null"
-          >
-            Alle
-            <span class="tab-count">{{ qualifikationen.length }}</span>
-          </button>
-          <button
-            v-for="b in qualiBerufTabs"
-            :key="b.id"
-            type="button"
-            :class="{ 'quali-beruf-tabs__tab--active': selectedBerufFilter === b.id }"
-            @click="selectedBerufFilter = b.id"
-          >
-            {{ b.label }}
-            <span class="tab-count">{{ b.count }}</span>
-          </button>
-        </nav>
         <div class="um__table-wrap">
           <table class="um__table">
             <thead>
               <tr>
                 <th>Schlüssel</th>
                 <th>Bezeichnung</th>
-                <th v-if="selectedBerufFilter === null">Beruf</th>
                 <th>Mitarbeiter</th>
                 <th class="th-actions">Aktionen</th>
               </tr>
@@ -365,10 +344,6 @@
               <tr v-for="q in filteredQualifikationen" :key="q._id">
                 <td><span class="quali-key">#{{ q.qualificationKey }}</span></td>
                 <td>{{ q.designation }}</td>
-                <td v-if="selectedBerufFilter === null">
-                  <span v-if="q.beruf" class="beruf-tag">#{{ q.beruf.jobKey }} {{ q.beruf.designation }}</span>
-                  <span v-else class="ma-unlinked">—</span>
-                </td>
                 <td>
                   <span v-if="q.mitarbeiterCount" class="quali-ma-count">{{ q.mitarbeiterCount }}</span>
                   <span v-else class="ma-unlinked">0</span>
@@ -380,7 +355,7 @@
                 </td>
               </tr>
               <tr v-if="!filteredQualifikationen.length">
-                <td :colspan="selectedBerufFilter === null ? 5 : 4" style="text-align:center; opacity:0.45; padding: 24px;">Keine Qualifikationen vorhanden.</td>
+                <td colspan="4" style="text-align:center; opacity:0.45; padding: 24px;">Keine Qualifikationen vorhanden.</td>
               </tr>
             </tbody>
           </table>
@@ -410,7 +385,7 @@
               <th>Schlüssel</th>
               <th>Bezeichnung</th>
               <th>Tätigkeitsschlüssel</th>
-              <th>Qualifikationen</th>
+              <th>Mitarbeiter</th>
               <th class="th-actions">Aktionen</th>
             </tr>
           </thead>
@@ -423,7 +398,7 @@
                 <span v-else class="ma-unlinked">—</span>
               </td>
               <td>
-                <span v-if="b.qualifikationCount" class="quali-ma-count">{{ b.qualifikationCount }}</span>
+                <span v-if="b.mitarbeiterCount" class="quali-ma-count">{{ b.mitarbeiterCount }}</span>
                 <span v-else class="ma-unlinked">0</span>
               </td>
               <td class="td-actions">
@@ -479,13 +454,6 @@
           <div class="form-group">
             <label for="quali-designation">Bezeichnung <span class="required">*</span></label>
             <AppTextInput id="quali-designation" v-model="qualiModal.form.designation" type="text" required :disabled="qualiModal.saving" />
-          </div>
-          <div class="form-group">
-            <label for="quali-beruf">Beruf</label>
-            <AppSelect id="quali-beruf" v-model="qualiModal.form.beruf" :disabled="qualiModal.saving">
-              <option :value="null">— Kein Beruf —</option>
-              <option v-for="b in berufe" :key="b._id" :value="b._id">#{{ b.jobKey }} {{ b.designation }}</option>
-            </AppSelect>
           </div>
           <p v-if="qualiModal.error" class="modal-error">{{ qualiModal.error }}</p>
         </div>
@@ -831,8 +799,7 @@ const qualiError = ref('');
 const qualiSearch = ref('');
 const qualiSubTab = ref('qualifikation');
 const berufSearch = ref('');
-const selectedBerufFilter = ref(null); // null = all, 'none' = no beruf, beruf._id = specific beruf
-const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '', beruf: null } });
+const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
 
 // ─── Lohnarten ──────────────────────────────────────────────────────────────
 const lohnarten = ref([]);
@@ -897,29 +864,12 @@ async function fetchLohnarten() {
   }
 }
 
-const qualiBerufTabs = computed(() => {
-  const map = new Map();
-  for (const q of qualifikationen.value) {
-    const key = q.beruf?._id ?? 'none';
-    const label = q.beruf ? `#${q.beruf.jobKey} ${q.beruf.designation}` : 'Ohne Beruf';
-    if (!map.has(key)) map.set(key, { id: key, label, jobKey: q.beruf?.jobKey ?? Infinity, count: 0 });
-    map.get(key).count++;
-  }
-  return [...map.values()].sort((a, b) => a.jobKey - b.jobKey);
-});
-
 const filteredQualifikationen = computed(() => {
-  let list = qualifikationen.value;
-  if (selectedBerufFilter.value !== null) {
-    if (selectedBerufFilter.value === 'none') list = list.filter(q => !q.beruf);
-    else list = list.filter(q => q.beruf?._id === selectedBerufFilter.value);
-  }
   const q = qualiSearch.value.trim().toLowerCase();
-  if (!q) return list;
-  return list.filter(r =>
+  if (!q) return qualifikationen.value;
+  return qualifikationen.value.filter(r =>
     String(r.qualificationKey).includes(q) ||
-    r.designation.toLowerCase().includes(q) ||
-    r.beruf?.designation.toLowerCase().includes(q)
+    r.designation.toLowerCase().includes(q)
   );
 });
 
@@ -941,11 +891,11 @@ async function fetchQualifikationen() {
 }
 
 function openQualiCreate() {
-  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: nextAvailableKey(qualifikationen.value, 'qualificationKey', 1), designation: '', beruf: null } });
+  Object.assign(qualiModal, { open: true, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: nextAvailableKey(qualifikationen.value, 'qualificationKey', 1), designation: '' } });
 }
 
 function openQualiEdit(q) {
-  Object.assign(qualiModal, { open: true, isNew: false, id: q._id, saving: false, error: '', form: { qualificationKey: q.qualificationKey, designation: q.designation, beruf: q.beruf?._id || null } });
+  Object.assign(qualiModal, { open: true, isNew: false, id: q._id, saving: false, error: '', form: { qualificationKey: q.qualificationKey, designation: q.designation } });
 }
 
 function closeQualiModal() { qualiModal.open = false; }
@@ -954,7 +904,7 @@ async function saveQualifikation() {
   qualiModal.error = '';
   qualiModal.saving = true;
   try {
-    const payload = { ...qualiModal.form, beruf: qualiModal.form.beruf || null };
+    const payload = { ...qualiModal.form };
     if (qualiModal.isNew) {
       const { data } = await api.post('/api/import/qualifikationen', payload);
       qualifikationen.value = [...qualifikationen.value, data.data].sort((a, b) => a.qualificationKey - b.qualificationKey);
@@ -1005,11 +955,11 @@ async function saveBeruf() {
   try {
     if (berufModal.isNew) {
       const { data } = await api.post('/api/import/berufe', berufModal.form);
-      berufe.value = [...berufe.value, { ...data.data, qualifikationCount: 0 }].sort((a, b) => a.jobKey - b.jobKey);
+      berufe.value = [...berufe.value, { ...data.data, mitarbeiterCount: 0 }].sort((a, b) => a.jobKey - b.jobKey);
     } else {
       const { data } = await api.put(`/api/import/berufe/${berufModal.id}`, berufModal.form);
       const idx = berufe.value.findIndex(b => b._id === berufModal.id);
-      if (idx !== -1) berufe.value[idx] = { ...data.data, qualifikationCount: berufe.value[idx].qualifikationCount };
+      if (idx !== -1) berufe.value[idx] = { ...data.data, mitarbeiterCount: berufe.value[idx].mitarbeiterCount };
     }
     closeBerufModal();
   } catch (e) {
@@ -1707,6 +1657,13 @@ function formatDate(d) {
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+}
+
+.asana-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 
 // Badges

@@ -1845,7 +1845,7 @@ router.get('/:kundenNr/konditionen', auth, asyncHandler(async (req, res) => {
 }));
 
 // @route   GET /api/kunden/:kundenNr/preise
-// @desc    Kundenpreise inklusive Historie, Qualifikation und zugeordnetem Beruf
+// @desc    Kundenpreise inklusive Historie und Qualifikation
 // @access  Private
 router.get('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
   const kundenNr = Number.parseInt(req.params.kundenNr, 10);
@@ -1859,13 +1859,12 @@ router.get('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
   const prices = await Kundenpreis.find({ kunde: kunde._id })
     .populate({
       path: 'qualifikation',
-      select: 'qualificationKey designation beruf',
-      populate: { path: 'beruf', select: 'jobKey designation' },
+      select: 'qualificationKey designation',
     })
     .sort({ validFrom: -1 })
     .lean();
 
-  res.json(prices.filter((price) => price.qualifikation?.beruf));
+  res.json(prices.filter((price) => price.qualifikation));
 }));
 
 // @route   POST /api/kunden/:kundenNr/preise
@@ -1885,12 +1884,10 @@ router.post('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
 
   const [kunde, qualifikation] = await Promise.all([
     Kunde.findOne({ kundenNr }).select('_id').lean(),
-    Qualifikation.findById(qualificationId).select('_id qualificationKey beruf').lean(),
+    Qualifikation.findById(qualificationId).select('_id qualificationKey').lean(),
   ]);
   if (!kunde) return res.status(404).json({ message: 'Kunde nicht gefunden.' });
-  if (!qualifikation?.beruf) {
-    return res.status(400).json({ message: 'Qualifikation ist keinem Beruf zugeordnet.' });
-  }
+  if (!qualifikation) return res.status(404).json({ message: 'Qualifikation nicht gefunden.' });
 
   const dayStart = new Date(validFrom);
   dayStart.setHours(0, 0, 0, 0);
@@ -1921,8 +1918,7 @@ router.post('/:kundenNr/preise', auth, asyncHandler(async (req, res) => {
   const populated = await Kundenpreis.findById(price._id)
     .populate({
       path: 'qualifikation',
-      select: 'qualificationKey designation beruf',
-      populate: { path: 'beruf', select: 'jobKey designation' },
+      select: 'qualificationKey designation',
     })
     .lean();
   res.status(201).json(populated);
