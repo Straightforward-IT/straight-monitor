@@ -52,3 +52,39 @@ const overview = {
 - Emits `open` and `close`. The scoped slot also receives the `open` boolean.
 
 Local preview: `/dev/hover-data-card` while running Vite. This route is excluded from production routing.
+
+## Tarifgesteuerte EmployeeCard
+
+Die EmployeeCard lädt ihre Kontingente über
+`GET /api/personal/:id/analytics/contingent?year=2026&month=10`.
+Die API liefert die am Gruppenstichtag gültige Tarifmitarbeitergruppe und die
+bereits berechneten Fakten. Im aktuellen Monat ist der Gruppenstichtag heute,
+in anderen Monaten der letzte Monatstag.
+
+| Tarifmitarbeitergruppe | Kartentyp |
+| --- | --- |
+| 21015, 22436 | `days-hours`: Tage und Monatsstunden nebeneinander |
+| 21195 | `hours`: Monatsstunden |
+| 23437, 27356 | `days-earnings`: Tage und monatliche Verdienstprognose nebeneinander |
+
+Die kombinierten Karten verwenden zwei unabhängige Säulen, auch im schmalen
+Profilbereich. `monthlyHours` kommt aus `arbeitszeit.monat`. Fehlt der Wert oder
+fehlen Einsatzstunden, zeigt die Stundenhälfte einen Hinweis; die Tageshälfte
+bleibt verfügbar. Einzelkarten behalten die Auswahl zwischen Ring und Säule.
+
+`selectionBasis` unterscheidet `TARIFF_GROUP` und `EMPLOYMENT_TYPE`. Nur bei
+`ASSIGNMENT_MISSING` greift die bisherige Arbeitsverhältnis-Zuordnung:
+Vollzeit (0) und Teilzeit (1) zeigen Monatsstunden, Kurzfristig (3) zeigt Tage.
+Für Geringfügig (2) war bisher kein Kontingentmodell hinterlegt; die API zeigt
+einen Hinweis. Mehrdeutige Tarifzuordnungen, unbekannte Tarifgruppen und fehlende
+Tarifdatenstände werden nicht durch ein Arbeitsverhältnis ersetzt.
+`fallbackReason` erklärt die Herkunft der Anzeige.
+
+Die Verdienstprognose verwendet Einsatz-Sollstunden und den je Einsatzdatum
+gültigen Tariflohn plus ÜTZ über `Mitarbeiter.getTariffHourlyWage(date, context)`.
+Fehlende ÜTZ zählt als null Euro; überlappende Zuordnungen liefern einen Hinweis.
+`workedEarnings`, `plannedEarnings`, `totalEarnings` und `earningsLimit` sind
+Dezimalstrings, Geld wird erst am Ende kaufmännisch auf Cent gerundet. Die
+Gesamtsumme ist maßgeblich; getrennt gerundete Teilsummen können um einen Cent
+abweichen. `earningsStatus: 'UNRESOLVED'` ersetzt die Betragsgrafik durch einen
+Klärungshinweis und darf nie als null Euro dargestellt werden.

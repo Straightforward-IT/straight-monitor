@@ -1339,7 +1339,7 @@
               <span class="tab-brand tab-brand--flip" :style="{ '--tab-brand-image': `url(${flipLogo})` }" />
             </span>
             <font-awesome-icon v-else :icon="tab.icon" aria-hidden="true" />
-            <span>{{ tab.label }}</span>
+            <span class="tab-label">{{ tab.label }}</span>
           </AppButton>
         </CustomTooltip>
 
@@ -2025,7 +2025,8 @@ export default {
       // Dispo / Chronik
       einsatzContext: { last: null, next: null },
       loadingEinsatzContext: false,
-      einsatzAnalytics: { ist: [], forecast: [] },
+      employeeContingent: null,
+      contingentRequest: 0,
       loadingEinsatzAnalytics: false,
       chronik: [],
       loadingChronik: false,
@@ -2164,54 +2165,11 @@ export default {
       return value?.year === new Date().getFullYear() ? Number(value.days) || 0 : 0;
     },
     arbeitszeitHoverData() {
-      const employee = this.resolvedMa;
-      const employmentType = employee?.arbeitsverhaeltnis?.typ;
-      const employeeName = [employee?.vorname, employee?.nachname].filter(Boolean).join(' ');
-      const selectedYear = this.calendarYear;
-      const selectedMonth = this.calendarMonth + 1;
-      const employmentWindow = employmentType === 3
-        ? shortTermEmploymentWindow(employee?.eintrittsdatum, selectedYear)
-        : null;
-      const monthlyHours = Number(employee?.arbeitszeit?.monat);
-      const monthlyRecords = (records) => records.find(record =>
-        record.year === selectedYear && record.month === selectedMonth
-      )?.hours || 0;
-      const reportedDays = (records) => records
-        .reduce((total, record) => total + (Number(record.days) || 0), 0);
-      const workedHours = monthlyRecords(this.einsatzAnalytics.ist);
-      const plannedHours = monthlyRecords(this.einsatzAnalytics.forecast);
-      const monthLabel = new Date(selectedYear, this.calendarMonth, 1)
-        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-
-      if (employmentType === 3) {
-        if (!employmentWindow) return null;
-        const priorEmployerDays = employee?.vorarbeitgebertage?.year === selectedYear
-          ? Number(employee.vorarbeitgebertage.days) || 0
-          : 0;
-        return {
-          type: 'days',
-          eyebrow: String(selectedYear),
-          employeeName,
-          title: 'Kurzfristig beschäftigt',
-          priorEmployerDays,
-          workedDays: reportedDays(this.einsatzAnalytics.ist),
-          plannedDays: reportedDays(this.einsatzAnalytics.forecast),
-          dayLimit: 70,
-          periodLabel: employmentWindow.label,
-        };
-      }
-
-      if (employmentType !== 0 && employmentType !== 1) return null;
-      if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
-
-      return {
-        type: 'hours',
-        eyebrow: monthLabel,
-        employeeName,
-        title: employmentType === 0 ? 'Vollzeit beschäftigt' : 'Teilzeit beschäftigt',
-        monthlyHours,
-        workedHours,
-        plannedHours,
+      if (!this.resolvedMa?._id) return null;
+      return this.employeeContingent || {
+        type: 'notice',
+        title: 'Tarifkontingent',
+        employeeName: [this.resolvedMa.vorname, this.resolvedMa.nachname].filter(Boolean).join(' '),
       };
     },
     hasAnyDocuments() {
@@ -2361,6 +2319,10 @@ export default {
     },
     'ma._id'(newId, oldId) {
       if (newId !== oldId) {
+        this.contingentRequest++;
+        this.employeeContingent = null;
+        this.loadingEinsatzAnalytics = false;
+        if (this.expanded) this.loadEinsatzAnalytics();
         // Reset inventar state when a different mitarbeiter is shown
         this.inventarLogs = [];
         this.inventarLoading = false;
@@ -2412,6 +2374,10 @@ export default {
     if (this.expanded) {
       this.reloadAllData();
     }
+  },
+
+  beforeUnmount() {
+    this.contingentRequest++;
   },
 
   methods: {
@@ -3036,31 +3002,26 @@ export default {
     },
 
     async loadEinsatzAnalytics() {
-      if (!this.resolvedMa?._id) return;
+      const requestId = ++this.contingentRequest;
+      const employeeId = this.resolvedMa?._id;
+      const year = this.calendarYear;
+      const month = this.calendarMonth + 1;
+      this.employeeContingent = null;
+      if (!employeeId) { this.loadingEinsatzAnalytics = false; return; }
       this.loadingEinsatzAnalytics = true;
+      const isCurrent = () => requestId === this.contingentRequest
+        && employeeId === this.resolvedMa?._id
+        && year === this.calendarYear && month === this.calendarMonth + 1;
       try {
-        const employmentWindow = this.resolvedMa.arbeitsverhaeltnis?.typ === 3
-          ? shortTermEmploymentWindow(this.resolvedMa.eintrittsdatum, this.calendarYear)
-          : null;
-        if (this.resolvedMa.arbeitsverhaeltnis?.typ === 3 && !employmentWindow) {
-          this.einsatzAnalytics = { ist: [], forecast: [] };
-          return;
-        }
-        const from = (employmentWindow?.from || new Date(this.calendarYear, 0, 1)).toISOString();
-        const bis = new Date(this.calendarYear, 11, 31, 23, 59, 59).toISOString();
-        const { data } = await api.get(
-          `/api/personal/${this.resolvedMa._id}/analytics/einsaetze`,
-          { params: { von: from, bis } }
-        );
-        this.einsatzAnalytics = {
-          ist: data.ist || [],
-          forecast: data.forecast || [],
+        const { data } = await api.get(`/api/personal/${employeeId}/analytics/contingent`, { params: { year, month } });
+        if (isCurrent()) this.employeeContingent = data;
+      } catch (error) {
+        if (isCurrent()) this.employeeContingent = {
+          type: 'notice', title: 'Tarifkontingent',
+          issues: [{ code: 'LOAD_FAILED', message: error.response?.data?.message || 'Die Kontingentdaten konnten nicht geladen werden. Bitte die Mitarbeiterdaten erneut laden.' }],
         };
-      } catch (err) {
-        console.error('Einsatz-Analytics Fehler:', err);
-        this.einsatzAnalytics = { ist: [], forecast: [] };
       } finally {
-        this.loadingEinsatzAnalytics = false;
+        if (isCurrent()) this.loadingEinsatzAnalytics = false;
       }
     },
 
@@ -7294,7 +7255,7 @@ export default {
 
 .employee-tabs-shell .hero-right {
   display: grid;
-  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
   align-items: stretch;
   gap: 22px;
   padding: 20px;
@@ -7306,8 +7267,9 @@ export default {
 
 .employee-tabs-shell .hero-media {
   width: 100%;
-  height: min(300px, 34vw);
-  min-height: 220px;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1;
   border-radius: 12px;
 }
 
@@ -7538,7 +7500,6 @@ export default {
   }
 
   .employee-tabs-shell .hero-right {
-    grid-template-columns: 200px minmax(0, 1fr);
     gap: 16px;
     padding: 16px;
   }
@@ -7549,8 +7510,8 @@ export default {
   }
 
   .employee-tabs-shell .hero-media {
-    height: 220px;
-    min-height: 0;
+    height: auto;
+    aspect-ratio: 1;
   }
 
   .employee-tabs-shell .steckbrief {
@@ -7578,7 +7539,7 @@ export default {
     scroll-snap-type: x proximity;
   }
 
-  .employee-tabs-shell .card-actions .icon-btn > span:not([class]) {
+  .employee-tabs-shell .card-actions .tab-label {
     display: none;
   }
 
@@ -7599,7 +7560,7 @@ export default {
   .employee-tabs-shell .hero-media {
     width: min(100%, 320px);
     height: auto;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 1;
     justify-self: center;
   }
 

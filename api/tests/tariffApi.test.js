@@ -57,6 +57,7 @@ describe('Eigenständige Tarif-API', function () {
     await Promise.all(Object.values(models).map(model => model.init()));
     originalSecret = process.env.JWT_SECRET; process.env.JWT_SECRET = 'tariffs-isolated-test-secret';
     const app = express(); app.use(express.json()); app.use('/api/tariffs', require('../routes/tariffs/tariffRoutes'));
+    app.use('/api/personal', require('../routes/employee/employeeContingentRoutes'));
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     base = `http://127.0.0.1:${server.address().port}`;
   });
@@ -79,6 +80,29 @@ describe('Eigenständige Tarif-API', function () {
     assert.equal((await request('/catalog', { user: null })).status, 401);
     await User.updateOne({ _id: admin._id }, { $set: { role: 'USER', roles: [] } });
     assert.equal((await request('/catalog')).status, 403);
+  });
+  it('erlaubt Personal-Nutzern Kontingente, aber weiterhin keine Tarifverwaltung', async () => {
+    const draft = await preview(); await activate(draft.body);
+    const path = `${base}/api/personal/${first._id}/analytics/contingent?year=2026&month=10`;
+    const token = jwt.sign({ user: { id: String(staff._id) } }, process.env.JWT_SECRET);
+    const response = await fetch(path, { headers: { 'x-auth-token': token } });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.group.legacyId, '21015');
+    assert.equal(result.type, 'days-hours');
+    assert.equal(result.dayLimit, 70);
+    assert.equal(result.assignments, undefined);
+    await Mitarbeiter.collection.updateOne({ _id: first._id }, { $set: { arbeitsverhaeltnis: { typ: 1 }, arbeitszeit: { monat: 100 } } });
+    await models.Assignment.deleteMany({ employeeId: first._id });
+    const fallback = await (await fetch(path, { headers: { 'x-auth-token': token } })).json();
+    assert.equal(fallback.type, 'hours');
+    assert.equal(fallback.selectionBasis, 'EMPLOYMENT_TYPE');
+    assert.equal(fallback.monthlyHours, 100);
+    assert.equal((await request('/catalog', { user: staff })).status, 403);
+    assert.equal((await fetch(path)).status, 401);
+    assert.equal((await fetch(path.replace('month=10', 'month=13'), { headers: { 'x-auth-token': token } })).status, 400);
+    await User.updateOne({ _id: staff._id }, { $set: { isConfirmed: false } });
+    assert.equal((await fetch(path, { headers: { 'x-auth-token': token } })).status, 401);
   });
   it('zeigt ausschließlich aktive Mitarbeiter und filtert fehlende Tarifzuordnungen nach Standort', async () => {
     const hamburg = { _id: oid(), nameFull: 'Hamburg', shortName: 'HH', nameKey: 'hamburg', shortNameKey: 'hh', isActive: true };

@@ -56,6 +56,32 @@ function render(props = {}) {
 }
 
 describe('EmployeeCard shared shell controls', () => {
+  it('discards stale contingent responses after rapid month changes', async () => {
+    render();
+    await flushPromises();
+    const oldMonth = deferred(), nextMonth = deferred();
+    mocks.api.get.mockReturnValueOnce(oldMonth.promise).mockReturnValueOnce(nextMonth.promise);
+    const firstRequest = wrapper.vm.loadEinsatzAnalytics();
+    wrapper.vm.calendarMonth = (wrapper.vm.calendarMonth + 1) % 12;
+    const secondRequest = wrapper.vm.loadEinsatzAnalytics();
+    nextMonth.resolve({ data: { type: 'days', title: 'Neuer Monat', workedDays: 3 } });
+    await secondRequest;
+    oldMonth.resolve({ data: { type: 'days', title: 'Alter Monat', workedDays: 30 } });
+    await firstRequest;
+    expect(wrapper.vm.arbeitszeitHoverData.title).toBe('Neuer Monat');
+    expect(wrapper.vm.loadingEinsatzAnalytics).toBe(false);
+    expect(mocks.api.get).toHaveBeenCalledWith('/api/personal/employee-1/analytics/contingent', expect.objectContaining({ params: expect.objectContaining({ year: expect.any(Number), month: expect.any(Number) }) }));
+  });
+
+  it('exposes contingent loading failures instead of an empty zero card', async () => {
+    render();
+    await flushPromises();
+    mocks.api.get.mockRejectedValueOnce(new Error('offline'));
+    await wrapper.vm.loadEinsatzAnalytics();
+    expect(wrapper.vm.arbeitszeitHoverData.type).toBe('notice');
+    expect(wrapper.vm.arbeitszeitHoverData.issues[0].code).toBe('LOAD_FAILED');
+    expect(wrapper.vm.loadingEinsatzAnalytics).toBe(false);
+  });
   it('connects the active tab to its panel and supports arrow, Home and End navigation', async () => {
     render();
     wrapper.vm.expanded = true;

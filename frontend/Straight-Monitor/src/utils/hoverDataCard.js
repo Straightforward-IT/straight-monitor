@@ -5,6 +5,8 @@ export const HOVER_DATA_CARD_TYPES = Object.freeze({
   HOURS: 'hours',
   DAYS: 'days',
   EARNINGS: 'earnings',
+  DAYS_EARNINGS: 'days-earnings',
+  DAYS_HOURS: 'days-hours',
 });
 
 export function formatHoverNumber(value, fractionDigits = 2) {
@@ -55,10 +57,16 @@ function common(data, title) {
     eyebrow: data.eyebrow || '',
     employeeName: data.employeeName || '',
     title: data.title || title,
+    issues: data.issues || [],
   };
 }
 
 function hoursView(data) {
+  if (data.hoursStatus === 'UNRESOLVED') return {
+    type: 'notice', ...common(data, 'Monatsstunden'),
+    note: 'Klärung erforderlich. Das Stundenkontingent kann nicht vollständig berechnet werden.',
+    metadata: [], segments: [], sections: [],
+  };
   const { workedHours, plannedHours, monthlyHours } = values(data);
   const result = capacitySegments({ worked: workedHours, planned: plannedHours, limit: monthlyHours, unit: 'Std.' });
   return {
@@ -95,8 +103,8 @@ function daysView(data) {
       { label: 'Eingesetzt', value: `${formatHoverNumber(workedDays, 0)} Tage`, segment: 'worked' },
       { label: 'Geplant', value: `${formatHoverNumber(plannedDays, 0)} Tage`, segment: 'planned' },
     ] }, { rows: [
-      { label: 'Verwendet', value: `${formatHoverNumber(result.used, 0)} / ${formatHoverNumber(dayLimit, 0)} Tage`, emphasis: true },
       { label: 'Verbleibend', value: `${formatHoverNumber(result.remaining, 0)} Tage`, segment: 'remaining' },
+      { label: 'Verwendet', value: `${formatHoverNumber(result.used, 0)} / ${formatHoverNumber(dayLimit, 0)} Tage`, emphasis: true },
       ...(result.overLimit ? [{ label: 'Über Jahresgrenze', value: `${formatHoverNumber(result.overLimit, 0)} Tage`, segment: 'over-limit', emphasis: true }] : []),
     ] }],
   };
@@ -104,24 +112,38 @@ function daysView(data) {
 
 function earningsView(data) {
   const { workedHours, plannedHours, hourlyRate, earningsLimit } = values(data);
-  const workedEarnings = workedHours * hourlyRate;
-  const plannedEarnings = plannedHours * hourlyRate;
+  if (data.earningsStatus === 'UNRESOLVED') return {
+    type: 'notice', ...common(data, 'Verdienstprognose'),
+    note: 'Klärung erforderlich. Die Verdienstprognose kann nicht vollständig berechnet werden.',
+    metadata: [{ label: 'Verdienstgrenze pro Monat', value: formatEuro(earningsLimit) }],
+    segments: [], sections: [],
+  };
+  const workedEarnings = data.workedEarnings !== undefined ? nonNegative(data.workedEarnings) : workedHours * hourlyRate;
+  const plannedEarnings = data.plannedEarnings !== undefined ? nonNegative(data.plannedEarnings) : plannedHours * hourlyRate;
   const result = capacitySegments({ worked: workedEarnings, planned: plannedEarnings, limit: earningsLimit, unit: '€', remainingLabel: 'Verbleibend' });
+  if (data.totalEarnings !== undefined) {
+    result.used = nonNegative(data.totalEarnings);
+    result.remaining = Math.max(0, earningsLimit - result.used);
+    result.overLimit = Math.max(0, result.used - earningsLimit);
+    result.segments = result.segments.filter(segment => segment.id !== 'over-limit').map(segment => segment.id === 'remaining' ? { ...segment, value: result.remaining } : segment);
+    if (result.overLimit) result.segments.push({ id: 'over-limit', label: 'Über der Grenze', value: result.overLimit, color: '#dc665e' });
+  }
   return {
     type: HOVER_DATA_CARD_TYPES.EARNINGS,
     ...common(data, 'Geringfügig beschäftigt'),
     metric: { value: result.used, limit: earningsLimit, unit: '€', currency: true },
-    metadata: [{ label: 'Stundenlohn', value: formatEuro(hourlyRate) }, { label: 'Verdienstgrenze', value: formatEuro(earningsLimit) }],
+    metadata: [...(data.workedEarnings === undefined ? [{ label: 'Stundenlohn', value: formatEuro(hourlyRate) }] : []), { label: 'Verdienstgrenze', value: formatEuro(earningsLimit) }],
+    note: data.workedEarnings !== undefined ? 'Prognose aus Einsatz-Sollstunden × (Tariflohn + ÜTZ) am jeweiligen Einsatzdatum. Keine Ist-Stunden.' : undefined,
     segments: result.segments,
-    sections: [{ label: 'Monatsstunden', rows: [
-      { label: 'Eingesetzt', value: `${formatHoverNumber(workedHours)} Std.` },
-      { label: 'Geplant', value: `${formatHoverNumber(plannedHours)} Std.` },
-    ] }, { label: 'Voraussichtlicher Monatsverdienst', rows: [
+    sections: [{ label: 'Voraussichtlicher Monatsverdienst', rows: [
       { label: 'Eingesetzt', value: formatEuro(workedEarnings), segment: 'worked' },
       { label: 'Geplant', value: formatEuro(plannedEarnings), segment: 'planned' },
       { label: 'Erreicht', value: `${formatEuro(result.used)} / ${formatEuro(earningsLimit)}`, emphasis: true },
       { label: 'Verbleibend', value: formatEuro(result.remaining), segment: 'remaining' },
       ...(result.overLimit ? [{ label: 'Über Verdienstgrenze', value: formatEuro(result.overLimit), segment: 'over-limit', emphasis: true }] : []),
+    ] }, { label: 'Monatsstunden', rows: [
+      { label: 'Eingesetzt', value: `${formatHoverNumber(workedHours)} Std.` },
+      { label: 'Geplant', value: `${formatHoverNumber(plannedHours)} Std.` },
     ] }],
   };
 }
@@ -147,6 +169,21 @@ function resolveView(data) {
     };
   }
   switch (data.type || HOVER_DATA_CARD_TYPES.HOURS) {
+    case 'notice': return { ...common(data, 'Tarifkontingent'), type: 'notice', note: data.note, metadata: data.metadata || [], segments: [], sections: [] };
+    case HOVER_DATA_CARD_TYPES.DAYS_EARNINGS: return {
+      ...common(data, 'Tages- und Verdienstkontingent'), type: HOVER_DATA_CARD_TYPES.DAYS_EARNINGS,
+      panels: [
+        { ...data, type: 'days', title: 'Arbeitstage', employeeName: '', eyebrow: '', group: null, issues: [] },
+        { ...data, type: 'earnings', title: 'Verdienstprognose', employeeName: '', eyebrow: '', group: null },
+      ], segments: [], sections: [],
+    };
+    case HOVER_DATA_CARD_TYPES.DAYS_HOURS: return {
+      ...common(data, 'Tages- und Stundenkontingent'), type: HOVER_DATA_CARD_TYPES.DAYS_HOURS,
+      panels: [
+        { ...data, type: 'days', title: 'Arbeitstage', employeeName: '', eyebrow: '', group: null, fallbackReason: null, issues: [] },
+        { ...data, type: 'hours', title: 'Monatsstunden', employeeName: '', eyebrow: '', group: null, fallbackReason: null, issues: data.hoursIssues || [] },
+      ], segments: [], sections: [],
+    };
     case HOVER_DATA_CARD_TYPES.DAYS: return daysView(data);
     case HOVER_DATA_CARD_TYPES.EARNINGS: return earningsView(data);
     case HOVER_DATA_CARD_TYPES.HOURS:
@@ -155,7 +192,7 @@ function resolveView(data) {
 }
 
 /**
- * Turns monthly time facts into one of the three card views. Legacy presentation
+ * Turns time facts into single or combined quota views. Legacy presentation
  * objects with `segments` remain usable while downstream callers migrate.
  */
 export function buildHoverDataCard(data = {}) {

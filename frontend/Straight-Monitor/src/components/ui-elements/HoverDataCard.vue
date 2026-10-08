@@ -37,7 +37,7 @@
         class="hover-data-card"
         :class="{ 'hover-data-card--inline': inline }"
         :role="inline ? 'region' : 'tooltip'"
-        :aria-label="inline ? 'Monatsstunden' : undefined"
+        :aria-label="inline ? view.title : undefined"
         :style="inline ? undefined : cardStyle"
         @pointerenter="onCardEnter"
         @pointerleave="onCardLeave"
@@ -74,9 +74,18 @@
           </div>
           <span class="sr-only">Arbeitszeitdaten werden geladen</span>
         </div>
-        <div v-else class="hover-data-card__body">
-          <div class="hover-data-card__visual">
+        <div v-else-if="view.panels" class="hover-data-card__combined-content">
+          <p class="hover-data-card__title">{{ view.title }}</p>
+          <p v-if="data.fallbackReason" class="hover-data-card__note">{{ data.fallbackReason }}</p>
+          <p v-if="data.group" class="hover-data-card__note">{{ data.group.name }} · Tarifgruppe {{ data.group.legacyId }} · Stand {{ displayDate(data.groupDate) }}</p>
+          <div class="hover-data-card__combined">
+            <HoverDataCard v-for="panel in view.panels" :key="panel.type" :data="panel" inline column-only />
+          </div>
+        </div>
+        <div v-else class="hover-data-card__body" :class="{ 'hover-data-card__body--notice': view.type === 'notice' }">
+          <div v-if="view.type !== 'notice'" class="hover-data-card__visual">
             <div
+              v-if="!columnOnly"
               class="hover-data-card__view-toggle"
               role="group"
               aria-label="Diagrammansicht"
@@ -193,13 +202,16 @@
 
           <div class="hover-data-card__details">
             <p
-              v-if="view.title"
+              v-if="view.title && !columnOnly"
               class="hover-data-card__title"
             >
               {{ view.title }}
             </p>
+            <p v-if="data.group" class="hover-data-card__note">{{ data.group.name }} · Tarifgruppe {{ data.group.legacyId }} · Stand {{ displayDate(data.groupDate) }}</p>
+            <p v-if="data.fallbackReason" class="hover-data-card__note">{{ data.fallbackReason }}</p>
+            <p v-for="(issue, index) in view.issues" :key="index" class="hover-data-card__issue" role="status">{{ issue.message }}</p>
             <dl
-              v-if="view.metadata?.length"
+              v-if="view.metadata?.length && !columnOnly"
               class="hover-data-card__metadata"
             >
               <div
@@ -248,7 +260,7 @@
               </dl>
             </section>
             <p
-              v-if="!view.sections?.length"
+              v-if="!view.sections?.length && !view.issues?.length && !view.note"
               class="hover-data-card__empty"
             >
               Keine Daten vorhanden.
@@ -289,6 +301,7 @@ const props = defineProps({
   closeDelay: { type: Number, default: 160 },
   disabled: { type: Boolean, default: false },
   inline: { type: Boolean, default: false },
+  columnOnly: { type: Boolean, default: false },
   block: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   keepOpen: { type: Boolean, default: false },
@@ -400,6 +413,8 @@ function columnStyle(segment) {
 function formatMetric(value) {
   return view.value.metric?.currency ? formatEuro(value) : formatHoverNumber(value, view.value.type === 'days' ? 0 : 2);
 }
+
+function displayDate(value) { return value ? value.split('-').reverse().join('.') : ''; }
 
 function metricLabel(value) {
   return view.value.metric?.currency ? formatMetric(value) : `${formatMetric(value)} ${view.value.metric?.unit || 'Std.'}`;
@@ -592,6 +607,17 @@ onBeforeUnmount(close);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+.hover-data-card__combined-content { padding: 12px; }
+.hover-data-card__combined { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.hover-data-card__combined > .hover-data-card { border: 0; background: transparent; }
+.hover-data-card__combined .hover-data-card__body { grid-template-columns: minmax(0, 1fr); padding: 0; }
+.hover-data-card__combined .hover-data-card__visual { justify-self: center; width: 100%; max-width: 112px; }
+.hover-data-card__combined .hover-data-card__chart { width: 100%; }
+.hover-data-card__combined .hover-data-card__row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.hover-data-card__combined .hover-data-card__row dd { text-align: left; }
+.hover-data-card__combined .hover-data-card__column-caption strong { font-size: 14px; overflow-wrap: anywhere; }
+.hover-data-card__issue { margin: 8px 0; font-size: 12px; color: var(--text); background: var(--hover); padding: 8px; border-radius: 4px; overflow-wrap: anywhere; }
+.hover-data-card__body--notice { grid-template-columns: minmax(0, 1fr); }
 .hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; overflow: visible; overscroll-behavior: auto; box-shadow: none; container-type: inline-size; }
 .hover-data-card__indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }

@@ -263,30 +263,34 @@
       <p v-if="lohnartError" class="um__error">{{ lohnartError }}</p>
       <p v-else-if="lohnartenLoading" class="lohn__state">Lohnarten werden geladen...</p>
       <div v-else class="um__table-wrap">
-        <table class="um__table">
+        <table class="um__table lohn__table">
           <thead>
             <tr>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartNummer')">Nr.<font-awesome-icon v-if="lohnartSortField === 'lohnartNummer'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartKurzzeichen')">Kürzel<font-awesome-icon v-if="lohnartSortField === 'lohnartKurzzeichen'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('lohnartBezeichnung')">Bezeichnung<font-awesome-icon v-if="lohnartSortField === 'lohnartBezeichnung'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('rechnungstext')">Rechnungstext<font-awesome-icon v-if="lohnartSortField === 'rechnungstext'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('kostenart')">Kostenart<font-awesome-icon v-if="lohnartSortField === 'kostenart'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('berechnungsartCode')">Berechnungsart<font-awesome-icon v-if="lohnartSortField === 'berechnungsartCode'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th class="lohn__th--zuschlag"><button type="button" class="lohn__sort-button" @click="sortLohnarten('zuschlagsProzent')">Zuschlag<font-awesome-icon v-if="lohnartSortField === 'zuschlagsProzent'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
-              <th><button type="button" class="lohn__sort-button" @click="sortLohnarten('equalPayRelevanz')">Equal Pay<font-awesome-icon v-if="lohnartSortField === 'equalPayRelevanz'" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" /></button></th>
+              <th
+                v-for="column in lohnartColumns"
+                :key="column.field"
+                :data-field="column.field"
+                :class="{ 'lohn__th--zuschlag': column.field === 'zuschlagsProzent' }"
+                :aria-sort="lohnartSortField === column.field ? (lohnartSortDirection === 'asc' ? 'ascending' : 'descending') : 'none'"
+              >
+                <button type="button" class="lohn__sort-button" @click="sortLohnarten(column.field)">
+                  {{ column.label }}
+                  <font-awesome-icon v-if="lohnartSortField === column.field" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" />
+                </button>
+              </th>
               <th>Kundenkonditionen</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="lohnart in filteredLohnarten" :key="lohnart._id" :class="{ 'lohn__row--normalstunden': lohnart.lohnartNummer === '100' }">
-              <td><span class="quali-key">{{ lohnart.lohnartNummer }}</span></td>
-              <td><span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span><span v-else class="ma-unlinked">-</span></td>
-              <td>{{ lohnart.lohnartBezeichnung || '-' }}</td>
-              <td>{{ lohnart.rechnungstext || '-' }}</td>
-              <td>{{ lohnart.kostenart || '-' }}</td>
-              <td>{{ lohnart.berechnungsartCode || '-' }}</td>
-              <td class="lohn__zuschlag">{{ lohnart.zuschlagsProzent || '-' }}</td>
-              <td>{{ lohnart.equalPayRelevanz || '-' }}</td>
+              <td v-for="column in lohnartColumns" :key="column.field" :data-field="column.field" :class="{ 'lohn__zuschlag': column.field === 'zuschlagsProzent' }">
+                <span v-if="column.field === 'lohnartNummer'" class="quali-key">{{ lohnart.lohnartNummer }}</span>
+                <template v-else-if="column.field === 'lohnartKurzzeichen'">
+                  <span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span>
+                  <span v-else class="ma-unlinked">-</span>
+                </template>
+                <template v-else>{{ lohnart[column.field] === '' ? '-' : (lohnart[column.field] ?? '-') }}</template>
+              </td>
               <td class="lohn__kunden">
                 <div v-if="lohnart.lohnartNummer !== '100' && lohnart.kunden?.length" class="lohn__kunden-list">
                   <button v-for="kunde in lohnart.kunden" :key="kunde._id" type="button" class="lohn__kunde-link" @click="openKundenPreise(kunde)">
@@ -297,7 +301,7 @@
               </td>
             </tr>
             <tr v-if="!filteredLohnarten.length">
-              <td colspan="9" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
+              <td :colspan="lohnartColumns.length + 1" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
             </tr>
           </tbody>
         </table>
@@ -813,20 +817,43 @@ const lohnartError = ref('');
 const lohnartSearch = ref('');
 const lohnartSortField = ref('lohnartNummer');
 const lohnartSortDirection = ref('asc');
+const lohnartColumns = [
+  { field: 'lohnartNummer', label: 'Nr.' },
+  { field: 'lohnartKurzzeichen', label: 'Kürzel' },
+  { field: 'lohnartBezeichnung', label: 'Bezeichnung' },
+  { field: 'rechnungstext', label: 'Rechnungstext' },
+  { field: 'kostenart', label: 'Kostenart' },
+  { field: 'berechnungsartCode', label: 'Berechnungsart' },
+  { field: 'zuschlagsProzent', label: 'Zuschlag' },
+  { field: 'equalPayRelevanz', label: 'Equal Pay' },
+  { field: 'kb', label: 'KB' },
+  { field: 'fremdLohnartNummer', label: 'Fremdlohnart-Nr.' },
+  { field: 'durchschnittsspeicherCode', label: 'Durchschnittsspeicher' },
+  { field: 'zuschlagsgruppeWert', label: 'Zuschlagsgruppe' },
+  { field: 'steuerartCode', label: 'Steuerart' },
+  { field: 'steuerSpezialCode', label: 'Steuer Spezial' },
+  { field: 'sozialversicherungCode', label: 'Sozialversicherung' },
+  { field: 'pfaendungCode', label: 'Pfändung' },
+  { field: 'auswerten', label: 'Auswerten' },
+  { field: 'inStundenauswertung', label: 'In Stundenauswertung' },
+  { field: 'gleitzeitCode', label: 'Gleitzeit' },
+  { field: 'rechnungsspalte', label: 'Rechnungsspalte' },
+  { field: 'berechnungsgrundlageSpalte', label: 'Berechnungsgrundlage-Spalte' },
+  { field: 'fakturierungCode', label: 'Fakturierung' },
+  { field: 'branchenzuschlagCode', label: 'Branchenzuschlag' },
+  { field: 'branchenzuschlagLohnartNummer', label: 'Branchenzuschlag-Lohnart-Nr.' },
+  { field: 'branchenzuschlagPrioritaet', label: 'Branchenzuschlag-Priorität' },
+];
 
 const filteredLohnarten = computed(() => {
   const query = lohnartSearch.value.trim().toLowerCase();
-  const filtered = !query ? lohnarten.value : lohnarten.value.filter((lohnart) => [
-    lohnart.lohnartNummer,
-    lohnart.lohnartKurzzeichen,
-    lohnart.lohnartBezeichnung,
-    lohnart.rechnungstext,
-    lohnart.kostenart,
-  ].some((value) => String(value || '').toLowerCase().includes(query)));
+  const filtered = !query ? lohnarten.value : lohnarten.value.filter((lohnart) =>
+    lohnartColumns.some(({ field }) => String(lohnart[field] ?? '').toLowerCase().includes(query)));
 
   return [...filtered].sort((left, right) => {
-    const leftValue = String(left[lohnartSortField.value] || '');
-    const rightValue = String(right[lohnartSortField.value] || '');
+    const leftValue = String(left[lohnartSortField.value] ?? '');
+    const rightValue = String(right[lohnartSortField.value] ?? '');
+    if (!leftValue && !rightValue) return 0;
     if (!leftValue) return 1;
     if (!rightValue) return -1;
     const comparison = leftValue.localeCompare(rightValue, 'de', { numeric: true, sensitivity: 'base' });
@@ -1462,6 +1489,7 @@ function formatDate(d) {
   padding-top: 22px;
 }
 .lohn__state { color: var(--muted); font-size: 0.85rem; }
+.lohn__table { th { white-space: nowrap; } }
 .lohn__sort-button {
   display: inline-flex;
   align-items: center;

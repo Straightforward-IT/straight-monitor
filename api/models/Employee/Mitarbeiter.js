@@ -283,18 +283,34 @@ MitarbeiterSchema.virtual('evaluierungSoll').get(function () {
  * Returns RESOLVED with an exact decimal string and group/stage/period context,
  * or UNRESOLVED with a concrete code/message. Does not change employee data.
  */
-MitarbeiterSchema.methods.getTariffBaseRate = function (date) {
+MitarbeiterSchema.methods.getTariffBaseRate = function (date, context) {
     // Lazy require avoids the service's reference to the Mitarbeiter model at startup.
     const tariffs = require('../../services/tariffs/TariffService');
-    return tariffs.baseRate(this._id, date === undefined ? tariffs.currentTariffDate() : date);
+    return tariffs.baseRate(this._id, date === undefined ? tariffs.currentTariffDate() : date, context);
 };
 
 /** Read independent ÜTZ values (DPREIS etc.) at a date, defaulting to today in Berlin.
  * Missing or overlapping histories return UNRESOLVED; values are never summed.
  */
-MitarbeiterSchema.methods.getAboveTariffValues = function (date) {
+MitarbeiterSchema.methods.getAboveTariffValues = function (date, context) {
     const tariffs = require('../../services/tariffs/TariffService');
-    return tariffs.aboveTariffValues(this._id, date === undefined ? tariffs.currentTariffDate() : date);
+    return tariffs.aboveTariffValues(this._id, date === undefined ? tariffs.currentTariffDate() : date, context);
+};
+
+/** Exact hourly tariff + DPREIS; an absent allowance is zero, ambiguity is not. */
+MitarbeiterSchema.methods.getTariffHourlyWage = async function (date, context) {
+    const tariffs = require('../../services/tariffs/TariffService');
+    const { addDecimals } = require('../../services/tariffs/tariffMoney');
+    const snapshot = context || await tariffs.createEmployeeContext(this);
+    const day = date === undefined ? tariffs.currentTariffDate() : date;
+    const [baseRate, aboveTariff] = await Promise.all([
+        this.getTariffBaseRate(day, snapshot), this.getAboveTariffValues(day, snapshot),
+    ]);
+    if (baseRate.status !== 'RESOLVED') return baseRate;
+    if (aboveTariff.status !== 'RESOLVED' && aboveTariff.code !== 'ABOVE_TARIFF_MISSING') return aboveTariff;
+    const allowance = aboveTariff.values?.DPREIS ?? '0';
+    return { status: 'RESOLVED', date: day, currency: 'EUR', value: addDecimals(baseRate.value, allowance),
+        baseRate: baseRate.value, aboveTariff: allowance, activeImportId: snapshot.importId };
 };
 
 const Mitarbeiter = mongoose.model('Mitarbeiter', MitarbeiterSchema);

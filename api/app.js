@@ -118,6 +118,7 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/paket-vorlagen', paketVorlageRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reports', wpformsRoutes);
+app.use('/api/personal', require('./routes/employee/employeeContingentRoutes'));
 app.use('/api/personal', mitarbeiterRoutes);
 app.use('/api/asana', asanaRoutes);
 app.use('/api/wallet-passes', appleWalletPassRoutes);

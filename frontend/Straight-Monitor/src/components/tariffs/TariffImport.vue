@@ -3,7 +3,6 @@
     <div class="tariff-panel">
       <h2>Tarifdatenstand oder Teilimport prüfen</h2>
       <p class="tariff-muted">Ordne jede Exportdatei ihrer Tabellenrolle zu. Ein vollständiger Import enthält alle 14 Tabellen. Bei einem Teilimport werden nicht ausgewählte Tabellen aus dem aktuell aktiven Tarifstand übernommen.</p>
-      <p class="tariff-notice">Tarif Personal und ÜTZ werden ergänzt und aktualisiert. Im Export fehlende Historienzeilen bleiben im aktiven Datenstand erhalten, etwa bei einem Export nur ab 01.01.2026. ÜTZ wird über Personalnummer und DTVON aktualisiert, auch bei geänderter Quell-ID. Tarif Personal verwendet die Quell-ID oder, ohne ID, Personalnummer und DTVON.</p>
       <div class="tariff-grid">
         <div v-for="role in tariffFileRoles" :key="role.key" class="tariff-import-file">
           <header><strong>{{ roleLabel(role.key) }}</strong><AppButton v-if="files[role.key]" size="sm" variant="ghost" :disabled="busy" :aria-label="`${roleLabel(role.key)}: Datei entfernen`" @click="removeFile(role.key)">Entfernen</AppButton></header>

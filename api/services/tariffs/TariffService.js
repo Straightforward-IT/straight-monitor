@@ -335,17 +335,40 @@ async function employeeDataset(importId, employeeId, date) {
   ]) : [[], []];
   return serialize({ groups, periods, assignments, allowances, currentPersonalNr: employee?.personalnr || null });
 }
-async function baseRate(employeeId, date) {
-  validateRead(employeeId, date);
+async function createEmployeeContext(employee) {
   const importId = await activeId();
+  const employeeId = String(employee._id);
+  const empty = { groups: [], periods: [], assignments: [], allowances: [], currentPersonalNr: employee.personalnr };
+  if (!importId) return { employeeId, importId, data: empty };
+  const [assignments, allowances] = await Promise.all([
+    models.Assignment.find({ importId, employeeId, matchStatus: 'MATCHED' }).lean(),
+    models.Allowance.find({ importId, employeeId, matchStatus: 'MATCHED' }).lean(),
+  ]);
+  const groupIds = [...new Set(assignments.map(row => row.employeeGroupId))];
+  const [groups, periods] = await Promise.all([
+    models.Group.find({ importId, legacyId: { $in: groupIds } }).lean(),
+    models.Period.find({ importId, employeeGroupId: { $in: groupIds } }).lean(),
+  ]);
+  return { employeeId, importId, data: serialize({ ...empty, assignments, allowances, groups, periods }) };
+}
+function contextData(context, employeeId) {
+  if (context.employeeId !== String(employeeId)) fail(400, 'Tarifkontext gehört zu einem anderen Mitarbeiter.');
+  return context.data;
+}
+async function baseRate(employeeId, date, context) {
+  validateRead(employeeId, date);
+  const importId = context ? context.importId : await activeId();
+  if (context) contextData(context, employeeId);
   if (!importId) return { ...noActiveImport(date), allowances: [] };
-  const data = await employeeDataset(importId, employeeId, date);
+  const data = context ? contextData(context, employeeId) : await employeeDataset(importId, employeeId, date);
   return domain.resolveBaseRate(data, employeeId, date, data.currentPersonalNr);
 }
-async function aboveTariffValues(employeeId, date) {
+async function aboveTariffValues(employeeId, date, context) {
   validateRead(employeeId, date);
-  const importId = await activeId();
+  const importId = context ? context.importId : await activeId();
+  if (context) contextData(context, employeeId);
   if (!importId) return { ...noActiveImport(date), candidateCount: 0 };
+  if (context) return domain.resolveAboveTariff(context.data, employeeId, date, context.data.currentPersonalNr);
   const [allowances, employee] = await Promise.all([
     models.Allowance.find(datedEmployeeFilter(importId, employeeId, date)).lean(),
     Mitarbeiter.findById(employeeId).select('personalnr').lean(),
@@ -373,4 +396,4 @@ async function wageInfo(employeeId, date) {
   };
 }
 
-module.exports = { catalog, imports, getImport, preview, activate, employees, history, baseRate, aboveTariffValues, wageInfo, currentTariffDate, serialize, datasetHash };
+module.exports = { catalog, imports, getImport, preview, activate, employees, history, baseRate, aboveTariffValues, wageInfo, createEmployeeContext, currentTariffDate, serialize, datasetHash };
