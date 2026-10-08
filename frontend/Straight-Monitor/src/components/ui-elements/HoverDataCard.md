@@ -50,6 +50,9 @@ const overview = {
 - `openDelay`: 180 ms on hover. Keyboard focus opens immediately. `closeDelay`: 160 ms so the pointer can cross into the card. It remains visible while hovered or while its trigger has focus.
 - Escape, an outside pointer press, or scrolling the trigger out of view dismisses the card. Touch taps toggle it. `disabled` prevents opening and dismisses an open card.
 - Emits `open` and `close`. The scoped slot also receives the `open` boolean.
+- `popout`: adds the shared popout icon button to the header. It emits `popout`
+  and dismisses the popup; the caller opens the separate window. While loading,
+  the button is disabled. Inline cards also support this action.
 
 Local preview: `/dev/hover-data-card` while running Vite. This route is excluded from production routing.
 
@@ -59,6 +62,12 @@ Local preview: `/dev/hover-data-card` while running Vite. This route is excluded
 `ModalFrame` ein. Der Aufrufer steuert Sichtbarkeit und Daten; das Modal führt
 keine eigenen API-Abfragen aus. Titel, Untertitel und Ladezustand sind optional.
 Schließen wird über `update:modelValue` und `close` weitergegeben.
+Für Minimierung wird es mit `minimizable` über den globalen Modal-Dock geöffnet.
+`useEmployeeContingentModals` übernimmt dies für Mitarbeiterkontingente und
+verwendet pro Mitarbeiter und Bezugsmonat genau ein Fenster. Es zeigt den
+Datenstand der Hover-Vorschau; Minimieren und Wiederherstellen behalten ihn bei,
+auch wenn die DispoTable inzwischen verlassen wurde. Erneutes Popout für den
+gleichen Mitarbeiter und Monat aktualisiert das vorhandene Fenster.
 
 ```vue
 <HoverDataCardModal
@@ -70,6 +79,10 @@ Schließen wird über `update:modelValue` und `close` weitergegeben.
 ```
 
 ## Tarifgesteuerte EmployeeCard
+
+Die dauerhaft eingebettete Karte unter dem Profilbild hat ebenfalls den
+Popout-Button. Er öffnet dasselbe minimierbare Fenster wie in der DispoTable,
+mit den aktuell geladenen Kontingentdaten und dem ausgewählten Kalendermonat.
 
 Die EmployeeCard lädt ihre Kontingente über
 `GET /api/personal/:id/analytics/contingent?year=2026&month=10`.
@@ -111,6 +124,9 @@ Vor- und Nachname öffnen dieselbe tarifgesteuerte Karte bei Hover oder
 Tastaturfokus. Mobil steht sie dauerhaft in den aufgeklappten Mitarbeiterdetails.
 Der abgefragte Monat gehört zur ersten sichtbaren Datumsspalte der DispoTable.
 Ein Wechsel des Zeitraums lädt die geöffneten Karten für diesen Monat neu.
+Der Popout-Button öffnet `HoverDataCardModal` mit genau dieser Vorschau. Dort
+kann die Übersicht über den vorhandenen Minimize-Button für später im Dock
+abgelegt werden. Hover und Tastaturfokus alleine öffnen weiterhin nur die Karte.
 
 `useEmployeeContingents` lädt in beiden Mitarbeiteransichten denselben Endpunkt.
 In der DispoTable wird erst beim Öffnen abgefragt; Vor- und Nachname teilen

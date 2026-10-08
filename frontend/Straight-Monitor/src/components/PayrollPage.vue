@@ -94,7 +94,7 @@
             <p v-if="preparationError" role="alert">{{ preparationError }}</p>
             <p v-if="notice" role="status">{{ notice }}</p>
             <template v-if="preparation">
-              <div class="payroll-preparation-actions">
+              <div v-show="reviewTab" class="payroll-preparation-actions">
                 <label>Bearbeitungs- / Prüfvermerk<AppTextInput v-model="preparationReason" maxlength="1000" :disabled="busy" /></label>
                 <label v-if="preparation.stale && preparation.state === 'DRAFT'"><input v-model="reconcile" type="checkbox"> Geänderte Quellen geprüft und abgeglichen</label>
                 <p v-if="preparation.stale" role="alert">Die gespeicherte Vorbereitung verweist auf ältere Quellen. Bitte Änderungen prüfen.</p>
@@ -109,7 +109,7 @@
                 @action="act" @preview="loadPreview" @load-mapping="loadMapping" @save-mapping="saveMapping" @mapping-dirty="mappingDirty = $event"
               />
               <PayrollPreparationEditor
-                v-show="!reviewTab" :key="`${employeeId}:${month}:${preparation.revision}`" ref="preparationEditor"
+                v-show="reviewTab" :key="`${employeeId}:${month}:${preparation.revision}`" ref="preparationEditor"
                 v-model="preparationItems" :sources="preparation.sources" :inherited="preparation.inherited" :types="data.dayEntryTypes" :month="month"
                 :readonly="preparation.state === 'REVIEWED'" :busy="busy" :picked="picked" @form-dirty="formDirty = $event"
               />
@@ -301,8 +301,8 @@ const mappingCodes = computed(() => ['P', 'M', 'AZK_DEPOSIT', 'AZK_WITHDRAWAL', 
 const calendarData = computed(() => ({ ...data.value.initialData, bankMinutes: null,
   entries: [...data.value.initialData.entries, ...preparationCalendar(preparationItems.value, preparation.value?.inherited || [], month.value, data.value.dayEntryTypes)] }));
 const calendarKey = computed(() => JSON.stringify(preparationItems.value));
-function pickTransfer(value) { picked.value = { ...value, nonce: Date.now() }; }
-function pickEntry(value) { picked.value = { ...value, kind: 'ABSENCE', nonce: Date.now() }; }
+function pickTransfer(value) { picked.value = { ...value, nonce: Date.now() }; replaceQuery({ tab: 'monatspruefung' }); }
+function pickEntry(value) { picked.value = { ...value, kind: 'ABSENCE', nonce: Date.now() }; replaceQuery({ tab: 'monatspruefung' }); }
 async function savePreparation() { await act('save'); }
 function beforeUnload(event) { if (preparationDirty.value || busy.value) { event.preventDefault(); event.returnValue = ''; } }
 function releasedChanged() {

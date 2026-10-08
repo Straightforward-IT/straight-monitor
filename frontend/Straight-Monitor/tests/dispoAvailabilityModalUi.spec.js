@@ -10,8 +10,10 @@ const mocks = vi.hoisted(() => ({
   comments: { zvooveItems: [], fetch: vi.fn(), fetchChronikBatch: vi.fn(), getCellComments: vi.fn(), cellUnreadCount: vi.fn(), chronikForMa: vi.fn(), markRead: vi.fn(), post: vi.fn(), delete: vi.fn() },
   dispoEntries: [],
   dispoEmployees: [],
+  openEmployeeContingent: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/composables/useEmployeeContingentModals', () => ({ useEmployeeContingentModals: () => ({ openEmployeeContingent: mocks.openEmployeeContingent }) }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { _id: 'user-1', roles: ['ADMIN'], email: 'test@example.com' }, employeeNameFormat: 'first-last' }) }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => ({}) }));
 vi.mock('@/stores/flipAll', () => ({ useFlipAll: () => ({}) }));
@@ -85,12 +87,18 @@ describe('Dispo employee tariff contingents', () => {
     expect(cards).toHaveLength(2);
     expect(cards[0].props('disabled')).toBe(false);
     expect(cards[0].props('suppressed')).toBe(false);
+    expect(cards[0].props('popout')).toBe(true);
+    expect(mocks.openEmployeeContingent).not.toHaveBeenCalled();
     expect(mocks.api.get.mock.calls.some(([url]) => url.endsWith('/analytics/contingent'))).toBe(false);
     cards[0].vm.$emit('open'); cards[1].vm.$emit('open');
     await flushPromises();
     expect(mocks.api.get.mock.calls.filter(([url]) => url.endsWith('/analytics/contingent'))).toHaveLength(1);
     expect(cards[0].props('data')).toMatchObject({ type: 'days-earnings', group: { legacyId: '27356' }, employeeName: 'Ada Test', totalEarnings: '650.00' });
     expect(cards[1].props('data')).toEqual(cards[0].props('data'));
+    expect(mocks.openEmployeeContingent).not.toHaveBeenCalled();
+    cards[0].vm.$emit('popout');
+    expect(mocks.openEmployeeContingent).toHaveBeenCalledWith(mocks.dispoEmployees[0], wrapper.vm.contingentPeriod,
+      expect.objectContaining({ employeeName: 'Ada Test', type: 'days-earnings', totalEarnings: '650.00' }));
   });
 
   it('loads the shared card when mobile employee details expand, including direct selection', async () => {
@@ -103,8 +111,11 @@ describe('Dispo employee tariff contingents', () => {
     await flushPromises();
     const card = wrapper.findComponent(HoverDataCard);
     expect(card.props('inline')).toBe(true);
+    expect(card.props('popout')).toBe(true);
     expect(card.props('data')).toMatchObject({ type: 'days-earnings', group: { legacyId: '27356' } });
     expect(mocks.api.get.mock.calls.filter(([url]) => url.endsWith('/analytics/contingent'))).toHaveLength(1);
+    card.vm.$emit('popout');
+    expect(mocks.openEmployeeContingent).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -4,6 +4,8 @@
     :model-value="modelValue"
     :title="title"
     :subtitle="subtitle"
+    :minimizable="minimizable"
+    :minimize-title="title"
     size="md"
     style="--mf-max-width: min(640px, calc(100vw - 24px)); --mf-body-padding: 0"
     @update:model-value="$emit('update:modelValue', $event)"
@@ -30,6 +32,7 @@ defineProps({
     }),
   },
   loading: { type: Boolean, default: false },
+  minimizable: { type: Boolean, default: false },
 });
 defineEmits(['update:modelValue', 'close']);
 </script>

@@ -41,9 +41,11 @@
         :style="inline ? undefined : cardStyle"
         @pointerenter="onCardEnter"
         @pointerleave="onCardLeave"
+        @focusin="onCardFocusIn"
+        @focusout="onCardFocusOut"
       >
         <div
-          v-if="view.eyebrow || view.employeeName"
+          v-if="view.eyebrow || view.employeeName || popout"
           class="hover-data-card__header"
         >
           <span
@@ -62,6 +64,18 @@
           >
             {{ view.eyebrow }}
           </span>
+          <AppIconButton
+            v-if="popout"
+            class="hover-data-card__popout"
+            variant="ghost"
+            size="sm"
+            label="Kontingentübersicht in Fenster öffnen"
+            aria-haspopup="dialog"
+            :disabled="loading"
+            @click.stop="openPopout"
+          >
+            <font-awesome-icon icon="fa-solid fa-up-right-from-square" />
+          </AppIconButton>
         </div>
 
         <div v-if="loading" class="hover-data-card__loading" aria-live="polite">
@@ -281,6 +295,7 @@
 <script setup>
 import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { buildHoverDataCard, formatEuro, formatHoverNumber } from '@/utils/hoverDataCard';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const props = defineProps({
   data: {
@@ -306,9 +321,10 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   keepOpen: { type: Boolean, default: false },
   suppressed: { type: Boolean, default: false },
+  popout: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['open', 'close']);
+const emit = defineEmits(['open', 'close', 'popout']);
 const cardId = `hover-data-card-${getCurrentInstance().uid}`;
 const anchor = ref(null);
 const card = ref(null);
@@ -525,13 +541,29 @@ function onCardLeave() {
   scheduleClose();
 }
 
+function onCardFocusOut(event) {
+  if (card.value?.contains(event.relatedTarget) || anchor.value?.contains(event.relatedTarget)) return;
+  hasFocus = false;
+  scheduleClose();
+}
+
+function onCardFocusIn() {
+  hasFocus = true;
+  clearTimeout(closeTimer);
+}
+
+function openPopout() {
+  close();
+  emit('popout');
+}
+
 function onFocusIn() {
   hasFocus = true;
   if (pointerType !== 'touch') open();
 }
 
 function onFocusOut(event) {
-  if (anchor.value?.contains(event.relatedTarget)) return;
+  if (anchor.value?.contains(event.relatedTarget) || card.value?.contains(event.relatedTarget)) return;
   hasFocus = false;
   pointerType = '';
   scheduleClose();
@@ -622,6 +654,7 @@ onBeforeUnmount(close);
 .hover-data-card__indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.hover-data-card__popout { margin-left: auto; flex-shrink: 0; }
 .hover-data-card__employee-name + .hover-data-card__eyebrow::before { content: '·'; margin: 0 7px; color: var(--border); }
 .hover-data-card__body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; padding: 16px; }
 .hover-data-card__loading { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; min-height: 182px; padding: 16px; }

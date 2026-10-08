@@ -1371,6 +1371,8 @@
         :data="arbeitszeitHoverData"
         :loading="loadingEinsatzAnalytics"
         inline
+        popout
+        @popout="openContingentModal"
       />
       </div>
 
@@ -1745,6 +1747,7 @@ import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
 import HoverDataCard from "./ui-elements/HoverDataCard.vue";
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
+import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
 import AppButton from "./ui-elements/AppButton.vue";
 import AppIconButton from "./ui-elements/AppIconButton.vue";
 import AppTextInput from "./ui-elements/AppTextInput.vue";
@@ -1917,6 +1920,7 @@ export default {
 
     const dataCache = useDataCache();
     const employeeContingents = useEmployeeContingents();
+    const { openEmployeeContingent } = useEmployeeContingentModals();
 
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
@@ -1938,6 +1942,7 @@ export default {
       router,
       dataCache,
       employeeContingents,
+      openEmployeeContingent,
       selfLoadedMa,
       selfLoading,
       formattedName,
@@ -3023,6 +3028,15 @@ export default {
       } finally {
         this.loadingEinsatzContext = false;
       }
+    },
+
+    openContingentModal() {
+      if (!this.resolvedMa?._id || this.loadingEinsatzAnalytics) return;
+      this.openEmployeeContingent(
+        this.resolvedMa,
+        { year: this.calendarYear, month: this.calendarMonth + 1 },
+        { ...this.arbeitszeitHoverData, employeeName: this.formattedName },
+      );
     },
 
     async loadEinsatzAnalytics() {

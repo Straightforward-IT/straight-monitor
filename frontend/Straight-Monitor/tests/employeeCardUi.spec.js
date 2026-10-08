@@ -5,11 +5,13 @@ import ModalFrame from '../src/components/frames/ModalFrame.vue';
 import AppIconButton from '../src/components/ui-elements/AppIconButton.vue';
 import R2FileBrowser from '../src/components/R2FileBrowser.vue';
 import KuendigungModal from '../src/components/Modals/KuendigungModal.vue';
+import HoverDataCard from '../src/components/ui-elements/HoverDataCard.vue';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), patch: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
   updateEmployee: vi.fn(),
   openDocument: vi.fn(),
+  openEmployeeContingent: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { roles: ['ADMIN'] } }) }));
@@ -20,6 +22,7 @@ vi.mock('@/stores/signaturModal', () => ({ useSignaturModal: () => ({}) }));
 vi.mock('@/composables/useDocumentModals', () => ({ useDocumentModals: () => ({ openDocument: mocks.openDocument }) }));
 vi.mock('@/composables/useAdditionalModals', () => ({ useAdditionalModals: () => ({ openEmployeeEdit: vi.fn() }) }));
 vi.mock('@/composables/useTimeCaptureModals', () => ({ useTimeCaptureModals: () => ({ openTimeCapture: vi.fn() }) }));
+vi.mock('@/composables/useEmployeeContingentModals', () => ({ useEmployeeContingentModals: () => ({ openEmployeeContingent: mocks.openEmployeeContingent }) }));
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn(), resolve: vi.fn() }) }));
 
 const frameStub = {
@@ -94,6 +97,13 @@ describe('EmployeeCard shared shell controls', () => {
     expect(wrapper.vm.arbeitszeitHoverData.title).toBe('Neuer Monat');
     expect(wrapper.vm.loadingEinsatzAnalytics).toBe(false);
     expect(mocks.api.get).toHaveBeenCalledWith('/api/personal/employee-1/analytics/contingent', expect.objectContaining({ params: expect.objectContaining({ year: expect.any(Number), month: expect.any(Number) }) }));
+    const card = wrapper.getComponent(HoverDataCard);
+    expect(card.props('popout')).toBe(true);
+    expect(mocks.openEmployeeContingent).not.toHaveBeenCalled();
+    card.vm.$emit('popout');
+    expect(mocks.openEmployeeContingent).toHaveBeenCalledWith(expect.objectContaining({ _id: 'employee-1' }),
+      { year: wrapper.vm.calendarYear, month: wrapper.vm.calendarMonth + 1 },
+      expect.objectContaining({ title: 'Neuer Monat', workedDays: 3, employeeName: wrapper.vm.formattedName }));
   });
 
   it('exposes contingent loading failures instead of an empty zero card', async () => {

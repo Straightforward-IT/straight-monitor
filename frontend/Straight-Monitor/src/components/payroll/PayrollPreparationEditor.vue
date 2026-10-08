@@ -39,7 +39,7 @@
       </li>
       <li v-for="item in inherited" :key="item.id">
         {{ describe(item) }} · Fortlaufende Fehlzeit
-        <RouterLink :to="{ path: '/payroll', query: { ...route.query, month: item.originMonth, tab: 'stundenerfassung' } }">Im Ursprungsmonat {{ item.originMonth }} bearbeiten</RouterLink>
+        <RouterLink :to="{ path: '/payroll', query: { ...route.query, month: item.originMonth, tab: 'monatspruefung' } }">Im Ursprungsmonat {{ item.originMonth }} bearbeiten</RouterLink>
       </li>
     </ul>
   </section>

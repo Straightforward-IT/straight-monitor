@@ -429,7 +429,7 @@
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block popout @open="openNameHoverCard(ma)" @popout="openEmployeeContingentModal(ma)">
                     <template #default="{ triggerProps }">
                   <div class="ma-name-cell">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
@@ -450,7 +450,7 @@
                 </td>
                 <!-- Vorname -->
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block popout @open="openNameHoverCard(ma)" @popout="openEmployeeContingentModal(ma)">
                     <template #default="{ triggerProps }">
                       <span class="ma-name" tabindex="0" v-bind="triggerProps" :aria-label="`${formatEmployeeName(ma)} – Tarifkontingent`">{{ ma.vorname }}</span>
                     </template>
@@ -917,7 +917,7 @@
 
           <!-- Expanded details: Notiz, Kunden, Chronik -->
           <div v-if="expandedCardId === String(ma._id)" class="m-card__details">
-            <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" inline />
+            <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" inline popout @popout="openEmployeeContingentModal(ma)" />
             <div class="m-detail-section">
               <label class="m-detail-label">Notiz</label>
               <div
@@ -1690,6 +1690,7 @@ import ContextMenu from '@/components/ContextMenu.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
+import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import HelpModal from '@/components/Modals/HelpModal.vue';
@@ -1733,6 +1734,7 @@ const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
 const employeeContingents = useEmployeeContingents();
+const { openEmployeeContingent } = useEmployeeContingentModals();
 const activeNameHoverId = ref(null);
 const showHidden = ref(false);
 const highlightedMaId = ref(null);
@@ -3099,6 +3101,10 @@ const contingentPeriod = computed(() => {
   const date = visibleDays.value[0]?.iso || toIso(new Date());
   return { year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) };
 });
+
+function openEmployeeContingentModal(ma) {
+  openEmployeeContingent(ma, contingentPeriod.value, employeeHoverData(ma));
+}
 
 function employeeHoverData(ma) {
   return { ...employeeContingents.dataFor(ma, contingentPeriod.value), employeeName: formatEmployeeName(ma) };

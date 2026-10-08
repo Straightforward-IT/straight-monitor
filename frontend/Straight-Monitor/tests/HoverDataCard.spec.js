@@ -8,6 +8,19 @@ const data = { type: 'days-earnings', title: 'KZF 603 ohne AZK', group: { legacy
 const render = (props = {}) => mount(HoverDataCard, { props: { data, inline: true, ...props }, global: { stubs: { 'font-awesome-icon': true } } });
 
 describe('HoverDataCard tarifgesteuerte Kontingente', () => {
+  it('opens a separate window only through the optional popout action and blocks it during loading', async () => {
+    const wrapper = render({ popout: true });
+    const button = wrapper.get('button[aria-label="Kontingentübersicht in Fenster öffnen"]');
+    expect(button.attributes('aria-haspopup')).toBe('dialog');
+    expect(wrapper.emitted('popout')).toBeUndefined();
+    await button.trigger('click');
+    expect(wrapper.emitted('popout')).toHaveLength(1);
+    await wrapper.setProps({ loading: true });
+    expect(button.element.disabled).toBe(true);
+    await wrapper.setProps({ loading: false, popout: false });
+    expect(wrapper.find('button[aria-label="Kontingentübersicht in Fenster öffnen"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
   it('shows days and monthly hours next to each other for KZF normal and pauschal', () => {
     const wrapper = render({ data: { ...data, type: 'days-hours', title: 'KZF normal', monthlyHours: 100, workedHours: 60, plannedHours: 30, hoursStatus: 'RESOLVED' } });
     const columns = wrapper.findAll('.hover-data-card__chart--column');

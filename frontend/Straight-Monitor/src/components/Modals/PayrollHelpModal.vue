@@ -23,7 +23,7 @@
     <section id="payroll-help-start" class="help-section">
       <h4>1. Mitarbeiter und Monat auswählen</h4>
       <p>Suche den Mitarbeiter in der Toolbar und wähle den Monat. Stundenerfassung und Monatsprüfung teilen diese Auswahl. Die Mitarbeiterkarte lässt sich für weitere Informationen aufklappen.</p>
-      <p>„Stand neu laden“ lädt den gespeicherten Stand erneut und fragt vor dem Verwerfen ungespeicherter Eingaben. „Quellen aktualisieren (Entwurf behalten)“ aktualisiert dagegen nur die Quellinformationen, sofern niemand die Vorbereitung zwischenzeitlich gespeichert hat.</p>
+      <p>„Stand neu laden“ lädt den gespeicherten Stand erneut und fragt vor dem Verwerfen ungespeicherter Eingaben. Im Tab „Monatsprüfung“ aktualisiert „Quellen aktualisieren (Entwurf behalten)“ dagegen nur die Quellinformationen, sofern niemand die Vorbereitung zwischenzeitlich gespeichert hat.</p>
     </section>
 
     <section id="payroll-help-capture" class="help-section">
@@ -37,19 +37,19 @@
       <h4>3. Einen Tag öffnen</h4>
       <p>Klicke auf die Tagesnummer im Kalender. Das gemeinsame Seitenpanel zeigt die Schichten, Zeiten, Fehlzeiten und Auftragsdokumente dieses Tages. Die gespeicherte Bearbeitungshistorie findest du in der Monatsprüfung.</p>
       <p>Dokumente werden je Auftrag einmal angezeigt. Klicke auf ein Dokument, um es anzusehen. Über das Drei-Punkte-Menü im Panel-Kopf öffnest du die Stundenschnellerfassung für den jeweiligen Auftrag.</p>
-      <p>Mit „Tageseintrag“ öffnest du die Vorbereitung einer Fehlzeit. Wähle die importierte Art und den ursprünglichen Zeitraum; prüfe die Minuten für jeden Tag ausdrücklich. Zeitraum und gutgeschriebene Stunden sind getrennte Angaben. Fortlaufende Fehlzeiten werden im Ursprungsmonat bearbeitet. Korrekturen und AZK-Vorschläge haben eigene Eintragsarten im Vorbereitungsformular.</p>
+      <p>Mit „Tageseintrag“ wechselst du zur Vorbereitung einer Fehlzeit im Tab „Monatsprüfung“. Wähle die importierte Art und den ursprünglichen Zeitraum; prüfe die Minuten für jeden Tag ausdrücklich. Zeitraum und gutgeschriebene Stunden sind getrennte Angaben. Fortlaufende Fehlzeiten werden im Ursprungsmonat bearbeitet. Korrekturen und AZK-Vorschläge haben eigene Eintragsarten im Vorbereitungsformular.</p>
     </section>
 
     <section id="payroll-help-bucket" class="help-section">
       <h4>4. AZK-Bewegungen vorschlagen</h4>
-      <p>Aktiviere „Eimer“ in der Toolbar. Ein Klick auf freigegebene Stunden öffnet einen Einzahlungsvorschlag mit Quellenbezug; ein Klick auf das Zeitkonto öffnet einen Auszahlungsvorschlag. Gib die Minuten und eine Begründung ein und füge den Eintrag zum Entwurf hinzu.</p>
+      <p>Aktiviere „Eimer“ in der Toolbar. Ein Klick auf freigegebene Stunden öffnet einen Einzahlungsvorschlag mit Quellenbezug im Tab „Monatsprüfung“; ein Klick auf das Zeitkonto öffnet dort einen Auszahlungsvorschlag. Gib die Minuten und eine Begründung ein und füge den Eintrag zum Entwurf hinzu.</p>
       <p>Die ursprünglichen Ist-Stunden bleiben unverändert. Gespeichert werden ausschließlich vorgeschlagene Bewegungen, kein Kontostand und kein nachgerechnetes Kontobuch. „Zeitkonto nicht verfügbar“ bedeutet unbekannt, nicht null Stunden.</p>
       <p>Eine interne Prüfung bestätigt keine Deckung durch ein LODAS-Guthaben. LODAS bleibt für die Zeitkontoführung zuständig; ein unterstützter Kontostandabruf steht noch nicht zur Verfügung.</p>
     </section>
 
     <section id="payroll-help-shortcuts" class="help-section">
       <h4>5. Entwurf speichern</h4>
-      <p>„Zum Entwurf hinzufügen“ übernimmt einen Eintrag zunächst nur lokal. Erst „Vorbereitung speichern“ sichert alle Einträge auf dem Server. Ein Bearbeitungsvermerk ist erforderlich. Bei Fehlern bleiben Eingaben erhalten; ein offenes Eintragsformular muss zunächst übernommen oder abgebrochen werden.</p>
+      <p>Im Tab „Monatsprüfung“ übernimmt „Zum Entwurf hinzufügen“ einen Eintrag zunächst nur lokal. Erst „Vorbereitung speichern“ sichert alle Einträge auf dem Server. Ein Bearbeitungsvermerk ist erforderlich. Bei Fehlern bleiben Eingaben erhalten; ein offenes Eintragsformular muss zunächst übernommen oder abgebrochen werden.</p>
       <p>Bei geänderten Quellen: Quellen aktualisieren, Änderungen in der Monatsprüfung prüfen und den ausdrücklichen Abgleich bestätigen. Bei einem konkurrierenden Speicherstand wird nichts überschrieben; sichere deine eigenen Änderungen vor dem bewussten Neuladen und Abgleichen.</p>
     </section>
 
