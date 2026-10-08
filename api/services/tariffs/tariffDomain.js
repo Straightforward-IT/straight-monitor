@@ -34,7 +34,7 @@ function issue(issues, severity, code, message, table, row) {
 }
 
 /** Parse the explicitly assigned workbooks; filenames never determine their role. */
-function parseFiles(input = []) {
+function parseFiles(input = [], { allowPartial = false } = {}) {
   const tables = Object.fromEntries(TABLES.map(table => [table.key, []]));
   const files = [], issues = [];
   const uploads = Array.isArray(input) ? input : Object.values(input).flat();
@@ -46,6 +46,7 @@ function parseFiles(input = []) {
   for (const table of TABLES) {
     const matching = uploads.filter(file => file.fieldname === table.key);
     if (matching.length !== 1) {
+      if (allowPartial && !matching.length) continue;
       issue(issues, 'ERROR', matching.length ? 'DUPLICATE_FILE' : 'MISSING_FILE', matching.length ? `Für „${table.label}“ muss genau eine Datei zugeordnet werden.` : `Die Pflichtdatei „${table.label}“ fehlt.`, table.key);
       continue;
     }
@@ -402,6 +403,79 @@ function buildDataset(parsed, employees = []) {
   return { contract, groups, periods, assignments, allowances, issues, counts: Object.fromEntries(TABLES.map(table => [table.key, scoped[table.key].length])) };
 }
 
+/** Employee-history uploads are upserts: omission never deletes a source row. */
+function mergeEmployeeHistory(previous = [], incoming = [], issues = [], { table, errorCode, label, naturalIdentity = false }) {
+  const sourceId = row => idString(get(row, 'ID'));
+  const naturalKey = row => JSON.stringify([idString(row.personalNr), row.validFrom]);
+  // Database IDs and generated import-local keys do not belong to the source.
+  const clean = row => {
+    const { _id, importId, __v, ...value } = row;
+    return { ...value, legacyId: sourceId(row) };
+  };
+  const retained = previous.map(clean);
+  const ids = new Map(), keys = new Map();
+  for (const [index, row] of retained.entries()) {
+    for (const [map, key] of [[ids, sourceId(row)], [keys, naturalKey(row)]]) {
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(index);
+    }
+  }
+  const replaced = new Set();
+  const incomingKeys = new Set();
+  let updated = 0, added = 0;
+  for (const row of incoming) {
+    const id = sourceId(row);
+    const natural = naturalKey(row);
+    if (naturalIdentity && incomingKeys.has(natural)) {
+      issue(issues, 'ERROR', 'DUPLICATE_ALLOWANCE_KEY', 'Für dieselbe Personalnummer und dasselbe DTVON enthält die ÜTZ-Datei mehrere Zeilen. Der Export muss je Beginn genau einen ÜTZ-Eintrag enthalten.', table, row);
+      continue;
+    }
+    incomingKeys.add(natural);
+    if (naturalIdentity && id && (ids.get(id) || []).some(index => naturalKey(retained[index]) !== natural)) {
+      issue(issues, 'ERROR', 'ALLOWANCE_IDENTITY_CONFLICT', 'Die ÜTZ-Quell-ID gehört im bisherigen Stand zu einer anderen Personalnummer oder einem anderen Beginn. Der Eintrag kann nicht sicher aktualisiert werden.', table, row);
+      continue;
+    }
+    let matches = naturalIdentity ? keys.get(natural) || [] : id ? ids.get(id) || [] : [];
+    if (!matches.length) {
+      matches = (keys.get(naturalKey(row)) || []).filter(index => !id || !sourceId(retained[index]));
+    }
+    if (!naturalIdentity && matches.length > 1) {
+      // Identical repeated exports may contain multiple historical rows with
+      // the same natural key. Preserve their multiplicity without guessing
+      // which of them a changed value is intended to correct.
+      const exact = matches.find(index => !replaced.has(index) && stableRaw(retained[index]) === stableRaw(row));
+      if (exact !== undefined) matches = [exact];
+    }
+    if ((!naturalIdentity && matches.length > 1) || matches.some(index => replaced.has(index))) {
+      issue(issues, 'ERROR', errorCode, `Die ${label}-Zeile kann nicht eindeutig aktualisiert werden. Personalnummer und DTVON sind mehrfach vorhanden; eine eindeutige Quell-ID wird benötigt.`, table, row);
+      continue;
+    }
+    if (matches.length) { matches.forEach(index => replaced.add(index)); updated++; }
+    else added++;
+  }
+  const kept = retained.filter((_, index) => !replaced.has(index));
+  const entries = [...kept, ...incoming.map(clean)];
+  // Check the complete resulting history, including rows absent from the file.
+  const combinedIssues = issues.filter(entry => entry.table !== table || entry.code !== 'OVERLAPPING_INTERVALS');
+  warnOverlaps(entries, row => row.employeeId || `nr:${idString(row.personalNr)}`, table, combinedIssues);
+  return { entries, issues: combinedIssues, history: { mode: 'MERGE', received: incoming.length, retained: kept.length, updated, added } };
+}
+
+function mergeAllowanceHistory(previous = [], incoming = [], issues = []) {
+  const result = mergeEmployeeHistory(previous, incoming, issues, {
+    table: 'aboveTariff', errorCode: 'AMBIGUOUS_ALLOWANCE_UPDATE', label: 'ÜTZ', naturalIdentity: true,
+  });
+  return { allowances: result.entries, issues: result.issues, history: result.history };
+}
+
+function mergeAssignmentHistory(previous = [], incoming = [], issues = []) {
+  const result = mergeEmployeeHistory(previous, incoming, issues, {
+    table: 'employeeAssignments', errorCode: 'AMBIGUOUS_ASSIGNMENT_UPDATE', label: 'Tarif-Personal',
+  });
+  return { assignments: result.entries, issues: result.issues, history: result.history };
+}
+
 function warnOverlaps(entries, identity, table, issues) {
   const partitions = new Map();
   for (const entry of entries) {
@@ -493,6 +567,28 @@ function rowsByRole(dataset) {
     employeeAssignments: dataset?.assignments || [], aboveTariff: dataset?.allowances || [], referenceWages: groups.flatMap(group => group.referenceWages), noticePeriods: dataset?.contract?.noticePeriods || [], vacationRules: dataset?.contract?.vacationRules || [],
   };
 }
+function sourceTables(dataset) {
+  const roles = rowsByRole(dataset);
+  return Object.fromEntries(TABLES.map(({ key }) => [key, (roles[key] || []).map(row => {
+    const raw = { ...rawOf(row) };
+    const restored = { ...raw, source: row.source || { filename: 'Vorheriger Tarifimport', sheet: 'Importhistorie', row: null, raw } };
+    // The raw source remains unchanged, but buildDataset still needs to read a
+    // serialised Excel date using the epoch that produced the stored interval.
+    if (row.validFrom && typeof raw.DTVON === 'number' && dateString(raw.DTVON, false) !== row.validFrom && dateString(raw.DTVON, true) === row.validFrom) {
+      Object.defineProperty(restored, 'date1904', { value: true, enumerable: false });
+    }
+    return restored;
+  })]));
+}
+function completePartialDataset(parsed, activeDataset) {
+  const previous = sourceTables(activeDataset);
+  const selected = new Set(parsed.files.map(file => file.key));
+  return {
+    ...parsed,
+    tables: Object.fromEntries(TABLES.map(({ key }) => [key, selected.has(key) ? parsed.tables[key] : previous[key]])),
+    partialRoles: TABLES.filter(({ key }) => selected.has(key)).map(({ key }) => key),
+  };
+}
 const compareKeyFields = {
   rates: ['ID_LCS_TARIFZEIT', 'IX', 'IY'], wageRules: ['ID_LCS_TARIFZEIT', 'ILOHNARTNR', 'IGRUPPE', 'DAB', 'DBIS', 'ID_LCS_TARIFGRUPPEN', 'ID_LCS_TARIFSTUFEN'],
   specialPayments: ['ID_LCS_TARIFZEIT', 'CBEZEICHNUNG'], assignmentAllowances: ['ID_LCS_TARIFZEIT', 'IGRUPPEAB', 'IGRUPPEBIS', 'ISTUFEAB', 'ISTUFEBIS', 'IABMONATEEINSATZ', 'IABMONATEEINTRITT'],
@@ -508,7 +604,8 @@ function compareDatasets(previous, next) {
       const map = new Map();
       for (const row of rows) {
         const legacyId = idString(get(row, 'ID'));
-        const identity = legacyId || JSON.stringify((compareKeyFields[key] || []).map(field => field === 'IPERSONALNR' ? personalNumber(row) : get(row, field)));
+        const identity = key === 'aboveTariff' ? JSON.stringify([idString(row.personalNr), row.validFrom])
+          : legacyId || JSON.stringify((compareKeyFields[key] || []).map(field => field === 'IPERSONALNR' ? personalNumber(row) : get(row, field)));
         if (!map.has(identity)) map.set(identity, []);
         map.get(identity).push(stableRaw(row));
       }
@@ -530,4 +627,4 @@ function compareDatasets(previous, next) {
   return changes;
 }
 
-module.exports = { CONTRACT_ID, TABLES, parseFiles, buildDataset, resolveBaseRate, resolveAboveTariff, compareDatasets, collectPersonalNumbers, decimalString, dateString };
+module.exports = { CONTRACT_ID, TABLES, parseFiles, buildDataset, completePartialDataset, mergeAllowanceHistory, mergeAssignmentHistory, resolveBaseRate, resolveAboveTariff, compareDatasets, collectPersonalNumbers, decimalString, dateString };

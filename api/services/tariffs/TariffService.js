@@ -37,9 +37,15 @@ function canonical(value, sourceColumns = false) {
   }
   return value;
 }
-function datasetHash(dataset) {
+function datasetHash(dataset, context = null) {
   const data = Object.fromEntries(['contract', 'groups', 'periods', 'assignments', 'allowances'].map(key => [key, dataset[key]]));
-  return crypto.createHash('sha256').update(JSON.stringify(canonical(data))).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify({ data: canonical(data), context })).digest('hex');
+}
+function allowanceHistoryHash(rows) {
+  return datasetHash({ allowances: domain.mergeAllowanceHistory(rows).allowances });
+}
+function assignmentHistoryHash(rows) {
+  return datasetHash({ assignments: domain.mergeAssignmentHistory(rows).assignments });
 }
 async function activeId() {
   const catalog = await models.Catalog.findById('17055').lean();
@@ -92,7 +98,12 @@ async function getImport(id) {
   if (record.status === 'READY') {
     const [previous, next] = await Promise.all([dataset(currentId), dataset(id)]);
     value.changes = domain.compareDatasets(previous, next);
-    value.basedOnImportId = currentId;
+    value.requiresNewPreview = !value.active && (
+      (record.partialImportRoles?.length && String(record.basedOnImportId || '') !== String(currentId || '')) ||
+      !record.assignmentHistory || record.assignmentHistory.basedOnHash !== assignmentHistoryHash(previous.assignments) ||
+      !record.allowanceHistory || record.allowanceHistory.basedOnHash !== allowanceHistoryHash(previous.allowances)
+    );
+    if (!value.requiresNewPreview) value.basedOnImportId = currentId;
   }
   return { ...value, activeImportId: currentId };
 }
@@ -101,25 +112,40 @@ async function removeDataset(id) {
 }
 async function preview(files, userId, actor) {
   const createdActor = actorMetadata(userId, actor);
-  const parsed = domain.parseFiles(files);
+  const parsed = domain.parseFiles(files, { allowPartial: true });
+  if (!parsed.files.length) fail(400, 'Wähle mindestens eine Tarifdatei für die Importvorschau aus.');
   parsed.files = parsed.files.map(file => ({ ...file,
     label: domain.TABLES.find(table => table.key === file.key)?.label || file.key,
     rowCount: file.rows,
     checksum: crypto.createHash('sha256').update(files.find(upload => upload.fieldname === file.key).buffer).digest('hex'),
   }));
-  const personalNumbers = domain.collectPersonalNumbers(parsed);
+  const currentId = await activeId();
+  const previous = await dataset(currentId);
+  const partialImportRoles = parsed.files.length < domain.TABLES.length ? parsed.files.map(file => file.key) : [];
+  if (partialImportRoles.length && !currentId) fail(409, 'Ein Teilimport benötigt zuerst einen aktivierten vollständigen Tarifstand.');
+  const importData = partialImportRoles.length ? domain.completePartialDataset(parsed, previous) : parsed;
+  const personalNumbers = domain.collectPersonalNumbers(importData);
   // Match the canonical number in the domain. Exact $in queries would miss
   // aliases with leading zeroes and could conceal ambiguous employee matches.
   const employees = personalNumbers.length ? await Mitarbeiter.find({}).select('_id personalnr personalnrHistory vorname nachname').lean() : [];
-  const next = domain.buildDataset(parsed, employees);
-  const currentId = await activeId();
-  const previous = await dataset(currentId);
+  const next = domain.buildDataset(importData, employees);
+  const mergedAssignments = domain.mergeAssignmentHistory(previous.assignments, next.assignments, next.issues);
+  next.assignments = mergedAssignments.assignments;
+  next.issues = mergedAssignments.issues;
+  next.counts.employeeAssignments = mergedAssignments.assignments.length;
+  const assignmentHistory = { ...mergedAssignments.history, basedOnHash: assignmentHistoryHash(previous.assignments) };
+  const allowanceUpload = partialImportRoles.length && !partialImportRoles.includes('aboveTariff') ? [] : next.allowances;
+  const mergedAllowances = domain.mergeAllowanceHistory(previous.allowances, allowanceUpload, next.issues);
+  next.allowances = mergedAllowances.allowances;
+  next.issues = mergedAllowances.issues;
+  next.counts.aboveTariff = mergedAllowances.allowances.length;
+  const allowanceHistory = { ...mergedAllowances.history, basedOnHash: allowanceHistoryHash(previous.allowances) };
   const errorCount = next.issues.filter(issue => issue.severity === 'ERROR').length;
   // Invalid previews also include source errors in their hash, so unrelated
   // malformed uploads cannot collapse to the same empty draft.
   const contentHash = errorCount
-    ? crypto.createHash('sha256').update(JSON.stringify({ files: parsed.files, issues: next.issues })).digest('hex')
-    : datasetHash(next);
+    ? crypto.createHash('sha256').update(JSON.stringify({ files: parsed.files, partialImportRoles, issues: next.issues })).digest('hex')
+    : datasetHash(next, { partialImportRoles });
   let record = await models.Import.findOne({ contentHash }).lean();
   if (record?.status === 'BUILDING') {
     // Recover abandoned preparations after a process restart. The old worker
@@ -131,20 +157,24 @@ async function preview(files, userId, actor) {
     record = null;
   }
   if (record) {
-    return { ...summary(record, currentId), changes: domain.compareDatasets(previous, next), basedOnImportId: currentId, duplicate: true, activeImportId: currentId };
+    // A fresh upload explicitly reviews this merged snapshot against the current
+    // history. Merely reopening a stale draft must never rebase it silently.
+    await models.Import.updateOne({ _id: record._id }, { $set: { partialImportRoles, assignmentHistory, allowanceHistory, basedOnImportId: currentId } });
+    return { ...summary(record, currentId), partialImportRoles, assignmentHistory, allowanceHistory, changes: domain.compareDatasets(previous, next), basedOnImportId: currentId, duplicate: true, activeImportId: currentId };
   }
   const id = new mongoose.Types.ObjectId();
   const attributes = {
-    _id: id, contentHash, status: 'BUILDING', files: parsed.files, counts: next.counts,
+    _id: id, contentHash, status: 'BUILDING', files: parsed.files, partialImportRoles, counts: next.counts,
     issues: next.issues, errorCount, warningCount: next.issues.filter(issue => issue.severity === 'WARNING').length,
-    changes: domain.compareDatasets(previous, next), basedOnImportId: currentId, createdBy: userId || null, createdActor,
+    changes: domain.compareDatasets(previous, next), basedOnImportId: currentId, assignmentHistory, allowanceHistory, createdBy: userId || null, createdActor,
   };
   try { await models.Import.create(attributes); }
   catch (error) {
     if (error.code !== 11000) throw error;
     record = await models.Import.findOne({ contentHash }).lean();
     if (!record || record.status === 'BUILDING') fail(409, 'Dieser Import wird bereits vorbereitet. Bitte erneut laden.');
-    return { ...summary(record, currentId), changes: attributes.changes, basedOnImportId: currentId, duplicate: true, activeImportId: currentId };
+    await models.Import.updateOne({ _id: record._id }, { $set: { partialImportRoles, assignmentHistory, allowanceHistory, basedOnImportId: currentId } });
+    return { ...summary(record, currentId), partialImportRoles, assignmentHistory, allowanceHistory, changes: attributes.changes, basedOnImportId: currentId, duplicate: true, activeImportId: currentId };
   }
   try {
     if (!errorCount) {
@@ -179,6 +209,14 @@ async function activate(id, expectedActiveImportId, userId, actor) {
   catch (error) { if (error.code !== 11000) throw error; }
   const currentId = await activeId();
   if (currentId === String(id)) return { activeImportId: currentId, import: summary(record, currentId) };
+  const current = await dataset(currentId);
+  if (record.partialImportRoles?.length && String(record.basedOnImportId || '') !== String(currentId || '')) {
+    fail(409, 'Der aktive Tarifstand hat sich seit diesem Teilimport geändert. Bitte die Teilimport-Vorschau erneut erstellen.');
+  }
+  if (!record.assignmentHistory || record.assignmentHistory.basedOnHash !== assignmentHistoryHash(current.assignments) ||
+    !record.allowanceHistory || record.allowanceHistory.basedOnHash !== allowanceHistoryHash(current.allowances)) {
+    fail(409, 'Die Tarif-Personal- oder ÜTZ-Historie hat sich seit dieser Vorschau geändert. Bitte die Dateien erneut prüfen, damit alle bisherigen Zeilen erhalten bleiben.');
+  }
   const updated = await models.Catalog.findOneAndUpdate({ _id: '17055', activeImportId: expectedActiveImportId }, {
     $set: { activeImportId: id }, $inc: { revision: 1 },
   }, { new: true }).lean();

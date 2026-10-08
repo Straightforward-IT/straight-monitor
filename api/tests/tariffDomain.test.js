@@ -263,6 +263,22 @@ describe('Independent Zvoove tariff import and dated base value', () => {
     assert.throws(() => domain.dateString('29.02.2026'));
   });
 
+  it('keeps the original Excel epoch when a partial import reconstructs prior historical tables', () => {
+    const rows = validRows();
+    rows.employeeAssignments[0].DTVON = 42370; // 01.01.2020 in the Excel 1904 epoch.
+    const files = fixtureFiles(rows);
+    const assignment = files.find(file => file.fieldname === 'employeeAssignments');
+    const workbook = XLSX.read(assignment.buffer, { type: 'buffer' });
+    workbook.Workbook = { WBProps: { date1904: true } };
+    assignment.buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const initial = domain.buildDataset(domain.parseFiles(files), employees);
+    const partial = domain.parseFiles([files.find(file => file.fieldname === 'aboveTariff')], { allowPartial: true });
+    const restored = domain.completePartialDataset(partial, initial);
+    const rebuilt = domain.buildDataset(restored, employees);
+    assert.equal(rebuilt.assignments[0].validFrom, initial.assignments[0].validFrom);
+    assert.equal(rebuilt.assignments[0].source.raw.DTVON, initial.assignments[0].source.raw.DTVON);
+  });
+
   it('preserves exact decimal text rather than rounding through Number', () => {
     const rows = validRows(); rows.rates[2].DWERT = '12345678901234567890,12345678901234';
     const result = domain.resolveBaseRate(datasetFrom(rows), 'employee-1', '2026-09-01');

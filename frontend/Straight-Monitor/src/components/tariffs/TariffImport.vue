@@ -1,15 +1,16 @@
 <template>
   <section class="tariff-stack">
     <div class="tariff-panel">
-      <h2>Vollständigen Tarifdatenstand prüfen</h2>
-      <p class="tariff-muted">Ordne jede Exportdatei ihrer Tabellenrolle zu. Benötigt werden alle 14 Tabellen einschließlich historischer Perioden und inaktiver Varianten. Tarifmitarbeitergruppe enthält die Varianten; Tarifgruppe enthält die Entgeltgruppen.</p>
+      <h2>Tarifdatenstand oder Teilimport prüfen</h2>
+      <p class="tariff-muted">Ordne jede Exportdatei ihrer Tabellenrolle zu. Ein vollständiger Import enthält alle 14 Tabellen. Bei einem Teilimport werden nicht ausgewählte Tabellen aus dem aktuell aktiven Tarifstand übernommen.</p>
+      <p class="tariff-notice">Tarif Personal und ÜTZ werden ergänzt und aktualisiert. Im Export fehlende Historienzeilen bleiben im aktiven Datenstand erhalten, etwa bei einem Export nur ab 01.01.2026. ÜTZ wird über Personalnummer und DTVON aktualisiert, auch bei geänderter Quell-ID. Tarif Personal verwendet die Quell-ID oder, ohne ID, Personalnummer und DTVON.</p>
       <div class="tariff-grid">
         <div v-for="role in tariffFileRoles" :key="role.key" class="tariff-import-file">
           <header><strong>{{ roleLabel(role.key) }}</strong><AppButton v-if="files[role.key]" size="sm" variant="ghost" :disabled="busy" :aria-label="`${roleLabel(role.key)}: Datei entfernen`" @click="removeFile(role.key)">Entfernen</AppButton></header>
           <AppFileDropzone :label="roleLabel(role.key)" :hint="role.hint" :file="files[role.key] || null" accept=".xlsx,.xls" :disabled="busy" @select="selectFile(role.key, $event)" />
         </div>
       </div>
-      <div class="tariff-actions"><AppButton :loading="previewLoading" :disabled="selectedFileCount !== 14 || busy || !imports" @click="previewFiles">Importvorschau erstellen</AppButton><span class="tariff-muted">{{ selectedFileCount }} von 14 Dateien ausgewählt</span></div>
+      <div class="tariff-actions"><AppButton :loading="previewLoading" :disabled="!selectedFileCount || busy || !imports" @click="previewFiles">Importvorschau erstellen</AppButton><span class="tariff-muted">{{ selectedFileCount }} von 14 Dateien ausgewählt<template v-if="selectedFileCount && selectedFileCount < 14"> · Teilimport</template></span></div>
       <p v-if="previewError" class="tariff-alert" role="alert">{{ previewError }}</p>
     </div>
 
@@ -20,6 +21,9 @@
       <dl class="tariff-meta"><div><dt>Importlauf</dt><dd>{{ selected._id }}</dd></div><div><dt>Erstellt</dt><dd>{{ timestamp(selected.createdAt) }}</dd></div><div><dt>Prüfung</dt><dd>{{ selected.errorCount || 0 }} Fehler · {{ selected.warningCount || 0 }} Hinweise</dd></div></dl>
       <p v-if="selected.duplicate" class="tariff-notice">Dieser Datenstand wurde bereits importiert. Der vorhandene Importlauf wird wiederverwendet.</p>
       <p v-if="isActive" class="tariff-notice" role="status">Dieser Datenstand ist bereits aktiv.</p>
+      <p v-if="selected.partialImportRoles?.length" class="tariff-notice">Teilimport: {{ selected.partialImportRoles.map(roleLabel).join(', ') }}. Alle anderen Tarifdaten wurden aus dem aktuell aktiven Stand übernommen.</p>
+      <p v-if="selected.assignmentHistory" class="tariff-notice">Tarif Personal: {{ selected.assignmentHistory.received }} Zeilen aus der Datei, {{ selected.assignmentHistory.retained }} bisherige Zeilen zusätzlich erhalten. Die Datensatzanzahl enthält beide.</p>
+      <p v-if="selected.allowanceHistory" class="tariff-notice">ÜTZ: {{ selected.allowanceHistory.received }} Zeilen aus der Datei, {{ selected.allowanceHistory.retained }} bisherige Zeilen zusätzlich erhalten. Die Datensatzanzahl enthält beide.</p>
       <div class="tariff-scroll"><table aria-label="Importanzahlen und Änderungen"><thead><tr><th>Tabelle</th><th>Datei</th><th>Datensätze 17055</th><th>Neu</th><th>Geändert</th><th>Entfallen</th><th>Unverändert</th></tr></thead><tbody>
         <tr v-for="role in tariffFileRoles" :key="role.key"><th scope="row">{{ roleLabel(role.key) }}</th><td>{{ fileFor(selected, role.key)?.filename || '—' }}</td><td>{{ selected.counts?.[role.key] ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.added ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.changed ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.removed ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.unchanged ?? '—' }}</td></tr>
       </tbody></table></div>
@@ -28,6 +32,7 @@
         <ul class="tariff-issues"><li v-for="(issue, index) in selected.issues" :key="index"><strong>{{ issueLabel(issue) }}</strong>: {{ issue.message }}<span class="tariff-muted"><template v-if="issue.table"> · {{ roleLabel(issue.table) }}</template><template v-if="issue.filename"> · {{ issue.filename }}</template><template v-if="issue.row"> · Zeile {{ issue.row }}</template><template v-if="issue.code"> · {{ issue.code }}</template></span></li></ul>
       </div>
       <p v-if="selected.errorCount || selected.status === 'INVALID'" class="tariff-alert" role="alert">Dieser Import kann wegen der angezeigten Fehler nicht aktiviert werden. Korrigiere die Exportdateien und erstelle eine neue Vorschau.</p>
+      <p v-else-if="selected.requiresNewPreview" class="tariff-alert" role="alert">Die Tarif-Personal- oder ÜTZ-Historie hat sich seit dieser Vorschau geändert. Prüfe die Dateien erneut, damit alle bisherigen Zeilen erhalten bleiben.</p>
       <p v-else-if="!isActive" class="tariff-muted">Die Aktivierung schaltet vollständig auf diesen geprüften Datenstand um. Der bisherige Import bleibt in der Historie erhalten. Ungeklärte Mitarbeiter bleiben gekennzeichnet.</p>
       <div class="tariff-actions"><AppButton :disabled="!canActivate" :loading="activationLoading" @click="activate">Geprüften Datenstand aktivieren</AppButton><AppButton size="sm" variant="ghost" :disabled="busy" @click="selected = null">Vorschau schließen</AppButton></div>
       <p v-if="activationError" class="tariff-alert" role="alert">{{ activationError }}</p>
@@ -69,7 +74,7 @@ const { loading: activationLoading, error: activationError, run: activateImport,
 const busy = computed(() => previewLoading.value || detailLoading.value || activationLoading.value);
 const selectedFileCount = computed(() => tariffFileRoles.filter(({ key }) => !!files.value[key]).length);
 const isActive = computed(() => !!selected.value && selected.value._id === activeImportId.value);
-const canActivate = computed(() => !!selected.value && !busy.value && !isActive.value && !selected.value.errorCount && selected.value.status !== 'INVALID');
+const canActivate = computed(() => !!selected.value && !busy.value && !isActive.value && !selected.value.errorCount && !selected.value.requiresNewPreview && selected.value.status !== 'INVALID');
 const roleLabel = (key) => {
   const role = tariffFileRoles.find((entry) => entry.key === key);
   return role ? `${role.importNumber} · ${role.label}` : key;
@@ -95,11 +100,11 @@ function selectPreview(result, fallbackActiveId) {
   expectedActiveImportId.value = Object.prototype.hasOwnProperty.call(result, 'basedOnImportId') ? result.basedOnImportId : fallbackActiveId;
 }
 async function previewFiles() {
-  if (selectedFileCount.value !== 14 || busy.value || !imports.value) return;
+  if (!selectedFileCount.value || busy.value || !imports.value) return;
   invalidatePreview();
   const comparisonImportId = activeImportId.value;
   const form = new FormData();
-  for (const { key } of tariffFileRoles) form.append(key, files.value[key]);
+  for (const { key } of tariffFileRoles) if (files.value[key]) form.append(key, files.value[key]);
   const result = await readPreview((signal) => api.post('/api/tariffs/imports/preview', form, { signal }));
   selectPreview(result, comparisonImportId);
   if (result) await loadImports();

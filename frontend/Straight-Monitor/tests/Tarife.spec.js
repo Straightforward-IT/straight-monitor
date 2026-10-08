@@ -212,6 +212,35 @@ async function selectFourteenFiles() {
 }
 
 describe('TariffImport', () => {
+  it('allows a selected subset as a partial import', async () => {
+    mocks.api.post.mockResolvedValueOnce(response(preview({ partialImportRoles: ['employeeAssignments'], files: [{ key: 'employeeAssignments', filename: 'Tarif Personal.xlsx' }] })));
+    wrapper = mount(TariffImport);
+    await flushPromises();
+    wrapper.findAllComponents(AppFileDropzone).find(entry => entry.props('label').includes('Tarif Personal')).vm.$emit('select', new File(['workbook'], 'Tarif Personal.xlsx'));
+    await flushPromises();
+    expect(button('Importvorschau erstellen').attributes('disabled')).toBeUndefined();
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    const form = mocks.api.post.mock.calls[0][1];
+    expect([...form.keys()]).toEqual(['employeeAssignments']);
+    expect(wrapper.text()).toContain('Teilimport: 709 · Tarif Personal');
+    expect(wrapper.text()).toContain('Alle anderen Tarifdaten wurden aus dem aktuell aktiven Stand übernommen');
+  });
+
+  it('shows preserved ÜTZ history and blocks a stale merged preview', async () => {
+    mocks.api.post.mockResolvedValueOnce(response(preview({ requiresNewPreview: true, assignmentHistory: { mode: 'MERGE', received: 3, retained: 4 }, allowanceHistory: { mode: 'MERGE', received: 2, retained: 5 } })));
+    wrapper = mount(TariffImport);
+    await flushPromises();
+    await selectFourteenFiles();
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('2 Zeilen aus der Datei, 5 bisherige Zeilen zusätzlich erhalten');
+    expect(wrapper.text()).toContain('3 Zeilen aus der Datei, 4 bisherige Zeilen zusätzlich erhalten');
+    expect(wrapper.text()).toContain('Prüfe die Dateien erneut');
+    expect(button('Geprüften Datenstand aktivieren').attributes('disabled')).toBeDefined();
+    expect(mocks.api.post).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps a preview with reversed employee interval warnings activatable', async () => {
     mocks.api.post.mockResolvedValueOnce(response(preview({ warningCount: 16, issues: [{ severity: 'WARNING', code: 'REVERSED_INTERVAL', table: 'employeeAssignments', message: 'Unwirksamer Zeitraum wird vollständig aufbewahrt.', row: 17 }] })));
     wrapper = mount(TariffImport);

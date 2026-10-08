@@ -60,11 +60,20 @@ async function main() {
   const previousActiveId = catalog?.activeImportId?.toString() || null;
   if (expectedActiveValue && previousActiveId !== expectedActiveId) fail('Der aktive Tarifstand weicht vom ausdrücklich erwarteten Stand ab. Es wurde nichts importiert.');
   const data = domain.buildDataset(parsed, employees);
+  const [previousAssignments, previousAllowances] = previousActiveId ? await Promise.all([
+    models.Assignment.find({ importId: previousActiveId }).lean(), models.Allowance.find({ importId: previousActiveId }).lean(),
+  ]).then(rows => rows.map(service.serialize)) : [[], []];
+  const mergedAssignments = domain.mergeAssignmentHistory(previousAssignments, data.assignments, data.issues);
+  data.assignments = mergedAssignments.assignments; data.issues = mergedAssignments.issues;
+  data.counts.employeeAssignments = data.assignments.length;
+  const merged = domain.mergeAllowanceHistory(previousAllowances, data.allowances, data.issues);
+  data.allowances = merged.allowances; data.issues = merged.issues;
+  data.counts.aboveTariff = data.allowances.length;
   const errorCount = data.issues.filter(issue => issue.severity === 'ERROR').length;
   const summary = {
     completedAt: null, mode: write ? activate ? 'IMPORT_AND_ACTIVATE' : 'IMPORT_PREVIEW' : 'READ_ONLY_PREVIEW',
     database: mongoose.connection.name, previousActiveImportId: previousActiveId, actor,
-    files: fileHashes, counts: data.counts, errorCount,
+    files: fileHashes, counts: data.counts, assignmentHistory: mergedAssignments.history, allowanceHistory: merged.history, errorCount,
     warningsByCode: distribution(data.issues.filter(issue => issue.severity === 'WARNING'), 'code'),
     employeeMapping: { assignmentRows: distribution(data.assignments, 'matchStatus'), allowanceRows: distribution(data.allowances, 'matchStatus') },
     ineffectiveRows: { assignments: data.assignments.filter(row => row.intervalStatus === 'INEFFECTIVE').length, allowances: data.allowances.filter(row => row.intervalStatus === 'INEFFECTIVE').length },
