@@ -12,6 +12,38 @@ API läuft auf `http://localhost:5050`, Frontend auf `http://localhost:5173`.
 
 ---
 
+## Mitarbeiterdokument: Kündigung
+
+In der Mitarbeiterkarte öffnen beide Aktionsmenüs über **Dokument → Kündigung**
+das eigene [KuendigungModal](frontend/Straight-Monitor/src/components/Modals/KuendigungModal.vue).
+Der [KuendigungService](api/services/operations/KuendigungService.js) erzeugt das
+Kündigungsschreiben unabhängig vom Signaturprozess.
+
+- Das Modal erfordert Standort, Anrede (**Frau/Herr**), Briefdatum und
+  Beendigungsdatum. Das Briefdatum wird im Schreiben oben und unten mit
+  derselben Ortsangabe ausgegeben.
+- Die Freistellung ist optional und ermöglicht unabhängig voneinander
+  Arbeitszeitkonto, Resturlaub oder beides samt jeweiligem Wert und
+  Freistellungsdatum.
+- `GET /api/personal/mitarbeiter/:id/documents/kuendigung` liefert
+  Standorte, vorausgefüllte Parameter und bereits erstellte Dokumente.
+  `POST /api/personal/mitarbeiter/:id/documents/kuendigung` validiert die
+  Werte serverseitig und erzeugt das PDF.
+- Die PDF wird über R2 unter
+  `employees/<id>/documents/Kuendigung_<Vorname>_<Nachname>_<Briefdatum>.pdf` ab und verknüpft
+  Metadaten und verwendete Parameter in `Mitarbeiter.generierteDokumente`.
+  Bei fehlgeschlagener DB-Verknüpfung wird die hochgeladene Datei wieder entfernt.
+- Downloads verwenden die bestehenden Mitarbeiter-Storage-Endpunkte und sind
+  im Modal sowie im Tab **Ablage** verfügbar.
+- Keine Signaturanfrage, kein Versand, keine automatische Änderung von
+  Aktivstatus oder Austrittsdatum. Das eingegebene Beendigungsdatum wird nicht
+  als Kündigungsfrist berechnet oder am Mitarbeiter gespeichert.
+
+Bei Kündigungs-/Fristenlogik gilt die
+[GVP-Referenz](Documentation/Payroll/GVP-TARIFVERTRAG-REFERENCE.md).
+
+---
+
 ## TODO: Stundenkonto (EmployeeCard Dispo-Bereich)
 
 **Geplante Funktion:** Im Dispo-Bereich der `EmployeeCard` soll für den laufenden Monat angezeigt werden,

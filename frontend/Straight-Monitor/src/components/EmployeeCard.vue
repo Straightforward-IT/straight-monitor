@@ -1248,6 +1248,7 @@
 
         <section v-if="view === 'ablage'" class="employee-storage-view">
           <R2FileBrowser
+            :key="storageVersion"
             :root-label="`${resolvedMa.vorname} ${resolvedMa.nachname}`"
             :list-url="`/api/personal/mitarbeiter/${resolvedMa._id}/storage`"
             :file-url-endpoint="`/api/personal/mitarbeiter/${resolvedMa._id}/storage/url`"
@@ -1631,6 +1632,12 @@
     </teleport>
 
     <!-- Modals -->
+    <KuendigungModal
+      v-if="showKuendigungModal"
+      v-model="showKuendigungModal"
+      :mitarbeiter="resolvedMa"
+      @saved="storageVersion++"
+    />
     <teleport to="body">
       
       <DeleteMitarbeiterDialog
@@ -1732,6 +1739,7 @@ import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import { useAdditionalModals } from '@/composables/useAdditionalModals';
 import DeleteMitarbeiterDialog from "@/components/Modals/DeleteMitarbeiterDialog.vue";
 import ImageCropModal from "./ImageCropModal.vue";
+import KuendigungModal from "@/components/Modals/KuendigungModal.vue";
 import TlBadge from "./ui-elements/TlBadge.vue";
 import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
@@ -1777,7 +1785,7 @@ const fetchNationalitaeten = async () => {
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, AppTextInput, AppSelect, ModalFrame, EmployeeTariffWage },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DeleteMitarbeiterDialog, ImageCropModal, KuendigungModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, AppTextInput, AppSelect, ModalFrame, EmployeeTariffWage },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -1970,6 +1978,8 @@ export default {
       // Delete Dialog
       showDeleteModal: false,
       deletingMitarbeiter: false,
+      showKuendigungModal: false,
+      storageVersion: 0,
 
       // Context Menu
       showContextMenu: false,
@@ -2095,6 +2105,7 @@ export default {
     contextMenuOptions() {
       return [
         { label: 'Bearbeiten', action: 'edit' },
+        this.documentMenuOption,
         {
           label: 'Signatur',
           icon: ['fas', 'file-signature'],
@@ -2120,6 +2131,7 @@ export default {
           : []),
         { label: 'Stundenschnellerfassung', action: 'time-capture', icon: ['fas', 'clock'] },
         { label: 'Zeitverwaltung', action: 'time-management', icon: ['fas', 'calendar'] },
+        this.documentMenuOption,
         {
           label: 'Signatur',
           icon: ['fas', 'file-signature'],
@@ -2139,6 +2151,15 @@ export default {
           ? [{ label: 'Löschen', action: 'delete', icon: ['fas', 'trash'], variant: 'danger' }]
           : []),
       ];
+    },
+    documentMenuOption() {
+      return {
+        label: 'Dokument',
+        icon: ['fas', 'file-pdf'],
+        children: [
+          { label: 'Kündigung', action: 'kuendigung', icon: ['fas', 'file-pdf'] },
+        ],
+      };
     },
     persgruppeLabel() {
       const map = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
@@ -3554,11 +3575,23 @@ export default {
         this.openLohnvorschussSignature();
       } else if (action === 'urlaubsantrag') {
         this.openUrlaubsantragSignature();
+      } else if (action === 'kuendigung') {
+        this.openKuendigungModal();
       } else if (action === 'delete') {
         this.openDeleteModal();
       } else if (action === 'toggle-active') {
         await this.toggleActiveStatus();
       }
+    },
+
+    openKuendigungModal() {
+      if (!this.resolvedMa?._id) {
+        window.dispatchEvent(new CustomEvent('app-toast', {
+          detail: { message: 'Für die Kündigung wird ein gespeicherter Mitarbeiter benötigt.', type: 'error' },
+        }));
+        return;
+      }
+      this.showKuendigungModal = true;
     },
 
     openLohnvorschussSignature() {
@@ -3665,6 +3698,9 @@ export default {
           break;
         case 'urlaubsantrag':
           this.openUrlaubsantragSignature();
+          break;
+        case 'kuendigung':
+          this.openKuendigungModal();
           break;
         case 'sipgate': {
           const phone = this.getPhoneNumber();

@@ -4,6 +4,7 @@ import EmployeeCard from '../src/components/EmployeeCard.vue';
 import ModalFrame from '../src/components/frames/ModalFrame.vue';
 import AppIconButton from '../src/components/ui-elements/AppIconButton.vue';
 import R2FileBrowser from '../src/components/R2FileBrowser.vue';
+import KuendigungModal from '../src/components/Modals/KuendigungModal.vue';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), patch: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -56,6 +57,28 @@ function render(props = {}) {
 }
 
 describe('EmployeeCard shared shell controls', () => {
+  it('opens the independent termination modal from both document menus and refreshes storage after saving', async () => {
+    render();
+    for (const options of [wrapper.vm.contextMenuOptions, wrapper.vm.quickActionsOptions]) {
+      expect(options.find(option => option.label === 'Dokument').children).toEqual([
+        { label: 'Kündigung', action: 'kuendigung', icon: ['fas', 'file-pdf'] },
+      ]);
+    }
+    await wrapper.vm.handleContextMenuSelect('kuendigung');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(KuendigungModal).props('mitarbeiter')).toMatchObject(employee());
+    wrapper.getComponent(KuendigungModal).vm.$emit('saved', { _id: 'doc-1' });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.storageVersion).toBe(1);
+    wrapper.getComponent(KuendigungModal).vm.$emit('update:modelValue', false);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent(KuendigungModal).exists()).toBe(false);
+    wrapper.vm.executeQuickAction('kuendigung');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent(KuendigungModal).exists()).toBe(true);
+    expect(mocks.api.post).not.toHaveBeenCalled();
+  });
+
   it('discards stale contingent responses after rapid month changes', async () => {
     render();
     await flushPromises();

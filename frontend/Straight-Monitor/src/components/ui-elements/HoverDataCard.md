@@ -53,6 +53,22 @@ const overview = {
 
 Local preview: `/dev/hover-data-card` while running Vite. This route is excluded from production routing.
 
+## Modal
+
+`Modals/HoverDataCardModal.vue` bettet die Karte im Inline-Modus in den gemeinsamen
+`ModalFrame` ein. Der Aufrufer steuert Sichtbarkeit und Daten; das Modal führt
+keine eigenen API-Abfragen aus. Titel, Untertitel und Ladezustand sind optional.
+Schließen wird über `update:modelValue` und `close` weitergegeben.
+
+```vue
+<HoverDataCardModal
+  v-model="showContingentModal"
+  :data="contingent"
+  :loading="loadingContingent"
+  title="Kontingentübersicht"
+/>
+```
+
 ## Tarifgesteuerte EmployeeCard
 
 Die EmployeeCard lädt ihre Kontingente über

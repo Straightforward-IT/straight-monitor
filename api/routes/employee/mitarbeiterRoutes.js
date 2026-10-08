@@ -80,6 +80,7 @@ const { PDFDocument } = require("pdf-lib");
 const sharp = require("sharp");
 const r2Service = require("../../services/integrations/R2Service");
 const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
+const kuendigungService = require("../../services/operations/KuendigungService");
 const SignaturVorgang = require("../../models/Signature/SignaturVorgang");
 const progressMap = new Map();
 
@@ -589,6 +590,27 @@ router.delete(
 );
 
 // ── Mitarbeiter-Dokumente (R2) ─────────────────────────────────────────────
+router.get(
+  "/mitarbeiter/:id/documents/kuendigung",
+  auth,
+  asyncHandler(async (req, res) => {
+    res.json(await kuendigungService.getDefaults(req.params.id));
+  })
+);
+
+router.post(
+  "/mitarbeiter/:id/documents/kuendigung",
+  auth,
+  asyncHandler(async (req, res) => {
+    const document = await kuendigungService.createAndStore(
+      req.params.id,
+      req.body.parameters,
+      req.user.id,
+    );
+    res.status(201).json({ document });
+  })
+);
+
 router.get(
   "/mitarbeiter/:id/storage",
   auth,

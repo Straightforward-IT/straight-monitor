@@ -58,6 +58,14 @@ const MitarbeiterSchema = new mongoose.Schema({
     // Stable R2 folder name for employee-related signature documents.
     signaturOrdner: { type: String, default: null, trim: true },
     profilbild: { type: String, required: false, trim: true }, // R2 key for uploaded profile picture (fallback when no Flip photo)
+    generierteDokumente: [{
+        typ: { type: String, enum: ['kuendigung'], required: true },
+        filename: { type: String, required: true, trim: true },
+        r2Key: { type: String, required: true, trim: true },
+        parameters: { type: mongoose.Schema.Types.Mixed, required: true },
+        createdAt: { type: Date, default: Date.now },
+        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    }],
     isActive: { type: Boolean, default: true },
     // Optional public portal entries enabled for this employee (e.g. 'new-menu-item').
     publicMenuOptions: [{ type: String, trim: true }],
