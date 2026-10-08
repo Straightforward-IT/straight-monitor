@@ -429,9 +429,9 @@
               >
                 <!-- Nachname -->
                 <td class="col-nachname" :style="{ width: colWidths.nachname + 'px', minWidth: colWidths.nachname + 'px', maxWidth: colWidths.nachname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" :keep-open="activeNameHoverId === String(ma._id)" :suppressed="activeNameHoverId === String(ma._id)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
                     <template #default="{ triggerProps }">
-                  <div class="ma-name-cell" v-bind="triggerProps">
+                  <div class="ma-name-cell">
                     <div v-if="isTeamleiter(ma)" class="tl-corner-wrapper"><TlBadge /></div>
                     <div v-else-if="ma.isBewerberstatus" class="bew-corner-wrapper">Bew.</div>
                     <div v-if="getExitLabel(ma)" class="exit-corner-wrapper">{{ getExitLabel(ma) }}</div>
@@ -443,16 +443,16 @@
                     >
                       <font-awesome-icon :icon="starredIds.has(ma._id) ? 'fa-solid fa-star' : 'fa-regular fa-star'" />
                     </button>
-                    <span class="ma-name">{{ ma.nachname }}</span>
+                    <span class="ma-name" tabindex="0" v-bind="triggerProps" :aria-label="`${formatEmployeeName(ma)} – Tarifkontingent`">{{ ma.nachname }}</span>
                   </div>
                     </template>
                   </HoverDataCard>
                 </td>
                 <!-- Vorname -->
                 <td class="col-vorname" :style="{ width: colWidths.vorname + 'px', minWidth: colWidths.vorname + 'px', maxWidth: colWidths.vorname + 'px' }">
-                  <HoverDataCard :data="employeeHoverData(ma)" :disabled="!employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" :keep-open="activeNameHoverId === String(ma._id)" :suppressed="activeNameHoverId === String(ma._id)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
+                  <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" placement="right" :open-delay="0" block @open="openNameHoverCard(ma)">
                     <template #default="{ triggerProps }">
-                      <span class="ma-name" v-bind="triggerProps">{{ ma.vorname }}</span>
+                      <span class="ma-name" tabindex="0" v-bind="triggerProps" :aria-label="`${formatEmployeeName(ma)} – Tarifkontingent`">{{ ma.vorname }}</span>
                     </template>
                   </HoverDataCard>
                 </td>
@@ -917,6 +917,7 @@
 
           <!-- Expanded details: Notiz, Kunden, Chronik -->
           <div v-if="expandedCardId === String(ma._id)" class="m-card__details">
+            <HoverDataCard :data="employeeHoverData(ma)" :loading="isEmployeeHoverLoading(ma)" inline />
             <div class="m-detail-section">
               <label class="m-detail-label">Notiz</label>
               <div
@@ -1688,7 +1689,7 @@ import TlBadge from '@/components/ui-elements/TlBadge.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
-import { shortTermEmploymentWindow } from '@/utils/shortTermEmployment';
+import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 
 import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import HelpModal from '@/components/Modals/HelpModal.vue';
@@ -1731,8 +1732,7 @@ const filterExpanded = ref(false);
 const isMobile = ref(window.innerWidth <= 768);
 const starredIds = ref(new Set());
 const hiddenIds = ref(new Set());
-const employeeHoverAnalytics = reactive({});
-const employeeHoverLoading = reactive({});
+const employeeContingents = useEmployeeContingents();
 const activeNameHoverId = ref(null);
 const showHidden = ref(false);
 const highlightedMaId = ref(null);
@@ -3095,57 +3095,17 @@ function getMaBereich(ma) {
   return null;
 }
 
+const contingentPeriod = computed(() => {
+  const date = visibleDays.value[0]?.iso || toIso(new Date());
+  return { year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) };
+});
+
 function employeeHoverData(ma) {
-  const employmentType = ma.arbeitsverhaeltnis?.typ;
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const employmentWindow = employmentType === 3
-    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
-    : null;
-  if (employmentType === 3 && !employmentWindow) return null;
-  const analyticsKey = `${ma._id}-${employmentWindow?.from.getTime() || year}`;
-  const analytics = employeeHoverAnalytics[analyticsKey] || { ist: [], forecast: [] };
-  const employeeName = formatEmployeeName(ma);
-  const monthlyRecord = records => records.find(record => record.year === year && record.month === month) || {};
-
-  if (employmentType === 3) {
-    const reportedDays = records => records
-      .reduce((total, record) => total + (Number(record.days) || 0), 0);
-    return {
-      type: 'days',
-      eyebrow: String(year),
-      employeeName,
-      title: 'Kurzfristig beschäftigt',
-      priorEmployerDays: ma.vorarbeitgebertage?.year === year ? ma.vorarbeitgebertage.days : 0,
-      workedDays: reportedDays(analytics.ist),
-      plannedDays: reportedDays(analytics.forecast),
-      dayLimit: 70,
-      periodLabel: employmentWindow?.label,
-    };
-  }
-
-  if (employmentType !== 0 && employmentType !== 1) return null;
-  const monthlyHours = Number(ma.arbeitszeit?.monat);
-  if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
-  const monthLabel = now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-  return {
-    type: 'hours',
-    eyebrow: monthLabel,
-    employeeName,
-    title: employmentType === 0 ? 'Vollzeit beschäftigt' : 'Teilzeit beschäftigt',
-    monthlyHours,
-    workedHours: Number(monthlyRecord(analytics.ist).hours) || 0,
-    plannedHours: Number(monthlyRecord(analytics.forecast).hours) || 0,
-  };
+  return { ...employeeContingents.dataFor(ma, contingentPeriod.value), employeeName: formatEmployeeName(ma) };
 }
 
 function isEmployeeHoverLoading(ma) {
-  const year = new Date().getFullYear();
-  const employmentWindow = ma.arbeitsverhaeltnis?.typ === 3
-    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
-    : null;
-  return Boolean(employeeHoverLoading[`${ma._id}-${employmentWindow?.from.getTime() || year}`]);
+  return employeeContingents.isLoading(ma, contingentPeriod.value);
 }
 
 function openNameHoverCard(ma) {
@@ -3157,29 +3117,16 @@ function onNameRowMouseLeave(maId) {
   if (activeNameHoverId.value === maId) activeNameHoverId.value = null;
 }
 
-async function loadEmployeeHoverData(ma) {
-  const year = new Date().getFullYear();
-  const employmentWindow = ma.arbeitsverhaeltnis?.typ === 3
-    ? shortTermEmploymentWindow(ma.eintrittsdatum, year)
-    : null;
-  if (ma.arbeitsverhaeltnis?.typ === 3 && !employmentWindow) return;
-  const key = `${ma._id}-${employmentWindow?.from.getTime() || year}`;
-  if (employeeHoverAnalytics[key] || employeeHoverLoading[key]) return;
-  employeeHoverLoading[key] = true;
-  try {
-    const { data } = await api.get(`/api/personal/${ma._id}/analytics/einsaetze`, {
-      params: {
-        von: (employmentWindow?.from || new Date(year, 0, 1)).toISOString(),
-        bis: new Date(year, 11, 31, 23, 59, 59).toISOString(),
-      },
-    });
-    employeeHoverAnalytics[key] = { ist: data.ist || [], forecast: data.forecast || [] };
-  } catch (error) {
-    console.error('Mitarbeiter-Hover-Analytics laden fehlgeschlagen:', error);
-  } finally {
-    delete employeeHoverLoading[key];
-  }
+function loadEmployeeHoverData(ma) {
+  return employeeContingents.load(ma._id, contingentPeriod.value);
 }
+
+watch(contingentPeriod, () => {
+  for (const id of new Set([activeNameHoverId.value, expandedCardId.value].filter(Boolean))) {
+    const employee = mitarbeiter.value.find(ma => String(ma._id) === id);
+    if (employee) loadEmployeeHoverData(employee);
+  }
+});
 
 function getEntriesForCell(maId, iso) {
   return eintragMap.value[`${maId}_${iso}`] || [];
@@ -3562,6 +3509,7 @@ function unhideMA(maId) {
 async function fetchDispo() {
   loading.value = true;
   _verfFetchedMonths.clear(); // invalidate per-month cache since entries are replaced
+  employeeContingents.clear();
   try {
     const today = new Date();
     const startDate = new Date(today);
@@ -3588,6 +3536,8 @@ async function fetchDispo() {
     }
     eintraege.value = data.eintraege || [];
     letzterEinsatzBisByMaId.value = data.letzterEinsatzBisByMaId || {};
+    const expandedEmployee = mitarbeiter.value.find(ma => String(ma._id) === expandedCardId.value);
+    if (expandedEmployee) loadEmployeeHoverData(expandedEmployee);
     // Clear DOM caches — cell/row elements may have been replaced by Vue re-render
     _clearDispoCache();
     // Inject virtual Zvoove comments (from EINSATZZEIT_TAEGLICH.INFO field) into the store.
@@ -4486,6 +4436,10 @@ const options = [7, 14, 30];
 // ─── Mobile UI (≤768px) ───────────────────────────────────────────────
 const mobileFilterOpen = ref(false); // kept for legacy, filter now uses filterExpanded via ToolbarFilter
 const expandedCardId = ref(null);
+watch(expandedCardId, id => {
+  const employee = mitarbeiter.value.find(ma => String(ma._id) === id);
+  if (employee) loadEmployeeHoverData(employee);
+});
 const mobileDayScrollLeft = ref(0);
 const dayStripRefs = new Map(); // maId → HTMLElement
 let _stripScrollSyncing = false;

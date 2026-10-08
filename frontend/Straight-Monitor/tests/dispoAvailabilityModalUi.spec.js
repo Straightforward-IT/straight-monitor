@@ -3,11 +3,13 @@ import { DOMWrapper, flushPromises, shallowMount } from '@vue/test-utils';
 import DispoTable from '../src/components/DispoTable.vue';
 import ModalFrame from '../src/components/frames/ModalFrame.vue';
 import KundenwunschModal from '../src/components/Modals/KundenwunschModal.vue';
+import HoverDataCard from '../src/components/ui-elements/HoverDataCard.vue';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
   comments: { zvooveItems: [], fetch: vi.fn(), fetchChronikBatch: vi.fn(), getCellComments: vi.fn(), cellUnreadCount: vi.fn(), chronikForMa: vi.fn(), markRead: vi.fn(), post: vi.fn(), delete: vi.fn() },
   dispoEntries: [],
+  dispoEmployees: [],
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { _id: 'user-1', roles: ['ADMIN'], email: 'test@example.com' }, employeeNameFormat: 'first-last' }) }));
@@ -41,17 +43,22 @@ let wrapper;
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
   mocks.dispoEntries = [];
+  mocks.dispoEmployees = [];
   mocks.api.get.mockImplementation(url => {
     if (url === '/api/users/me') return Promise.resolve({ data: { dispoPrefs: {} } });
     if (url === '/api/locations') return Promise.resolve({ data: [] });
-    if (url.startsWith('/api/dispo?')) return Promise.resolve({ data: { mitarbeiter: [], eintraege: mocks.dispoEntries } });
+    if (url.startsWith('/api/dispo?')) return Promise.resolve({ data: { mitarbeiter: mocks.dispoEmployees, eintraege: mocks.dispoEntries } });
+    if (url.endsWith('/analytics/contingent')) return Promise.resolve({ data: { type: 'days-earnings', title: 'KZF 603 mit AZK', group: { legacyId: '27356' }, earningsStatus: 'RESOLVED', totalEarnings: '650.00', dayLimit: 70, earningsLimit: '603.00' } });
     throw new Error(`Unexpected request: ${url}`);
   });
   mocks.api.post.mockResolvedValue({ data: { _id: 'entry-1' } });
   mocks.comments.fetch.mockResolvedValue();
   mocks.comments.fetchChronikBatch.mockResolvedValue();
   mocks.comments.getCellComments.mockReturnValue([]);
+  mocks.comments.cellUnreadCount.mockReturnValue(0);
+  mocks.comments.chronikForMa.mockReturnValue([]);
   mocks.comments.post.mockResolvedValue();
   mocks.comments.delete.mockResolvedValue();
 });
@@ -59,6 +66,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 async function render() {
   wrapper = shallowMount(DispoTable, { attachTo: document.body, global: { stubs } });
@@ -67,6 +75,38 @@ async function render() {
   wrapper.vm.openVerfModal();
   await flushPromises();
 }
+
+describe('Dispo employee tariff contingents', () => {
+  it('loads the same tariff view from both name triggers and only requests it on opening', async () => {
+    mocks.dispoEmployees = [{ _id: 'employee-1', vorname: 'Ada', nachname: 'Test', isActive: true, arbeitsverhaeltnis: { typ: 2 } }];
+    wrapper = shallowMount(DispoTable, { attachTo: document.body, global: { stubs } });
+    await flushPromises();
+    const cards = wrapper.findAllComponents(HoverDataCard);
+    expect(cards).toHaveLength(2);
+    expect(cards[0].props('disabled')).toBe(false);
+    expect(cards[0].props('suppressed')).toBe(false);
+    expect(mocks.api.get.mock.calls.some(([url]) => url.endsWith('/analytics/contingent'))).toBe(false);
+    cards[0].vm.$emit('open'); cards[1].vm.$emit('open');
+    await flushPromises();
+    expect(mocks.api.get.mock.calls.filter(([url]) => url.endsWith('/analytics/contingent'))).toHaveLength(1);
+    expect(cards[0].props('data')).toMatchObject({ type: 'days-earnings', group: { legacyId: '27356' }, employeeName: 'Ada Test', totalEarnings: '650.00' });
+    expect(cards[1].props('data')).toEqual(cards[0].props('data'));
+  });
+
+  it('loads the shared card when mobile employee details expand, including direct selection', async () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(375);
+    mocks.dispoEmployees = [{ _id: 'employee-1', vorname: 'Ada', nachname: 'Test', isActive: true }];
+    wrapper = shallowMount(DispoTable, { attachTo: document.body, global: { stubs } });
+    await flushPromises();
+    expect(wrapper.findAllComponents(HoverDataCard)).toHaveLength(0);
+    wrapper.vm.expandedCardId = 'employee-1';
+    await flushPromises();
+    const card = wrapper.findComponent(HoverDataCard);
+    expect(card.props('inline')).toBe(true);
+    expect(card.props('data')).toMatchObject({ type: 'days-earnings', group: { legacyId: '27356' } });
+    expect(mocks.api.get.mock.calls.filter(([url]) => url.endsWith('/analytics/contingent'))).toHaveLength(1);
+  });
+});
 
 describe('Dispo availability modal shared controls', () => {
   it('uses ModalFrame and keeps range entry and save payload', async () => {

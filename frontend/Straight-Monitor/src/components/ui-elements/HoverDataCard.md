@@ -88,3 +88,18 @@ Dezimalstrings, Geld wird erst am Ende kaufmännisch auf Cent gerundet. Die
 Gesamtsumme ist maßgeblich; getrennt gerundete Teilsummen können um einen Cent
 abweichen. `earningsStatus: 'UNRESOLVED'` ersetzt die Betragsgrafik durch einen
 Klärungshinweis und darf nie als null Euro dargestellt werden.
+
+## DispoTable
+
+Vor- und Nachname öffnen dieselbe tarifgesteuerte Karte bei Hover oder
+Tastaturfokus. Mobil steht sie dauerhaft in den aufgeklappten Mitarbeiterdetails.
+Der abgefragte Monat gehört zur ersten sichtbaren Datumsspalte der DispoTable.
+Ein Wechsel des Zeitraums lädt die geöffneten Karten für diesen Monat neu.
+
+`useEmployeeContingents` lädt in beiden Mitarbeiteransichten denselben Endpunkt.
+In der DispoTable wird erst beim Öffnen abgefragt; Vor- und Nachname teilen
+laufende Anfragen und einen Cache von 60 Sekunden pro Mitarbeiter und Monat.
+Beim Neuladen der Dispo-Daten wird der Cache verworfen. Fehler bleiben sichtbar
+und werden beim nächsten Öffnen erneut abgefragt. Verspätete Antworten gehören
+weiter zu ihrem ursprünglichen Monat; verworfene Anfragen ersetzen keine neuen
+Daten. Die EmployeeCard lädt beim Expand und Monatswechsel jeweils frisch.

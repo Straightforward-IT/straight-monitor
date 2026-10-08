@@ -1736,6 +1736,7 @@ import TlBadge from "./ui-elements/TlBadge.vue";
 import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
 import HoverDataCard from "./ui-elements/HoverDataCard.vue";
+import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 import AppButton from "./ui-elements/AppButton.vue";
 import AppIconButton from "./ui-elements/AppIconButton.vue";
 import AppTextInput from "./ui-elements/AppTextInput.vue";
@@ -1907,6 +1908,7 @@ export default {
     });
 
     const dataCache = useDataCache();
+    const employeeContingents = useEmployeeContingents();
 
     // Logos via imports (Vite preloaded) – kein src-Swap → kein Flackern
     return {
@@ -1927,6 +1929,7 @@ export default {
       isTeamleiter,
       router,
       dataCache,
+      employeeContingents,
       selfLoadedMa,
       selfLoading,
       formattedName,
@@ -3013,7 +3016,7 @@ export default {
         && employeeId === this.resolvedMa?._id
         && year === this.calendarYear && month === this.calendarMonth + 1;
       try {
-        const { data } = await api.get(`/api/personal/${employeeId}/analytics/contingent`, { params: { year, month } });
+        const data = await this.employeeContingents.load(employeeId, { year, month }, { force: true });
         if (isCurrent()) this.employeeContingent = data;
       } catch (error) {
         if (isCurrent()) this.employeeContingent = {
