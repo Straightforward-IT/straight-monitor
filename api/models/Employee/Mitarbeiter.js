@@ -279,6 +279,24 @@ MitarbeiterSchema.virtual('evaluierungSoll').get(function () {
     return this.laufzettel_received ? this.laufzettel_received.length : 0;
 });
 
+/** Read the tariff base rate for this stable employee ID; defaults to today in Berlin.
+ * Returns RESOLVED with an exact decimal string and group/stage/period context,
+ * or UNRESOLVED with a concrete code/message. Does not change employee data.
+ */
+MitarbeiterSchema.methods.getTariffBaseRate = function (date) {
+    // Lazy require avoids the service's reference to the Mitarbeiter model at startup.
+    const tariffs = require('../../services/tariffs/TariffService');
+    return tariffs.baseRate(this._id, date === undefined ? tariffs.currentTariffDate() : date);
+};
+
+/** Read independent ÜTZ values (DPREIS etc.) at a date, defaulting to today in Berlin.
+ * Missing or overlapping histories return UNRESOLVED; values are never summed.
+ */
+MitarbeiterSchema.methods.getAboveTariffValues = function (date) {
+    const tariffs = require('../../services/tariffs/TariffService');
+    return tariffs.aboveTariffValues(this._id, date === undefined ? tariffs.currentTariffDate() : date);
+};
+
 const Mitarbeiter = mongoose.model('Mitarbeiter', MitarbeiterSchema);
 
 module.exports = Mitarbeiter;

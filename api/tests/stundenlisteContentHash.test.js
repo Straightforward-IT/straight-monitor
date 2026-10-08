@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const { sha256 } = require('../utils/contentHash');
 const StundenlisteService = require('../services/operations/StundenlisteService');
 const Einsatz = require('../models/Event/Einsatz');
+const { PDFDocument } = require('pdf-lib');
+const { buildCompletedPdfAttachments } = require('../utils/completedPdfAttachments');
 
 function createData() {
   return {
@@ -66,6 +68,36 @@ describe('Stundenliste content hash', () => {
 
     assert.ok(Buffer.isBuffer(pdf));
     assert.ok(pdf.length > 0);
+  });
+
+  it('records unequal double-copy page counts and delivers the actual 2 + 1 layout', async () => {
+    const data = createData();
+    data.einsaetze.push({
+      ...data.einsaetze[0],
+      personalNr: 1235,
+      mitarbeiterData: { vorname: 'Anna', nachname: 'Beispiel', geburtsdatum: new Date('1990-01-01') },
+    });
+    const originalLoadData = StundenlisteService._loadData;
+    StundenlisteService._loadData = async () => data;
+    let result;
+    try {
+      result = await StundenlisteService.buildStundenliste(42, {
+        signatureTags: true, signatureDoubleCopy: true,
+      });
+    } finally {
+      StundenlisteService._loadData = originalLoadData;
+    }
+    assert.deepEqual(result.copyPageCounts, [2, 1]);
+    assert.equal((await PDFDocument.load(result.buffer)).getPageCount(), 3);
+    const attachments = await buildCompletedPdfAttachments({
+      typKey: 'stundenliste',
+      stundenlisteDoppelausfertigung: true,
+      stundenlisteCopyPageCounts: result.copyPageCounts,
+    }, result.buffer);
+    const documents = await Promise.all(attachments.map((attachment) =>
+      PDFDocument.load(Buffer.from(attachment.content, 'base64'))
+    ));
+    assert.deepEqual(documents.map((doc) => doc.getPageCount()), [2, 1]);
   });
 
   it('ignores technical metadata changed by an otherwise identical import', () => {

@@ -2,7 +2,6 @@ const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const { PDFDocument } = require('pdf-lib');
 const auth = require('../../middleware/auth');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const logger = require('../../utils/logger');
@@ -27,6 +26,7 @@ const {
 const { buildSignaturR2Prefix, sanitizeSegment } = require('../../utils/signaturR2Path');
 const { buildEmployeeR2Path } = require('../../utils/employeeR2Path');
 const { buildStundenlistePdfFilename } = require('../../utils/stundenlisteFilename');
+const { buildCompletedPdfAttachments } = require('../../utils/completedPdfAttachments');
 const AsanaService = require('../../services/integrations/AsanaService');
 const registry = require('../../config/registry');
 const {
@@ -106,48 +106,9 @@ async function requireSignaturAccess(req, res) {
   return user;
 }
 
-async function buildCompletedPdfAttachments(vorgang, pdfBuffer) {
-  const pdfName = vorgang.fileName || `${vorgang.name || 'Signatur'}.pdf`;
-  if (vorgang.typKey !== 'stundenliste' || !vorgang.stundenlisteDoppelausfertigung) {
-    return [{ name: pdfName, contentType: 'application/pdf', content: pdfBuffer.toString('base64') }];
-  }
-
-  const source = await PDFDocument.load(pdfBuffer);
-  const pageCount = source.getPageCount();
-  if (pageCount < 2 || pageCount % 2 !== 0) {
-    throw new Error(`Doppelausfertigung hat keine gerade Seitenanzahl (${pageCount}).`);
-  }
-
-  const copyPageCount = pageCount / 2;
-  const baseName = pdfName.replace(/\.pdf$/i, '');
-  const attachments = [];
-  for (let copyIndex = 0; copyIndex < 2; copyIndex += 1) {
-    const output = await PDFDocument.create();
-    const pageIndices = Array.from(
-      { length: copyPageCount },
-      (_, index) => copyIndex * copyPageCount + index
-    );
-    const pages = await output.copyPages(source, pageIndices);
-    pages.forEach((page) => output.addPage(page));
-    attachments.push({
-      name: `${baseName}-${copyIndex === 0 ? 'Signiert' : 'Unsigniert'}.pdf`,
-      contentType: 'application/pdf',
-      content: Buffer.from(await output.save()).toString('base64'),
-    });
-  }
-  return attachments;
-}
-
-/**
- * Execute post-completion actions stored on a SignaturVorgang.
- * Called fire-and-forget from the submission.completed webhook handler.
- * @param {object} vorgang - saved SignaturVorgang mongoose document
- */
-async function executeFolgeaktionen(vorgang) {
+function getDeliveryRecipients(vorgang) {
   const fa = vorgang.folgeaktionen;
-  if (!fa) return;
-
-  // ── Ausliefern an: send signed PDF to each recipient ───────────────────────
+  if (!fa) return [];
   const recipientsByEmail = new Map();
   for (const recipient of (fa.ausliefernAn || [])) {
     const email = String(recipient.email || '').trim().toLowerCase();
@@ -161,27 +122,39 @@ async function executeFolgeaktionen(vorgang) {
       }
     }
   }
-  const recipients = [...recipientsByEmail.values()];
-  if (recipients.length > 0 && vorgang.r2KeySigned) {
-    try {
-      const senderKey = await getVorgangSignatureSenderKey(vorgang);
-      const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
-      const attachments = await buildCompletedPdfAttachments(vorgang, pdfBuffer);
-      const subject = `Unterzeichnetes Dokument: ${vorgang.name || 'Signatur'}`;
-      const body = vorgang.stundenlisteDoppelausfertigung
-        ? `<p>Die Stundenliste <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet. Beide Ausfertigungen sind separat angehängt.</p>`
-        : `<p>Das Dokument <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet und ist als Anhang beigefügt.</p>`;
-      await sendMail(
-        recipients.map(r => r.email),
-        subject,
-        body,
-        senderKey,
-        attachments,
-      );
-      logger.info(`SignaturVorgang ${vorgang._id}: Signed PDF sent from ${senderKey} to ${recipients.map(r => r.email).join(', ')}`);
-    } catch (err) {
-      logger.error(`SignaturVorgang ${vorgang._id}: Ausliefern fehlgeschlagen:`, err.message);
-    }
+  return [...recipientsByEmail.values()];
+}
+
+async function deliverCompletedPdf(vorgang, preparedAttachments) {
+  const recipients = getDeliveryRecipients(vorgang);
+  if (!recipients.length || !vorgang.r2KeySigned) return;
+
+  const senderKey = await getVorgangSignatureSenderKey(vorgang);
+  const attachments = preparedAttachments || await buildCompletedPdfAttachments(
+    vorgang,
+    await R2Service.downloadFile(vorgang.r2KeySigned),
+  );
+  const subject = `Unterzeichnetes Dokument: ${vorgang.name || 'Signatur'}`;
+  const body = vorgang.stundenlisteDoppelausfertigung
+    ? `<p>Die Stundenliste <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet. Beide Ausfertigungen sind separat angehängt.</p>`
+    : `<p>Das Dokument <strong>${vorgang.name || 'Signatur'}</strong> wurde vollständig unterzeichnet und ist als Anhang beigefügt.</p>`;
+  await sendMail(recipients.map(r => r.email), subject, body, senderKey, attachments);
+  logger.info(`SignaturVorgang ${vorgang._id}: Signed PDF sent from ${senderKey} to ${recipients.map(r => r.email).join(', ')}`);
+}
+
+/**
+ * Execute post-completion actions stored on a SignaturVorgang.
+ * Called fire-and-forget from the submission.completed webhook handler.
+ * @param {object} vorgang - saved SignaturVorgang mongoose document
+ */
+async function executeFolgeaktionen(vorgang) {
+  const fa = vorgang.folgeaktionen;
+  if (!fa) return;
+
+  try {
+    await deliverCompletedPdf(vorgang);
+  } catch (err) {
+    logger.error(`SignaturVorgang ${vorgang._id}: Ausliefern fehlgeschlagen:`, err.message);
   }
 
   // ── Asana actions ──────────────────────────────────────────────────────────
@@ -361,9 +334,10 @@ async function restoreMissingStundenlisteSubmission(vorgang) {
   const kunde = vorgang.kunde
     ? await Kunde.findById(vorgang.kunde).select('stundenlisteSignaturDoppelt')
     : await Kunde.findOne({ kundenNr: vorgang.kundenNr }).select('stundenlisteSignaturDoppelt');
-  const { buffer: fileBuffer } = await StundenlisteService.buildStundenliste(vorgang.auftragNr, {
+  const signatureDoubleCopy = kunde?.stundenlisteSignaturDoppelt === true;
+  const { buffer: fileBuffer, copyPageCounts } = await StundenlisteService.buildStundenliste(vorgang.auftragNr, {
     signatureTags: true,
-    signatureDoubleCopy: kunde?.stundenlisteSignaturDoppelt === true,
+    signatureDoubleCopy,
     excludePseudo: vorgang.stundenlisteExcludePseudo === true,
   });
   const result = await DocuSealService.createSubmissionFromPdf({
@@ -381,6 +355,8 @@ async function restoreMissingStundenlisteSubmission(vorgang) {
   if (!resultArr.length) throw new Error('DocuSeal hat keine Unterzeichner zurückgegeben.');
 
   vorgang.submissionId = resultArr[0].submission_id ?? result?.id;
+  vorgang.stundenlisteDoppelausfertigung = signatureDoubleCopy;
+  vorgang.stundenlisteCopyPageCounts = signatureDoubleCopy ? copyPageCounts : undefined;
   vorgang.submitters = resultArr.map((apiSubmitter) => {
     const requested = requestedSubmitters.find((submitter) =>
       (submitter.email && submitter.email === apiSubmitter.email) || submitter.role === apiSubmitter.role
@@ -669,7 +645,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
   const excludePseudo = req.body?.excludePseudo === true;
   const pdfFilename = buildStundenlistePdfFilename(auftrag);
   const signatureDoubleCopy = kunde.stundenlisteSignaturDoppelt === true;
-  const { buffer, contentHash } = await StundenlisteService.buildStundenliste(auftragNr, {
+  const { buffer, contentHash, copyPageCounts } = await StundenlisteService.buildStundenliste(auftragNr, {
     signatureTags: signatureDoubleCopy,
     signatureDoubleCopy,
     excludePseudo,
@@ -688,6 +664,7 @@ router.post('/stundenliste/:auftragNr/draft', auth, asyncHandler(async (req, res
     auftragNr,
     stundenlisteExcludePseudo: excludePseudo,
     stundenlisteDoppelausfertigung: signatureDoubleCopy,
+    stundenlisteCopyPageCounts: signatureDoubleCopy ? copyPageCounts : undefined,
     stundenlisteContentHash: contentHash,
     kunde: kunde._id,
     kundenNr: kunde.kundenNr,
@@ -832,7 +809,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   }
 
   const excludePseudo = !!draftVorgang?.stundenlisteExcludePseudo;
-  const { buffer, contentHash } = await StundenlisteService.buildStundenliste(auftragNr, {
+  const { buffer, contentHash, copyPageCounts } = await StundenlisteService.buildStundenliste(auftragNr, {
     signatureTags: true,
     signatureDoubleCopy: kunde.stundenlisteSignaturDoppelt === true,
     excludePseudo,
@@ -905,6 +882,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
     auftragNr,
     stundenlisteExcludePseudo: excludePseudo,
     stundenlisteDoppelausfertigung: kunde.stundenlisteSignaturDoppelt === true,
+    stundenlisteCopyPageCounts: kunde.stundenlisteSignaturDoppelt === true ? copyPageCounts : undefined,
     stundenlisteContentHash: contentHash,
 
     kunde:         kunde ? kunde._id   : null,
@@ -1901,6 +1879,53 @@ router.get('/:id/audit-url', auth, asyncHandler(async (req, res) => {
     filename: safeName,
   });
   res.json({ url });
+}));
+
+// POST /api/signaturen/:id/redeliver — retry email delivery only (ADMIN).
+// Legacy double copies may supply { copyPageCounts: [signedPages, unsignedPages] }.
+router.post('/:id/redeliver', auth, asyncHandler(async (req, res) => {
+  const user = await requireSignaturAccess(req, res);
+  if (!user) return;
+  if (user.role !== 'ADMIN' && !user.roles?.includes('ADMIN')) {
+    return res.status(403).json({ message: 'Nur Administratoren können Dokumente erneut ausliefern.' });
+  }
+  if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+    return res.status(400).json({ message: 'Ungültige Vorgangs-ID' });
+  }
+  const vorgang = await SignaturVorgang.findById(req.params.id);
+  if (!vorgang) return res.status(404).json({ message: 'Vorgang nicht gefunden' });
+  if (vorgang.status !== 'completed' || !vorgang.r2KeySigned) {
+    return res.status(409).json({ message: 'Nur abgeschlossene Vorgänge mit archiviertem PDF können ausgeliefert werden.' });
+  }
+  if (!getDeliveryRecipients(vorgang).length) {
+    return res.status(409).json({ message: 'Keine Auslieferungsempfänger hinterlegt.' });
+  }
+
+  const counts = req.body?.copyPageCounts;
+  if (counts !== undefined && (
+    vorgang.typKey !== 'stundenliste' || !vorgang.stundenlisteDoppelausfertigung
+    || !Array.isArray(counts) || counts.length !== 2
+    || !counts.every((count) => Number.isInteger(count) && count > 0)
+  )) {
+    return res.status(400).json({ message: 'Bitte zwei positive ganzzahlige Seitenzahlen für eine Stundenlisten-Doppelausfertigung angeben.' });
+  }
+  const pdfBuffer = await R2Service.downloadFile(vorgang.r2KeySigned);
+  let attachments;
+  try {
+    attachments = await buildCompletedPdfAttachments({
+      ...vorgang.toObject(),
+      stundenlisteCopyPageCounts: counts ?? vorgang.stundenlisteCopyPageCounts,
+    }, pdfBuffer);
+  } catch (err) {
+    logger.warn(`SignaturVorgang ${vorgang._id}: Erneute Auslieferung abgelehnt:`, err.message);
+    return res.status(409).json({ message: err.message });
+  }
+  if (counts !== undefined) {
+    vorgang.stundenlisteCopyPageCounts = counts;
+    await vorgang.save();
+  }
+  await deliverCompletedPdf(vorgang, attachments);
+  res.json({ message: 'Dokument erneut ausgeliefert' });
 }));
 
 // ─── UPDATE DRAFT ────────────────────────────────────────────────────────────

@@ -592,7 +592,7 @@ onBeforeUnmount(close);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; overflow: visible; overscroll-behavior: auto; box-shadow: none; }
+.hover-data-card--inline { position: relative; z-index: auto; width: 100%; max-width: none; max-height: none; overflow: visible; overscroll-behavior: auto; box-shadow: none; container-type: inline-size; }
 .hover-data-card__indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
 .hover-data-card__employee-name { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; letter-spacing: normal; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
 .hover-data-card__eyebrow { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
@@ -665,6 +665,12 @@ onBeforeUnmount(close);
 .hover-data-card__note { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .hover-data-card-enter-active, .hover-data-card-leave-active { transition: opacity 0.12s ease; }
 .hover-data-card-enter-from, .hover-data-card-leave-to { opacity: 0; }
+@container (max-width: 340px) {
+  .hover-data-card__body, .hover-data-card__loading { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .hover-data-card__visual, .hover-data-card__loading-chart { justify-self: center; }
+  .hover-data-card__header { flex-wrap: wrap; gap: 4px 8px; padding: 10px 12px; }
+  .hover-data-card__visual { --hover-data-card-column-height: 190px; }
+}
 @media (max-width: 400px) {
   .hover-data-card { --hover-data-card-ring-size: 88px; --hover-data-card-column-height: 190px; }
   .hover-data-card__body { gap: 10px; padding: 12px; }

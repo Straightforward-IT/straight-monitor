@@ -260,6 +260,20 @@
           <h4>Personalnummer-Historie</h4>
         </div>
         <div class="list-editor">
+          <div v-if="canEditPersonalnrHistory" class="history-add-row">
+            <AppTextInput
+              :id="fieldId('personalnr-history')"
+              v-model.trim="personalnrHistoryInput"
+              class="form-input"
+              placeholder="Personalnummer hinzufügen"
+              :disabled="historySaving"
+              @keyup.enter="addHistory"
+            />
+            <AppButton size="sm" variant="secondary" :loading="historySaving" :disabled="!personalnrHistoryInput" @click="addHistory">
+              <font-awesome-icon v-if="!historySaving" icon="fa-solid fa-plus" />
+              Hinzufügen
+            </AppButton>
+          </div>
           <div v-if="form.personalnrHistory && form.personalnrHistory.length > 0">
             <div
               v-for="(entry, index) in form.personalnrHistory"
@@ -273,10 +287,11 @@
                 </span>
               </div>
               <AppIconButton
+                v-if="canEditPersonalnrHistory"
                 size="sm"
                 variant="ghost"
                 :label="`Historieneintrag ${entry.value} entfernen`"
-                @click="removeHistory(index)"
+                @click="removeHistory(entry)"
               >
                 <font-awesome-icon icon="fa-solid fa-trash" />
               </AppIconButton>
@@ -342,11 +357,20 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  canEditPersonalnrHistory: {
+    type: Boolean,
+    default: false,
+  },
+  historySaving: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(["close", "save", "save-force", "cancel-conflict"]);
+const emit = defineEmits(["close", "save", "save-force", "cancel-conflict", "add-personalnr-history", "remove-personalnr-history"]);
 const formId = useId();
 const fieldId = (field) => `${formId}-${field}`;
+const personalnrHistoryInput = ref("");
 
 function requestClose() {
   if (!props.saving) emit("close");
@@ -474,11 +498,26 @@ function removeLicense(index) {
 }
 
 function removeHistory(index) {
-  if (props.saving) return;
+  if (props.historySaving || !index?._id) return;
   if (confirm("Diesen Historien-Eintrag wirklich löschen?")) {
-    form.value.personalnrHistory.splice(index, 1);
+    emit("remove-personalnr-history", index._id);
   }
 }
+
+function addHistory() {
+  const value = personalnrHistoryInput.value.trim();
+  if (!value || props.historySaving) return;
+  emit("add-personalnr-history", value);
+  personalnrHistoryInput.value = "";
+}
+
+watch(
+  () => props.mitarbeiter?.personalnrHistory,
+  (history) => {
+    form.value.personalnrHistory = [...(history || [])];
+  },
+  { deep: true },
+);
 
 function formatDate(dateStr) {
   if (!dateStr) return "-";

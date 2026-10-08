@@ -1,0 +1,273 @@
+{
+  "completedAt": "2026-10-06T20:35:04.085Z",
+  "mode": "IMPORT_AND_ACTIVATE",
+  "database": "DB_01",
+  "previousActiveImportId": null,
+  "actor": {
+    "kind": "CLI",
+    "label": "Tarifimport über Codex im Nutzerauftrag",
+    "script": "importTariffs.js"
+  },
+  "files": [
+    {
+      "role": "contract",
+      "filename": "Tarifvertrag.xlsx",
+      "sha256": "5a6997bccaa837ac1f95a4e39e1af4ef3f6d39420be4a77e53ff7046b67734e3",
+      "bytes": 10188
+    },
+    {
+      "role": "employeeGroups",
+      "filename": "Tarif Mitarbeiter Gruppe.xlsx",
+      "sha256": "07bbaa9cd6e9871ad2607c1ffba20c6feeeea549062a4f304c7c94d28af41711",
+      "bytes": 10369
+    },
+    {
+      "role": "payGroups",
+      "filename": "Tarifgruppe.xlsx",
+      "sha256": "fd715ea7e369900d26581af0fcb27bde857d8a728d284789927b8c33d7f12da1",
+      "bytes": 13803
+    },
+    {
+      "role": "stages",
+      "filename": "Tarifstufe.xlsx",
+      "sha256": "8a8333c47ec176f0bc93297a3ab495d3a5283c6129aee97e0cd892cc8d9b39e7",
+      "bytes": 9673
+    },
+    {
+      "role": "periods",
+      "filename": "Tarifzeit.xlsx",
+      "sha256": "f8418949bc862b5d4e26e5d4283c7123fa86e6c286394480394494e561f25d41",
+      "bytes": 17060
+    },
+    {
+      "role": "rates",
+      "filename": "Tarif Entgelt.xlsx",
+      "sha256": "738287333c5d2a14a210b8ee22baab70944db765ec0bad66ef42dd165c3a31b6",
+      "bytes": 75932
+    },
+    {
+      "role": "wageRules",
+      "filename": "Tarif Lohnarten.xlsx",
+      "sha256": "15fab277bddf166ddcef859dca42dbe3edec0a1c901e915c192e96bcaa3047b1",
+      "bytes": 260251
+    },
+    {
+      "role": "specialPayments",
+      "filename": "Tarif Urlaubsgeld Weihnachtsgeld.xlsx",
+      "sha256": "9e225b4ea912ddda351dd337acd868c5acf382bfd91128c2c1f394bdb9429f40",
+      "bytes": 30963
+    },
+    {
+      "role": "assignmentAllowances",
+      "filename": "Tarifeinsatzzulage.xlsx",
+      "sha256": "e49c3c8d180f6b6f0993ee23eab7d0256435510583e758de2fd08f7cfe06b2b7",
+      "bytes": 27770
+    },
+    {
+      "role": "employeeAssignments",
+      "filename": "Tarif Personal.xlsx",
+      "sha256": "c0c973fd60033ab69af063b05514aea8ae56f54e315b4233add5a958cf46ba75",
+      "bytes": 538768
+    },
+    {
+      "role": "aboveTariff",
+      "filename": "Tarif ÜTZ.xlsx",
+      "sha256": "7797b9a6c709b97a13f8122390afc30ae4bb6096b4f8ee4dff0481adb34b3750",
+      "bytes": 486982
+    },
+    {
+      "role": "referenceWages",
+      "filename": "Tarifecklohn.xlsx",
+      "sha256": "8445a2fe70698d4ff521afb257f84e047033286af0bdd0f46405996f06477e67",
+      "bytes": 9696
+    },
+    {
+      "role": "noticePeriods",
+      "filename": "Tarifkündigungsfrist.xlsx",
+      "sha256": "1db2bd15a725b145cb3830be01e87350acd54941c28a66fe5cce6ca930ec9d6f",
+      "bytes": 12677
+    },
+    {
+      "role": "vacationRules",
+      "filename": "Tarifurlaub.xlsx",
+      "sha256": "c89fe76ef57721a547f3c0a04ade1a1a0fd46b8e6151b83b5d93291661ec2fe8",
+      "bytes": 9798
+    }
+  ],
+  "counts": {
+    "contract": 1,
+    "employeeGroups": 8,
+    "payGroups": 80,
+    "stages": 8,
+    "periods": 148,
+    "rates": 1480,
+    "wageRules": 1265,
+    "specialPayments": 287,
+    "assignmentAllowances": 296,
+    "employeeAssignments": 4461,
+    "aboveTariff": 8394,
+    "referenceWages": 8,
+    "noticePeriods": 11,
+    "vacationRules": 8
+  },
+  "errorCount": 0,
+  "warningsByCode": {
+    "EMPLOYEE_MISSING": 7796,
+    "EMPLOYEE_AMBIGUOUS": 4,
+    "REVERSED_INTERVAL": 16,
+    "UNINTERPRETED_FIELDS": 14,
+    "RULES_NOT_EVALUATED": 7,
+    "OVERLAPPING_INTERVALS": 1257
+  },
+  "employeeMapping": {
+    "assignmentRows": {
+      "MISSING": 2261,
+      "MATCHED": 2199,
+      "AMBIGUOUS": 1
+    },
+    "allowanceRows": {
+      "MISSING": 5535,
+      "MATCHED": 2856,
+      "AMBIGUOUS": 3
+    }
+  },
+  "ineffectiveRows": {
+    "assignments": 4,
+    "allowances": 12
+  },
+  "referenceRates": [
+    {
+      "periodId": "1108622",
+      "stagePosition": 1,
+      "groupPosition": 1,
+      "value": "15.33"
+    },
+    {
+      "periodId": "1108622",
+      "stagePosition": 1,
+      "groupPosition": 3,
+      "value": "16.08"
+    }
+  ],
+  "originalFilesUnchanged": true,
+  "importId": "6ac55b6506e971ddd419f433",
+  "reusedImport": false,
+  "warningCount": 9094,
+  "storedCounts": {
+    "contract": 1,
+    "employeeGroups": 8,
+    "payGroups": 80,
+    "stages": 8,
+    "periods": 148,
+    "rates": 1480,
+    "wageRules": 1265,
+    "specialPayments": 287,
+    "assignmentAllowances": 296,
+    "employeeAssignments": 4461,
+    "aboveTariff": 8394,
+    "referenceWages": 8,
+    "noticePeriods": 11,
+    "vacationRules": 8
+  },
+  "sourceComparison": {
+    "contract": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 1
+    },
+    "employeeGroups": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 8
+    },
+    "payGroups": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 80
+    },
+    "stages": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 8
+    },
+    "periods": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 148
+    },
+    "rates": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 1480
+    },
+    "wageRules": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 1265
+    },
+    "specialPayments": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 287
+    },
+    "assignmentAllowances": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 296
+    },
+    "employeeAssignments": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 4461
+    },
+    "aboveTariff": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 8394
+    },
+    "referenceWages": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 8
+    },
+    "noticePeriods": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 11
+    },
+    "vacationRules": {
+      "added": 0,
+      "removed": 0,
+      "changed": 0,
+      "unchanged": 8
+    }
+  },
+  "activeImportId": "6ac55b6506e971ddd419f433",
+  "status": "ACTIVE",
+  "activatedAt": "2026-10-06T20:35:01.734Z",
+  "baseRateChecks": [
+    {
+      "payGroupId": "21016",
+      "status": "NO_MATCHED_REFERENCE_EMPLOYEE"
+    },
+    {
+      "payGroupId": "24932",
+      "date": "2026-09-30",
+      "status": "RESOLVED",
+      "value": "16.08"
+    }
+  ]
+}

@@ -71,16 +71,17 @@ class StundenlisteService {
    *   ({{...;type=signature}}) an den Unterschriftslinien ein (für digitale Signatur).
   * @param {boolean} [options.signatureDoubleCopy=false] - Erstellt für die digitale
   *   Signatur eine zweite, unveränderte Ausfertigung; nur die erste sperrt Einsatzspalten.
-   * @returns {Promise<{ buffer: Buffer, auftragNr: number, auftrag: object }>}
+   * @returns {Promise<{ buffer: Buffer, copyPageCounts: number[], auftragNr: number, auftrag: object }>}
    */
   async buildStundenliste(auftragNr, options = {}) {
     const data = await this._loadData(auftragNr, { excludePseudo: !!options.excludePseudo });
-    const buffer = await this._renderPdf(data, {
+    const { buffer, copyPageCounts } = await this._renderPdfWithLayout(data, {
       signatureTags: !!options.signatureTags,
       signatureDoubleCopy: !!options.signatureDoubleCopy,
     });
     return {
       buffer,
+      copyPageCounts,
       auftragNr: data.auftrag.auftragNr,
       auftrag: data.auftrag,
       contentHash: sha256(this._getRenderedDataSnapshot(data)),
@@ -231,7 +232,12 @@ class StundenlisteService {
   }
 
   // ── PDF-Rendering ─────────────────────────────────────────────────────────
-  async _renderPdf({ auftrag, kunde, einsaetze, schichten, niederlassung }, options = {}) {
+  async _renderPdf(data, options = {}) {
+    const { buffer } = await this._renderPdfWithLayout(data, options);
+    return buffer;
+  }
+
+  async _renderPdfWithLayout({ auftrag, kunde, einsaetze, schichten, niederlassung }, options = {}) {
     const doc = await PDFDocument.create();
     doc.registerFontkit(fontkit);
     const [font, fontBold] = await Promise.all([
@@ -270,7 +276,9 @@ class StundenlisteService {
       ]
       : [{ signatureTags: !!options.signatureTags, blockedEinsatzColumns: false }];
 
+    const copyPageCounts = [];
     for (const copyOptionsEntry of copyOptions) {
+      const firstPageIndex = doc.getPageCount();
       const ctx = {
         doc,
         font,
@@ -282,12 +290,13 @@ class StundenlisteService {
         ...copyOptionsEntry,
       };
       this._renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg);
+      copyPageCounts.push(doc.getPageCount() - firstPageIndex);
     }
 
     // ── Seiten-Footer (URL unten rechts auf jeder Seite, wie im Original) ──
     this._drawPageFooters(doc, fontBold);
 
-    return Buffer.from(await doc.save());
+    return { buffer: Buffer.from(await doc.save()), copyPageCounts };
   }
 
   _renderPdfCopy(ctx, { auftrag, kunde, einsaetze, schichten, niederlassung }, logoImg) {

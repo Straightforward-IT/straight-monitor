@@ -40,6 +40,7 @@ const UserManagement = () => import('@/components/UserManagement.vue');
 const UserSettings = () => import('@/components/UserSettings.vue');
 const NotFound = () => import('@/components/NotFound.vue');
 const PayrollPage = () => import('@/components/PayrollPage.vue');
+const TarifePage = () => import('@/components/TarifePage.vue');
 const MitarbeiterEinsatzortMapPage = () => import('@/components/MitarbeiterEinsatzortMapPage.vue');
 
 const routes = [
@@ -77,6 +78,7 @@ const routes = [
       { path: 'daten-import', name: 'DatenImport', component: DatenImport },
       { path: 'auftraege', name: 'Auftraege', component: AuftraegePage },
       { path: 'payroll', name: 'Payroll', component: PayrollPage },
+      { path: 'tarife', name: 'Tarife', component: TarifePage, meta: { roles: ['ADMIN'] } },
       { path: 'mitarbeiter-einsatzortkarte', name: 'MitarbeiterEinsatzortMap', component: MitarbeiterEinsatzortMapPage, meta: { roles: ['ADMIN'] } },
       { path: 'zeitverwaltung/:employeeId', redirect: to => ({ path: '/payroll', query: { employeeId: to.params.employeeId, ...(to.query.month ? { month: to.query.month } : {}) } }) },
       { path: 'kunden', name: 'Kunden', component: KundenPage },

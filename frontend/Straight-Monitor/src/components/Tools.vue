@@ -28,6 +28,11 @@
         <span>OneDrive Explorer</span>
       </button>
 
+      <button class="s-btn" :class="{ 'dev-role--admin': isDev }" v-if="newPagesEnabled" type="button" @click="go('/tarife')">
+        <img :src="logoSrc" alt="" />
+        <span>Tarifvertrag</span>
+      </button>
+
       <div v-if="newPagesEnabled" class="sep"></div>
 
       <button class="s-btn" :class="{ 'dev-role--vertrieb': isDev }" @click="go('/lohnabrechnungen')">

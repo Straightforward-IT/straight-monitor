@@ -1094,6 +1094,25 @@ DocuSeal ──(API)──> DocuSealService.js ──(persist)──> DocuSealVo
                                          └──(link)──> Bewerber.einladungen[]
 ```
 
+**Stundenliste double-copy delivery**:
+
+- [StundenlisteService](../api/services/operations/StundenlisteService.js) records the actual page counts of the digitally signed copy and the handwritten copy. The signed copy can be longer because its DocuSeal badge needs additional space.
+- Draft creation, submission, and submission restoration persist these counts as `SignaturVorgang.stundenlisteCopyPageCounts` (for example `[2, 1]`).
+- Completion emails split the archived PDF at that boundary, not at half its total page count. The two counts must be positive integers and sum to the archived PDF's page count.
+- Historical two-page double copies can safely use `[1, 1]`. Older multipage double copies without metadata require a manually verified boundary; delivery fails explicitly rather than guessing, even when the total page count is even.
+
+**Retrying an existing delivery**:
+
+An authenticated ADMIN can call `POST /api/signaturen/:id/redeliver`. The record must be completed, have an archived signed PDF, and have delivery recipients. The endpoint only retries the completion email to the configured recipients/signers; it does not repeat Asana actions or request new signatures.
+
+For an older double copy, inspect the archived PDF first and send:
+
+```json
+{ "copyPageCounts": [2, 1] }
+```
+
+The counts mean two pages in the signed copy followed by one page in the handwritten copy. They are validated against the archived PDF and persisted before sending. Once metadata is present, the request body may be omitted. An invalid boundary returns HTTP 409 (malformed input: HTTP 400), and no email is sent. A mail failure is returned through the standard error handler; saved counts remain available for another retry. Repeating a successful request sends another email.
+
 ### Microsoft Graph Integration
 
 **Service**: [GraphService.js](api/GraphService.js)  
@@ -1649,6 +1668,7 @@ POST   /api/graph/subscriptions            # Create webhook subscription
 GET    /api/signaturen               # List signature documents
 GET    /api/signaturen/:id           # Get document details
 POST   /api/signaturen               # Create signature document
+POST   /api/signaturen/:id/redeliver # Retry completion email (ADMIN); optional copyPageCounts
 GET    /api/signaturen/:id/download  # Download PDF
 ```
 

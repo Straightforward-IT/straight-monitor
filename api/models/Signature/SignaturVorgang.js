@@ -66,8 +66,18 @@ const SignaturVorgangSchema = new mongoose.Schema({
   auftragNr:   { type: Number, default: null },
   // Keeps the generated Stundenliste consistent when its draft is later sent.
   stundenlisteExcludePseudo: { type: Boolean, default: false },
-  // Whether this Stundenliste contains two identical, separately deliverable copies.
+  // Whether this Stundenliste contains a signed and a handwritten copy.
   stundenlisteDoppelausfertigung: { type: Boolean, default: false },
+  stundenlisteCopyPageCounts: {
+    type: [Number],
+    default: undefined,
+    validate: {
+      validator: (counts) => counts == null || (
+        counts.length === 2 && counts.every((count) => Number.isInteger(count) && count > 0)
+      ),
+      message: 'Die Doppelausfertigung benötigt zwei positive ganzzahlige Seitenzahlen.',
+    },
+  },
   // SHA-256 of the source data rendered into a generated Stundenliste PDF.
   stundenlisteContentHash: { type: String, default: null },
 

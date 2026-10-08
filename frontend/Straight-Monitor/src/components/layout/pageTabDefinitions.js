@@ -44,6 +44,12 @@ export const payrollTabs = [
   { id: 'monatspruefung', label: 'Monatsprüfung', icon: ['fas', 'list-check'], to: queryTarget('/payroll', 'monatspruefung', 'stundenerfassung'), isActive: queryMatch('Payroll', 'monatspruefung', 'stundenerfassung') },
 ];
 
+export const tariffTabs = [
+  { id: 'overview', label: 'Tarifübersicht', icon: ['fas', 'table-cells-large'], to: queryTarget('/tarife', 'overview', 'overview'), isActive: queryMatch('Tarife', 'overview', 'overview') },
+  { id: 'employees', label: 'Mitarbeiterzuordnungen', icon: ['fas', 'users'], to: queryTarget('/tarife', 'employees', 'overview'), isActive: queryMatch('Tarife', 'employees', 'overview') },
+  { id: 'import', label: 'Import', icon: ['fas', 'file-import'], to: queryTarget('/tarife', 'import', 'overview'), isActive: queryMatch('Tarife', 'import', 'overview') },
+];
+
 export const reportTabs = [
   { id: 'dokumente', label: 'Dokumente', icon: ['fas', 'file-lines'], to: '/dokumente', isActive: (route) => route.name === 'Dokumente' },
   { id: 'auswertung', label: 'Auswertung', icon: ['fas', 'chart-column'], to: '/teamleiter-auswertung', isActive: (route) => route.name === 'TeamleiterAuswertung' },

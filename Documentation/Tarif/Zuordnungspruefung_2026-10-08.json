@@ -1,0 +1,1073 @@
+{
+  "date": "2026-10-08",
+  "checkedAt": "2026-10-08T09:29:13.707Z",
+  "activeImportId": "6ac55b6506e971ddd419f433",
+  "employeeCount": 578,
+  "before": {
+    "ASSIGNMENT_AMBIGUOUS": 142,
+    "RESOLVED": 326,
+    "ASSIGNMENT_MISSING": 110
+  },
+  "after": {
+    "RESOLVED": 467,
+    "ASSIGNMENT_MISSING": 110,
+    "ASSIGNMENT_AMBIGUOUS": 1
+  },
+  "aboveTariffBefore": {
+    "RESOLVED": 144,
+    "ABOVE_TARIFF_MISSING": 415,
+    "ABOVE_TARIFF_AMBIGUOUS": 19
+  },
+  "aboveTariffAfter": {
+    "RESOLVED": 163,
+    "ABOVE_TARIFF_MISSING": 415
+  },
+  "unresolved": [
+    {
+      "employeeId": "67c03dbb0700a23fa0a4858c",
+      "employeeName": "Alexandra Gridneva",
+      "personalNr": "2000012",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3cc676b2c9f663639ab3f",
+      "employeeName": "Ali Sahyouny",
+      "personalNr": "3000728",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe2b23e1c30a930d25d9f",
+      "employeeName": "Amelie Kühler",
+      "personalNr": "3000692",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3ce866b2c9f663639b686",
+      "employeeName": "Amin Benali Kassouh",
+      "personalNr": "3000730",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a0c7c5fdc9b7ea247537e6d",
+      "employeeName": "Ana Isabel Z Vieira Carvalho",
+      "personalNr": "3000488",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab68fb5795ab1932217fb4a",
+      "employeeName": "Antonia Polinna",
+      "personalNr": "1003536",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba81b6d4df193eb08f03cb",
+      "employeeName": "Ashley Jolene Stenzel",
+      "personalNr": "1003545",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f91910e9853e6211b777",
+      "employeeName": "Ayoko Hanvi",
+      "personalNr": "3000677",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "69fa098bd53adc4676bb6a62",
+      "employeeName": "Batu Z Korkor",
+      "personalNr": "3000466",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aad566e9b3047ca4729114e",
+      "employeeName": "Bela Schlumberger",
+      "personalNr": "1003528",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "682f13e55b932bd1555e1b0b",
+      "employeeName": "Ben Marquardt",
+      "personalNr": "1003561",
+      "code": "ASSIGNMENT_AMBIGUOUS",
+      "message": "2 Tarifzuordnungen gelten gleichzeitig. Die überlappenden Zeiträume müssen geklärt werden.",
+      "hasImportedRows": true,
+      "assignments": [
+        {
+          "legacyId": "972359",
+          "personalNr": "1002039",
+          "matchStatus": "MATCHED",
+          "validFrom": "2024-02-01",
+          "validUntil": null,
+          "intervalStatus": "VALID",
+          "employeeGroupId": "21015",
+          "payGroupId": "21017",
+          "stageId": "21025",
+          "source": {
+            "filename": "Tarif Personal.xlsx",
+            "row": 2038
+          }
+        },
+        {
+          "legacyId": "1106176",
+          "personalNr": "1002865",
+          "matchStatus": "MATCHED",
+          "validFrom": "2025-10-01",
+          "validUntil": "2026-05-31",
+          "intervalStatus": "VALID",
+          "employeeGroupId": "21015",
+          "payGroupId": "24932",
+          "stageId": "21025",
+          "source": {
+            "filename": "Tarif Personal.xlsx",
+            "row": 3317
+          }
+        },
+        {
+          "legacyId": "1107956",
+          "personalNr": "1002865",
+          "matchStatus": "MATCHED",
+          "validFrom": "2026-06-01",
+          "validUntil": null,
+          "intervalStatus": "VALID",
+          "employeeGroupId": "21195",
+          "payGroupId": "24941",
+          "stageId": "21205",
+          "source": {
+            "filename": "Tarif Personal.xlsx",
+            "row": 3912
+          }
+        }
+      ]
+    },
+    {
+      "employeeId": "6a886699d75b823635fe4179",
+      "employeeName": "Burak Can Emirzeoglu",
+      "personalNr": "3000610",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03cb7457dc9c77702bcf2",
+      "employeeName": "Cedric Bleck",
+      "personalNr": "2000637",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dee0700a23fa0a487ae",
+      "employeeName": "Christian Peßler",
+      "personalNr": "1000157",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe3a23e1c30a930d2634e",
+      "employeeName": "Daniel El Achhab",
+      "personalNr": "3000690",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dc00700a23fa0a485cb",
+      "employeeName": "Daniel Hansen",
+      "personalNr": "1000084",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2ebd34d4d0f81b69d5ff",
+      "employeeName": "David Gueye",
+      "personalNr": "3000711",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbd0ad3e1c30a930d220bf",
+      "employeeName": "David Wurz",
+      "personalNr": "1003558",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03ddd0700a23fa0a486f7",
+      "employeeName": "Dominik Malter",
+      "personalNr": "1001115",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3fa4f10e9853e6211be25",
+      "employeeName": "Dorothea Alexopoulou",
+      "personalNr": "3000681",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03da50700a23fa0a484de",
+      "employeeName": "Eileen Denecke",
+      "personalNr": "1000303",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe3ec3e1c30a930d26542",
+      "employeeName": "Elena Sophie Marquardt",
+      "personalNr": "3000694",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aad54609b3047ca47290d88",
+      "employeeName": "Elias Sarnow",
+      "personalNr": "1003524",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab6904b795ab1932218027d",
+      "employeeName": "Emilia Burgbacher",
+      "personalNr": "1003538",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe6ea34d4d0f81b68bfd0",
+      "employeeName": "Emrah Göcmen",
+      "personalNr": "3000691",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe61334d4d0f81b68bdd5",
+      "employeeName": "Emre Alkan",
+      "personalNr": "3000695",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3fa9810e9853e6211bfc8",
+      "employeeName": "Ewrim Güneysu",
+      "personalNr": "3000686",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe8f078a1833f08e45fb09",
+      "employeeName": "Fatemeh Pousti",
+      "personalNr": "3000718",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbcf5f3e1c30a930d21938",
+      "employeeName": "Finn Dosda",
+      "personalNr": "1003554",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba80acd4df193eb08efabb",
+      "employeeName": "Francisco José Torres Jimeno",
+      "personalNr": "1003551",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f9d910e9853e6211bc63",
+      "employeeName": "Friedrich Hauswirth",
+      "personalNr": "3000687",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2b4e34d4d0f81b69ceba",
+      "employeeName": "Gabriel Escárate Kubalski",
+      "personalNr": "3000707",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2eb534d4d0f81b69d5f8",
+      "employeeName": "hakan kacar",
+      "personalNr": "3000703",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03db40700a23fa0a4854a",
+      "employeeName": "Hannah Fleischer",
+      "personalNr": "3000081",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbcff13e1c30a930d21f18",
+      "employeeName": "Hannes Haker",
+      "personalNr": "1003556",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe85058a1833f08e45f190",
+      "employeeName": "Hannes Theberath",
+      "personalNr": "3000716",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3cef16b2c9f663639b867",
+      "employeeName": "Henrik Jonas Borchert",
+      "personalNr": "3000735",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65bef7f3338ba92f00087",
+      "employeeName": "Hohlfeld Ella",
+      "personalNr": "1003566",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65b6b7f3338ba92effca9",
+      "employeeName": "Ina Lan Weng",
+      "personalNr": "1003568",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbcf9f3e1c30a930d21add",
+      "employeeName": "Jakob Quint",
+      "personalNr": "1003559",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd292234d4d0f81b69b5d0",
+      "employeeName": "Jan Staack",
+      "personalNr": "3000708",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe5d634d4d0f81b68bbed",
+      "employeeName": "Janes Döring",
+      "personalNr": "3000693",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3cd9b6b2c9f663639b2c5",
+      "employeeName": "Jeremie Ashley Miks",
+      "personalNr": "3000734",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65aca7f3338ba92eff8cb",
+      "employeeName": "Jill Kader",
+      "personalNr": "1003567",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab69074795ab19322180443",
+      "employeeName": "Jonah Wilhelm",
+      "personalNr": "1003541",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba800fd4df193eb08ef5aa",
+      "employeeName": "Josefine Dobbernack",
+      "personalNr": "1003549",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aad57859b3047ca47291689",
+      "employeeName": "Josephine Martingell",
+      "personalNr": "1003525",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac514deb90f424b7edc4ad5",
+      "employeeName": "Jule Böttcher",
+      "personalNr": "3000737",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a7ef7b609be48eafd96c44c",
+      "employeeName": "Julia Brzoska",
+      "personalNr": "1003381",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aad59339b3047ca472918b6",
+      "employeeName": "Julia Kruttschnitt",
+      "personalNr": "1003529",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a0b27b99fac1fc344b53f5c",
+      "employeeName": "Julie Fichte",
+      "personalNr": "2001093",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab68f64795ab1932217f7ba",
+      "employeeName": "Julie Zirm",
+      "personalNr": "1003533",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a316a60c317fa54a4c74f9a",
+      "employeeName": "katja Kummer",
+      "personalNr": "3000531",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba7fd3d4df193eb08ef3e3",
+      "employeeName": "Laisha Thadewaldt",
+      "personalNr": "1003548",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3e41b10e9853e62119e70",
+      "employeeName": "Lars Kurt Wisbar",
+      "personalNr": "2001191",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab69094795ab1932218060b",
+      "employeeName": "Léan Lu",
+      "personalNr": "1003543",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2a3c34d4d0f81b69c11e",
+      "employeeName": "Lena Tysper",
+      "personalNr": "3000705",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe83c38a1833f08e45efac",
+      "employeeName": "Leni Berth",
+      "personalNr": "3000713",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba8041d4df193eb08ef771",
+      "employeeName": "Leopold Friedrich Malchin",
+      "personalNr": "1003550",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab69009795ab1932217fed7",
+      "employeeName": "Lieselotte Nordmann",
+      "personalNr": "1003542",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab68fde795ab1932217fd11",
+      "employeeName": "Lina Marie Podoll",
+      "personalNr": "1003537",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f94810e9853e6211b91a",
+      "employeeName": "Lukas Stuttmann",
+      "personalNr": "3000678",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac5145ab90f424b7edc48fd",
+      "employeeName": "Manuele Ghorab",
+      "personalNr": "3000736",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a316b43c317fa54a4c75c61",
+      "employeeName": "Marcel Z Melcher",
+      "personalNr": "3000528",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03cb6457dc9c77702bce6",
+      "employeeName": "Maria Bezborodova",
+      "personalNr": "2000638",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3cbe96b2c9f663639a93b",
+      "employeeName": "Mariella Mercedes Schoppeit",
+      "personalNr": "3000727",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba806ed4df193eb08ef916",
+      "employeeName": "Mark Judis",
+      "personalNr": "1003552",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65b127f3338ba92effac1",
+      "employeeName": "Marla König",
+      "personalNr": "1003565",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab68e48795ab1932217f27c",
+      "employeeName": "Merlin von Garnier",
+      "personalNr": "1003539",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aa41585dcbcf5c6b62b7427",
+      "employeeName": "Michal Orodu",
+      "personalNr": "1003513",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a8869e3ed44ebcf9db73ee7",
+      "employeeName": "Mohammed benkaddour",
+      "personalNr": "3000628",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "69e7957eedbb08cd6d6dc51c",
+      "employeeName": "Muhammad Ali Ebrat",
+      "personalNr": "3000456",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe4333e1c30a930d26715",
+      "employeeName": "Muhammad Hamza Amin",
+      "personalNr": "3000697",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3ce1a6b2c9f663639b4a5",
+      "employeeName": "Muhammad Junaid",
+      "personalNr": "3000731",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a831dceb57ed98641896d15",
+      "employeeName": "Nurgül Sarisik",
+      "personalNr": "3000581",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aad535f9b3047ca47290b64",
+      "employeeName": "Ole Ben Meyer-Heubach",
+      "personalNr": "1003527",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65c567f3338ba92f00476",
+      "employeeName": "Paulina Marenholz",
+      "personalNr": "1003563",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65ba57f3338ba92effe92",
+      "employeeName": "Phyllis Tepasse",
+      "personalNr": "1003564",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03e060700a23fa0a48856",
+      "employeeName": "Robert Solbach",
+      "personalNr": "1001841",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba812fd4df193eb08efe72",
+      "employeeName": "Ryan-Phillip Herrmann",
+      "personalNr": "1003547",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe2fc3e1c30a930d25fae",
+      "employeeName": "Sabrina Reis Maldonado",
+      "personalNr": "3000698",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f86c10e9853e6211b28e",
+      "employeeName": "Sami Lamalmi",
+      "personalNr": "3000682",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2f7234d4d0f81b69d808",
+      "employeeName": "Samuel Lackmann",
+      "personalNr": "3000704",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac65c257f3338ba92f002a9",
+      "employeeName": "Sara Skrcheska",
+      "personalNr": "1003562",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe86ce8a1833f08e45f8af",
+      "employeeName": "Simon Ikechukwu Martin",
+      "personalNr": "3000712",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe85e88a1833f08e45f6d7",
+      "employeeName": "Sofie Schlidt",
+      "personalNr": "3000720",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abe81b88a1833f08e45e9d3",
+      "employeeName": "Solana Franz",
+      "personalNr": "3000719",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3cb3f6b2c9f6636399f48",
+      "employeeName": "Sonja Seibel",
+      "personalNr": "3000733",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dbc0700a23fa0a48598",
+      "employeeName": "Sonya Gröblinghoff",
+      "personalNr": "3000013",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6aba8175d4df193eb08f0227",
+      "employeeName": "Sophie Müller",
+      "personalNr": "1003546",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03da80700a23fa0a484f3",
+      "employeeName": "Svenja Dischinger",
+      "personalNr": "1000041",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03cb6457dc9c77702bce3",
+      "employeeName": "Team Berlin",
+      "personalNr": "1000199",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dbf0700a23fa0a485c2",
+      "employeeName": "Team Hamburg",
+      "personalNr": "2",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dd30700a23fa0a4868b",
+      "employeeName": "Team Köln",
+      "personalNr": "3",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "67c03dc60700a23fa0a4860d",
+      "employeeName": "Theresa Hofmann",
+      "personalNr": "1001468",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f81a10e9853e6211b0bd",
+      "employeeName": "Thierno Baldé",
+      "personalNr": "3000680",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ac3c98d6b2c9f66363986fd",
+      "employeeName": "Timo Malter",
+      "personalNr": "3000732",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f89010e9853e6211b430",
+      "employeeName": "Timon Lavassa",
+      "personalNr": "3000685",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbceae3e1c30a930d214bb",
+      "employeeName": "Valeriia Subota",
+      "personalNr": "1003555",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a0ee81b6c8a11e8a473ab32",
+      "employeeName": "Verwaltung Berlin",
+      "personalNr": "11",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbd0e73e1c30a930d22266",
+      "employeeName": "Vincent Kless",
+      "personalNr": "1003557",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6ab3f8e210e9853e6211b5d4",
+      "employeeName": "Volodymyr Davydovych",
+      "personalNr": "3000683",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a8c6bd4a90fed074d5a0a91",
+      "employeeName": "Waleed Hashlamun",
+      "personalNr": "3000635",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2d2834d4d0f81b69d083",
+      "employeeName": "Wendkouni Gael Rahim KABORE",
+      "personalNr": "3000702",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a7f3bf3451c4c05db98bc7b",
+      "employeeName": "X janin Hammer",
+      "personalNr": "3000579",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a832e90b57ed98641898c13",
+      "employeeName": "X Laiba X Saleem",
+      "personalNr": "3000584",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "696e6ab5b22b4d326c2a7f2f",
+      "employeeName": "X Lio Mathieu Felix X Voget",
+      "personalNr": "3000370",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "698caf7995865f164446c544",
+      "employeeName": "X Mustafa Taha X Özdogan",
+      "personalNr": "3000429",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abd2dc834d4d0f81b69d263",
+      "employeeName": "Xuhong Qiu",
+      "personalNr": "3000706",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6a85dd155f495b9bd6667daa",
+      "employeeName": "Younis Z Tabash",
+      "personalNr": "3000593",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    },
+    {
+      "employeeId": "6abbe3203e1c30a930d2617a",
+      "employeeName": "Ziyue Chen",
+      "personalNr": "3000696",
+      "code": "ASSIGNMENT_MISSING",
+      "message": "Für diesen Mitarbeiter und Stichtag liegt keine eindeutig zugeordnete, gültige Tarifzuordnung vor.",
+      "hasImportedRows": false,
+      "assignments": []
+    }
+  ],
+  "readOnly": true
+}

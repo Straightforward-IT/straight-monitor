@@ -1355,6 +1355,7 @@
       </div>
 
       <div v-if="view === 'profile'" :id="employeePanelId" class="hero-right" role="tabpanel" :aria-labelledby="employeeTabId('profile')" tabindex="0">
+      <div class="hero-sidebar">
       <div class="hero-media" :class="{ 'hero-media--clickable': !photoUrl }" @click="!photoUrl && (showImageCropModal = true)" :title="!photoUrl ? 'Bild hochladen' : undefined">
         <img v-if="photoUrl" :src="photoUrl" :alt="`${resolvedMa.vorname} ${resolvedMa.nachname}`" class="hero-img" />
         <div v-else class="hero-initials" :style="{ '--hue': avatarHue(resolvedMa) }">
@@ -1363,6 +1364,13 @@
         <div v-if="!photoUrl" class="hero-upload-hint">
           <font-awesome-icon icon="fa-solid fa-camera" />
         </div>
+      </div>
+      <HoverDataCard
+        v-if="arbeitszeitHoverData"
+        :data="arbeitszeitHoverData"
+        :loading="loadingEinsatzAnalytics"
+        inline
+      />
       </div>
 
       <!-- Steckbrief (Monitor Profil, kompakt unter dem Foto) -->
@@ -1484,6 +1492,7 @@
             <font-awesome-icon icon="fa-solid fa-money-bill-wave" />
             Lohn
           </h4>
+          <EmployeeTariffWage :employee-id="String(resolvedMa._id || '')" :active="expanded" />
           <dl class="arbeitsverhaeltnis-grid">
             <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'lohn' }">
               <dt>IBAN &amp; Gültig ab <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="IBAN und Gültigkeitsdatum bearbeiten" @click.stop="startEditStammdaten('lohn')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
@@ -1506,22 +1515,6 @@
             <font-awesome-icon icon="fa-solid fa-clock" />
             Arbeitszeit
           </h4>
-          <HoverDataCard
-            v-if="arbeitszeitHoverData"
-            :data="arbeitszeitHoverData"
-            placement="left"
-          >
-            <template #default="{ triggerProps }">
-              <button
-                type="button"
-                class="arbeitszeit-info-button"
-                aria-label="Arbeitszeitübersicht anzeigen"
-                v-bind="triggerProps"
-              >
-                <font-awesome-icon icon="fa-solid fa-circle-info" />
-              </button>
-            </template>
-          </HoverDataCard>
           <dl class="arbeitszeit-grid">
             <div v-for="day in arbeitszeitTage" :key="day.key">
               <dt>{{ day.label }}</dt>
@@ -1748,6 +1741,7 @@ import AppIconButton from "./ui-elements/AppIconButton.vue";
 import AppTextInput from "./ui-elements/AppTextInput.vue";
 import AppSelect from "./ui-elements/AppSelect.vue";
 import ModalFrame from "./frames/ModalFrame.vue";
+import EmployeeTariffWage from "./tariffs/EmployeeTariffWage.vue";
 import { shortTermEmploymentWindow } from "@/utils/shortTermEmployment";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { useTheme } from "@/stores/theme";
@@ -1782,7 +1776,7 @@ const fetchNationalitaeten = async () => {
 
 export default {
   name: "EmployeeCard",
-  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, AppTextInput, AppSelect, ModalFrame },
+  components: { CustomTooltip, FontAwesomeIcon, FlipProfile, DeleteMitarbeiterDialog, ImageCropModal, ContextMenu, TlBadge, MitarbeiterEinsatzChart, SearchBar, R2FileBrowser, HoverDataCard, AppButton, AppIconButton, AppTextInput, AppSelect, ModalFrame, EmployeeTariffWage },
   props: {
     ma: { type: Object, required: false, default: null },
     mitarbeiterId: { type: String, default: null },
@@ -3889,7 +3883,6 @@ export default {
           geburtsort: formData.geburtsort,
           nationalitaet: formData.nationalitaet,
           additionalEmails: formData.additionalEmails,
-          personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
           adresse2: formData.adresse2,
           vorarbeitgebertage: formData.vorarbeitgebertage,
@@ -3937,7 +3930,6 @@ export default {
           geburtsort: formData.geburtsort,
           nationalitaet: formData.nationalitaet,
           additionalEmails: formData.additionalEmails,
-          personalnrHistory: formData.personalnrHistory,
           adresse: formData.adresse,
           adresse2: formData.adresse2,
           vorarbeitgebertage: formData.vorarbeitgebertage,
@@ -7319,6 +7311,18 @@ export default {
   border-radius: 12px;
 }
 
+.hero-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-width: 0;
+  gap: 14px;
+}
+
+.hero-sidebar > .hero-media {
+  align-self: center;
+}
+
 .employee-tabs-shell .steckbrief {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7361,33 +7365,6 @@ export default {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--soft);
-}
-
-.arbeitszeit-info-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-
-  &:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
 }
 
 .stammdaten-title,

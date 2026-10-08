@@ -1936,6 +1936,13 @@ router.patch(
     const { id } = req.params;
     const updateData = req.body;
 
+    if (Object.hasOwn(updateData, "personalnrHistory")) {
+      return res.status(400).json({
+        success: false,
+        message: "Personalnummern-Historien bitte über den dafür vorgesehenen Admin-Endpunkt bearbeiten.",
+      });
+    }
+
     const currentMitarbeiter = await Mitarbeiter.findById(id).select("flip_id");
     if (!currentMitarbeiter) {
       return res.status(404).json({
@@ -2090,6 +2097,78 @@ router.patch(
       // Alle anderen Fehler werden vom asyncHandler an die globale Fehlerbehandlung weitergeleitet
       throw error;
     }
+  })
+);
+
+// --- Personalnr history management (admin only) ---
+router.post(
+  "/mitarbeiter/:id/personalnr-history",
+  auth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const value = String(req.body?.value ?? "").trim();
+    if (!value) {
+      return res.status(400).json({ success: false, message: "Die Personalnummer darf nicht leer sein." });
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById(req.params.id);
+    if (!mitarbeiter) {
+      return res.status(404).json({ success: false, message: "Mitarbeiter mit dieser ID nicht gefunden." });
+    }
+    if (mitarbeiter.personalnr === value) {
+      return res.status(409).json({
+        success: false,
+        message: "Die aktuelle Personalnummer kann nicht zusätzlich in der Historie gespeichert werden.",
+      });
+    }
+    if (mitarbeiter.personalnrHistory.some((entry) => entry.value === value)) {
+      return res.status(409).json({
+        success: false,
+        message: "Diese Personalnummer ist bereits in der Historie vorhanden.",
+      });
+    }
+
+    const conflicting = await Mitarbeiter.findOne({
+      _id: { $ne: mitarbeiter._id },
+      $or: [{ personalnr: value }, { "personalnrHistory.value": value }],
+    }).select("vorname nachname").lean();
+    if (conflicting) {
+      return res.status(409).json({
+        success: false,
+        message: `Diese Personalnummer ist bereits ${conflicting.vorname} ${conflicting.nachname} zugeordnet.`,
+      });
+    }
+
+    mitarbeiter.personalnrHistory.push({
+      value,
+      updatedAt: new Date(),
+      updatedBy: req.user?.email || "admin",
+      source: "manual",
+    });
+    await mitarbeiter.save();
+
+    res.status(201).json({ success: true, data: mitarbeiter });
+  })
+);
+
+router.delete(
+  "/mitarbeiter/:id/personalnr-history/:historyId",
+  auth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const mitarbeiter = await Mitarbeiter.findById(req.params.id);
+    if (!mitarbeiter) {
+      return res.status(404).json({ success: false, message: "Mitarbeiter mit dieser ID nicht gefunden." });
+    }
+
+    const entry = mitarbeiter.personalnrHistory.id(req.params.historyId);
+    if (!entry) {
+      return res.status(404).json({ success: false, message: "Historieneintrag nicht gefunden." });
+    }
+
+    entry.deleteOne();
+    await mitarbeiter.save();
+    res.json({ success: true, data: mitarbeiter });
   })
 );
 

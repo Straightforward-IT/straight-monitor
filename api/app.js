@@ -126,6 +126,7 @@ app.use('/api/graph', graphRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/zvoove', zvooveRoutes);
 app.use('/api/import', dataImportRoutes);
+app.use('/api/tariffs', require('./routes/tariffs/tariffRoutes'));
 app.use('/api/auftraege', auftraegeRoutes);
 app.use('/api/kunden', kundenRoutes);
 app.use('/api/public/capacity', publicCapacityRoutes);
