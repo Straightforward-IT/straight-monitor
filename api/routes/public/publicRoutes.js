@@ -217,7 +217,9 @@ router.patch(
 );
 
 async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
-  if (!['job', 'teamleiter'].includes(document.audience)) return false;
+  const isPublicDocument = document.scope === 'public'
+    || (!document.scope && ['job', 'teamleiter'].includes(document.audience));
+  if (!isPublicDocument) return false;
 
   const publicMitarbeiter = await resolvePublicMitarbeiter(req);
   if (!publicMitarbeiter) return false;
@@ -227,10 +229,16 @@ async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
   if (!mitarbeiter) return false;
 
   const personalNumbers = resolvePersonalNumbers(mitarbeiter);
-  const einsatz = await Einsatz.findOne({ auftragNr: Number(auftragNr), personalNr: { $in: personalNumbers } })
+  const einsaetze = await Einsatz.find({ auftragNr: Number(auftragNr), personalNr: { $in: personalNumbers } })
     .select('berufSchl')
     .lean();
-  if (!einsatz) return false;
+  if (!einsaetze.length) return false;
+
+  if (document.scope === 'public') {
+    if (!document.publicRecipientFilter) return true;
+    const recipientIds = (document.publicEinsatzIds || []).map(String);
+    return einsaetze.some(einsatz => recipientIds.includes(String(einsatz._id)));
+  }
 
   if (document.audience === 'teamleiter') {
     const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
@@ -239,13 +247,14 @@ async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
     if (!isTeamleiter) return false;
   }
 
-  return !(document.berufKeys || []).length || document.berufKeys.includes(Number(einsatz.berufSchl));
+  return !(document.berufKeys || []).length || einsaetze.some(einsatz => document.berufKeys.includes(Number(einsatz.berufSchl)));
 }
 
 function serializePublicEinsatzDokument(document) {
   return {
     _id: document._id,
     filename: document.filename,
+    title: document.title || '',
     size: document.size,
     mimeType: document.mimeType,
   };

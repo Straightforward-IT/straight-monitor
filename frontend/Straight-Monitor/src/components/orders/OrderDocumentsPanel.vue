@@ -49,17 +49,15 @@
           class="order-document-badge"
           :class="`order-document-badge--${hoursList.status}`"
         >{{ hoursStatusText }}</span>
-        <a
+        <AppIconButton
           v-if="hoursStatus?.signedPdfUrl"
-          :href="hoursStatus.signedPdfUrl"
-          target="_blank"
-          rel="noopener"
-          class="order-document-link"
-          aria-label="Unterzeichnete Stundenliste öffnen"
-          title="Unterzeichnete Stundenliste öffnen"
+          variant="ghost"
+          size="sm"
+          label="Unterzeichnete Stundenliste öffnen"
+          @click="emit('preview-hours', true)"
         >
           <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-        </a>
+        </AppIconButton>
         <AppIconButton
           v-if="hoursStatus?.signedPdfUrl"
           variant="ghost"
@@ -88,17 +86,15 @@
           <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
         </AppIconButton>
         <template v-if="hoursList.status === 'draft'">
-          <a
+          <AppIconButton
             v-if="hoursStatus?.unsignedPdfUrl"
-            :href="hoursStatus.unsignedPdfUrl"
-            target="_blank"
-            rel="noopener"
-            class="order-document-link"
-            aria-label="Stundenliste öffnen"
-            title="Stundenliste öffnen"
+            variant="ghost"
+            size="sm"
+            label="Stundenliste öffnen"
+            @click="emit('preview-hours', false)"
           >
             <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
-          </a>
+          </AppIconButton>
           <AppIconButton
             v-if="hoursStatus?.unsignedPdfUrl"
             variant="ghost"
@@ -215,7 +211,7 @@
         />
         <div class="order-document-info">
           <div class="order-document-name">
-            {{ document.filename }}
+            {{ document.title || document.filename }}
           </div>
           <div class="order-document-meta">
             {{ formatSize(document.size) }}
@@ -290,7 +286,7 @@ const props = defineProps({
   canSign: { type: Boolean, default: false }, menuOpen: { type: Boolean, default: false },
   expenseName: { type: Function, required: true }, formatSize: { type: Function, required: true },
 });
-const emit = defineEmits(['toggle-menu', 'open-signature', 'download-hours', 'edit-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
+const emit = defineEmits(['toggle-menu', 'open-signature', 'preview-hours', 'download-hours', 'edit-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
 const fileInput = ref(null);
 const titleId = `order-documents-${getCurrentInstance().uid}`;
 const hoursList = computed(() => props.hoursStatus?.vorgang);
@@ -322,9 +318,6 @@ const hoursStatusText = computed(() => ({ open: 'Ausstehend', completed: 'Unters
 .order-document-badge--open { background: color-mix(in srgb, var(--status-warning) 14%, transparent); color: var(--status-warning-text); }
 .order-document-badge--cancelled { background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); color: var(--status-danger-text); }
 .order-document-delete { --action-ghost-text: var(--status-danger-text); --action-ghost-hover: color-mix(in srgb, var(--status-danger-text) 12%, transparent); }
-.order-document-link { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--control-radius); color: var(--action-accent-text); }
-.order-document-link:hover { background: var(--action-ghost-hover); }
-.order-document-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 .order-document-upload { width: 100%; margin-top: 7px; }
 .order-document-loading { padding: 8px 0; color: var(--muted); font-size: .8rem; }
 </style>

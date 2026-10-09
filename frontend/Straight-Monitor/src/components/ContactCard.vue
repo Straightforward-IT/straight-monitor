@@ -196,6 +196,14 @@
         </div>
       </div>
 
+    <template v-if="editing" #footer>
+      <AppButton variant="secondary" :disabled="saving" @click="cancelEdit">
+        Abbrechen
+      </AppButton>
+      <AppButton :loading="saving" @click="saveEdit">
+        Speichern
+      </AppButton>
+    </template>
   </ModalFrame>
 </template>
 
@@ -204,6 +212,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 import { useTheme } from '@/stores/theme';
 import { useDataCache } from '@/stores/dataCache';
 import api from '@/utils/api';
@@ -451,7 +460,7 @@ onMounted(async () => {
   --mf-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   --mf-header-padding: 18px 20px;
   --mf-body-padding: 0;
-  --mf-footer-padding: 0;
+  --mf-footer-padding: 14px 20px;
 }
 
 // ── Header ─────────────────────────────────────────────────────────────

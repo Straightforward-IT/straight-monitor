@@ -4,6 +4,15 @@ import { Blob as NodeBlob, Buffer } from 'node:buffer';
 import * as XLSX from 'xlsx';
 import DocumentPreviewModal from '../src/components/Modals/DocumentPreviewModal.vue';
 
+vi.mock('../src/components/ui-elements/PdfDocumentPreview.vue', () => ({
+  __esModule: true,
+  default: {
+    name: 'PdfDocumentPreview',
+    props: ['blob', 'initialZoom'],
+    template: '<div class="pdf-preview-stub"/>',
+  },
+}));
+
 const frameStub = {
   name: 'ModalFrame',
   props: ['title', 'closeOnEscape'],
@@ -33,6 +42,29 @@ afterEach(() => {
 });
 
 describe('DocumentPreviewModal shared controls', () => {
+  it('opens and reopens PDFs with a 50% initial zoom', async () => {
+    vi.stubGlobal('URL', Object.assign(class extends URL {}, URL, {
+      createObjectURL: vi.fn(() => 'blob:https://example.com/preview'),
+      revokeObjectURL: vi.fn(),
+    }));
+    const loadBlob = vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+    render({ filename: 'dokument.pdf', loadBlob });
+    await flushPromises();
+    expect(wrapper.getComponent({ name: 'PdfDocumentPreview' }).props('initialZoom')).toBe(0.5);
+    await wrapper.setProps({ modelValue: false });
+    await wrapper.setProps({ modelValue: true });
+    await flushPromises();
+    expect(wrapper.getComponent({ name: 'PdfDocumentPreview' }).props('initialZoom')).toBe(0.5);
+    expect(loadBlob).toHaveBeenCalledTimes(2);
+  });
+
+  it('requests 50% zoom in the native PDF fallback', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    render({ filename: 'dokument.pdf', url: 'https://example.com/dokument.pdf#zoom=100' });
+    await flushPromises();
+    expect(wrapper.get('iframe').attributes('src')).toBe('https://example.com/dokument.pdf#zoom=50');
+  });
+
   it('uses shared fallback actions and anchors the menu to its icon button', async () => {
     render({ filename: 'unbekannt.bin', url: 'https://example.com/unbekannt.bin' });
     await flushPromises();

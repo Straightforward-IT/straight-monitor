@@ -33,11 +33,11 @@
           :key="dok._id"
           type="button"
           class="job-document-btn"
-          :title="dok.filename"
+          :title="dok.title || dok.filename"
           @click="openEinsatzDok(dok)"
         >
           <font-awesome-icon icon="fa-solid fa-download" />
-          <span>{{ dok.filename }}</span>
+          <span>{{ dok.title || dok.filename }}</span>
         </button>
       </div>
     </div>

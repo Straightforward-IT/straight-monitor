@@ -13,6 +13,12 @@ const wrappers = [];
 const documentRecord = { _id: 'document-1', key: 'r2-key', filename: 'Ablauf.pdf', size: 2048 };
 const file = () => new File(['document'], 'Ablauf.pdf', { type: 'application/pdf' });
 const order = () => ({ _id: 'order-42', auftragNr: 42, eventTitel: 'Konferenz', labels: [], einsaetze: [], schichten: [] });
+const assignment = (id, firstName, shift) => ({
+  _id: id,
+  schicht: { _id: shift, bezeichnung: `Schicht ${shift}` },
+  mitarbeiterData: { vorname: firstName, nachname: 'Beispiel' },
+  berufData: { designation: 'Service' },
+});
 const hoursStatus = status => ({ vorgang: { _id: 'hours-1', name: 'Stundenliste Konferenz', status, submitters: [{ status: 'completed' }, { status: 'awaiting' }] }, signedPdfUrl: '/signed.pdf', unsignedPdfUrl: '/unsigned.pdf' });
 const dialog = () => new DOMWrapper(document.querySelector('[role="dialog"]'));
 const button = (wrapper, label) => wrapper.get(`button[aria-label="${label}"]`);
@@ -48,7 +54,7 @@ function workspace(data = {}, methods = {}) {
         'font-awesome-icon': true, CustomTooltip: { template: '<div><slot /></div>' }, RouterLink: true,
         AuftragDetailsSidePanel: { template: '<aside><slot /></aside>' },
         OrderDocumentsPanel: false, OrderDocumentUploadDialog: false, OrderActionDialog: false,
-        AppButton: false, AppIconButton: false, AppTextInput: false, ModalFrame: false, PassThrough: false, Teleport: false,
+        AppButton: false, AppIconButton: false, AppTextInput: false, AppSegmentedControl: false, FilterChip: false, ModalFrame: false, PassThrough: false, Teleport: false,
         BerufSearch: false,
       },
     },
@@ -76,7 +82,9 @@ describe('shared order document overview', () => {
     expect(wrapper.emitted('download-hours')).toEqual([[false], [true]]);
     expect(wrapper.emitted('open-signature')).toHaveLength(1);
     expect(wrapper.text()).toContain('1/2 unterschrieben');
-    expect(wrapper.get('a[aria-label="Stundenliste öffnen"]').attributes()).toMatchObject({ href: '/unsigned.pdf', target: '_blank', rel: 'noopener' });
+    await button(wrapper, 'Stundenliste öffnen').trigger('click');
+    await button(wrapper, 'Unterzeichnete Stundenliste öffnen').trigger('click');
+    expect(wrapper.emitted('preview-hours')).toEqual([[false], [true]]);
   });
 
   it.each(['draft', 'open', 'completed', 'cancelled'])('retains hours action/status visibility for %s', async status => {
@@ -154,39 +162,126 @@ describe('order document upload integration', () => {
     await nativeInput.trigger('change');
     expect(wrapper.vm.pendingEinsatzDokFile).toBe(upload);
     expect(nativeInput.element.value).toBe('');
-    expect(wrapper.vm.einsatzDokAudience).toBe('job');
+    expect(wrapper.vm.einsatzDokScope).toBe('public');
     expect(dialog().get('button[type="submit"]').element.form).toBe(dialog().get('form').element);
     expect(dialog().attributes('aria-labelledby')).toBe(dialog().get('h2').attributes('id'));
-    for (const label of dialog().findAll('label')) expect(document.getElementById(label.attributes('for'))).not.toBeNull();
-    await dialog().findAll('select')[1].setValue('office_roles');
-    expect(wrapper.vm.einsatzDokAudience).toBe('office_roles');
-    expect(dialog().get('input[placeholder="ADMIN, VERTRIEB"]').exists()).toBe(true);
-    expect(dialog().find('input[type="search"]').exists()).toBe(false);
+    for (const label of dialog().findAll('label').filter(item => item.attributes('for'))) {
+      expect(document.getElementById(label.attributes('for'))).not.toBeNull();
+    }
+    expect(dialog().text()).toContain('0 Mitarbeiter eingeschlossen');
+    await dialog().get('button[data-label="Monitor"]').trigger('click');
+    expect(wrapper.vm.einsatzDokScope).toBe('monitor');
+    expect(dialog().get('select').element.value).toBe('einsatznachweis');
   });
 
-  it('preserves multipart audience, role and email/message payloads and appends the uploaded record', async () => {
-    const { wrapper } = workspace({ showEinsatzDokDialog: true, pendingEinsatzDokFile: file(), einsatzDokBerufKeys: [50001, 50002] });
-    await dialog().findAll('select')[0].setValue('ablauf');
-    await dialog().findAll('select')[1].setValue('office_roles');
-    await dialog().get('input[placeholder="ADMIN, VERTRIEB"]').setValue('ADMIN, VERTRIEB');
-    await dialog().get('input[inputmode="email"]').setValue('anna@example.test, tom@example.test');
-    await dialog().get('textarea').setValue('Bitte lesen.'); await submit();
+  it('preserves the public recipient filter and title payload and appends the uploaded record', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'B')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    await dialog().get('input[placeholder="z. B. Ablauf Oktoberfest"]').setValue('Ablauf Oktoberfest');
+    await dialog().get('.filter-chip:nth-child(2)').trigger('click');
+    await dialog().find('.order-recipient-assignment input').setValue(true);
+    await submit();
     const [url, body, config] = api.post.mock.calls[0];
     expect(url).toBe('/api/auftraege/42/einsatzdokumente');
     expect(body.get('file').name).toBe('Ablauf.pdf');
-    expect(Object.fromEntries([...body.entries()].filter(([key]) => key !== 'file'))).toEqual({ type: 'ablauf', audience: 'office_roles', berufKeys: '50001,50002', allowedRoles: 'ADMIN, VERTRIEB', deliveryEmails: 'anna@example.test, tom@example.test', deliveryMessage: 'Bitte lesen.' });
+    expect(Object.fromEntries([...body.entries()].filter(([key]) => key !== 'file'))).toEqual({ title: 'Ablauf Oktoberfest', scope: 'public', publicEinsatzIds: 'einsatz-1', publicRecipientFilter: 'true' });
     expect(config).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } });
     expect(wrapper.vm.einsatzDoks).toEqual([documentRecord]);
     expect(wrapper.vm.showEinsatzDokDialog).toBe(false); expect(wrapper.vm.pendingEinsatzDokFile).toBeNull();
   });
 
-  it('binds the specialized profession picker to job keys without changing the endpoint', async () => {
-    api.get.mockResolvedValue({ data: [{ jobKey: 50001, designation: 'Service' }] });
-    const { wrapper } = workspace({ showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
-    await dialog().get('input[type="search"]').trigger('focus'); await flushPromises();
-    await new DOMWrapper(document.querySelector('.beruf-search__dropdown li')).trigger('mousedown');
-    expect(wrapper.vm.einsatzDokBerufKeys).toEqual([50001]); await submit();
-    expect(api.post.mock.calls[0][1].get('berufKeys')).toBe('50001');
+  it('uses every assignment when no public filter is selected and clears recipients for monitor documents', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'A')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    expect(dialog().text()).toContain('2 Mitarbeiter eingeschlossen');
+    await dialog().get('.filter-chip:nth-child(2)').trigger('click');
+    await dialog().find('.order-recipient-shift input').setValue(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual(['einsatz-1', 'einsatz-2']);
+    await dialog().get('button[data-label="Monitor"]').trigger('click');
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual([]);
+    await dialog().get('select').setValue('ablauf');
+    await submit();
+    expect(api.post.mock.calls[0][1].get('scope')).toBe('monitor');
+    expect(api.post.mock.calls[0][1].get('type')).toBe('ablauf');
+    expect(api.post.mock.calls[0][1].get('publicEinsatzIds')).toBe('');
+  });
+
+  it('allows individual recipient selection after switching from all employees', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'A')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    const assignments = dialog().findAll('.order-recipient-assignment input');
+    expect(assignments.map(input => input.element.checked)).toEqual([true, true]);
+    await dialog().get('.filter-chip:nth-child(2)').trigger('click');
+    expect(assignments.map(input => input.element.checked)).toEqual([false, false]);
+    await assignments[0].setValue(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual(['einsatz-1']);
+    expect(assignments.map(input => input.element.checked)).toEqual([true, false]);
+  });
+
+  it('selects only teamleaders and allows subsequent individual changes', async () => {
+    const leader = assignment('einsatz-1', 'Anna', 'A');
+    leader.mitarbeiterData.qualifikationen = [{ qualificationKey: 50055 }];
+    const selectedEvent = { ...order(), einsaetze: [leader, assignment('einsatz-2', 'Tom', 'B')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    await dialog().get('.filter-chip:nth-child(3)').trigger('click');
+    expect(wrapper.vm.einsatzDokPublicRecipientFilter).toBe(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual(['einsatz-1']);
+    expect(dialog().get('.filter-chip:nth-child(3)').classes()).toContain('active');
+    const inputs = dialog().findAll('.order-recipient-assignment input');
+    expect(inputs.map(input => input.element.checked)).toEqual([true, false]);
+    await inputs[1].setValue(true);
+    expect(dialog().get('.filter-chip:nth-child(3)').classes()).not.toContain('active');
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual(['einsatz-1', 'einsatz-2']);
+  });
+
+  it('shows an indeterminate shift checkbox only while some employees are selected', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'A')] };
+    workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    const shift = dialog().get('.order-recipient-shift input');
+    expect(shift.element.checked).toBe(true);
+    expect(shift.element.indeterminate).toBe(false);
+    await dialog().get('.filter-chip:nth-child(2)').trigger('click');
+    expect(shift.element.checked).toBe(false);
+    expect(shift.element.indeterminate).toBe(false);
+    await dialog().findAll('.order-recipient-assignment input')[0].setValue(true);
+    expect(shift.element.checked).toBe(false);
+    expect(shift.element.indeterminate).toBe(true);
+    await shift.setValue(true);
+    expect(shift.element.checked).toBe(true);
+    expect(shift.element.indeterminate).toBe(false);
+    expect(dialog().findAll('.order-recipient-assignment input').every(input => input.element.checked)).toBe(true);
+    await shift.setValue(false);
+    expect(shift.element.checked).toBe(false);
+    expect(shift.element.indeterminate).toBe(false);
+  });
+
+  it('collapses shifts independently without changing recipient selections', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'B')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    await dialog().get('.filter-chip:nth-child(2)').trigger('click');
+    await dialog().get('.order-recipient-assignment input').setValue(true);
+    const collapse = button(dialog(), 'Schicht A einklappen');
+    expect(collapse.attributes('aria-expanded')).toBe('true');
+    await collapse.trigger('click');
+    expect(collapse.attributes('aria-expanded')).toBe('false');
+    expect(dialog().findAll('.order-recipient-assignment')[0].isVisible()).toBe(false);
+    expect(dialog().findAll('.order-recipient-assignment')[1].isVisible()).toBe(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual(['einsatz-1']);
+    await button(dialog(), 'Schicht A ausklappen').trigger('click');
+    expect(dialog().findAll('.order-recipient-assignment')[0].isVisible()).toBe(true);
+    expect(dialog().get('.order-recipient-assignment input').element.checked).toBe(true);
+  });
+
+  it('keeps the teamleader preset restricted when there are no teamleaders', async () => {
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
+    await dialog().get('.filter-chip:nth-child(3)').trigger('click');
+    expect(wrapper.vm.einsatzDokPublicRecipientFilter).toBe(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual([]);
+    expect(dialog().get('.order-recipient-assignment input').element.checked).toBe(false);
+    await submit();
+    expect(api.post.mock.calls[0][1].get('publicRecipientFilter')).toBe('true');
+    expect(api.post.mock.calls[0][1].get('publicEinsatzIds')).toBe('');
   });
 
   it('locks pending upload against edits, close, Escape, duplicate requests and file replacement', async () => {
@@ -209,28 +304,22 @@ describe('order document upload integration', () => {
   it('retains metadata/file and exposes an accessible error for retry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     api.post.mockRejectedValueOnce({ response: { data: { message: 'Upload abgelehnt' } } });
-    const upload = file(); const { wrapper } = workspace({ showEinsatzDokDialog: true, pendingEinsatzDokFile: upload, einsatzDokDeliveryMessage: 'Entwurf' });
+    const upload = file(); const { wrapper } = workspace({ showEinsatzDokDialog: true, pendingEinsatzDokFile: upload, einsatzDokTitle: 'Entwurf' });
     await submit();
     expect(dialog().get('[role="alert"]').text()).toBe('Upload abgelehnt');
-    expect(wrapper.vm.pendingEinsatzDokFile).toBe(upload); expect(wrapper.vm.einsatzDokDeliveryMessage).toBe('Entwurf');
+    expect(wrapper.vm.pendingEinsatzDokFile).toBe(upload); expect(wrapper.vm.einsatzDokTitle).toBe('Entwurf');
     expect(wrapper.vm.einsatzDokUploading).toBe(false);
     await submit(); expect(api.post).toHaveBeenCalledTimes(2); expect(wrapper.vm.einsatzDoks).toEqual([documentRecord]);
   });
 
-  it.each(['open', 'in-flight'])('locks the teleported profession picker when its results are %s', async state => {
-    let resolveSearch, resolveUpload;
-    const results = { data: [{ jobKey: 50001, designation: 'Service' }] };
-    if (state === 'open') api.get.mockResolvedValueOnce(results);
-    else api.get.mockReturnValueOnce(new Promise(done => { resolveSearch = done; }));
+  it('locks the public recipient picker while an upload is in flight', async () => {
+    let resolveUpload;
     api.post.mockReturnValueOnce(new Promise(done => { resolveUpload = done; }));
-    const { wrapper } = workspace({ showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
-    await dialog().get('input[type="search"]').trigger('focus'); await flushPromises();
-    if (state === 'open') expect(document.querySelector('.beruf-search__dropdown')).not.toBeNull();
+    const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A')] };
+    const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
     await submit();
-    if (resolveSearch) { resolveSearch(results); await flushPromises(); }
-    expect(document.querySelector('.beruf-search__dropdown')).toBeNull();
-    expect(dialog().get('input[type="search"]').element.disabled).toBe(true);
-    expect(wrapper.vm.einsatzDokBerufKeys).toEqual([]);
+    expect(dialog().get('.order-recipient-assignment input').element.disabled).toBe(true);
+    expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual([]);
     resolveUpload({ data: { data: documentRecord } }); await flushPromises();
   });
 
@@ -253,11 +342,15 @@ describe('order document upload integration', () => {
 describe('document and hours workspace contracts', () => {
   it('positions the new-document menu from the actual button and keeps preview/download separate', async () => {
     const downloadFile = vi.fn(); const { wrapper } = workspace({ einsatzDoks: [documentRecord], stundenlisteStatus: hoursStatus('draft') }, { downloadFile });
+    const openDocumentPreview = vi.fn();
+    wrapper.vm.openDocumentPreview = openDocumentPreview;
     const menu = button(wrapper, 'Neues Einsatzdokument');
     menu.element.getBoundingClientRect = () => ({ right: 500, bottom: 200 });
     await menu.trigger('click'); expect(wrapper.vm.neuMenuPosition).toEqual({ x: 280, y: 204 });
     await button(wrapper, 'Ablauf.pdf öffnen').trigger('click');
-    expect(wrapper.vm.previewEinsatzDokument).toEqual(documentRecord); expect(wrapper.vm.showEinsatzDokPreview).toBe(true);
+    expect(openDocumentPreview).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'order-42-document-1', filename: 'Ablauf.pdf',
+    }), { minimizable: false });
     api.get.mockResolvedValueOnce({ data: { data: { url: '/resolved-r2.pdf' } } });
     await button(wrapper, 'Ablauf.pdf herunterladen').trigger('click'); await flushPromises();
     expect(api.get).toHaveBeenCalledWith('/api/auftraege/42/einsatzdokumente/document-1/download');
@@ -266,6 +359,14 @@ describe('document and hours workspace contracts', () => {
     expect(downloadFile).toHaveBeenCalledWith('/unsigned.pdf', wrapper.vm.stundenlistePdfFilename());
     await button(wrapper, 'Unterzeichnete Stundenliste herunterladen').trigger('click');
     expect(downloadFile).toHaveBeenCalledWith('/signed.pdf', wrapper.vm.stundenlistePdfFilename(true));
+    await button(wrapper, 'Stundenliste öffnen').trigger('click');
+    expect(openDocumentPreview).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'order-42-hours-draft', url: '/unsigned.pdf', filename: wrapper.vm.stundenlistePdfFilename(), mimeType: 'application/pdf',
+    }), { minimizable: false });
+    await button(wrapper, 'Unterzeichnete Stundenliste öffnen').trigger('click');
+    expect(openDocumentPreview).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'order-42-hours-signed', url: '/signed.pdf', filename: wrapper.vm.stundenlistePdfFilename(true), mimeType: 'application/pdf',
+    }), { minimizable: false });
   });
 
   it('preserves confirmation before deleting a hours draft or travel expense', async () => {

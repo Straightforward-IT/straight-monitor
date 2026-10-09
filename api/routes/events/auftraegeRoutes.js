@@ -20,7 +20,6 @@ const StundenlisteService = require('../../services/operations/StundenlisteServi
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
 const { loadAuftragMitarbeiterExport } = require('../../services/operations/AuftragMitarbeiterExportService');
 const R2Service = require('../../services/integrations/R2Service');
-const { sendMail } = require('../../services/integrations/EmailService');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
 const { buildStundenlistePdfFilename, contentDisposition } = require('../../utils/stundenlisteFilename');
 const {
@@ -43,40 +42,20 @@ const uploadMem = multer({
 });
 
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
-const EINSATZ_DOK_AUDIENCES = new Set(['job', 'teamleiter', 'office', 'office_roles']);
+const EINSATZ_DOK_SCOPES = new Set(['monitor', 'public']);
 const EINSATZ_DOK_TYPES = new Set(['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges']);
 
-function normalizeDocumentAudience(value) {
-  const audience = String(value || 'office').trim().toLowerCase();
-  if (!EINSATZ_DOK_AUDIENCES.has(audience)) throw validationError('Ungültige Dokumentfreigabe');
-  return audience;
+function normalizeDocumentScope(value) {
+  const scope = String(value || 'monitor').trim().toLowerCase();
+  if (!EINSATZ_DOK_SCOPES.has(scope)) throw validationError('Ungültiger Dokumentbereich');
+  return scope;
 }
 
-function normalizeNumberList(value) {
+function normalizeObjectIdList(value) {
   const values = Array.isArray(value) ? value : String(value || '').split(',');
-  return [...new Set(
-    values
-      .map(entry => String(entry).trim())
-      .filter(Boolean)
-      .map(Number)
-      .filter(Number.isInteger)
-  )];
-}
-
-function normalizeRoleList(value) {
-  const values = Array.isArray(value) ? value : String(value || '').split(',');
-  return [...new Set(values.map(role => String(role).trim().toUpperCase()).filter(Boolean))];
-}
-
-function normalizeEmailList(value) {
-  const values = Array.isArray(value) ? value : String(value || '').split(/[;,\s]+/);
-  const emails = [...new Set(values.map(email => String(email).trim().toLowerCase()).filter(Boolean))];
-  if (emails.some(email => !/^\S+@\S+\.\S+$/.test(email))) throw validationError('Ungültige E-Mail-Adresse');
-  return emails;
-}
-
-function escapeHtml(value) {
-  return String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  const ids = values.map(entry => String(entry).trim()).filter(Boolean);
+  if (ids.some(id => !mongoose.isValidObjectId(id))) throw validationError('Ungültige Einsatz-Auswahl');
+  return [...new Set(ids)];
 }
 
 function userRoles(user) {
@@ -96,14 +75,16 @@ function serializeEinsatzDokument(document) {
     _id: document._id,
     key: document.key,
     filename: document.filename,
+    title: document.title || '',
     size: document.size,
     mimeType: document.mimeType,
-    type: document.type || 'sonstiges',
+    scope: document.scope || (['job', 'teamleiter'].includes(document.audience) ? 'public' : 'monitor'),
+    type: document.type || null,
+    publicEinsatzIds: document.publicEinsatzIds || [],
+    publicRecipientFilter: !!document.publicRecipientFilter,
     audience: document.audience || 'office',
     berufKeys: document.berufKeys || [],
     allowedRoles: document.allowedRoles || [],
-    deliveryEmails: document.deliveryEmails || [],
-    deliveryMessage: document.deliveryMessage || '',
     uploadedAt: document.uploadedAt,
   };
 }
@@ -2156,19 +2137,26 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   // Sanitise filename to prevent path traversal
   const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
   const key = `${EINSATZ_DOK_PREFIX(auftragNr)}${Date.now()}-${safeName}`;
-  const audience = normalizeDocumentAudience(req.body.audience);
-  const type = String(req.body.type || 'einsatznachweis').trim().toLowerCase();
-  if (!EINSATZ_DOK_TYPES.has(type)) return res.status(400).json({ success: false, message: 'Ungültiger Dokumenttyp' });
-  const berufKeys = normalizeNumberList(req.body.berufKeys);
-  const allowedRoles = normalizeRoleList(req.body.allowedRoles);
-  const deliveryEmails = normalizeEmailList(req.body.deliveryEmails);
-  const deliveryMessage = String(req.body.deliveryMessage || '').trim();
-  if (deliveryMessage.length > 1000) return res.status(400).json({ success: false, message: 'Mitteilung ist zu lang' });
-  if (audience !== 'job' && berufKeys.length) {
-    return res.status(400).json({ success: false, message: 'Berufseinschränkungen sind nur für Mitarbeiter-Dokumente möglich' });
+  const title = String(req.body.title || '').trim();
+  if (title.length > 200) return res.status(400).json({ success: false, message: 'Die Bezeichnung ist zu lang' });
+  const scope = normalizeDocumentScope(req.body.scope);
+  const publicEinsatzIds = normalizeObjectIdList(req.body.publicEinsatzIds);
+  const publicRecipientFilter = scope === 'public' && String(req.body.publicRecipientFilter) === 'true';
+  const type = scope === 'monitor' ? String(req.body.type || 'einsatznachweis').trim().toLowerCase() : null;
+  if (scope === 'monitor' && !EINSATZ_DOK_TYPES.has(type)) {
+    return res.status(400).json({ success: false, message: 'Ungültiger Dokumenttyp' });
   }
-  if (audience !== 'office_roles' && allowedRoles.length) {
-    return res.status(400).json({ success: false, message: 'Rollen sind nur für rollenbeschränkte App-Dokumente möglich' });
+  if (scope !== 'public' && (publicEinsatzIds.length || publicRecipientFilter)) {
+    return res.status(400).json({ success: false, message: 'Empfänger können nur für Public-Monitor-Dokumente gewählt werden' });
+  }
+  if (publicRecipientFilter && publicEinsatzIds.length) {
+    const assignments = await Einsatz.find({
+      _id: { $in: publicEinsatzIds },
+      auftragNr: parseAuftragNr(auftragNr),
+    }).select('_id').lean();
+    if (assignments.length !== publicEinsatzIds.length) {
+      return res.status(400).json({ success: false, message: 'Die Empfängerauswahl enthält keine Einsätze dieses Auftrags' });
+    }
   }
 
   await R2Service.uploadFile(key, req.file.buffer, req.file.mimetype);
@@ -2176,41 +2164,20 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
     _id: new mongoose.Types.ObjectId(),
     key,
     filename: safeName,
+    title,
     size: req.file.size,
     mimeType: req.file.mimetype,
+    scope,
     type,
-    audience,
-    berufKeys,
-    allowedRoles: audience === 'office_roles' ? (allowedRoles.length ? allowedRoles : ['ADMIN', 'VERTRIEB']) : [],
-    deliveryEmails,
-    deliveryMessage,
+    publicEinsatzIds: scope === 'public' ? publicEinsatzIds : [],
+    publicRecipientFilter,
+    audience: scope === 'public' ? 'job' : 'office',
+    berufKeys: [],
+    allowedRoles: [],
     uploadedBy: req.user?._id || req.user?.id || null,
     uploadedAt: new Date(),
   };
   await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: document } });
-
-  if (deliveryEmails.length) {
-    const uploader = await User.findById(req.user?._id || req.user?.id).select('name email').lean();
-    const uploaderName = uploader?.name || uploader?.email || 'Ein Monitor-Nutzer';
-    const title = auftrag.eventTitel || `Auftrag #${auftragNr}`;
-    const typeLabel = {
-      einsatznachweis: 'Einsatznachweis',
-      einsatzinformation: 'Einsatzinformation',
-      ablauf: 'Ablaufplan',
-      wegbeschreibung: 'Wegbeschreibung',
-      sicherheit: 'Sicherheitsdokument',
-      kunde: 'Kundendokument',
-      sonstiges: 'Dokument',
-    }[type];
-    const content = `<p><strong>${escapeHtml(uploaderName)}</strong> hat ein neues Dokument zum Projekt <strong>${escapeHtml(title)}</strong> hinzugefügt.</p>
-      <table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0;color:#666">Dokument</td><td><strong>${escapeHtml(safeName)}</strong></td></tr>
-      <tr><td style="padding:4px 12px 4px 0;color:#666">Typ</td><td>${escapeHtml(typeLabel)}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0;color:#666">Auftrag</td><td>#${escapeHtml(auftragNr)}</td></tr></table>
-      ${deliveryMessage ? `<p>${escapeHtml(deliveryMessage).replace(/\n/g, '<br>')}</p>` : ''}`;
-    sendMail(deliveryEmails, `Neues Dokument: ${title}`, content, 'it')
-      .then(() => logger.info(`Einsatzdok notification sent to ${deliveryEmails.join(', ')}`))
-      .catch(error => logger.error(`Einsatzdok notification failed: ${error.message}`));
-  }
 
   logger.info(`Einsatzdok uploaded: ${key} (${req.file.size} bytes) by user ${req.user?.id}`);
   res.json({ success: true, data: serializeEinsatzDokument(document) });

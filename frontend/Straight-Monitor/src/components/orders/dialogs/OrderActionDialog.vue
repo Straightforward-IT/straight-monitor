@@ -5,7 +5,7 @@
     size="sm"
     :close-on-backdrop="!locked"
     :close-on-escape="!locked"
-    style="--mf-max-width: 480px; --mf-max-height: 90dvh"
+    :style="{ '--mf-max-width': maxWidth, '--mf-max-height': '90dvh' }"
     @close="close"
   >
     <template #header="{ titleId }">
@@ -67,6 +67,7 @@ const props = defineProps({
   canSubmit: { type: Boolean, default: false },
   submitLabel: { type: String, required: true },
   closeLabel: { type: String, default: 'Abbrechen' },
+  maxWidth: { type: String, default: '480px' },
 });
 const emit = defineEmits(['close', 'submit']);
 const formId = `order-action-${getCurrentInstance().uid}`;

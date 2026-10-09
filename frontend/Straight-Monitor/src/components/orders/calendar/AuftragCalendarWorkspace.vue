@@ -1025,6 +1025,7 @@
           :format-size="formatFileSize"
           @toggle-menu="toggleNeuMenu"
           @open-signature="openSignaturVorgang"
+          @preview-hours="previewStundenliste"
           @download-hours="downloadStundenliste"
           @edit-hours="openSignatureDialog"
           @delete-hours="deleteStundenlisteDraft"
@@ -1042,12 +1043,12 @@
       <OrderDocumentUploadDialog
         v-if="showEinsatzDokDialog"
         :model-value="showEinsatzDokDialog"
+        v-model:title="einsatzDokTitle"
+        v-model:scope="einsatzDokScope"
         v-model:type="einsatzDokType"
-        v-model:audience="einsatzDokAudience"
-        v-model:beruf-keys="einsatzDokBerufKeys"
-        v-model:allowed-roles="einsatzDokAllowedRoles"
-        v-model:delivery-emails="einsatzDokDeliveryEmails"
-        v-model:delivery-message="einsatzDokDeliveryMessage"
+        v-model:public-einsatz-ids="einsatzDokPublicEinsatzIds"
+        v-model:public-recipient-filter="einsatzDokPublicRecipientFilter"
+        :assignments="selectedEventEinsaetze"
         :file="pendingEinsatzDokFile"
         :uploading="einsatzDokUploading"
         :error="einsatzDokUploadError"
@@ -1458,12 +1459,11 @@ export default {
       einsatzDokUploadError: "",
       showEinsatzDokDialog: false,
       pendingEinsatzDokFile: null,
+      einsatzDokTitle: "",
+      einsatzDokScope: "public",
       einsatzDokType: "einsatznachweis",
-      einsatzDokAudience: "job",
-      einsatzDokBerufKeys: [],
-      einsatzDokAllowedRoles: "",
-      einsatzDokDeliveryEmails: "",
-      einsatzDokDeliveryMessage: "",
+      einsatzDokPublicEinsatzIds: [],
+      einsatzDokPublicRecipientFilter: false,
       showEinsatzDokPreview: false,
       previewEinsatzDokument: null,
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
@@ -3362,6 +3362,18 @@ export default {
         : this.stundenlisteStatus?.unsignedPdfUrl;
       if (url) return this.downloadFile(url, this.stundenlistePdfFilename(signed));
     },
+    previewStundenliste(signed = false) {
+      const url = signed
+        ? this.stundenlisteStatus?.signedPdfUrl
+        : this.stundenlisteStatus?.unsignedPdfUrl;
+      if (!url) return;
+      this.openDocumentPreview({
+        id: `order-${this.selectedEvent?.auftragNr}-hours-${signed ? "signed" : "draft"}`,
+        url,
+        filename: this.stundenlistePdfFilename(signed),
+        mimeType: "application/pdf",
+      }, { minimizable: false });
+    },
     async loadEinsatzDoks(auftragNr) {
       this.einsatzDoksLoading = true;
       try {
@@ -3381,12 +3393,11 @@ export default {
       event.target.value = "";
       if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr) return;
       this.pendingEinsatzDokFile = file;
+      this.einsatzDokTitle = "";
+      this.einsatzDokScope = "public";
       this.einsatzDokType = "einsatznachweis";
-      this.einsatzDokAudience = "job";
-      this.einsatzDokBerufKeys = [];
-      this.einsatzDokAllowedRoles = "";
-      this.einsatzDokDeliveryEmails = "";
-      this.einsatzDokDeliveryMessage = "";
+      this.einsatzDokPublicEinsatzIds = [];
+      this.einsatzDokPublicRecipientFilter = false;
       this.einsatzDokUploadError = "";
       this.showEinsatzDokDialog = true;
     },
@@ -3404,12 +3415,11 @@ export default {
       try {
         const form = new FormData();
         form.append("file", file);
-        form.append("type", this.einsatzDokType);
-        form.append("audience", this.einsatzDokAudience);
-        form.append("berufKeys", this.einsatzDokBerufKeys.join(","));
-        form.append("allowedRoles", this.einsatzDokAllowedRoles);
-        form.append("deliveryEmails", this.einsatzDokDeliveryEmails);
-        form.append("deliveryMessage", this.einsatzDokDeliveryMessage);
+        form.append("title", this.einsatzDokTitle);
+        form.append("scope", this.einsatzDokScope);
+        if (this.einsatzDokScope === "monitor") form.append("type", this.einsatzDokType);
+        form.append("publicEinsatzIds", this.einsatzDokPublicEinsatzIds.join(","));
+        form.append("publicRecipientFilter", String(this.einsatzDokPublicRecipientFilter));
         const { data } = await api.post(
           `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
           form,

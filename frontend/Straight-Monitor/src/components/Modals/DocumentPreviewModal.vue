@@ -55,13 +55,14 @@
     <PdfDocumentPreview
       v-else-if="format.kind === 'pdf' && blob"
       :blob="blob"
+      :initial-zoom="0.5"
       @ready="renderReady = true"
       @error="previewFailed"
     />
     <iframe
       v-else-if="format.kind === 'pdf'"
       :key="previewUrl"
-      :src="previewUrl"
+      :src="`${previewUrl.split('#')[0]}#zoom=50`"
       :title="`PDF-Vorschau: ${displayName}`"
       class="document-preview-pdf"
       referrerpolicy="no-referrer"

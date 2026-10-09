@@ -125,13 +125,21 @@ const AuftragSchema = new mongoose.Schema({
   einsatzdokumente: [{
     key: { type: String, required: true },
     filename: { type: String, required: true },
+    title: { type: String, trim: true, maxlength: 200, default: '' },
     size: { type: Number, default: 0 },
     mimeType: { type: String, default: 'application/octet-stream' },
+    scope: {
+      type: String,
+      enum: ['monitor', 'public'],
+      default: 'monitor',
+    },
     type: {
       type: String,
       enum: ['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges'],
-      default: 'einsatznachweis',
+      default: null,
     },
+    publicEinsatzIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Einsatz' }],
+    publicRecipientFilter: { type: Boolean, default: false },
     audience: {
       type: String,
       enum: ['job', 'teamleiter', 'office', 'office_roles'],
