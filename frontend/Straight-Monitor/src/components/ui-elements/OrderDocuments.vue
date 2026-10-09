@@ -38,7 +38,6 @@
         {{ error }}
       </p>
       <p v-else-if="!documents.length">
-        Für diesen Auftrag sind noch keine Dokumente verknüpft.
       </p>
       <ul v-if="auftragNr">
         <li class="order-documents__upload-item">

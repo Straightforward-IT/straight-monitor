@@ -26,6 +26,12 @@ describe('Tariflohn in der Mitarbeiter-Lohnsection', () => {
     expect(mocks.api.get.mock.calls[0][0]).toBe('/api/tariffs/employees/employee-1/wage-info');
     expect(mocks.api.get.mock.calls[0][1].params).toEqual({ date: '2026-10-07' });
   });
+  it('kann im kompakten Modus Kontextzeile und Zusatzabsätze zusammenfassen', async () => {
+    await render({ compact: true });
+    expect(wrapper.text()).toContain('Lohn Ost KZF · Eingangsstufe | Tarif am 07.10.2026');
+    expect(wrapper.findAll('.employee-tariff-wage__context')).toHaveLength(0);
+    expect(wrapper.findAll('.employee-tariff-wage__notice')).toHaveLength(0);
+  });
   it('erklärt die Auswahl der aktuellen Personalnummer trotz offener historischer Zeilen', async () => {
     const data = fixture();
     data.baseRate.assignmentSelection = { basis: 'CURRENT_PERSONAL_NUMBER', personalNr: '2000001', excludedPersonalNumbers: ['1000001'] };

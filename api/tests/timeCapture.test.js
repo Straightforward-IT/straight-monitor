@@ -182,6 +182,7 @@ describe('Operational time capture API', function () {
     await Signature.collection.insertMany([
       { name: 'Ausgefüllte Stundenliste', typKey: 'stundenliste', auftragNr: order.auftragNr, status: 'completed', r2KeySigned: 'test/signed.pdf', r2KeyUnsigned: 'test/blank.pdf' },
       { name: 'Wartet auf Datei', typKey: 'stundenliste', auftragNr: order.auftragNr, status: 'completed', r2KeyUnsigned: 'test/blank.pdf' },
+      { name: 'Stornierte Stundenliste', typKey: 'stundenliste', auftragNr: order.auftragNr, status: 'cancelled', r2KeyUnsigned: 'test/cancelled.pdf' },
     ]);
     const response = await request(`/orders/${order.auftragNr}/documents`);
     assert.equal(response.status, 200);
@@ -189,6 +190,7 @@ describe('Operational time capture API', function () {
     assert.equal(response.body.documents[0].completed, true);
     assert.equal(response.body.documents.find(doc => doc.category === 'EventReport').teamLeader, 'Testleitung');
     assert.equal(response.body.documents.find(doc => doc.title === 'Wartet auf Datei').available, false);
+    assert.equal(response.body.documents.some(doc => doc.title === 'Stornierte Stundenliste'), false);
     assert.equal(JSON.stringify(response.body).includes('test/signed.pdf'), false);
     const pdf = await fetch(`${base}/api/working-times/orders/${order.auftragNr}/documents/eventreport/${report._id}/preview`, { headers: { 'x-auth-token': userToken() } });
     assert.equal(pdf.status, 200); assert.equal(pdf.headers.get('content-type'), 'application/pdf');

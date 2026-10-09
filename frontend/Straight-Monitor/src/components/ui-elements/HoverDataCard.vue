@@ -45,7 +45,7 @@
         @focusout="onCardFocusOut"
       >
         <div
-          v-if="view.eyebrow || view.employeeName || popout"
+          v-if="!hideHeader && (view.eyebrow || view.employeeName || popout)"
           class="hover-data-card__header"
         >
           <span
@@ -316,6 +316,7 @@ const props = defineProps({
   closeDelay: { type: Number, default: 160 },
   disabled: { type: Boolean, default: false },
   inline: { type: Boolean, default: false },
+  hideHeader: { type: Boolean, default: false },
   columnOnly: { type: Boolean, default: false },
   block: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },

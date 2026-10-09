@@ -7,6 +7,7 @@
   >
     <header class="tmx-heading">
       <h2>Stundenerfassung</h2><span>{{ monthLabel }} · h:mm</span>
+      <slot name="heading-actions" />
     </header>
     <div
       class="tmx-scroll"
@@ -219,7 +220,7 @@ onBeforeUnmount(() => {
 .time-month-matrix { min-width: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface); }
 .tmx-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; background: var(--hover); border-bottom: 1px solid var(--border); }
 .tmx-heading h2 { margin: 0; font-size: 12px; font-weight: 600; }
-.tmx-heading > span { font-size: 10px; color: var(--muted); }
+.tmx-heading > span { margin-left: auto; font-size: 10px; color: var(--muted); }
 .tmx-scroll { overflow-x: auto; scrollbar-width: thin; }
 .tmx-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .tmx-table th, .tmx-table td { text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }

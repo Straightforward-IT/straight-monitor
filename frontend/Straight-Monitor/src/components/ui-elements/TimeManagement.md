@@ -40,4 +40,14 @@ Oben stehen kompakte Mitarbeiter-/Monatsfelder sowie der Kontext des gewählten 
 
 Ein Klick auf eine Tagesnummer oder einen Wochenkopf filtert die Detailtabelle darunter. Die Auswahl Monat/Woche/Tag wechselt den Zeitraum; Schichten & Zeiten, Fehlzeiten und Änderungsprotokoll wechseln die Detailansicht. Das Protokoll bleibt monatlich. Kalender und Monatsprognose zeigen immer den gesamten Monat. Stundenfelder im Kalender und in der Tabellenspalte „Aktuell“ sind gleichwertige Eimerziele.
 
-Rechts bleibt die wiederverwendete `HoverDataCard` im `inline`-Modus sichtbar, gefolgt vom Zeitkonto. Auf schmalen Ansichten ordnen sich die Bereiche untereinander an; Kalender und Detailtabelle scrollen horizontal innerhalb ihrer Flächen. Produktive Ist-Zeit, angerechnete Fehlzeiten, Korrekturen und geplante Zeit bilden die Prognose; Eimer und Zeitkonto sind ausgeschlossen. Der Eimer erhält Herkunftslose, um gemischte Entnahmen exakt zu protokollieren und abzubrechen. Alle Berechnungen erfolgen in ganzen Minuten.
+Rechts bleibt die wiederverwendete `HoverDataCard` im `inline`-Modus im Tab „Kontingent“ sichtbar, gefolgt vom Zeitkonto. Der Tab „Lohn“ verwendet dieselbe `EmployeeTariffWage`-Auflösung wie die EmployeeCard und fragt Tariflohn, Entgeltgruppe und ÜTZ zum letzten Kalendertag des ausgewählten Payroll-Monats ab. Im kompakten Payroll-Modus stehen Tarifgruppe, Stufe und Stichtag in einer Kontextzeile über den vier Lohnwerten; zusätzliche Erläuterungsabsätze werden dort nicht angezeigt. Die Schaltfläche links oben im Panel blendet es aus, die Schaltfläche rechts oben im Kopf von `TimeMonthMatrix` blendet es wieder ein; der Kalender nutzt dann die volle Breite. Die Auswahl wird in `localStorage` unter `timeManagement.informationHidden` gemerkt und überlebt damit das Neu-Mounten bei Monats- oder Revisionswechsel. Auf schmalen Ansichten ordnen sich die Bereiche untereinander an; Kalender und Detailtabelle scrollen horizontal innerhalb ihrer Flächen. Produktive Ist-Zeit, angerechnete Fehlzeiten, Korrekturen und geplante Zeit bilden die Prognose; Eimer und Zeitkonto sind ausgeschlossen. Der Eimer erhält Herkunftslose, um gemischte Entnahmen exakt zu protokollieren und abzubrechen. Alle Berechnungen erfolgen in ganzen Minuten.
+
+In `/payroll` liefert `PayrollPage` stattdessen `contingentData` und
+`contingentLoading` aus dem gemeinsamen Mitarbeiter-Kontingent-Endpunkt.
+Die gültige Tarifmitarbeitergruppe steuert dieselbe Karte wie in EmployeeCard
+und DispoTable, einschließlich des serverseitigen Arbeitsverhältnis-Fallbacks.
+Die Karte ist ausdrücklich eine Einsatzprognose auf Basis der Einsatz-Sollstunden;
+lokale Fehlzeiten, Korrekturen und AZK-Vorschläge ändern diese Prognose nicht.
+Mitarbeiter-/Monatswechsel und „Stand neu laden“ laden die Kontingente frisch.
+Lade- und Zuordnungsfehler bleiben sichtbar; sie werden nicht durch die lokale
+Monatsstundengrafik ersetzt. Ohne `contingentData` bleibt die lokale Demo verfügbar.

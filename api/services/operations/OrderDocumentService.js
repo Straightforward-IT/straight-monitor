@@ -13,7 +13,7 @@ async function list(user, number) {
   const [reports, slips, signatures, legacy, expenses] = await Promise.all([
     EventReport.find({ auftragnummer: String(order.auftragNr) }).select('datum name_teamleiter').lean(),
     Laufzettel.find({ auftragnummer: order.auftragNr }).select('datum name_mitarbeiter status').lean(),
-    SignaturVorgang.find({ auftragNr: order.auftragNr }).select('name fileName typKey status r2KeySigned r2KeyUnsigned updatedAt').lean(),
+    SignaturVorgang.find({ auftragNr: order.auftragNr, status: { $ne: 'cancelled' } }).select('name fileName typKey status r2KeySigned r2KeyUnsigned updatedAt').lean(),
     DocuSealVorgang.find({ $or: [{ auftragNr: order.auftragNr }, { 'linkedEntity.type': 'Auftrag', 'linkedEntity.refId': order._id }] }).select('name status signedPdfKey updatedAt').lean(),
     Reisekosten.find({ auftragNr: order.auftragNr }).select('kopf.name kopf.vorname kopf.titel status r2Key anlagen signaturVorgang updatedAt').lean(),
   ]);
@@ -23,7 +23,7 @@ async function list(user, number) {
     ...signatures.map(doc => descriptor('signature', doc, {
       category: doc.typKey === 'stundenliste' ? 'Stundenliste' : 'Weitere',
       title: doc.name || doc.fileName, filename: doc.fileName || `${doc.name}.pdf`, preview: 'url',
-      status: doc.status === 'cancelled' ? 'Storniert' : doc.r2KeySigned ? 'Ausgefüllt · signiert' : doc.status === 'completed' ? 'Abgeschlossen · Datei ausstehend' : doc.r2KeyUnsigned ? 'Vorlage · nicht ausgefüllt' : 'Unterschrift ausstehend',
+      status: doc.r2KeySigned ? 'Ausgefüllt · signiert' : doc.status === 'completed' ? 'Abgeschlossen · Datei ausstehend' : doc.r2KeyUnsigned ? 'Vorlage · nicht ausgefüllt' : 'Unterschrift ausstehend',
       available: !!(doc.r2KeySigned || (doc.status !== 'completed' && doc.r2KeyUnsigned)), completed: !!doc.r2KeySigned,
     })),
     ...legacy.map(doc => descriptor('legacy-signature', doc, { category: 'Weitere', title: doc.name, filename: `${doc.name}.pdf`, preview: 'url',

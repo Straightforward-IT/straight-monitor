@@ -27,7 +27,10 @@
       :auftrag-nr="selectedEntry?.auftragNr || null"
     />
 
-    <div class="tm-layout">
+    <div
+      class="tm-layout"
+      :class="{ 'tm-layout--solo': informationHidden }"
+    >
       <TimeMonthMatrix
         :month="month"
         :entries="workspace.data.entries"
@@ -38,21 +41,76 @@
         @change-type="changeEntryType"
         :readonly="preparationMode"
         @open-capture="emit('openCapture', $event)"
-      />
+      >
+        <template #heading-actions>
+          <AppIconButton
+            v-if="informationHidden"
+            class="tm-panel-toggle"
+            label="Informationen einblenden"
+            variant="ghost"
+            size="sm"
+            @click="setInformationHidden(false)"
+          >
+            <FontAwesomeIcon :icon="faAnglesRight" />
+          </AppIconButton>
+        </template>
+      </TimeMonthMatrix>
       <aside
+        v-if="!informationHidden"
         class="tm-information"
         aria-label="Zeitkonto und Monatsprognose"
       >
-        <header class="tm-section-heading">
-          <h2>Informationen</h2><span class="tm-live"><i /> Live-Berechnung</span>
+        <header class="tm-section-heading tm-information__heading">
+          <AppIconButton
+            class="tm-panel-toggle"
+            label="Informationen ausblenden"
+            variant="ghost"
+            size="sm"
+            @click="setInformationHidden(true)"
+          >
+            <FontAwesomeIcon :icon="faAnglesLeft" />
+          </AppIconButton>
+          <h2>Informationen</h2><span class="tm-live"><i /> {{ contingentData ? 'Einsatzprognose' : 'Live-Berechnung' }}</span>
         </header>
-        <div class="tm-information__identity">
-          <span>{{ employee.employmentLabel }}</span><span>Monatsstunden <strong>{{ formatMinutes(quota) }}</strong></span>
+        <nav
+          class="tm-detail-tabs tm-information__tabs"
+          aria-label="Informationen"
+          role="tablist"
+        >
+          <button
+            v-for="tab in informationTabs"
+            :key="tab.id"
+            type="button"
+            role="tab"
+            :aria-pressed="informationTab === tab.id"
+            :aria-selected="informationTab === tab.id"
+            @click="informationTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </nav>
+        <template v-if="informationTab === 'contingent'">
+          <div v-if="!contingentData" class="tm-information__identity">
+            <span>{{ employee.employmentLabel }}</span><span>Monatsstunden <strong>{{ formatMinutes(quota) }}</strong></span>
+          </div>
+          <HoverDataCard
+            inline
+            hide-header
+            :data="contingentData || cardData"
+            :loading="contingentLoading"
+          />
+        </template>
+        <div
+          v-else-if="informationTab === 'wage'"
+          class="tm-information__wage"
+        >
+          <EmployeeTariffWage
+            compact
+            :employee-id="String(employee.id || '')"
+            :date="tariffDate"
+            :active="informationTab === 'wage'"
+          />
         </div>
-        <HoverDataCard
-          inline
-          :data="cardData"
-        />
         <button v-if="!preparationMode"
           type="button"
           class="tm-bank"
@@ -517,10 +575,15 @@ import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import EmployeeTariffWage from '@/components/tariffs/EmployeeTariffWage.vue';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { faAnglesLeft, faAnglesRight } from '@fortawesome/free-solid-svg-icons';
 import { addTimeEntry, bucketMinutes, cancelTime, changeTimeEntryType, collectTime, createTimeWorkspace, dropOnDay, dropTime,
   formatMinutes, hasTimeChanges, monthWeeks, revertTime, saveTime, sourceMinutes, targetLabel, timeTotals, timeTypeBreakdown, undoTime } from '@/utils/timeManagement';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, dayEntryTypes: { type: Array, default: () => [] }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, bucketEnabled: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null }, preparationMode: Boolean });
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, initialData: { type: Object, required: true }, dayEntryTypes: { type: Array, default: () => [] }, saveEnabled: { type: Boolean, default: true }, showContext: { type: Boolean, default: true }, showGuide: { type: Boolean, default: true }, bucketEnabled: { type: Boolean, default: true }, detailsInSidePanel: { type: Boolean, default: false }, detailsTarget: { type: Object, default: null }, preparationMode: Boolean,
+  contingentData: { type: Object, default: null }, contingentLoading: { type: Boolean, default: false },
+});
 const emit = defineEmits(['save', 'openCapture', 'selectDay', 'closeDetails', 'prepareTransfer', 'prepareEntry']);
 // A workspace is an employee/month session. Remount with a key when either changes.
 const workspace = reactive(createTimeWorkspace(props.initialData));
@@ -531,6 +594,26 @@ const selectedEntryId = ref(props.initialData.entries[0]?.id || '');
 const detailScope = ref(props.detailsInSidePanel ? 'day' : 'month');
 const detailTab = ref('entries');
 const detailScopes = [{ id: 'month', label: 'Monat' }, { id: 'week', label: 'Woche' }, { id: 'day', label: 'Tag' }];
+const INFORMATION_HIDDEN_KEY = 'timeManagement.informationHidden';
+const informationTabs = [{ id: 'contingent', label: 'Kontingent' }, { id: 'wage', label: 'Lohn' }];
+const informationTab = ref(informationTabs[0].id);
+// Die Sichtbarkeit überlebt das Neu-Mounten bei Monats-/Revisionswechsel in /payroll.
+const informationHidden = ref(readStoredInformationHidden());
+function readStoredInformationHidden() {
+  try { return window.localStorage.getItem(INFORMATION_HIDDEN_KEY) === '1'; } catch { return false; }
+}
+function setInformationHidden(hidden) {
+  informationHidden.value = hidden;
+  try { window.localStorage.setItem(INFORMATION_HIDDEN_KEY, hidden ? '1' : '0'); } catch { /* Speicher nicht verfügbar */ }
+}
+const tariffDate = computed(() => {
+  const match = /^(\d{4})-(\d{2})$/.exec(props.month);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  const day = new Date(year, monthNumber, 0).getDate();
+  return `${match[1]}-${match[2]}-${String(day).padStart(2, '0')}`;
+});
 const mode = ref('drop');
 const precision = ref(false);
 const newMinutes = ref(480);
@@ -764,6 +847,36 @@ onBeforeUnmount(() => {
 .tm-context dt { margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 500; }
 .tm-context dd { display: block; margin: 0; min-height: 30px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
 .tm-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: stretch; margin-bottom: 14px; }
+.time-management .tm-layout--solo { grid-template-columns: minmax(0, 1fr); }
+.tm-panel-toggle.app-button { --app-button-icon-size: 24px; min-height: 24px; font-size: 12px; flex: 0 0 auto; }
+.tm-section-heading.tm-information__heading h2 { margin-right: auto; }
+.tm-detail-tabs.tm-information__tabs {
+  gap: 18px;
+  padding: 0 12px;
+  overflow: visible;
+  background: var(--surface);
+}
+.tm-detail-tabs.tm-information__tabs > button {
+  padding: 9px 1px 7px;
+  color: var(--muted);
+  transition: border-color 150ms ease, color 150ms ease;
+}
+.tm-detail-tabs.tm-information__tabs > button:hover { color: var(--text); }
+.tm-detail-tabs.tm-information__tabs > button[aria-pressed=true] {
+  border-bottom-color: var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-weight: 600;
+}
+.tm-information__wage { padding: 12px; }
+.tm-information__wage :deep(.employee-tariff-wage) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tm-information__wage :deep(.employee-tariff-wage__values) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .tm-information { min-width: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; align-self: start; }
 .tm-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; background: color-mix(in srgb, var(--border) 18%, var(--surface)); border-bottom: 1px solid var(--border); }
 .tm-section-heading h2 { font-size: 12px; font-weight: 600; margin: 0; }
@@ -906,8 +1019,9 @@ kbd { display: inline-block; padding: 1px 3px; margin-right: 3px; border: 1px so
   .tm-layout { grid-template-columns: 1fr; }
   .tm-information { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .8fr); }
   .tm-information > .tm-section-heading { grid-column: 1 / -1; }
-  .tm-information__identity { grid-column: 2; grid-row: 2; align-items: center; }
-  .tm-information :deep(.hover-data-card--inline) { grid-column: 1; grid-row: 2 / 5; border-right: 1px solid var(--border); }
+  .tm-information__tabs { grid-column: 1 / -1; grid-row: 2; }
+  .tm-information__identity { grid-column: 2; grid-row: 3; align-items: center; }
+  .tm-information :deep(.hover-data-card--inline) { grid-column: 1; grid-row: 3 / 6; border-right: 1px solid var(--border); }
   .tm-bank { grid-column: 2; align-self: center; }
   .tm-comparison { grid-column: 2; }
   .tm-context { grid-template-columns: repeat(12, minmax(0, 1fr)); }

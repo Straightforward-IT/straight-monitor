@@ -46,6 +46,7 @@ const overview = {
 - Existing presentation data with `segments` and no `type` remains supported during migration. Segments get a `role`: `remaining` (ids `remaining`) is drawn faint, `over` (ids `over`, `over-limit`) only feeds the legend and the outer overage arc, everything else fills the ring. Very small slices are widened to a minimum so every hour type stays visible.
 - The ring size follows `--hover-data-card-ring-size` (default 112px); set it on the card to fit tighter layouts, e.g. `:deep(.hover-data-card--inline) { --hover-data-card-ring-size: 92px; }`.
 - `inline`: renders the same card permanently in normal layout flow, without a trigger or body teleport. For example, `<HoverDataCard inline :data="overview" />` provides a fixed overview alongside an editor. Positioning and hover dismissal apply only to popup mode.
+- `hideHeader`: omits the card header when the surrounding layout already provides the required context.
 - `placement`: `right` (default), `left`, `top`, or `bottom`. The card chooses an alternate side or stays within the viewport when space is limited, and follows scrolling/resizing.
 - `openDelay`: 180 ms on hover. Keyboard focus opens immediately. `closeDelay`: 160 ms so the pointer can cross into the card. It remains visible while hovered or while its trigger has focus.
 - Escape, an outside pointer press, or scrolling the trigger out of view dismisses the card. Touch taps toggle it. `disabled` prevents opening and dismisses an open card.

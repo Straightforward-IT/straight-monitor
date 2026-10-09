@@ -1,7 +1,10 @@
 <template>
   <div v-if="active && isAdmin && employeeId" class="employee-tariff-wage" aria-label="Tariflohn und ÜTZ" :aria-busy="loading">
     <div class="employee-tariff-wage__heading">
-      <span>Tarif am {{ formatTariffDate(date) }}</span>
+      <span v-if="compact && data?.baseRate?.group">
+        {{ data.baseRate.group.name }}<template v-if="data.baseRate.stage?.name"> · {{ data.baseRate.stage.name }}</template> | Tarif am {{ formatTariffDate(date) }}
+      </span>
+      <span v-else>Tarif am {{ formatTariffDate(date) }}</span>
       <AppButton v-if="error" size="sm" variant="ghost" @click="reload">Erneut versuchen</AppButton>
     </div>
     <p v-if="loading" role="status">Tariflohn wird geladen …</p>
@@ -13,12 +16,12 @@
         <div><dt>ÜTZ</dt><dd data-wage="above">{{ aboveTariffValue !== null ? formatTariffDecimal(aboveTariffValue, true) : 'Klärung erforderlich' }}</dd></div>
         <div v-if="total !== null"><dt>Summe (Tariflohn + ÜTZ)</dt><dd data-wage="total">{{ formatTariffDecimal(total, true) }}</dd></div>
       </dl>
-      <p v-if="!resolved" class="employee-tariff-wage__notice" role="status">{{ data.baseRate?.message || 'Der Tariflohn konnte nicht eindeutig ermittelt werden.' }}</p>
-      <p v-if="aboveTariffNotice" class="employee-tariff-wage__notice" role="status">{{ aboveTariffNotice }}</p>
-      <p v-if="resolved && data.baseRate?.group" class="employee-tariff-wage__context">{{ data.baseRate.group.name }}<template v-if="data.baseRate.stage?.name"> · {{ data.baseRate.stage.name }}</template></p>
-      <p v-if="tariffSelectionNotice(data.baseRate?.assignmentSelection)" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.baseRate.assignmentSelection) }}</p>
-      <p v-if="tariffSelectionNotice(data.aboveTariff?.selection, 'ÜTZ')" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.aboveTariff.selection, 'ÜTZ') }}</p>
-      <p v-if="total !== null" class="employee-tariff-wage__context">Die Summe enthält den Tariflohn und die ausgewiesene ÜTZ.</p>
+      <p v-if="!compact && !resolved" class="employee-tariff-wage__notice" role="status">{{ data.baseRate?.message || 'Der Tariflohn konnte nicht eindeutig ermittelt werden.' }}</p>
+      <p v-if="!compact && aboveTariffNotice" class="employee-tariff-wage__notice" role="status">{{ aboveTariffNotice }}</p>
+      <p v-if="!compact && resolved && data.baseRate?.group" class="employee-tariff-wage__context">{{ data.baseRate.group.name }}<template v-if="data.baseRate.stage?.name"> · {{ data.baseRate.stage.name }}</template></p>
+      <p v-if="!compact && tariffSelectionNotice(data.baseRate?.assignmentSelection)" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.baseRate.assignmentSelection) }}</p>
+      <p v-if="!compact && tariffSelectionNotice(data.aboveTariff?.selection, 'ÜTZ')" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.aboveTariff.selection, 'ÜTZ') }}</p>
+      <p v-if="!compact && total !== null" class="employee-tariff-wage__context">Die Summe enthält den Tariflohn und die ausgewiesene ÜTZ.</p>
     </template>
   </div>
 </template>
@@ -32,7 +35,7 @@ import { formatTariffDate, formatTariffDecimal, todayInBerlin, tariffSelectionNo
 import { useTariffRequest } from './useTariffRequest';
 import { decimalSum } from './tariffRelations';
 
-const props = defineProps({ employeeId: { type: String, default: '' }, active: { type: Boolean, default: true }, date: { type: String, default: todayInBerlin } });
+const props = defineProps({ employeeId: { type: String, default: '' }, active: { type: Boolean, default: true }, date: { type: String, default: todayInBerlin }, compact: { type: Boolean, default: false } });
 const auth = useAuth();
 const isAdmin = computed(() => [auth.user?.role, ...(Array.isArray(auth.user?.roles) ? auth.user.roles : [])].some(role => String(role || '').toUpperCase() === 'ADMIN'));
 const { data, loading, error, run, clear } = useTariffRequest();

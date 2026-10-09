@@ -8,7 +8,13 @@ import { timeManagementEmployee, timeManagementFixture } from '../src/components
 
 let wrapper;
 function render(initialData = timeManagementFixture()) {
-  wrapper = mount(TimeManagement, { attachTo: document.body, global: { stubs: { 'font-awesome-icon': true } }, props: {
+  wrapper = mount(TimeManagement, { attachTo: document.body, global: { stubs: {
+    'font-awesome-icon': true,
+    EmployeeTariffWage: {
+      props: ['employeeId', 'date', 'active'],
+      template: '<div data-testid="tariff-wage">{{ employeeId }}|{{ date }}|{{ active }}</div>',
+    },
+  } }, props: {
     employee: timeManagementEmployee, month: '2026-09', initialData,
   } });
   return wrapper;
@@ -23,13 +29,23 @@ async function key(type, options) { window.dispatchEvent(new KeyboardEvent(type,
 afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = ''; });
 
 describe('TimeManagement interactions', () => {
-  it('shows all 30 days, fixed employee HoverDataCard and untouched fixture inputs', async () => {
+  it('shows all 30 days, a headerless HoverDataCard and untouched fixture inputs', async () => {
     render(); expect(wrapper.findAll('[data-day]')).toHaveLength(30);
-    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('Max Mustermann');
+    expect(wrapper.find('.tm-information .hover-data-card__header').exists()).toBe(false);
     expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('110:00 h');
     expect(wrapper.find('[role="tooltip"]').exists()).toBe(false);
     await target('shift-a').trigger('contextmenu', { button: 2 });
     expect(wrapper.props('initialData').entries.find(e => e.id === 'shift-a').minutes).toBe(480);
+  });
+
+  it('switches from Kontingent to the month-end tariff wage', async () => {
+    render();
+    expect(button('Kontingent').attributes('aria-selected')).toBe('true');
+    expect(wrapper.find('[data-testid="tariff-wage"]').exists()).toBe(false);
+    await button('Lohn').trigger('click');
+    expect(button('Lohn').attributes('aria-selected')).toBe('true');
+    expect(wrapper.get('[data-testid="tariff-wage"]').text()).toBe(`${timeManagementEmployee.id}|2026-09-30|true`);
+    expect(wrapper.find('.hover-data-card').exists()).toBe(false);
   });
 
   it('right collects, left drops one hour, Shift drops all and updates fixed projection', async () => {
@@ -139,11 +155,38 @@ describe('TimeManagement interactions', () => {
 });
 
 describe('HoverDataCard inline presentation', () => {
+  it('uses tariff contingents independently of the payroll month-hour projection', async () => {
+    render();
+    const data = { type: 'days-earnings', title: 'KZF 603 mit AZK', employeeName: 'Max Mustermann',
+      group: { legacyId: '27356', name: 'Lohn Ost KZF 603' }, groupDate: '2026-09-30',
+      workedDays: 5, plannedDays: 2, priorEmployerDays: 1, dayLimit: 70,
+      workedEarnings: '200.00', plannedEarnings: '450.00', totalEarnings: '650.00', earningsLimit: '603.00',
+      earningsStatus: 'RESOLVED' };
+    await wrapper.setProps({ contingentData: data });
+    expect(wrapper.findComponent(HoverDataCard).props('data')).toEqual(data);
+    expect(wrapper.findAll('.hover-data-card__combined .hover-data-card__chart--column')).toHaveLength(2);
+    expect(wrapper.text()).toContain('Voraussichtlicher Monatsverdienst');
+    expect(wrapper.text()).toContain('27356');
+    expect(wrapper.find('.tm-information__identity').exists()).toBe(false);
+    await target('shift-a').trigger('contextmenu', { button: 2 });
+    expect(wrapper.findComponent(HoverDataCard).props('data').totalEarnings).toBe('650.00');
+  });
+
+  it('keeps loading and failed tariff requests visible without falling back to local month hours', async () => {
+    render();
+    await wrapper.setProps({ contingentData: { type: 'notice', title: 'Tarifkontingent' }, contingentLoading: true });
+    expect(wrapper.find('.hover-data-card__loading').exists()).toBe(true);
+    await wrapper.setProps({ contingentLoading: false,
+      contingentData: { type: 'notice', title: 'Tarifkontingent', issues: [{ code: 'LOAD_FAILED', message: 'Kontingente konnten nicht geladen werden.' }] } });
+    expect(wrapper.text()).toContain('Kontingente konnten nicht geladen werden.');
+    expect(wrapper.find('[aria-label="Monatsstunden"]').exists()).toBe(false);
+  });
+
   it('can switch from inline to normal hover mode without losing the trigger', async () => {
     wrapper = mount(HoverDataCard, { props: { inline: true } });
-    expect(wrapper.get('[aria-label="Monatsstunden"]').text()).toContain('Max Mustermann');
+    expect(wrapper.get('.hover-data-card--inline').text()).toContain('Max Mustermann');
     await wrapper.setProps({ inline: false });
-    expect(wrapper.find('[aria-label="Monatsstunden"]').exists()).toBe(false);
+    expect(wrapper.find('.hover-data-card--inline').exists()).toBe(false);
     expect(wrapper.get('button').text()).toBe('Monatsübersicht');
   });
 });

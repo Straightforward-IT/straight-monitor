@@ -126,6 +126,8 @@
               :employee="data.employee"
               :month="month"
               :initial-data="calendarData"
+              :contingent-data="contingentData"
+              :contingent-loading="contingentLoading"
               :day-entry-types="data.dayEntryTypes"
               :save-enabled="false"
               :show-context="false"
@@ -226,6 +228,7 @@ import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 import { payrollTabs } from '@/components/layout/pageTabDefinitions';
 import { useTimeCaptureModals } from '@/composables/useTimeCaptureModals';
 import { usePayrollPreparation } from '@/composables/usePayrollPreparation';
+import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 import { preparationCalendar } from '@/utils/payrollPreparation';
 import PayrollPreparationEditor from '@/components/payroll/PayrollPreparationEditor.vue';
 import PayrollMonthlyReview from '@/components/payroll/PayrollMonthlyReview.vue';
@@ -293,6 +296,17 @@ function saveEmployeeId(value) {
 }
 const employeeId = computed(() => String(route.query.employeeId ?? storedEmployeeId()));
 const month = computed(() => String(route.query.month || new Date().toLocaleDateString('sv-SE').slice(0, 7)));
+const contingents = useEmployeeContingents();
+const contingentPeriod = computed(() => {
+  const [year, monthNumber] = month.value.split('-').map(Number);
+  return { year, month: monthNumber };
+});
+const contingentEmployee = computed(() => ({ _id: employeeId.value }));
+const contingentData = computed(() => ({
+  ...contingents.dataFor(contingentEmployee.value, contingentPeriod.value),
+  employeeName: data.value?.employee?.name || '',
+}));
+const contingentLoading = computed(() => contingents.isLoading(contingentEmployee.value, contingentPeriod.value));
 const { state: preparation, items: preparationItems, busy, error: preparationError, notice, reason: preparationReason, reconcile,
   review, mapping, mappingDirty, formDirty, dirty: preparationDirty, load: loadPreparation, act, refreshSources, loadPreview, loadMapping, saveMapping, confirmDiscard } = usePayrollPreparation(employeeId, month);
 const reviewTab = computed(() => route.query.tab === 'monatspruefung');
@@ -348,7 +362,9 @@ async function loadMonth() {
   bucketEnabled.value = false;
   detailsOpen.value = false;
   const current = ++request;
+  contingents.clear();
   if (!employeeId.value) { data.value = null; loading.value = false; await loadPreparation(); return; }
+  contingents.load(employeeId.value, contingentPeriod.value);
   loading.value = true;
   error.value = '';
   data.value = null;
