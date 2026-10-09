@@ -5,6 +5,7 @@ const { flipAxios, getFlipAuthToken } = require("./flipAxios");
 const FlipUser = require("../../models/Classes/FlipUser");
 const FlipTask = require("../../models/Classes/FlipTask");
 const FlipPage = require("../../models/Classes/FlipPage");
+const FlipPost = require("../../models/Classes/FlipPost");
 const {
   Laufzettel,
   EventReport,
@@ -2242,7 +2243,13 @@ async function updateTeamleitungWikiPages() {
   return summary;
 }
 
+// One page of posts; callers explicitly follow the returned cursor.
+async function getFlipPosts(params = {}, options = {}) {
+  return FlipPost.list(params, options);
+}
+
 module.exports = {
+  getFlipPosts,
   flipUserRoutine,
   syncRankGroups,
   syncFlipAttributes,

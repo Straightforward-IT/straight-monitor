@@ -8,6 +8,11 @@ function normalize(value) {
     .toLowerCase();
 }
 
+function isValidFlipOfficeUserId(value) {
+  return typeof value === 'string' && (value.trim() === ''
+    || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim()));
+}
+
 const openingHourSlotSchema = new mongoose.Schema({
   start: { type: String, required: true, trim: true },
   end: { type: String, required: true, trim: true },
@@ -63,6 +68,15 @@ const locationSchema = new mongoose.Schema({
   },
   signatureDefaults: { type: [signatureDefaultSchema], default: [] },
   externalId: { type: String, default: '', trim: true },
+  flipOfficeUserId: {
+    type: String,
+    default: '',
+    trim: true,
+    validate: {
+      validator: isValidFlipOfficeUserId,
+      message: 'Die Flip-Office-Benutzer-ID muss eine UUID sein.',
+    },
+  },
   spaceFolder: {
     teamKey: { type: String, default: '', trim: true, lowercase: true },
     folderId: { type: String, default: '', trim: true },
@@ -92,5 +106,6 @@ locationSchema.pre('validate', function normalizeLocation(next) {
 });
 
 locationSchema.statics.normalize = normalize;
+locationSchema.statics.isValidFlipOfficeUserId = isValidFlipOfficeUserId;
 
 module.exports = mongoose.model('Location', locationSchema);

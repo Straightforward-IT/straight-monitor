@@ -40,10 +40,13 @@ router.post('/', auth, asyncHandler(async (req, res) => {
 
   const {
     nameFull, shortName, color, address, locationManager, contact, openingHours,
-    timeZone, legal, signatureDefaults, externalId, spaceFolder, deliveryNotes, settings, officeKunde,
+    timeZone, legal, signatureDefaults, externalId, spaceFolder, deliveryNotes, settings, officeKunde, flipOfficeUserId,
   } = req.body;
   if (!nameFull?.trim() || !shortName?.trim()) {
     return res.status(400).json({ message: 'nameFull und shortName sind erforderlich' });
+  }
+  if (flipOfficeUserId !== undefined && !Location.isValidFlipOfficeUserId(flipOfficeUserId)) {
+    return res.status(400).json({ message: 'Die Flip-Office-Benutzer-ID muss eine UUID sein.' });
   }
   if (!await validateLocationManager(locationManager)) {
     return res.status(400).json({ message: 'Die Standortleitung wurde nicht gefunden' });
@@ -65,6 +68,7 @@ router.post('/', auth, asyncHandler(async (req, res) => {
     nameFull, shortName, color, address, locationManager: locationManager || null, contact,
     openingHours, timeZone, legal, signatureDefaults, externalId, spaceFolder, deliveryNotes, settings,
     officeKunde: officeKunde || null,
+    flipOfficeUserId,
     createdBy: req.user.id,
   });
   await location.populate('locationManager', 'name email');
@@ -83,6 +87,9 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   if (!req.body.nameFull?.trim() || !req.body.shortName?.trim()) {
     return res.status(400).json({ message: 'nameFull und shortName sind erforderlich' });
+  }
+  if (req.body.flipOfficeUserId !== undefined && !Location.isValidFlipOfficeUserId(req.body.flipOfficeUserId)) {
+    return res.status(400).json({ message: 'Die Flip-Office-Benutzer-ID muss eine UUID sein.' });
   }
   if (req.body.locationManager !== undefined && !await validateLocationManager(req.body.locationManager)) {
     return res.status(400).json({ message: 'Die Standortleitung wurde nicht gefunden' });
@@ -105,7 +112,7 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
 
   const editableFields = [
     'address', 'locationManager', 'contact', 'openingHours', 'timeZone',
-    'legal', 'signatureDefaults', 'externalId', 'spaceFolder', 'deliveryNotes', 'settings', 'officeKunde',
+    'legal', 'signatureDefaults', 'externalId', 'spaceFolder', 'deliveryNotes', 'settings', 'officeKunde', 'flipOfficeUserId',
   ];
   editableFields.forEach((field) => {
     if (req.body[field] !== undefined) {

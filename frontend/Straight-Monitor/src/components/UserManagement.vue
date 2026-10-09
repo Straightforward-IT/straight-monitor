@@ -129,6 +129,11 @@
           </template>
           <template v-else>
           <div class="form-group"><label for="location-external-id">Externe ID</label><AppTextInput id="location-external-id" v-model="locationForm.externalId" type="text" :disabled="locationSaving" /></div>
+          <div class="form-group">
+            <label for="location-flip-office-user">Flip-Office-Benutzer-ID</label>
+            <AppTextInput id="location-flip-office-user" v-model="locationForm.flipOfficeUserId" type="text" placeholder="UUID des Team-Accounts" :disabled="locationSaving" />
+            <p class="hint-text">Das Dashboard zeigt heutige Flip Posts dieses Accounts. Der API-Account benötigt weiterhin Zugriff auf die jeweiligen Kanäle.</p>
+          </div>
           <div class="form-group"><label>Anlieferhinweise</label><textarea v-model="locationForm.deliveryNotes" rows="3" /></div>
           </template>
           <p v-if="locationModal.error" class="modal-error">{{ locationModal.error }}</p>
@@ -306,10 +311,6 @@
           </tbody>
         </table>
       </div>
-    </section>
-
-    <section v-else-if="activeTab === 'tarif'" class="tarif">
-      <p class="hint-text">Tarifbereiche werden hier künftig als Tabs ergänzt.</p>
     </section>
 
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
@@ -703,7 +704,6 @@ const managementTabs = [
   { id: 'emailTemplates', label: 'E-Mail-Vorlagen', icon: ['fas', 'envelope-open-text'] },
   { id: 'qualifikationen', label: 'Qualif. & Berufe', icon: ['fas', 'graduation-cap'] },
   { id: 'lohn', label: 'Lohn', icon: ['fas', 'money-bill-wave'] },
-  { id: 'tarif', label: 'Tarif', icon: ['fas', 'file-lines'] },
 ];
 
 const auth = useAuth();
@@ -743,6 +743,7 @@ const locationForm = reactive({
   legal: { legalName: '', vatId: '', registrationNumber: '' },
   signatureDefaults: [],
   externalId: '',
+  flipOfficeUserId: '',
   spaceFolder: { teamKey: '', folderId: '' },
   deliveryNotes: '',
   settings: {},
@@ -1081,6 +1082,7 @@ function resetLocationForm() {
   Object.assign(locationForm.legal, { legalName: '', vatId: '', registrationNumber: '' });
   locationForm.signatureDefaults = [];
   locationForm.externalId = '';
+  locationForm.flipOfficeUserId = '';
   Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '' });
   locationForm.deliveryNotes = '';
   locationForm.settings = {};
@@ -1109,6 +1111,7 @@ function openLocationEdit(location) {
     embedded: entry.embedded !== false,
   }));
   locationForm.externalId = location.externalId || '';
+  locationForm.flipOfficeUserId = location.flipOfficeUserId || '';
   Object.assign(locationForm.spaceFolder, { teamKey: '', folderId: '', ...location.spaceFolder });
   locationForm.deliveryNotes = location.deliveryNotes || '';
   locationForm.settings = location.settings || {};

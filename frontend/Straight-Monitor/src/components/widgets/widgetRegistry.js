@@ -97,6 +97,15 @@ export const WIDGET_DEFINITIONS = [
     defaultVisible: true,
   },
   {
+    id: 'flip-posts',
+    title: 'Flip Posts heute',
+    icon: ['fas', 'bullhorn'],
+    component: defineAsyncComponent(() => import('./WidgetFlipPosts.vue')),
+    description: 'Heutige Flip Posts der Standort-Team-Accounts mit Titel, Autor und Aufrufen (lokaler Kalendertag)',
+    defaultVisible: true,
+    requiresRole: ['ADMIN'],
+  },
+  {
     id: 'dispo-kommentare',
     title: 'Kommentare',
     icon: ['fas', 'comment-dots'],
