@@ -155,9 +155,10 @@ async function upload(file) {
   try {
     const form = new FormData();
     form.append('file', file);
-    form.append('type', 'einsatzinformation');
-    form.append('audience', 'job');
+    form.append('scope', 'public');
+    form.append('publicRecipientFilter', 'false');
     await api.post(`/api/auftraege/${props.auftragNr}/einsatzdokumente`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    await load();
   } catch (failure) {
     uploadError.value = failure?.response?.data?.message || 'Einsatzinfo konnte nicht hochgeladen werden.';
   } finally {

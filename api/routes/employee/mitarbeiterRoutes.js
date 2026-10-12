@@ -83,6 +83,7 @@ const { buildEmployeeR2Path } = require("../../utils/employeeR2Path");
 const kuendigungService = require("../../services/operations/KuendigungService");
 const SignaturVorgang = require("../../models/Signature/SignaturVorgang");
 const progressMap = new Map();
+const PAYROLL_R2_UPLOAD_CONCURRENCY = 6;
 
 const upload = multer({
   storage,
@@ -209,6 +210,18 @@ function indexEmployeesByPersonalnr(employees) {
   }
 
   return { employeeByPersonalnr, ambiguousPersonalnrs };
+}
+
+async function runWithConcurrency(items, concurrency, task) {
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex++];
+      await task(item);
+    }
+  });
+  await Promise.all(workers);
 }
 
 async function sendAllMailsInBackground(
@@ -355,12 +368,21 @@ router.get(
     if (requirePersonalnr === 'true') filter.$and.push({ personalnr: { $exists: true, $nin: [null, ''] } });
     if (berufIds.length) filter.berufe = { $in: berufIds };
     if (qualifikationIds.length) filter.qualifikationen = { $in: qualifikationIds };
-    if (persgruppeValues.length) filter.persgruppe = { $in: persgruppeValues };
+    if (persgruppeValues.length) {
+      const month = Mitarbeiter.currentPayrollMonth();
+      filter.$and.push({ $or: [
+        { lohnStammdaten: { $elemMatch: { month, persgruppe: { $in: persgruppeValues } } } },
+        { $and: [
+          { lohnStammdaten: { $not: { $elemMatch: { month, $or: [{ persgruppe: { $ne: null } }, { sourceId: { $ne: null } }, { persgruppe_set_explicitly: true }] } } } },
+          { persgruppe: { $in: persgruppeValues } },
+        ] },
+      ] });
+    }
     if (arbeitsverhaeltnisValues.length) filter['arbeitsverhaeltnis.typ'] = { $in: arbeitsverhaeltnisValues };
     if (standortIds.length) filter.locationV2 = { $in: standortIds };
     if (bewerber === 'true' || bewerber === 'false') filter.isBewerberstatus = bewerber === 'true';
     const results = await Mitarbeiter.find(filter)
-      .select('_id vorname nachname email personalnr flip_id profilbild persgruppe isActive locationV2')
+      .select('_id vorname nachname email personalnr flip_id profilbild persgruppe lohnStammdaten isActive locationV2')
       .limit(20)
       .lean();
     const normalizedSearch = search.toLocaleLowerCase('de-DE');
@@ -1965,13 +1987,30 @@ router.patch(
       });
     }
 
-    const currentMitarbeiter = await Mitarbeiter.findById(id).select("flip_id");
+    const currentMitarbeiter = await Mitarbeiter.findById(id).select("flip_id arbeitszeit lohnStammdaten persgruppe persgruppe_set_explicitly");
     if (!currentMitarbeiter) {
       return res.status(404).json({
         success: false,
         message: "Mitarbeiter mit dieser ID nicht gefunden.",
       });
     }
+
+    if (Object.hasOwn(updateData, "persgruppe")) {
+      const month = updateData.persgruppeMonth || Mitarbeiter.currentPayrollMonth();
+      const persgruppe = updateData.persgruppe == null || updateData.persgruppe === "" ? null : Number(updateData.persgruppe);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || (persgruppe != null && ![101, 110, 109, 106].includes(persgruppe))) {
+        return res.status(400).json({ success: false, message: "Ungültiger Monat oder ungültige Personengruppe." });
+      }
+      const entries = Mitarbeiter.collectLohnStammdaten(currentMitarbeiter);
+      const current = entries.find(entry => entry.month === month) || {};
+      updateData.lohnStammdaten = Mitarbeiter.mergeLohnStammdatenSnapshot(entries, {
+        ...current, month, persgruppe, persgruppe_set_explicitly: updateData.persgruppe_set_explicitly === true,
+      });
+      updateData.$unset = { ...updateData.$unset, persgruppe: "", persgruppe_set_explicitly: "" };
+    }
+    delete updateData.persgruppe;
+    delete updateData.persgruppeMonth;
+    delete updateData.persgruppe_set_explicitly;
 
     if (updateData.isActive === false && isProtectedFlipUserId(currentMitarbeiter.flip_id)) {
       return res.status(409).json({
@@ -2253,6 +2292,47 @@ router.put(
       }
       throw error;
     }
+  })
+);
+
+// --- Monthly payroll master data (Lohn-/Gehalt-Stammdaten) ---
+// The Zvoove import is the primary source. This endpoint allows correcting a
+// single month without touching the snapshots of any other month.
+router.patch(
+  "/mitarbeiter/:id/lohn-stammdaten/:month",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { id, month } = req.params;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || ""))) {
+      return res.status(400).json({ success: false, message: "Ungültiger Monat. Erwartet wird das Format YYYY-MM." });
+    }
+
+    const raw = req.body?.steuerklasse;
+    let steuerklasse = null;
+    if (raw != null && String(raw).trim() !== "") {
+      steuerklasse = Number.parseInt(String(raw).trim(), 10);
+      if (!Number.isInteger(steuerklasse) || steuerklasse < 1 || steuerklasse > 6) {
+        return res.status(400).json({ success: false, message: "Die Steuerklasse muss zwischen 1 (I) und 6 (VI) liegen." });
+      }
+    }
+
+    const mitarbeiter = await Mitarbeiter.findById(id).select("arbeitszeit lohnStammdaten");
+    if (!mitarbeiter) {
+      return res.status(404).json({ success: false, message: "Mitarbeiter mit dieser ID nicht gefunden." });
+    }
+
+    const existing = Mitarbeiter.collectLohnStammdaten(mitarbeiter);
+    const current = existing.find((entry) => entry.month === month) || {};
+
+    mitarbeiter.lohnStammdaten = Mitarbeiter.mergeLohnStammdatenSnapshot(existing, {
+      ...current,
+      month,
+      steuer: { ...(current.steuer || {}), klasse: steuerklasse },
+    });
+    await mitarbeiter.save();
+
+    const updated = await Mitarbeiter.findById(id);
+    res.json({ success: true, data: updated });
   })
 );
 
@@ -2888,6 +2968,7 @@ router.post(
       }
 
       const zip = new JSZip();
+      const r2Uploads = [];
       
       const monatLesbar = ganzesJahr ? "" : (MONATSNAMEN[monat.padStart(2, "0")] || monat);
       const stadtVars = STADT_TEMPLATE_VARS[stadt_full];
@@ -2897,6 +2978,42 @@ router.post(
           .status(400)
           .json({ error: `Unbekannter Standort: ${stadt_full}` });
       }
+
+      const userId = req.user?.id?.toString() || "default";
+      let payrollProcessingComplete = false;
+      let responseSettled = false;
+      let mailJobStarted = false;
+      const startMailJobWhenReady = () => {
+        if (mailJobStarted || !payrollProcessingComplete || !responseSettled) return;
+        mailJobStarted = true;
+        setImmediate(async () => {
+          try {
+            await sendAllMailsInBackground(
+              data,
+              userId,
+              originalPdf,
+              stadtVars,
+              monatLesbar,
+              jahr,
+              stadt_full,
+              stadt,
+              dokumentart,
+              ganzesJahr,
+              testMode
+            );
+          } catch (err) {
+            logger.error("Fehler im asynchronen Mailversand:", err);
+          }
+        });
+      };
+      const markResponseSettled = () => {
+        responseSettled = true;
+        startMailJobWhenReady();
+      };
+
+      // Remember an early client disconnect while R2 processing continues.
+      res.once("finish", markResponseSettled);
+      res.once("close", markResponseSettled);
 
       for (let i = 0; i < data.length; i++) {
         // console.log(data[i]);
@@ -2925,46 +3042,37 @@ router.post(
         const mitarbeiter = employeeByPersonalnr.get(rowPersonalnrs[i]);
         const r2Filename = `${safeNachname}_${safeVorname}_${dokumentart}_${period}.pdf`;
         const r2Key = buildEmployeeR2Path(mitarbeiter, 'documents/payroll', r2Filename);
-        await r2Service.uploadFile(r2Key, fileBuffer, 'application/pdf');
+        r2Uploads.push({ key: r2Key, buffer: fileBuffer });
 
         zip.file(filename, fileBuffer);
       }
+
+      await runWithConcurrency(
+        r2Uploads,
+        PAYROLL_R2_UPLOAD_CONCURRENCY,
+        ({ key, buffer }) => r2Service.uploadFile(key, buffer, 'application/pdf')
+      );
 
       const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
       const downloadName = ganzesJahr 
         ? `Abrechnungen_${stadt}_${jahr}.zip` 
         : `Abrechnungen_${stadt}_${monat}.zip`;
-        
-      res.set({
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename=${downloadName}`,
-      });
-      res.send(zipBuffer);
 
-      const userId = req.user?.id?.toString() || "default";
-      console.log(userId);
-      setImmediate(async () => {
-        try {
-          await sendAllMailsInBackground(
-            data,
-            userId,
-            originalPdf,
-            stadtVars,
-            monatLesbar,
-            jahr,
-            stadt_full,
-            stadt,
-            dokumentart,
-            ganzesJahr,
-            testMode
-          );
-        } catch (err) {
-          console.error("Fehler im asynchronen Mailversand:", err.message);
-        }
-      });
+      payrollProcessingComplete = true;
+      startMailJobWhenReady();
+
+      if (!res.destroyed) {
+        res.set({
+          "Content-Type": "application/zip",
+          "Content-Disposition": `attachment; filename=${downloadName}`,
+        });
+        res.send(zipBuffer);
+      }
     } catch (err) {
-      console.error("❌ Fehler beim Upload:", err);
-      res.status(500).json({ error: "Interner Serverfehler" });
+      logger.error("Fehler beim Upload der Lohnabrechnungen:", err);
+      if (!res.headersSent && !res.destroyed) {
+        res.status(500).json({ error: "Interner Serverfehler" });
+      }
     }
   })
 );

@@ -378,13 +378,26 @@ async function aboveTariffValues(employeeId, date, context) {
 const pick = (value, keys) => value ? Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key, value[key]])) : undefined;
 async function wageInfo(employeeId, date) {
   validateRead(employeeId, date);
-  if (!await Mitarbeiter.exists({ _id: employeeId })) fail(404, 'Mitarbeiter nicht gefunden.');
-  const importId = await activeId();
+  const [employee, importId] = await Promise.all([
+    Mitarbeiter.findById(employeeId).select('personalnr arbeitszeit lohnStammdaten'),
+    activeId(),
+  ]);
+  if (!employee) fail(404, 'Mitarbeiter nicht gefunden.');
   const data = importId ? await employeeDataset(importId, employeeId, date) : null;
   const baseRate = data ? domain.resolveBaseRate(data, employeeId, date, data.currentPersonalNr) : noActiveImport(date);
   const aboveTariff = data ? domain.resolveAboveTariff(data, employeeId, date, data.currentPersonalNr) : { ...noActiveImport(date), candidateCount: 0 };
+  const month = date.slice(0, 7);
+  const arbeitszeit = employee.getArbeitszeitSnapshotForMonth(month);
+  const steuerklasse = employee.getSteuerklasseForMonth(month);
   return {
     employeeId: String(employeeId), date, activeImportId: importId,
+    payrollMasterData: {
+      month,
+      weeklyHours: arbeitszeit?.woche != null && Number.isFinite(Number(arbeitszeit.woche)) ? Number(arbeitszeit.woche) : null,
+      taxClass: steuerklasse,
+      taxFactor: employee.getLohnStammdatenForMonth(month)?.steuer?.faktor ?? null,
+      personGroup: employee.getPersgruppeForMonth(month),
+    },
     baseRate: { ...pick(baseRate, ['status', 'date', 'currency', 'value', 'code', 'message', 'assignmentSelection']),
       assignment: pick(baseRate.assignment, ['legacyId', 'personalNr', 'validFrom', 'validUntil']),
       group: pick(baseRate.group, ['legacyId', 'name']), payGroup: pick(baseRate.payGroup, ['legacyId', 'name', 'position']),

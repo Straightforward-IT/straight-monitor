@@ -154,7 +154,7 @@ async function orderForUser(user, number, session = null) {
   return order;
 }
 async function employeeForUser(user, id) {
-  const employee = await Mitarbeiter.findById(objectId(id)).select('personalnr personalnrHistory vorname nachname locationV2 arbeitszeit arbeitsverhaeltnis').lean();
+  const employee = await Mitarbeiter.findById(objectId(id)).select('personalnr personalnrHistory vorname nachname locationV2 arbeitszeit lohnStammdaten arbeitsverhaeltnis').lean();
   if (!employee) fail(404, 'Mitarbeiter nicht gefunden.');
   if (!canAccess(user, employee.locationV2)) fail(403, 'Für diesen Mitarbeiterstandort fehlt die Berechtigung.');
   return employee;
@@ -275,8 +275,10 @@ async function monthView(user, employeeId, month) {
   const shifts = await Schicht.find({ _id: { $in: assignments.map(item => item.schicht).filter(Boolean) } }).select('_id uhrzeitVon uhrzeitBis').lean();
   const releasedIds = new Set(entries.map(item => String(item._id)));
   const pending = assignments.filter(item => !releasedIds.has(String(item._id)) && canAccess(user, orders.find(order => order.auftragNr === item.auftragNr)?.locationV2));
+  const employeeDoc = new Mitarbeiter(employee);
+  const monthlyHours = employeeDoc.getMonthlyWorkingHours ? employeeDoc.getMonthlyWorkingHours(month.slice(0, 4), month.slice(5, 7)) : 0;
   return {
-    employee: { id: String(employee._id), personalNr: employee.personalnr, name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: employee.arbeitszeit?.monat ?? 0, employmentLabel: ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || 'Arbeitsverhältnis' },
+    employee: { id: String(employee._id), personalNr: employee.personalnr, name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: Number.isFinite(Number(monthlyHours)) ? Number(monthlyHours) : 0, employmentLabel: ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || 'Arbeitsverhältnis' },
     month,
     dayEntryTypes: availableDayEntryTypes,
     initialData: { bankMinutes: 0, entries: [...entries.map(item => {

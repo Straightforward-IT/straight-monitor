@@ -1,0 +1,44 @@
+{
+  "types": [
+    {
+      "key": "NO_AMOUNT_ADDITION", "code": "0", "label": "Keine Addition im Durchschnittsbetrag",
+      "contributions": { "days": null, "hours": 0, "amount": 0 },
+      "note": "Stunden und Betrag werden nicht addiert. Ob Tage einer Fehlzeiten-Lohnart zählen, regelt eine separate Einstellung, die noch nachgepflegt werden muss."
+    },
+    {
+      "key": "ADD_ALL", "code": "1", "label": "Addition im Durchschnitt (Tage, Stunden, Betrag)",
+      "contributions": { "days": 1, "hours": 1, "amount": 1 },
+      "note": "Tage, Stunden und Betrag werden jeweils addiert."
+    },
+    {
+      "key": "ADD_AMOUNT", "code": "2", "label": "Nur Addition im Durchschnittsbetrag",
+      "contributions": { "days": 0, "hours": 0, "amount": 1 },
+      "note": "Nur der Betrag wird addiert. Tage und Stunden werden nicht verändert."
+    },
+    {
+      "key": "ADD_DAYS", "code": "3", "label": "Nur Tage im Durchschnitt",
+      "contributions": { "days": 1, "hours": 0, "amount": 0 },
+      "note": "Nur Tage werden addiert. Stunden und Betrag werden nicht verändert."
+    },
+    {
+      "key": "ADD_HOURS", "code": "4", "label": "Nur Stunden im Durchschnitt",
+      "contributions": { "days": 0, "hours": 1, "amount": 0 },
+      "note": "Nur Stunden werden addiert. Tage und Betrag werden nicht verändert."
+    },
+    {
+      "key": "SUBTRACT_ALL", "code": "5", "label": "Subtraktion im Durchschnitt (Tage, Stunden, Betrag)",
+      "contributions": { "days": -1, "hours": -1, "amount": -1 },
+      "note": "Tage, Stunden und Betrag werden jeweils subtrahiert."
+    },
+    {
+      "key": "SUBTRACT_AMOUNT", "code": "6", "label": "Nur Subtraktion im Durchschnittsbetrag",
+      "contributions": { "days": 0, "hours": 0, "amount": -1 },
+      "note": "Nur der Betrag wird subtrahiert. Tage und Stunden werden nicht verändert."
+    },
+    {
+      "key": "SUBTRACT_HOURS", "code": "7", "label": "Subtraktion im Durchschnitt (Stunden)",
+      "contributions": { "days": 0, "hours": -1, "amount": 0 },
+      "note": "Nur Stunden werden subtrahiert. Tage und Betrag werden nicht verändert."
+    }
+  ]
+}

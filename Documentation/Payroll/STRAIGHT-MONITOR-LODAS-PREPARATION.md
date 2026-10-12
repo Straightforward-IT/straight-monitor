@@ -1,5 +1,10 @@
 # Straight Monitor: monthly preparation for LODAS
 
+> Historical workflow: the active Payroll is being replaced by the read-only
+> Zvoove hours import and month view. Existing preparation data is retained, but
+> the preparation/review/LODAS routes and UI are no longer part of the active
+> workflow. See [Zvoove-Stundenimport.md](Zvoove-Stundenimport.md).
+
 ## Delivered phase
 
 `/payroll` is the employee/month workspace. The Stundenerfassung tab combines

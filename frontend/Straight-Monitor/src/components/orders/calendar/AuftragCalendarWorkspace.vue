@@ -1697,7 +1697,7 @@ export default {
       }
       if (this.isAdmin) {
         items.push({
-          label: "Stundenerfassung öffnen",
+          label: "Stundenschnellerfassung",
           icon: "fa-solid fa-clock",
           action: "open-time-entry",
         });
@@ -1727,6 +1727,13 @@ export default {
           icon: "fa-solid fa-user-plus",
         },
       ];
+      if (this.isAdmin) {
+        items.push({
+          label: "Stundenschnellerfassung",
+          action: "open-time-entry",
+          icon: "fa-solid fa-clock",
+        });
+      }
       if (this.selectedEvent?.isPseudo) {
         items.push({
           label: "Pseudo-Auftrag löschen",
@@ -2209,6 +2216,9 @@ export default {
     },
     async handleHeaderActionMenuAction(action) {
       this.showQuickActions = false;
+      if (action === "open-time-entry" && this.isAdmin && this.selectedEvent?.auftragNr) {
+        this.openTimeCapture({ auftragNr: String(this.selectedEvent.auftragNr) });
+      }
       if (action === "open-editor") await this.openEventEditor();
       if (action === "manage-labels") await this.openLabelDialog();
       if (action === "plan-pseudo") this.openPseudoDialog();

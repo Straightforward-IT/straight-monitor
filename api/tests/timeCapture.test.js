@@ -219,4 +219,52 @@ describe('Operational time capture API', function () {
       assert.equal((await request(`/orders/${order.auftragNr}/documents`)).status, 403);
     } finally { storage.getSignedDownloadUrl = original; }
   });
+
+  it('lists uploaded order documents and resolves only their linked file for preview and download', async () => {
+    const documentId = oid(), publicId = oid(), foreignId = oid();
+    await Auftrag.updateOne({ _id: order._id }, { $push: { einsatzdokumente: { $each: [
+      { _id: documentId, key: 'test/upload.pdf', filename: 'original.pdf', title: 'Stundenliste Oktoberfest', mimeType: 'application/pdf', scope: 'monitor', type: 'einsatznachweis' },
+      { _id: publicId, key: 'test/public.png', filename: 'anfahrt.png', mimeType: 'image/png', scope: 'public', audience: 'job' },
+    ] } } });
+    await Auftrag.create({ auftragNr: 9100002, locationV2: location, einsatzdokumente: [
+      { _id: foreignId, key: 'foreign/file.pdf', filename: 'fremd.pdf' },
+    ] });
+    const response = await request(`/orders/${order.auftragNr}/documents`);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.documents.length, 2);
+    const document = response.body.documents.find(doc => doc.recordId === String(documentId));
+    assert.equal(document.kind, 'upload');
+    assert.equal(document.title, 'Stundenliste Oktoberfest');
+    assert.equal(document.filename, 'original.pdf');
+    assert.equal(document.status, 'Einsatznachweis');
+    assert.equal(document.preview, 'url');
+    assert.equal(document.available, true);
+    assert.equal(response.body.documents.find(doc => doc.recordId === String(publicId)).mimeType, 'image/png');
+    assert.equal(JSON.stringify(response.body).includes('test/upload.pdf'), false);
+    const storage = require('../services/integrations/R2Service');
+    const original = storage.getSignedDownloadUrl; const calls = [];
+    storage.getSignedDownloadUrl = async (...args) => { calls.push(args); return 'https://storage.example.test/upload.pdf'; };
+    try {
+      assert.equal((await request(`/orders/${order.auftragNr}/documents/upload/${documentId}/preview?key=foreign/file.pdf`)).status, 200);
+      assert.deepEqual(calls[0], ['test/upload.pdf', 900, { inline: true, filename: 'original.pdf' }]);
+      assert.equal((await request(`/orders/${order.auftragNr}/documents/upload/${documentId}/preview?download=true`)).status, 200);
+      assert.equal(calls[1][2].inline, false);
+      assert.equal((await request(`/orders/${order.auftragNr}/documents/upload/${foreignId}/preview`)).status, 404);
+      await User.updateOne({ _id: user._id }, { $set: { locationV2: oid() } });
+      assert.equal((await request(`/orders/${order.auftragNr}/documents/upload/${documentId}/preview`)).status, 403);
+      assert.equal((await request(`/orders/${order.auftragNr}/documents`)).status, 403);
+    } finally { storage.getSignedDownloadUrl = original; }
+  });
+
+  it('preserves legacy role restrictions for uploaded order documents in listing and preview', async () => {
+    const documentId = oid();
+    await Auftrag.updateOne({ _id: order._id }, { $push: { einsatzdokumente: {
+      _id: documentId, key: 'test/restricted.pdf', filename: 'restricted.pdf',
+      audience: 'office_roles', allowedRoles: ['VERTRIEB'],
+    } } });
+    assert.equal((await request(`/orders/${order.auftragNr}/documents`)).body.documents.length, 0);
+    assert.equal((await request(`/orders/${order.auftragNr}/documents/upload/${documentId}/preview`)).status, 404);
+    await User.collection.updateOne({ _id: user._id }, { $set: { roles: ['USER', 'VERTRIEB'] } });
+    assert.equal((await request(`/orders/${order.auftragNr}/documents`)).body.documents.length, 1);
+  });
 });

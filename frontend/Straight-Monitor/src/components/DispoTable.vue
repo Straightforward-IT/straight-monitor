@@ -1669,6 +1669,7 @@ const vSetText = {
 };
 import { useRouter, useRoute } from 'vue-router';
 import api from '@/utils/api';
+import { personGroupForMonth } from '@/utils/employeePayrollMasterData';
 import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useFlipAll } from '@/stores/flipAll';
@@ -2983,7 +2984,7 @@ const filteredMitarbeiter = computed(() => {
     if (bewerber) list = list.filter((m) => String(Boolean(m.isBewerberstatus)) === bewerber);
     if (berufe.length) list = list.filter((m) => (m.berufe || []).some((item) => berufe.includes(String(item._id || item))));
     if (arbeitsverhaeltnisse.length) list = list.filter((m) => arbeitsverhaeltnisse.includes(String(m.arbeitsverhaeltnis?.typ)));
-    if (persgruppen.length) list = list.filter((m) => persgruppen.includes(String(m.persgruppe)));
+    if (persgruppen.length) list = list.filter((m) => persgruppen.includes(String(personGroupForMonth(m, (visibleDays.value[0]?.iso || toIso(new Date())).slice(0, 7)))));
     if (qualifikationen.length) list = list.filter((m) => (m.qualifikationen || []).some((item) => qualifikationen.includes(String(item._id || item))));
   }
   if (bereichFilter.value) {

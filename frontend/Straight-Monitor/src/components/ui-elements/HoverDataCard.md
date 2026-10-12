@@ -57,6 +57,64 @@ const overview = {
 
 Local preview: `/dev/hover-data-card` while running Vite. This route is excluded from production routing.
 
+## Importierte Stunden in Payroll
+
+`ZvooveTimeWorkspace` verwendet dieselbe Karte mit `importedHours`:
+
+```js
+{
+  type: 'hours', // KZF mit Tageskontingent: 'days-hours'
+  importedHours: {
+    total: '129',
+    limit: '129.9', // null: Stundenübersicht ohne Sollgrenze
+    byCode: [
+      { kb: '', label: 'Produktive Stunden', hours: '123', days: 19 },
+      { kb: 'FS', label: 'Tageskennzeichnung', hours: '0', days: 11 },
+      { kb: 'FA', label: 'Freizeitausgleich', hours: '6', days: 1 },
+    ],
+  },
+}
+```
+
+Das Diagramm und die Aufschlüsselung zeigen importierte Stunden statt
+Einsatz-Sollstunden. Die Gesamtmenge enthält alle Kennzeichen. Dezimalstrings
+bleiben für Anzeige und Restberechnung erhalten; nur die Diagrammgeometrie
+verwendet Zahlen. Nullstunden und Tagesmarker stehen weiter in der
+Aufschlüsselung. Negative Korrekturen bleiben vorzeichenrichtig erhalten; das
+Diagramm stellt dann den Saldo dar.
+
+Für Festangestellte und KZF normal/pauschal gilt das für den ausgewählten Monat
+aktuell gültige Soll, berechnet aus der passenden Arbeitszeit-Snapshot-Zeit und
+der Anzahl der Nicht-Wochenendtage des Monats; Feiertage werden dabei nicht
+zusätzlich abgezogen. Beide
+603-Gruppen zeigen in Payroll Stunden ohne Soll- oder Verdienstgrenze. Ohne Soll
+fehlen Restwerte und Überschreitungsmarker. Fehlende Tarifinformationen werden als
+Hinweis angezeigt, ohne die importierten Stunden zu unterdrücken.
+Das jährliche Tageskontingent bei KZF nutzt weiterhin Einsätze und
+Vorarbeitgebertage. EmployeeCard und Dispo übergeben kein `importedHours` und
+behalten ihre Einsatzprognose.
+
+Der Import **Monatliche Lohndaten (LGELENA)** im Datenimport ergänzt
+`lohnStammdaten` ab `2026-01` anhand von `LGJAHR` und `LGMONAT`.
+Gespeichert werden nur `ID` als `sourceId`, `PERSGR`, `STKLASSE`, `STFAKTOR`
+und `WOARBZEIT`. Brutto-, Steuer- und Beitragsbeträge, Kinderfreibetrag und
+Name werden nicht gespeichert. Die Spaltenzuordnung erfolgt nach Überschrift;
+die vollständige SQL-Exportdatei und ein reduzierter Export mit den acht
+benötigten Spalten sind zulässig. Frühere Personalnummern werden über
+`personalnrHistory` abgeglichen; mehrdeutige Zuordnungen und widersprüchliche
+Zeilen für denselben Mitarbeiter und Monat werden abgelehnt.
+
+Der Import ersetzt die gelieferten Monatswerte einschließlich leerer Felder,
+erhält aber andere Monate, Tagesstunden und Zeitkontolimits. Personengruppen
+mit einer manuellen Sperre werden nur für den betreffenden Monat geschützt.
+Steuerklasse `0` bedeutet „nicht hinterlegt“. Die Lohn-Informationskarte zeigt
+auch Steuerfaktor und Personengruppe für den ausgewählten Payroll-Monat.
+Personalfilter und Flip verwenden den aktuellen Geschäftsmonat; Dispo verwendet
+den Monat der ersten sichtbaren Datumsspalte. Die globale `persgruppe` ist nur
+noch ein Legacy-Lesefeld. `api/scripts/backfillLohnStammdaten.js` migriert sie
+ausschließlich in den aktuellen Monat, nicht in unbelegte historische Monate,
+und entfernt mit `--write` die alten globalen Felder.
+
 ## Modal
 
 `Modals/HoverDataCardModal.vue` bettet die Karte im Inline-Modus in den gemeinsamen
@@ -98,9 +156,12 @@ in anderen Monaten der letzte Monatstag.
 | 23437, 27356 | `days-earnings`: Tage und monatliche Verdienstprognose nebeneinander |
 
 Die kombinierten Karten verwenden zwei unabhängige Säulen, auch im schmalen
-Profilbereich. `monthlyHours` kommt aus `arbeitszeit.monat`. Fehlt der Wert oder
-fehlen Einsatzstunden, zeigt die Stundenhälfte einen Hinweis; die Tageshälfte
-bleibt verfügbar. Einzelkarten behalten die Auswahl zwischen Ring und Säule.
+Profilbereich. `monthlyHours` wird für den angefragten Monat aus dem passenden
+`lohnStammdaten`-Snapshot, dessen Wochenstunden (`arbeitszeit.woche`) und den
+Nicht-Wochenendtagen berechnet. Fehlt ein gültiger Snapshot oder fehlen
+Einsatzstunden, zeigt die
+Stundenhälfte einen Hinweis; die Tageshälfte bleibt verfügbar. Einzelkarten
+behalten die Auswahl zwischen Ring und Säule.
 
 `selectionBasis` unterscheidet `TARIFF_GROUP` und `EMPLOYMENT_TYPE`. Nur bei
 `ASSIGNMENT_MISSING` greift die bisherige Arbeitsverhältnis-Zuordnung:

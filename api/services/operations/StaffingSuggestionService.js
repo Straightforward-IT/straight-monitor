@@ -91,7 +91,7 @@ async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations =
   if (Array.isArray(employeeIds)) filter._id = { $in: employeeIds };
 
   const employees = await Mitarbeiter.find(filter)
-    .select('_id vorname nachname personalnr personalnrHistory telefon profilbild flip_id persgruppe locationV2 berufe qualifikationen kundenwuensche austrittsdatum')
+    .select('_id vorname nachname personalnr personalnrHistory telefon profilbild flip_id persgruppe lohnStammdaten locationV2 berufe qualifikationen kundenwuensche austrittsdatum')
     .populate({ path: 'berufe', select: 'jobKey designation', ordered: true })
     .populate('qualifikationen', 'qualificationKey designation')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')

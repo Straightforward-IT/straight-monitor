@@ -592,8 +592,7 @@ const navigationItems = computed(() => {
       active: isPayrollSectionActive.value, disabled: !canSeePayroll.value, beta: true,
       groupClass: 'nav-group--payroll', desktopChildren: [],
       children: [
-        child('payroll-capture', 'Stundenerfassung', '/payroll', route.name === 'Payroll' && (!route.query.tab || route.query.tab === 'stundenerfassung'), ['fas', 'clock']),
-        child('payroll-review', 'Monatsprüfung', { path: '/payroll', query: { tab: 'monatspruefung' } }, route.name === 'Payroll' && route.query.tab === 'monatspruefung', ['fas', 'list-check'])
+        child('payroll-capture', 'Stundenerfassung', '/payroll', route.name === 'Payroll', ['fas', 'clock'])
       ]
     },
     {

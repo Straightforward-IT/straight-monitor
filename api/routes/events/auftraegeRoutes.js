@@ -20,6 +20,7 @@ const StundenlisteService = require('../../services/operations/StundenlisteServi
 const TelefonlisteService = require('../../services/operations/TelefonlisteService');
 const { loadAuftragMitarbeiterExport } = require('../../services/operations/AuftragMitarbeiterExportService');
 const R2Service = require('../../services/integrations/R2Service');
+const { canAccessOfficeDocument } = require('../../services/operations/OrderDocumentAccessService');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
 const { buildStundenlistePdfFilename, contentDisposition } = require('../../utils/stundenlisteFilename');
 const {
@@ -56,18 +57,6 @@ function normalizeObjectIdList(value) {
   const ids = values.map(entry => String(entry).trim()).filter(Boolean);
   if (ids.some(id => !mongoose.isValidObjectId(id))) throw validationError('Ungültige Einsatz-Auswahl');
   return [...new Set(ids)];
-}
-
-function userRoles(user) {
-  return new Set([user?.role, ...(user?.roles || [])].filter(Boolean).map(role => String(role).toUpperCase()));
-}
-
-async function canAccessOfficeDocument(document, user) {
-  if (document.audience !== 'office_roles') return true;
-  const allowedRoles = document.allowedRoles?.length ? document.allowedRoles : ['ADMIN', 'VERTRIEB'];
-  const currentUser = await User.findById(user?._id || user?.id).select('role roles').lean();
-  const roles = userRoles(currentUser);
-  return allowedRoles.some(role => roles.has(role));
 }
 
 function serializeEinsatzDokument(document) {
@@ -868,7 +857,7 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
-        .select('vorname nachname email personalnr qualifikationen flip_id profilbild persgruppe isActive isBewerberstatus')
+        .select('vorname nachname email personalnr qualifikationen flip_id profilbild persgruppe lohnStammdaten isActive isBewerberstatus')
         .populate('qualifikationen')
         .lean() : [],
       berufKeys.length ? Beruf.find({ jobKey: { $in: berufKeys } }).lean() : [],

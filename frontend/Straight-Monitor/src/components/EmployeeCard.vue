@@ -1511,6 +1511,20 @@
             </div>
             <div v-if="arbeitsverhaeltnisTypLabel"><dt>Arbeitsverhältnis</dt><dd>{{ arbeitsverhaeltnisTypLabel }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.durchschnittBeiFortfuehren != null"><dt>Durchschnitt fortführen</dt><dd>{{ resolvedMa.arbeitsverhaeltnis.durchschnittBeiFortfuehren ? 'Ja' : 'Nein' }}</dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'steuerklasse' }">
+              <dt>Steuerklasse <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Steuerklasse bearbeiten" @click.stop="startEditStammdaten('steuerklasse')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'steuerklasse'">{{ formatSteuerklasse(steuerklasseForView(new Date(calendarYear, calendarMonth, 1))) }}</dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppSelect v-model="stammdatenDraft.steuerklasse" size="sm" aria-label="Steuerklasse" :disabled="savingStammdatenField">
+                  <option value="">Nicht angegeben</option>
+                  <option v-for="option in steuerklasseOptionen" :key="option.value" :value="String(option.value)">{{ option.label }}</option>
+                </AppSelect>
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Steuerklasse speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Bearbeitung der Steuerklasse abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
           </dl>
         </section>
         <section v-if="hasArbeitszeit" class="arbeitszeit-section">
@@ -1521,12 +1535,12 @@
           <dl class="arbeitszeit-grid">
             <div v-for="day in arbeitszeitTage" :key="day.key">
               <dt>{{ day.label }}</dt>
-              <dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.[day.key]) }}</dd>
+              <dd>{{ formatArbeitszeit(getArbeitszeitValue(day.key, new Date(calendarYear, calendarMonth, 1))) }}</dd>
             </div>
-            <div><dt>Woche</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.woche) }}</dd></div>
-            <div><dt>Monat</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.monat) }}</dd></div>
-            <div><dt>Zeitkonto +</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoPlusLimit) }}</dd></div>
-            <div><dt>Zeitkonto -</dt><dd>{{ formatArbeitszeit(resolvedMa.arbeitszeit?.zeitkontoMinusLimit) }}</dd></div>
+            <div><dt>Woche</dt><dd>{{ formatArbeitszeit(getArbeitszeitValue('woche', new Date(calendarYear, calendarMonth, 1))) }}</dd></div>
+            <div><dt>Monat</dt><dd>{{ formatArbeitszeit(monthlyHoursForView(new Date(calendarYear, calendarMonth, 1))) }}</dd></div>
+            <div><dt>Zeitkonto +</dt><dd>{{ formatArbeitszeit(getArbeitszeitValue('zeitkontoPlusLimit', new Date(calendarYear, calendarMonth, 1))) }}</dd></div>
+            <div><dt>Zeitkonto -</dt><dd>{{ formatArbeitszeit(getArbeitszeitValue('zeitkontoMinusLimit', new Date(calendarYear, calendarMonth, 1))) }}</dd></div>
             <div v-if="resolvedMa.arbeitsverhaeltnis?.typ === 3"><dt>Vorarbeitgeber</dt><dd>{{ vorarbeitgebertageDisplay }} Tage</dd></div>
           </dl>
         </section>
@@ -1747,6 +1761,7 @@ import SearchBar from "./SearchBar.vue";
 import R2FileBrowser from "./R2FileBrowser.vue";
 import HoverDataCard from "./ui-elements/HoverDataCard.vue";
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
+import { personGroupForMonth, currentPayrollMonth } from '@/utils/employeePayrollMasterData';
 import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
 import AppButton from "./ui-elements/AppButton.vue";
 import AppIconButton from "./ui-elements/AppIconButton.vue";
@@ -2168,7 +2183,8 @@ export default {
     },
     persgruppeLabel() {
       const map = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
-      return this.resolvedMa?.persgruppe ? map[this.resolvedMa.persgruppe] ?? null : null;
+      const month = `${this.calendarYear}-${String(this.calendarMonth + 1).padStart(2, '0')}`;
+      return map[personGroupForMonth(this.resolvedMa, month)] ?? null;
     },
     arbeitszeitTage() {
       return [
@@ -2178,8 +2194,13 @@ export default {
         { key: 'sonntag', label: 'So' },
       ];
     },
-    hasArbeitszeit() {
-      return Object.values(this.resolvedMa?.arbeitszeit || {}).some((value) => value != null);
+    steuerklasseOptionen() {
+      return ['I', 'II', 'III', 'IV', 'V', 'VI'].map((label, index) => ({ value: index + 1, label }));
+    },
+    hasArbeitszeit() {      const entries = [this.resolvedMa?.lohnStammdaten, this.resolvedMa?.arbeitszeit]
+        .flatMap((value) => (Array.isArray(value) ? value : [value]))
+        .filter(Boolean);
+      return entries.length > 0;
     },
     hasArbeitsverhaeltnis() {
       return Object.values(this.resolvedMa?.arbeitsverhaeltnis || {}).some((value) => value != null);
@@ -2547,6 +2568,9 @@ export default {
           iban: employee.iban || '',
           von: dateForInput(employee.arbeitsverhaeltnis?.von),
         },
+        steuerklasse: {
+          steuerklasse: String(this.steuerklasseForView(new Date(this.calendarYear, this.calendarMonth, 1)) || ''),
+        },
       };
 
       this.stammdatenDraft = drafts[field] || {};
@@ -2565,7 +2589,13 @@ export default {
       if (!field || !employee?._id || this.savingStammdatenField) return;
 
       let update;
-      if (field === 'email') {
+      let endpoint = `/api/personal/mitarbeiter/${employee._id}`;
+      if (field === 'steuerklasse') {
+        // Tax class is a monthly snapshot, so it is written per calendar month.
+        const month = `${this.calendarYear}-${String(this.calendarMonth + 1).padStart(2, '0')}`;
+        endpoint = `/api/personal/mitarbeiter/${employee._id}/lohn-stammdaten/${month}`;
+        update = { steuerklasse: this.stammdatenDraft.steuerklasse || null };
+      } else if (field === 'email') {
         update = {
           email: this.stammdatenDraft.email?.trim() || '',
           additionalEmails: (this.stammdatenDraft.additionalEmails || '')
@@ -2615,7 +2645,7 @@ export default {
 
       this.savingStammdatenField = true;
       try {
-        const response = await api.patch(`/api/personal/mitarbeiter/${employee._id}`, update);
+        const response = await api.patch(endpoint, update);
         if (!response.data?.success) {
           throw new Error(response.data?.message || 'Die Stammdaten konnten nicht gespeichert werden.');
         }
@@ -2855,6 +2885,83 @@ export default {
       } catch {
         return '—';
       }
+    },
+    resolveLohnStammdaten(targetDate = new Date()) {
+      const toEntries = (value) => (Array.isArray(value) ? value.filter(Boolean) : [value].filter(Boolean));
+      const modern = toEntries(this.resolvedMa?.lohnStammdaten);
+      const legacy = toEntries(this.resolvedMa?.arbeitszeit).map((entry) => {
+        const { month, von, bis, ...arbeitszeit } = entry;
+        return { month: month ?? null, von: von ?? null, bis: bis ?? null, arbeitszeit, steuer: {} };
+      });
+      const coveredMonths = new Set(modern.map((entry) => entry?.month).filter(Boolean));
+      const snapshots = [
+        ...modern,
+        ...legacy.filter((entry) => !entry.month || !coveredMonths.has(entry.month)),
+      ];
+      if (!snapshots.length) return null;
+
+      const date = targetDate instanceof Date ? targetDate : new Date(targetDate);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthStart = new Date(Date.UTC(date.getFullYear(), date.getMonth(), 1));
+      const monthEnd = new Date(Date.UTC(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999));
+      const overlapsMonth = (entry) => {
+        const from = entry?.von ? new Date(entry.von) : null;
+        const till = entry?.bis ? new Date(entry.bis) : null;
+        if (from && (!Number.isFinite(from.getTime()) || from > monthEnd)) return false;
+        if (till && (!Number.isFinite(till.getTime()) || till < monthStart)) return false;
+        return true;
+      };
+      const exact = snapshots.filter((entry) => entry?.month === monthKey && (entry.sourceId || overlapsMonth(entry)));
+      const candidates = exact.length
+        ? exact
+        : snapshots.filter((entry) => !entry?.month && overlapsMonth(entry));
+      if (!candidates.length) return null;
+      candidates.sort((left, right) => {
+        const leftTime = left?.von ? new Date(left.von).getTime() : 0;
+        const rightTime = right?.von ? new Date(right.von).getTime() : 0;
+        return rightTime - leftTime;
+      });
+      return candidates[0];
+    },
+    resolveArbeitszeitSnapshot(targetDate = new Date()) {
+      const entry = this.resolveLohnStammdaten(targetDate);
+      if (!entry) return {};
+      return {
+        month: entry.month ?? null,
+        von: entry.von ?? null,
+        bis: entry.bis ?? null,
+        ...(entry.arbeitszeit || {}),
+      };
+    },
+    steuerklasseForView(targetDate = new Date()) {
+      const klasse = Number(this.resolveLohnStammdaten(targetDate)?.steuer?.klasse ?? null);
+      return Number.isInteger(klasse) && klasse >= 1 && klasse <= 6 ? klasse : null;
+    },
+    formatSteuerklasse(value) {
+      const romans = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+      return value ? romans[value - 1] : '—';
+    },
+    getArbeitszeitValue(field, targetDate = new Date()) {
+      const snapshot = this.resolveArbeitszeitSnapshot(targetDate);
+      return Object.prototype.hasOwnProperty.call(snapshot, field) ? snapshot[field] : null;
+    },
+    monthlyHoursForView(targetDate = new Date()) {
+      const snapshot = this.resolveArbeitszeitSnapshot(targetDate);
+      const weekHours = Number(snapshot?.woche ?? null);
+      if (Number.isFinite(weekHours) && weekHours > 0) {
+        const date = targetDate instanceof Date ? targetDate : new Date(targetDate);
+        const year = date.getFullYear();
+        const monthIndex = date.getMonth();
+        const monthDays = new Date(year, monthIndex + 1, 0).getDate();
+        let workdays = 0;
+        for (let day = 1; day <= monthDays; day += 1) {
+          const weekday = new Date(year, monthIndex, day).getDay();
+          if (weekday !== 0 && weekday !== 6) workdays += 1;
+        }
+        return (weekHours * workdays) / 5;
+      }
+      const legacyValue = Number(snapshot?.monat ?? null);
+      return Number.isFinite(legacyValue) && legacyValue > 0 ? legacyValue : null;
     },
     formatArbeitszeit(value) {
       if (value == null || value === '') return '—';
@@ -3407,7 +3514,7 @@ export default {
       const canonMap = { 'hamburg': 'Hamburg', 'berlin': 'Berlin', 'köln': 'Köln', 'koeln': 'Köln', 'koln': 'Köln' };
       const canonLoc = canonMap[rawLoc.toLowerCase()] || (['Hamburg','Berlin','Köln'].includes(rawLoc) ? rawLoc : '');
       const isTl = this.isTeamleiter;
-      const isFesti = this.resolvedMa?.persgruppe === 101;
+      const isFesti = personGroupForMonth(this.resolvedMa, currentPayrollMonth()) === 101;
       this.flipCreateOptions = {
         location: canonLoc,
         isService: false,

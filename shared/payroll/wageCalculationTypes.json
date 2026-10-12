@@ -1,0 +1,70 @@
+{
+  "fields": {
+    "amount": { "label": "Betrag", "unit": "EUR" },
+    "days": { "label": "Tage", "unit": "day" },
+    "hoursPerDay": { "label": "Stunden je Tag", "unit": "hour/day" },
+    "hours": { "label": "Stunden", "unit": "hour" },
+    "hourlyRate": { "label": "Stundenlohn", "unit": "EUR/hour" },
+    "hourlySupplement": { "label": "Zuschlag je Stunde", "unit": "EUR/hour" },
+    "averageHourlyRate": { "label": "Durchschnitt je Stunde", "unit": "EUR/hour" },
+    "units": { "label": "Einheiten", "unit": "unit" },
+    "unitRate": { "label": "Betragssatz je Einheit", "unit": "EUR/unit" },
+    "baseAmount": { "label": "Betragssatz", "unit": "EUR" },
+    "supplementFactor": { "label": "Zuschlagsfaktor", "unit": "factor" }
+  },
+  "types": [
+    {
+      "key": "AMOUNT", "code": "0", "label": "Betrag",
+      "formula": "amount", "inputs": ["amount"], "requiredContext": [],
+      "note": "Der eingegebene Betrag ist die Berechnungsgrundlage."
+    },
+    {
+      "key": "DAYS_HOURS_RATE", "code": "1", "label": "Tage × Stunden/Tag × Stundenlohn",
+      "formula": "days * hoursPerDay * hourlyRate", "inputs": ["days", "hoursPerDay", "hourlyRate"],
+      "requiredContext": ["HOURLY_RATE_SOURCE"],
+      "note": "Die Stundenlohnquelle muss für die konkrete Lohnart festgelegt sein. Bei unterschiedlichen Tagesstunden oder Sätzen sind getrennte Positionen erforderlich."
+    },
+    {
+      "key": "HOURS_RATE", "code": "2", "label": "Stunden × Stundenlohn",
+      "formula": "hours * hourlyRate", "inputs": ["hours", "hourlyRate"],
+      "requiredContext": ["HOURLY_RATE_SOURCE"],
+      "note": "Normalstunden und eine separat ausgewiesene ÜTZ benötigen jeweils ihren eigenen Satz. Tariflohn plus ÜTZ ist keine allgemeine Satzquelle für jede Lohnart."
+    },
+    {
+      "key": "HOURS_RATE_WITH_SUPPLEMENT", "code": "3", "label": "Stunden × (Stundenlohn + Zuschlag)",
+      "formula": "hours * (hourlyRate + hourlySupplement)", "inputs": ["hours", "hourlyRate", "hourlySupplement"],
+      "requiredContext": ["HOURLY_RATE_SOURCE", "SUPPLEMENT_BASIS"],
+      "note": "Ein prozentualer Zuschlag muss anhand einer festgelegten Bezugsbasis zuerst in EUR je Stunde umgerechnet werden."
+    },
+    {
+      "key": "HOURS_SUPPLEMENT", "code": "4", "label": "Stunden × Zuschlag",
+      "formula": "hours * hourlySupplement", "inputs": ["hours", "hourlySupplement"],
+      "requiredContext": ["SUPPLEMENT_BASIS"],
+      "note": "Diese Formel umfasst nur den Zuschlag. Die Bezugsbasis eines prozentualen Zuschlags ist noch festzulegen."
+    },
+    {
+      "key": "HOURS_AVERAGE", "code": "5", "label": "Stunden × Durchschnitt",
+      "formula": "hours * averageHourlyRate", "inputs": ["hours", "averageHourlyRate"],
+      "requiredContext": ["AVERAGE_HOURLY_RATE_SOURCE"],
+      "note": "TODO: tarifkonformes Schnitt-Tool. Ein Durchschnitt in EUR je Stunde darf nicht aus einem Stundenschnitt oder dem aktuellen Tariflohn abgeleitet werden."
+    },
+    {
+      "key": "UNITS_RATE", "code": "6", "label": "Einheiten × Betragssatz",
+      "formula": "units * unitRate", "inputs": ["units", "unitRate"],
+      "requiredContext": ["UNIT_RATE_SOURCE"],
+      "note": "Einheit und zugehöriger Betragssatz müssen für den Eintrag feststehen."
+    },
+    {
+      "key": "AMOUNT_SUPPLEMENT", "code": "7", "label": "Betragssatz × Zuschlag",
+      "formula": "baseAmount * supplementFactor", "inputs": ["baseAmount", "supplementFactor"],
+      "requiredContext": ["AMOUNT_RATE_SOURCE", "SUPPLEMENT_BASIS"],
+      "note": "Die Bedeutung des Zuschlags muss bestätigt werden. Bei einem prozentualen Zuschlag entspricht der Faktor Prozent / 100."
+    },
+    {
+      "key": "AMOUNT_FROM_HOURS_RATE", "code": "17", "label": "Betrag (Stunden × Stundenlohn)",
+      "formula": "hours * hourlyRate", "inputs": ["hours", "hourlyRate"],
+      "requiredContext": ["HOURLY_RATE_SOURCE", "TYPE_17_AMOUNT_SEMANTICS"],
+      "note": "Klärung erforderlich: Unterschied zu Art 2 und Vorrang eines vorhandenen Betrags gegenüber einer Neuberechnung. Bis dahin keine automatische Berechnung."
+    }
+  ]
+}

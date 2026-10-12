@@ -108,7 +108,7 @@
     </div>
 
     <div class="actions">
-      <AppButton variant="secondary" @click="openPreview" :disabled="!readyToSplit || loading">
+      <AppButton variant="secondary" :loading="previewLoading" @click="openPreview" :disabled="!readyToSplit || loading || previewLoading">
         Vorschau 👁️
       </AppButton>
       <AppButton :loading="loading" :disabled="!readyToSplit" @click="startSplitting">
@@ -120,13 +120,17 @@
     <!-- Preview Modal -->
     <ModalFrame
       v-if="showPreviewModal"
-      :title="`Vorschau Seite ${previewPageNum} von ${previewTotalPages}`"
+      :title="previewLoading ? 'Vorschau wird geladen …' : `Vorschau Seite ${previewPageNum} von ${previewTotalPages}`"
       size="full"
       style="--mf-max-width: min(1400px, 95vw); --mf-max-height: 90vh; --mf-body-padding: 0; --mf-body-overflow: hidden"
       @close="closePreview"
     >
         
-        <div class="preview-body-split">
+        <div v-if="previewLoading" class="preview-loading" role="status">
+          <span class="preview-loading-spinner" aria-hidden="true"></span>
+          <span>PDF-Vorschau wird geladen …</span>
+        </div>
+        <div v-else class="preview-body-split">
             <!-- Left: Canvas Area with Pan/Zoom -->
             <div 
                 class="canvas-wrapper" 
@@ -189,7 +193,7 @@
             </div>
         </div>
 
-      <template #footer>
+      <template v-if="!previewLoading" #footer>
         <div class="preview-footer-controls">
             <AppButton variant="secondary" size="sm" @click="prevPage" :disabled="previewPageNum <= 1">← Zurück</AppButton>
             <span class="page-indicator">{{ previewPageNum }} / {{ previewTotalPages }}</span>
@@ -252,6 +256,7 @@ export default {
       previewCanvas: null,
       currentPerson: null,
       previewError: null,
+      previewLoading: false,
       searchQuery: "",
       
       // Zoom & Pan
@@ -355,8 +360,11 @@ export default {
     },
     async openPreview() {
       if (!this.pdfFile || !this.excelData.length || this.loading) return;
-      this.showPreviewModal = true;
       this.previewPageNum = 1;
+      this.previewPdfDoc = null;
+      this.previewTotalPages = 0;
+      this.previewLoading = true;
+      this.showPreviewModal = true;
 
       // Reset view on fresh open
       this.resetView();
@@ -368,8 +376,13 @@ export default {
         const loadingTask = pdfjsLib.getDocument(new Uint8Array(arrayBuffer));
         
         const pdf = await loadingTask.promise;
+        if (!Number.isInteger(pdf.numPages) || pdf.numPages < 1) {
+          throw new Error("Die PDF enthält keine Seiten.");
+        }
+
         this.previewPdfDoc = markRaw(pdf);
         this.previewTotalPages = pdf.numPages;
+        this.previewLoading = false;
         
         this.$nextTick(() => {
              this.renderPage(this.previewPageNum);
@@ -384,6 +397,8 @@ export default {
              alert("Konnte PDF nicht laden: " + err.message);
         }
         this.showPreviewModal = false;
+      } finally {
+        this.previewLoading = false;
       }
     },
     async renderPage(num) {
@@ -501,6 +516,7 @@ export default {
     closePreview() {
         this.showPreviewModal = false;
         this.previewPdfDoc = null;
+        this.previewLoading = false;
     },
     handleDrop(e) {
       if (this.loading) return;
@@ -745,6 +761,29 @@ export default {
   transition: width .35s ease;
 }
 
+
+.preview-loading {
+   min-height: 320px;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   gap: 14px;
+   color: var(--muted);
+}
+
+.preview-loading-spinner {
+   width: 36px;
+   height: 36px;
+   border: 3px solid var(--border);
+   border-top-color: var(--primary);
+   border-radius: 50%;
+   animation: preview-spin 0.8s linear infinite;
+}
+
+@keyframes preview-spin {
+   to { transform: rotate(360deg); }
+}
 
 .preview-body-split {
    flex: 1;

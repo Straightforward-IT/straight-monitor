@@ -445,6 +445,7 @@
 
 <script>
 import api from "@/utils/api";
+import { personGroupForMonth } from '@/utils/employeePayrollMasterData';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import EmployeeCard from "@/components/EmployeeCard.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
@@ -869,9 +870,9 @@ export default {
 
       // Persgruppe Filter
       if (this.filters.persgruppen.includes('Keine')) {
-        result = result.filter((ma) => ma.persgruppe == null);
+        result = result.filter((ma) => personGroupForMonth(ma) == null);
       } else if (this.filters.persgruppen.length > 0) {
-        result = result.filter((ma) => this.filters.persgruppen.includes(ma.persgruppe));
+        result = result.filter((ma) => this.filters.persgruppen.includes(personGroupForMonth(ma)));
       }
 
       if (this.filters.arbeitsverhaeltnisse.length > 0) {

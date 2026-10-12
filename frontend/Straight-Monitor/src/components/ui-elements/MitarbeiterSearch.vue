@@ -317,7 +317,6 @@ async function fetchResults() {
       includeInactive: props.includeInactive,
       requirePersonalnr: props.requirePersonalnr,
       preferActive: props.preferActive,
-      nameOnly: props.simple,
       ...filterParams(),
     } });
     if (currentRequest !== requestId) return;

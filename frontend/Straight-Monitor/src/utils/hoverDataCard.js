@@ -1,3 +1,5 @@
+import { formatImportedHours, sumImportedHours } from './importedHours.js';
+
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const nonNegative = value => Math.max(0, finite(value));
 
@@ -61,7 +63,59 @@ function common(data, title) {
   };
 }
 
+function importedHoursView(data) {
+  const imported = data.importedHours;
+  const total = String(imported.total ?? '0');
+  const limit = imported.limit != null && imported.limit !== '' && Number.isFinite(Number(imported.limit)) && Number(imported.limit) >= 0
+    ? String(imported.limit) : null;
+  const breakdown = imported.byCode || [];
+  const segments = breakdown.map(row => {
+    const prefix = `${row.kb || 'P'} · `;
+    const label = row.label || (row.kb ? 'Kennzeichen' : 'Produktive Stunden');
+    return {
+      id: `kb-${row.kb || 'productive'}`,
+      label: label.startsWith(prefix) ? label : `${prefix}${label}`,
+      value: finite(row.hours),
+      valueDisplay: formatImportedHours(row.hours, 2),
+      color: row.kind === 'unresolved' ? '#d9a441' : row.kb === 'FS' ? '#69b4b2' : row.kb ? '#a694cf' : '#94a3b8',
+    };
+  });
+  const sections = [{ rows: [{ label: 'Erfasste Stunden', value: `${formatImportedHours(total, 2)} Std.`, emphasis: true }] }, {
+    label: 'Erfasste Stunden nach Kennzeichen', rows: breakdown.map((row, index) => ({
+      label: segments[index].label,
+      value: `${formatImportedHours(row.hours, 2)} Std. · ${row.days ?? 0} ${(row.days ?? 0) === 1 ? 'Tag' : 'Tage'}`,
+      segment: segments[index].id,
+    })),
+  }];
+  if (limit !== null) {
+    const difference = sumImportedHours([limit, total.startsWith('-') ? total.slice(1) : `-${total.replace(/^\+/, '')}`]);
+    const exceedsLimit = difference.startsWith('-');
+    const remaining = exceedsLimit ? '0' : difference;
+    const overLimit = exceedsLimit ? difference.slice(1) : '0';
+    segments.push({ id: 'remaining', label: 'Verbleibend', value: finite(remaining), valueDisplay: formatImportedHours(remaining, 2), color: '#62b58f' });
+    if (exceedsLimit) segments.push({ id: 'over-limit', label: 'Überschreitung', value: finite(overLimit), valueDisplay: formatImportedHours(overLimit, 2), color: '#dc665e' });
+    sections.push({ rows: [
+      { label: 'Monats-Sollstunden', value: `${formatImportedHours(limit, 2)} Std.` },
+      { label: 'Verbleibend', value: `${formatImportedHours(remaining, 2)} Std.`, segment: 'remaining' },
+      ...(exceedsLimit ? [{ label: 'Überschreitung', value: `${formatImportedHours(overLimit, 2)} Std.`, segment: 'over-limit', emphasis: true }] : []),
+    ] });
+  }
+  // Signed corrections remain visible in the breakdown. A separate net segment
+  // prevents a positive-only chart from overstating the imported total.
+  const hasCorrections = segments.some(segment => segment.value < 0) || finite(total) < 0;
+  return {
+    type: HOVER_DATA_CARD_TYPES.HOURS, ...common(data, 'Erfasste Stunden'),
+    metric: { value: finite(total), limit: limit === null ? null : finite(limit), unit: 'Std.', valueDisplay: formatImportedHours(total, 2), limitDisplay: limit === null ? null : formatImportedHours(limit, 2) },
+    metadata: [], segments, sections,
+    ...(hasCorrections ? {
+      diagramSegments: [{ id: 'net-hours', label: 'Saldo der erfassten Stunden', value: Math.max(0, finite(total)), valueDisplay: formatImportedHours(total, 2), color: '#94a3b8' }, ...segments.filter(segment => ['remaining', 'over-limit'].includes(segment.id))],
+      note: 'Das Diagramm zeigt den Saldo. Negative Stundenkorrekturen stehen in der Aufschlüsselung.',
+    } : {}),
+  };
+}
+
 function hoursView(data) {
+  if (data.importedHours) return importedHoursView(data);
   if (data.hoursStatus === 'UNRESOLVED') return {
     type: 'notice', ...common(data, 'Monatsstunden'),
     note: 'Klärung erforderlich. Das Stundenkontingent kann nicht vollständig berechnet werden.',
@@ -156,6 +210,7 @@ function withSegmentRoles(view) {
   return {
     ...view,
     segments: (view.segments || []).map(segment => ({ ...segment, role: segment.role || SEGMENT_ROLES[segment.id] || 'used' })),
+    ...(view.diagramSegments ? { diagramSegments: view.diagramSegments.map(segment => ({ ...segment, role: segment.role || SEGMENT_ROLES[segment.id] || 'used' })) } : {}),
   };
 }
 
@@ -181,7 +236,7 @@ function resolveView(data) {
       ...common(data, 'Tages- und Stundenkontingent'), type: HOVER_DATA_CARD_TYPES.DAYS_HOURS,
       panels: [
         { ...data, type: 'days', title: 'Arbeitstage', employeeName: '', eyebrow: '', group: null, fallbackReason: null, issues: [] },
-        { ...data, type: 'hours', title: 'Monatsstunden', employeeName: '', eyebrow: '', group: null, fallbackReason: null, issues: data.hoursIssues || [] },
+        { ...data, type: 'hours', title: data.importedHours ? 'Erfasste Stunden' : 'Monatsstunden', employeeName: '', eyebrow: '', group: null, fallbackReason: null, issues: data.hoursIssues || [] },
       ], segments: [], sections: [],
     };
     case HOVER_DATA_CARD_TYPES.DAYS: return daysView(data);

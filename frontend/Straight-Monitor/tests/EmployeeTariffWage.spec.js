@@ -5,7 +5,7 @@ import EmployeeTariffWage from '../src/components/tariffs/EmployeeTariffWage.vue
 const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, auth: null }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
-const fixture = () => ({ date: '2026-10-07', activeImportId: 'import', baseRate: { status: 'RESOLVED', value: '15.33', payGroup: { name: 'EG 1' }, group: { name: 'Lohn Ost KZF' }, stage: { name: 'Eingangsstufe' } }, aboveTariff: { status: 'RESOLVED', values: { DPREIS: '2.40', DPREISPROD: '7.99' } } });
+const fixture = () => ({ date: '2026-10-07', activeImportId: 'import', payrollMasterData: { month: '2026-10', taxClass: 4, weeklyHours: 35.5 }, baseRate: { status: 'RESOLVED', value: '15.33', payGroup: { name: 'EG 1' }, group: { name: 'Lohn Ost KZF' }, stage: { name: 'Eingangsstufe' } }, aboveTariff: { status: 'RESOLVED', values: { DPREIS: '2.40', DPREISPROD: '7.99' } } });
 const pending = () => { let resolve; return { promise: new Promise(yes => { resolve = yes; }), resolve: value => resolve(value) }; };
 let wrapper;
 async function render(props = {}) { wrapper = mount(EmployeeTariffWage, { props: { employeeId: 'employee-1', date: '2026-10-07', ...props } }); await flushPromises(); }
@@ -22,9 +22,28 @@ describe('Tariflohn in der Mitarbeiter-Lohnsection', () => {
     expect(wrapper.get('[data-wage="above"]').text()).toBe('2,40 €');
     expect(wrapper.text()).toContain('07.10.2026');
     expect(wrapper.get('[data-wage="total"]').text()).toBe('17,73 €');
+    expect(wrapper.get('[data-wage="tax-class"]').text()).toBe('IV');
+    expect(wrapper.get('[data-wage="weekly-hours"]').text()).toBe('35,5 Std.');
     expect(wrapper.text()).not.toContain('7,99');
     expect(mocks.api.get.mock.calls[0][0]).toBe('/api/tariffs/employees/employee-1/wage-info');
     expect(mocks.api.get.mock.calls[0][1].params).toEqual({ date: '2026-10-07' });
+  });
+  it('kennzeichnet fehlende monatliche Lohnstammdaten ausdrücklich', async () => {
+    const data = fixture();
+    data.payrollMasterData = { month: '2026-10', taxClass: null, weeklyHours: null };
+    mocks.api.get.mockResolvedValueOnce({ data });
+    await render();
+    expect(wrapper.get('[data-wage="tax-class"]').text()).toBe('Nicht hinterlegt');
+    expect(wrapper.get('[data-wage="weekly-hours"]').text()).toBe('Nicht hinterlegt');
+  });
+  it('zeigt monatlichen Steuerfaktor und monatliche Personengruppe', async () => {
+    const data = fixture();
+    data.payrollMasterData.taxFactor = 0.92;
+    data.payrollMasterData.personGroup = 106;
+    mocks.api.get.mockResolvedValueOnce({ data });
+    await render({ compact: true });
+    expect(wrapper.get('[data-wage="tax-factor"]').text()).toBe('0,92');
+    expect(wrapper.get('[data-wage="person-group"]').text()).toBe('106 · Werkstudent');
   });
   it('kann im kompakten Modus Kontextzeile und Zusatzabsätze zusammenfassen', async () => {
     await render({ compact: true });

@@ -535,10 +535,17 @@ describe('Eigenständige Tarif-API', function () {
   });
 
   it('returns compact wage info, missing ÜTZ and overlapping ÜTZ without inventing a value', async () => {
+    await Mitarbeiter.collection.updateOne({ _id: first._id }, { $set: {
+      lohnStammdaten: [
+        { month: '2026-08', arbeitszeit: { woche: 20 }, steuer: { klasse: 1 } },
+        { month: '2026-09', arbeitszeit: { woche: 35.5 }, steuer: { klasse: 4 } },
+      ],
+    } });
     const result = await preview(); await activate(result.body);
     const url = `/employees/${first._id}/wage-info?date=2026-09-30`;
     const info = await request(url);
     assert.equal(info.status, 200); assert.equal(info.body.activeImportId, result.body._id);
+    assert.deepEqual(info.body.payrollMasterData, { month: '2026-09', weeklyHours: 35.5, taxClass: 4, taxFactor: null, personGroup: null });
     assert.equal(info.body.baseRate.value, '15.33'); assert.equal(info.body.baseRate.payGroup.name, 'EG 1');
     assert.equal(info.body.aboveTariff.values.DPREIS, '2.4');
     assert.equal(info.body.baseRate.period.rates, undefined); assert.equal(info.body.baseRate.group.source, undefined);
@@ -549,6 +556,8 @@ describe('Eigenständige Tarif-API', function () {
     const overlap = (await request(url)).body;
     assert.equal(overlap.baseRate.value, '15.33'); assert.equal(overlap.aboveTariff.code, 'ABOVE_TARIFF_AMBIGUOUS');
     assert.equal(overlap.aboveTariff.values, undefined); assert.equal(overlap.aboveTariff.candidateCount, 2);
+    const august = (await request(`/employees/${first._id}/wage-info?date=2026-08-31`)).body;
+    assert.deepEqual(august.payrollMasterData, { month: '2026-08', weeklyHours: 20, taxClass: 1, taxFactor: null, personGroup: null });
   });
   it('distinguishes no active data, missing employees and invalid dates in wage info', async () => {
     const info = await request(`/employees/${first._id}/wage-info?date=2026-09-30`);

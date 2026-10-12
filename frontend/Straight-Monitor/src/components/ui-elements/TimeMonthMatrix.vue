@@ -6,7 +6,7 @@
     @keydown.escape="typeMenuId = ''"
   >
     <header class="tmx-heading">
-      <h2>Stundenerfassung</h2><span>{{ monthLabel }} · h:mm</span>
+      <h2>Stundenerfassung</h2><span>{{ monthLabel }} · {{ imported ? 'Dezimalstunden' : 'h:mm' }}</span>
       <slot name="heading-actions" />
     </header>
     <div
@@ -29,7 +29,9 @@
               :key="week.key"
               scope="col"
             >
+              <div v-if="imported" class="tmx-week tmx-week--imported"><strong>KW {{ week.number }}</strong><span>Std. {{ formatImportedHours(importedWeekTotal(week), 2) }}</span></div>
               <button
+                v-else
                 type="button"
                 class="tmx-week"
                 :aria-label="`Kalenderwoche ${week.number} anzeigen`"
@@ -71,6 +73,26 @@
                   </button>
                   <div class="tmx-values">
                     <div
+                      v-if="imported"
+                      class="tmx-imported-entries"
+                    >
+                      <button
+                        v-for="entry in entriesByDate[week.days[weekdayIndex].date] || []"
+                        :key="entry.id"
+                        type="button"
+                        class="tm-entry tm-entry--imported"
+                        :class="`tm-entry--${entry.kind}`"
+                        :title="`${entry.label} · ${entry.hours == null ? 'ohne Stundenwert' : `${formatImportedHours(entry.hours)} Std.`} · ${entry.source?.filename || 'Zvoove'}`"
+                        :aria-label="`${week.days[weekdayIndex].day}. ${monthLabel} · ${entry.label} · ${entry.hours == null ? 'ohne Stundenwert' : `${formatImportedHours(entry.hours)} Stunden`} · Importdetails anzeigen`"
+                        @click="emit('selectDay', entry.date)"
+                      >
+                        <span class="tm-entry__imported-code">{{ importedEntryCode(entry) }}</span>
+                        <strong>{{ formatImportedHours(entry.hours, 2) }}</strong>
+                      </button>
+                      <span v-if="!entriesByDate[week.days[weekdayIndex].date]?.length" class="tmx-imported-empty">—</span>
+                    </div>
+                    <template v-else>
+                    <div
                       v-for="entry in entriesByDate[week.days[weekdayIndex].date] || []"
                       :key="entry.id"
                       class="tm-entry"
@@ -108,6 +130,7 @@
                     >
                       {{ held ? '＋ ablegen' : '—' }}
                     </button>
+                    </template>
                   </div>
                 </div>
               </template>
@@ -143,7 +166,13 @@
       </div>
     </Teleport>
     <footer class="tmx-legend">
-      <span><i class="tmx-color--productive" />P Produktiv</span><span><i class="tmx-color--vacation" />U Urlaub</span><span><i class="tmx-color--sick" />K Krank</span><span><i class="tmx-color--correction" />M Korrektur</span><span><i class="tmx-color--planned" />PL Geplant</span><span class="tmx-hint">Tagesnummer = Details</span>
+      <template v-if="imported">
+        <span><i class="tmx-color--productive" />P Produktive Stunden (KB leer)</span><span><i class="tmx-color--sick" />KB Fehlzeit</span><span><i class="tmx-color--marker" />FS Tageskennzeichnung</span><span><i class="tmx-color--unresolved" />Zuordnung offen</span>
+      </template>
+      <template v-else>
+        <span><i class="tmx-color--productive" />P Produktiv</span><span><i class="tmx-color--vacation" />U Urlaub</span><span><i class="tmx-color--sick" />K Krank</span><span><i class="tmx-color--correction" />M Korrektur</span><span><i class="tmx-color--planned" />PL Geplant</span>
+      </template>
+      <span class="tmx-hint">Tagesnummer = Details</span>
     </footer>
   </section>
 </template>
@@ -151,7 +180,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
-const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 }, readonly: Boolean });
+import { formatImportedHours, importedEntryCode, sumImportedHours } from '@/utils/importedHours';
+const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 }, readonly: Boolean, imported: Boolean });
 const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
 function onHoursClick(event, entry) {
   if (!entry.locked) return;
@@ -202,6 +232,9 @@ async function toggleTypeMenu(entryId) {
 function weekTotal(week) {
   return week.days.filter(day => day.inMonth).reduce((total, day) => total + (entriesByDate.value[day.date] || []).filter(entry => entry.kind !== 'planned').reduce((sum, entry) => sum + entry.minutes, 0), 0);
 }
+function importedWeekTotal(week) {
+  return sumImportedHours(week.days.filter(day => day.inMonth).flatMap(day => (entriesByDate.value[day.date] || []).map(entry => entry.hours)));
+}
 function chooseType(entryId, code) {
   typeMenuId.value = '';
   emit('changeType', { entryId, code });
@@ -231,6 +264,7 @@ onBeforeUnmount(() => {
 .tmx-week strong { font-size: 11px; font-weight: 600; }
 .tmx-week > span { font-size: 10px; color: var(--muted); }
 .tmx-week:hover { background: var(--hover); }
+.tmx-week--imported { box-sizing: border-box; flex-wrap: wrap; cursor: default; }.tmx-week--imported:hover { background: transparent; }
 .tmx-column-labels { display: grid; grid-template-columns: 26px 24px 1fr; gap: 3px; padding: 3px 7px 6px; font-size: 9px; color: var(--muted); }
 .tmx-column-labels > :last-child { text-align: right; padding-right: 8px; }
 .tmx-table tbody th { padding: 0 10px; font-size: 11px; }
@@ -273,6 +307,15 @@ onBeforeUnmount(() => {
 .tmx-legend i { width: 6px; height: 6px; border-radius: 1px; }
 .tmx-color--productive { background: #7f98b0; }.tmx-color--vacation { background: #62b58f; }.tmx-color--sick { background: #a997d0; }.tmx-color--correction { background: #70b4af; }.tmx-color--planned { background: var(--primary); }
 .tmx-hint { margin-left: auto; }
+.tmx-imported-entries { display: grid; gap: 3px; }
+.tm-entry--imported { width: 100%; color: var(--text); text-align: left; cursor: pointer; }
+.tm-entry--imported strong { text-align: right; font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
+.tm-entry__imported-code { align-self: stretch; display: grid; place-items: center; font-size: 10px; border-right: 1px solid var(--border); }
+.tmx-imported-empty { display: grid; place-items: center; min-height: 26px; color: var(--muted); font-size: 10px; }
+.tm-entry--marker { --entry-color: #70b4af; }
+.tm-entry--unresolved { --entry-color: #d7a34e; }
+.tmx-color--marker { background: #70b4af; }.tmx-color--unresolved { background: #d7a34e; }
+.tm-entry--imported:hover { border-color: var(--primary); background: var(--hover); }
 button:focus-visible, .tmx-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 @media (max-width: 650px) { .tmx-table .tmx-weekday-heading { width: 72px; } .tmx-table tbody th { font-size: 10px; padding-inline: 6px; } .tmx-table thead th:not(:first-child) { width: 120px; } }
 </style>

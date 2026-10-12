@@ -41,7 +41,6 @@ export const personalTabs = [
 
 export const payrollTabs = [
   { id: 'stundenerfassung', label: 'Stundenerfassung', icon: ['fas', 'clock'], to: queryTarget('/payroll', 'stundenerfassung', 'stundenerfassung'), isActive: queryMatch('Payroll', 'stundenerfassung', 'stundenerfassung') },
-  { id: 'monatspruefung', label: 'Monatsprüfung', icon: ['fas', 'list-check'], to: queryTarget('/payroll', 'monatspruefung', 'stundenerfassung'), isActive: queryMatch('Payroll', 'monatspruefung', 'stundenerfassung') },
 ];
 
 export const tariffTabs = [

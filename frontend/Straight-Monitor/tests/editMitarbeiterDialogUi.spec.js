@@ -46,6 +46,19 @@ afterEach(() => {
 });
 
 describe('EditMitarbeiterDialog shared controls', () => {
+  it('lädt und speichert die Personengruppe für den ausgewählten Monat', async () => {
+    render({ mitarbeiter: { ...employee(), lohnStammdaten: [
+      { month: '2026-01', persgruppe: 101 },
+      { month: '2026-02', persgruppe: 110, persgruppe_set_explicitly: true },
+    ] } });
+    await wrapper.get('input[aria-label="Monat der Personengruppe"]').setValue('2026-02');
+    expect(wrapper.get('select[id$="-persgruppe"]').element.value).toBe('110');
+    await wrapper.get('select[id$="-persgruppe"]').setValue('106');
+    await wrapper.findAll('.modal-footer-actions button').find(button => button.text().includes('Speichern')).trigger('click');
+    expect(wrapper.emitted('save')[0][0]).toMatchObject({
+      persgruppeMonth: '2026-02', persgruppe: 106, persgruppe_set_explicitly: true,
+    });
+  });
   it('associates labels with shared inputs and preserves the save payload', async () => {
     render({ nationalitaeten: [{ schluessel: '000', staat: 'Deutschland', natKennz: 'DE' }] });
     const firstName = wrapper.get('input.app-text-input');

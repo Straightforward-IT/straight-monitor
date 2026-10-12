@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite'
+import { defineConfig, searchForWorkspaceRoot } from 'vite'
+import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -63,6 +64,7 @@ export default defineConfig({
     }
   },
   server: {
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), fileURLToPath(new URL('../../shared', import.meta.url))] },
     proxy: {
       '/api': {
         target: 'http://localhost:5050',

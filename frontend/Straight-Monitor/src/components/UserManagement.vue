@@ -294,6 +294,12 @@
                   <span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span>
                   <span v-else class="ma-unlinked">-</span>
                 </template>
+                <span v-else-if="column.field === 'berechnungsartCode'" :title="wageCalculationTypeHint(lohnart.berechnungsartCode)">
+                  {{ formatWageCalculationType(lohnart.berechnungsartCode) }}
+                </span>
+                <span v-else-if="column.field === 'durchschnittsspeicherCode'" :title="averageStorageTypeHint(lohnart.durchschnittsspeicherCode)">
+                  {{ formatAverageStorageType(lohnart.durchschnittsspeicherCode) }}
+                </span>
                 <template v-else>{{ lohnart[column.field] === '' ? '-' : (lohnart[column.field] ?? '-') }}</template>
               </td>
               <td class="lohn__kunden">
@@ -687,6 +693,8 @@ import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
 import { useCustomerModals } from '@/composables/useCustomerModals';
+import { formatWageCalculationType, wageCalculationTypeHint } from '@/utils/wageCalculationTypes';
+import { formatAverageStorageType, averageStorageTypeHint } from '@/utils/averageStorageTypes';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});
@@ -849,7 +857,9 @@ const lohnartColumns = [
 const filteredLohnarten = computed(() => {
   const query = lohnartSearch.value.trim().toLowerCase();
   const filtered = !query ? lohnarten.value : lohnarten.value.filter((lohnart) =>
-    lohnartColumns.some(({ field }) => String(lohnart[field] ?? '').toLowerCase().includes(query)));
+    lohnartColumns.some(({ field }) => String(lohnart[field] ?? '').toLowerCase().includes(query))
+      || formatWageCalculationType(lohnart.berechnungsartCode).toLowerCase().includes(query)
+      || formatAverageStorageType(lohnart.durchschnittsspeicherCode).toLowerCase().includes(query));
 
   return [...filtered].sort((left, right) => {
     const leftValue = String(left[lohnartSortField.value] ?? '');

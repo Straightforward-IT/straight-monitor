@@ -89,22 +89,49 @@ Successful requests return the following object in `data`:
       "typ": 0,
       "durchschnittBeiFortfuehren": false
     },
-    "arbeitszeit": {
-      "von": "2026-01-01T00:00:00.000Z",
-      "bis": null,
-      "montag": 7,
-      "dienstag": 7,
-      "mittwoch": 7,
-      "donnerstag": 7,
-      "freitag": 7,
-      "samstag": null,
-      "sonntag": null,
-      "woche": 35,
-      "monat": 151.67,
-      "zeitkontoPlusLimit": 150,
-      "zeitkontoMinusLimit": 0
-    },
-    "persgruppe": 101,
+    "arbeitszeit": [
+      {
+        "month": "2026-01",
+        "von": "2026-01-01T00:00:00.000Z",
+        "bis": null,
+        "montag": 7,
+        "dienstag": 7,
+        "mittwoch": 7,
+        "donnerstag": 7,
+        "freitag": 7,
+        "samstag": null,
+        "sonntag": null,
+        "woche": 35,
+        "zeitkontoPlusLimit": 150,
+        "zeitkontoMinusLimit": 0
+      }
+    ],
+    "lohnStammdaten": [
+      {
+        "month": "2026-01",
+        "sourceId": "12345",
+        "persgruppe": 101,
+        "persgruppe_set_explicitly": false,
+        "von": "2026-01-01T00:00:00.000Z",
+        "bis": null,
+        "arbeitszeit": {
+          "montag": 7,
+          "dienstag": 7,
+          "mittwoch": 7,
+          "donnerstag": 7,
+          "freitag": 7,
+          "samstag": null,
+          "sonntag": null,
+          "woche": 35,
+          "zeitkontoPlusLimit": 150,
+          "zeitkontoMinusLimit": 0
+        },
+        "steuer": {
+          "klasse": 1,
+          "faktor": null
+        }
+      }
+    ],
     "isBewerberstatus": false,
     "isStudent": false,
     "isSchueler": false,

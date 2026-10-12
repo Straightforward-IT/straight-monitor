@@ -1572,7 +1572,8 @@ async function syncFlipAttributes(flipUsersById = {}) {
       // isOffice/isTeamLead nur setzen wenn Personalnr vorhanden (= Zvoove-Mitarbeiter)
       const isOffice   = hasPersonalnr ? qualiKeys.includes(40)    : null; // Quali-Key 40 = Office
       const isTeamLead = hasPersonalnr ? qualiKeys.includes(50055) : null;
-      const isFesti    = ma.persgruppe === 101 || ma.persgruppe == 101; // persgruppe 101 = Festangestellt
+      const employee = typeof ma.getPersgruppeForMonth === 'function' ? ma : new Mitarbeiter(ma);
+      const isFesti = employee.getPersgruppeForMonth(Mitarbeiter.currentPayrollMonth()) === 101;
 
       // Re-use pre-fetched data or fall back to individual GET
       let flipUserData = flipUsersById[ma.flip_id];

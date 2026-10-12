@@ -340,6 +340,32 @@ describe('order document upload integration', () => {
 });
 
 describe('document and hours workspace contracts', () => {
+  it.each([true, false])('retains admin visibility for quick time capture in both order menus (admin=%s)', isAdmin => {
+    const context = { isAdmin, contextMenu: { event: order() }, selectedEvent: order() };
+    for (const key of ['orderContextMenuItems', 'headerActionMenuItems']) {
+      const items = AuftragCalendarWorkspace.computed[key].call(context);
+      expect(items.some(item => item.label === 'Stundenschnellerfassung' && item.action === 'open-time-entry')).toBe(isAdmin);
+    }
+  });
+
+  it('opens quick time capture for the correct order from both menus', async () => {
+    const context = {
+      isAdmin: true, selectedEvent: order(), contextMenu: { event: order() },
+      openTimeCapture: vi.fn(), closeOrderContextMenu: vi.fn(), showQuickActions: true,
+    };
+    await AuftragCalendarWorkspace.methods.handleOrderContextMenuAction.call(context, 'open-time-entry');
+    expect(context.closeOrderContextMenu).toHaveBeenCalledOnce();
+    await AuftragCalendarWorkspace.methods.handleHeaderActionMenuAction.call(context, 'open-time-entry');
+    expect(context.showQuickActions).toBe(false);
+    expect(context.openTimeCapture.mock.calls).toEqual([[{ auftragNr: '42' }], [{ auftragNr: '42' }]]);
+  });
+
+  it.each([false, true])('does not launch sidebar quick time capture without permission or an order (admin=%s)', isAdmin => {
+    const context = { isAdmin, selectedEvent: isAdmin ? null : order(), openTimeCapture: vi.fn() };
+    AuftragCalendarWorkspace.methods.handleHeaderActionMenuAction.call(context, 'open-time-entry');
+    expect(context.openTimeCapture).not.toHaveBeenCalled();
+  });
+
   it('positions the new-document menu from the actual button and keeps preview/download separate', async () => {
     const downloadFile = vi.fn(); const { wrapper } = workspace({ einsatzDoks: [documentRecord], stundenlisteStatus: hoursStatus('draft') }, { downloadFile });
     const openDocumentPreview = vi.fn();

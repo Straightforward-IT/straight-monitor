@@ -12,6 +12,8 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const Lohnart = require('../../models/Payroll/Lohnart');
+const { getWageCalculationType } = require('../../domain/payroll/wageCalculationTypes');
+const { getAverageStorageType } = require('../../domain/payroll/averageStorageTypes');
 const Nationalitaet = require('../../models/System/Nationalitaet');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const KundenKondition = require('../../models/Customer/KundenKondition');
@@ -26,11 +28,34 @@ const User = require('../../models/System/User');
 const logger = require('../../utils/logger');
 const { sendMail } = require('../../services/integrations/EmailService');
 const auth = require('../../middleware/auth');
+const asyncHandler = require('../../middleware/AsyncHandler');
+const requireAdmin = require('../../middleware/requireAdmin');
+const monthlyPayrollImport = require('../../services/payroll/MonthlyPayrollMasterDataImport');
 const { encryptField } = require('../../utils/encryption');
 const { deleteManyFlipUsers, isProtectedFlipUserId } = require('../../services/integrations/FlipService');
 const { completeTaskById } = require('../../services/integrations/AsanaService');
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+const berlinMonthFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Berlin',
+  year: 'numeric',
+  month: '2-digit',
+});
+const currentBerlinMonth = () => {
+  const parts = Object.fromEntries(berlinMonthFormatter.formatToParts(new Date()).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}`;
+};
+
+const ROMAN_STEUERKLASSEN = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+// Zvoove exports LGELENA.STKLASSE either numerically (1–6) or as a roman numeral.
+const parseSteuerklasse = (value) => {
+  if (value == null || String(value).trim() === '') return null;
+  const normalized = String(value).trim().toUpperCase();
+  if (Object.hasOwn(ROMAN_STEUERKLASSEN, normalized)) return ROMAN_STEUERKLASSEN[normalized];
+  const numeric = Number.parseInt(normalized, 10);
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 6 ? numeric : null;
+};
 
 // Middleware: extend request timeout for long-running imports (10 min)
 const extendTimeout = (req, res, next) => {
@@ -1124,7 +1149,7 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 });
 
 // --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Führerschein, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AG=Arbeitszeit, AH=Strasse, AI=PLZ, AJ=Ort, AK=Land, AL=Telefon, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2, AQ=Land2, AR=Telefon2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AG=Arbeitszeit, AH=Strasse, AI=PLZ, AJ=Ort, AK=Land, AL=Telefon, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2, AQ=Land2, AR=Telefon2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel, AU=Steuerklasse(STKLASSE)
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 const PERSONAL_7002_HEADERS = [
   'CODE', 'PERSONALNR', 'PERSSTATUS', 'GEBDATUM', 'NACHNAME', 'VORNAME', 'GEBNAME', 'GEBORT', 'EINTRITT1', 'AUSTRITT1',
@@ -1132,7 +1157,7 @@ const PERSONAL_7002_HEADERS = [
   'ARBEITSVERHAELTNIS_VON', 'ARBEITSVERHAELTNISTYP', 'DURCHSCHNBERFORTFUEHREN',
   'ARBEITSZEIT_VON', 'ARBEITSZEIT_BIS', 'ARBZEITMO', 'ARBZEITDI', 'ARBZEITMI', 'ARBZEITDO', 'ARBZEITFR', 'ARBZEITSA', 'ARBZEITSO',
   'ARBZEITWCH', 'ARBZEITMON', 'DZEITKONTOPLUS', 'DZEITKONTOMINUS',
-  'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2', 'STAATANGEH',
+  'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2', 'STAATANGEH', 'STKLASSE',
 ];
 
 const validatePersonal7002Header = (header) => {
@@ -1221,12 +1246,13 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       //   X=Di, Y=Mi, Z=Do, AA=Fr, AB=Sa, AC=So, AD=Woche, AE=Monat,
       //   AF=Zeitkonto-Plus-Limit, AG=Zeitkonto-Minus-Limit, AH=Strasse, AI=PLZ,
       //   AJ=Ort, AK=Land, AL=Tel, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2,
-      //   AQ=Land2, AR=Tel2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel
+      //   AQ=Land2, AR=Tel2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel,
+      //   AU=Steuerklasse (STKLASSE)
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, nachname, vorname, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
       let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon, nationalitaet;
-      let adresse = null, adresse2 = null, arbeitszeit = null, arbeitsverhaeltnis = null, fuehrerschein = null;
+      let adresse = null, adresse2 = null, lohnStammdaten = null, arbeitsverhaeltnis = null, fuehrerschein = null;
 
       if (hasNewFormat) {
         personalnr = parseStr(row[1]);
@@ -1277,9 +1303,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           };
           if (Object.values(arbeitsverhaeltnis).every((value) => value == null)) arbeitsverhaeltnis = null;
         }
-        arbeitszeit = {
-          von: parseDate(row[workingTimeStart]),
-          bis: parseDate(row[workingTimeStart + 1]),
+        const snapshotMonth = currentBerlinMonth();
+        const workingTime = {
           montag: parseNumber(row[workingTimeStart + 2]),
           dienstag: parseNumber(row[workingTimeStart + 3]),
           mittwoch: parseNumber(row[workingTimeStart + 4]),
@@ -1288,11 +1313,18 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           samstag: parseNumber(row[workingTimeStart + 7]),
           sonntag: parseNumber(row[workingTimeStart + 8]),
           woche: parseNumber(row[workingTimeStart + 9]),
-          monat: parseNumber(row[workingTimeStart + 10]),
+          // row[workingTimeStart + 10] (ARBZEITMON) is intentionally ignored:
+          // the monthly target is derived from `woche` and the requested month.
           zeitkontoPlusLimit: parseNumber(row[workingTimeStart + 11]),
           zeitkontoMinusLimit: parseNumber(row[workingTimeStart + 12]),
         };
-        if (Object.values(arbeitszeit).every((value) => value == null)) arbeitszeit = null;
+        lohnStammdaten = {
+          month: snapshotMonth,
+          von: parseDate(row[workingTimeStart]),
+          bis: parseDate(row[workingTimeStart + 1]),
+          arbeitszeit: workingTime,
+          steuer: { klasse: null },
+        };
         // Adresse 1 (Hauptadresse) — Tel/Email fließen in die Primärfelder
         const addressStart = workingTimeStart + 13;
         const strasse = parseStr(row[addressStart]);
@@ -1312,6 +1344,13 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         const tel2 = parseStr(row[addressStart + 10]);
         const email2 = parseStr(row[addressStart + 11]) ? String(row[addressStart + 11]).trim().toLowerCase() : null;
         nationalitaet = parseStr(row[addressStart + 12]);
+        // AU = Steuerklasse (LGELENA.STKLASSE) — roman numerals or 1–6 are accepted.
+        lohnStammdaten.steuer.klasse = parseSteuerklasse(row[addressStart + 13]);
+        const hasWorkingTime = Object.values(workingTime).some((value) => value != null);
+        const hasValidity = lohnStammdaten.von != null || lohnStammdaten.bis != null;
+        if (!hasWorkingTime && !hasValidity && lohnStammdaten.steuer.klasse == null) {
+          lohnStammdaten = null;
+        }
         if (strasse2 || plz2 || ort2 || land2 || tel2 || email2) {
           adresse2 = { strasse: strasse2, plz: plz2, ort: ort2, land: land2, telefon: tel2, email: email2 };
         }
@@ -1357,7 +1396,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       if (eintrittsdatum) setFields.eintrittsdatum = eintrittsdatum;
       // Immer setzen: leeres Feld soll einen bestehenden Wert in der DB explizit löschen
       setFields.austrittsdatum = austrittsdatum ?? null;
-      if (persgruppe != null) setFields.persgruppe = persgruppe;
+      if (!lohnStammdaten && persgruppe != null) lohnStammdaten = { month: currentBerlinMonth(), arbeitszeit: {}, steuer: {} };
+      if (lohnStammdaten) lohnStammdaten.persgruppe = persgruppe;
       if (email) setFields.email = email;
       if (telefon) setFields.telefon = telefon;
       // Liste 7002 is authoritative for address data. Explicitly clear stale
@@ -1368,11 +1408,10 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         setFields.nationalitaet = nationalitaet;
       }
       if (arbeitsverhaeltnis) setFields.arbeitsverhaeltnis = arbeitsverhaeltnis;
-      if (arbeitszeit) setFields.arbeitszeit = arbeitszeit;
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
 
-      operations.push({ personalnr, persstatus, setFields });
+      operations.push({ personalnr, persstatus, setFields, lohnStammdatenSnapshot: lohnStammdaten });
     }
 
     if (operations.length === 0) {
@@ -1485,7 +1524,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
           let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr })
-            .select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
+            .select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
           let pnrChanged = false;
 
           if (!ma) {
@@ -1494,7 +1533,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             if (fallbackEmail) {
               ma = await Mitarbeiter.findOne({
                 $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2').lean();
+              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
               if (ma && ma.personalnr !== op.personalnr) {
                 pnrChanged = true;
               }
@@ -1531,10 +1570,6 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             deactivated++;
           }
 
-          // Respektiere manuell gesetztes persgruppe
-          if (ma.persgruppe_set_explicitly && op.setFields.persgruppe != null) {
-            delete op.setFields.persgruppe;
-          }
 
           // Flip ist Primary Source für E-Mail: Zvoove-E-Mail darf die
           // primäre E-Mail nicht überschreiben. Stattdessen wird sie zu
@@ -1594,6 +1629,26 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             op.setFields.fuehrerscheine = importedLicense
               ? [...manualLicenses, importedLicense]
               : manualLicenses;
+          }
+
+          if (op.lohnStammdatenSnapshot) {
+            const existingLohnStammdaten = Mitarbeiter.collectLohnStammdaten(ma);
+            const imported = op.lohnStammdatenSnapshot;
+            const stored = existingLohnStammdaten.find(entry => entry.month === imported.month);
+            const snapshot = {
+              ...stored, ...imported,
+              arbeitszeit: { ...stored?.arbeitszeit, ...imported.arbeitszeit },
+              steuer: { ...stored?.steuer, ...imported.steuer },
+            };
+            if (stored?.persgruppe_set_explicitly) snapshot.persgruppe = stored.persgruppe;
+            // An empty source column must not wipe a manual correction for that month.
+            if (snapshot.steuer.klasse == null) {
+              if (stored?.steuer?.klasse != null) snapshot.steuer.klasse = stored.steuer.klasse;
+            }
+            op.setFields.lohnStammdaten = Mitarbeiter.mergeLohnStammdatenSnapshot(
+              existingLohnStammdaten,
+              snapshot
+            );
           }
 
           const updateOps = { $set: op.setFields };
@@ -1959,6 +2014,8 @@ router.get('/lohnarten', auth, async (req, res) => {
     }
     const data = lohnarten.map((lohnart) => ({
       ...lohnart,
+      berechnungsart: getWageCalculationType(lohnart.berechnungsartCode),
+      durchschnittsspeicherung: getAverageStorageType(lohnart.durchschnittsspeicherCode),
       kunden: [...(kundenByLohnart.get(String(lohnart._id))?.values() || [])]
         .sort((left, right) => String(left.kundName || '').localeCompare(String(right.kundName || ''), 'de')),
     }));
@@ -2956,6 +3013,21 @@ router.post('/verfuegbarkeit', auth, extendTimeout, upload.single('file'), async
 // Spaltenstruktur: A=Prüffeld(3201), B=Sozversnr (ignoriert), C=Personalnr-Blob (kommagetrennt)
 // Logik: Finde Mitarbeiter dessen aktuelle personalnr in der Blob-Liste vorkommt,
 //        dann alle anderen Werte aus der Blob-Liste in personalnrHistory eintragen (keine Duplikate).
+router.post('/monatliche-lohndaten', auth, requireAdmin, extendTimeout, upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+  try {
+    const stats = await monthlyPayrollImport.importFile(req.file.buffer);
+    const message = `${stats.matched} Monatsdatensätze zugeordnet, ${stats.updated} Mitarbeiter aktualisiert, ${stats.unmatched} nicht zugeordnet, ${stats.skippedBefore2026} Datensätze vor 2026 übersprungen.`;
+    await logImport('monatliche-lohndaten', req.file.originalname, stats.unmatched ? 'warning' : 'success', stats.matched, stats, req.user?.id);
+    logger.info(`[Import Monatliche Lohndaten] ${message}`);
+    return res.json({ success: true, message, details: stats });
+  } catch (error) {
+    logger.error(`[Import Monatliche Lohndaten] ${error.message}`);
+    await logImport('monatliche-lohndaten', req.file.originalname, 'failed', 0, { error: error.message }, req.user?.id);
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Fehler beim Importieren der monatlichen Lohndaten.' });
+  }
+}));
+
 router.post('/personalnr-history', auth, extendTimeout, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
 

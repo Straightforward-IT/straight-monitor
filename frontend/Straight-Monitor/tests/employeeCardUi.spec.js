@@ -115,6 +115,50 @@ describe('EmployeeCard shared shell controls', () => {
     expect(wrapper.vm.arbeitszeitHoverData.issues[0].code).toBe('LOAD_FAILED');
     expect(wrapper.vm.loadingEinsatzAnalytics).toBe(false);
   });
+  it('resolves worktime only for the selected valid month snapshot', () => {
+    render({
+      ma: {
+        ...employee(),
+        arbeitszeit: [
+          { month: '2026-04', von: '2026-01-01', bis: '2026-06-30', woche: 20 },
+          { month: '2026-08', von: '2026-09-01', woche: 30 },
+        ],
+      },
+    });
+    expect(wrapper.vm.monthlyHoursForView(new Date(2026, 3, 1))).toBe(88);
+    expect(wrapper.vm.monthlyHoursForView(new Date(2026, 6, 1))).toBeNull();
+    expect(wrapper.vm.monthlyHoursForView(new Date(2026, 7, 1))).toBeNull();
+  });
+  it('resolves worktime and tax class per month from lohnStammdaten', async () => {
+    render({
+      ma: {
+        ...employee(),
+        lohnStammdaten: [
+          { month: '2026-04', von: '2026-01-01', bis: '2026-06-30', arbeitszeit: { woche: 20 }, steuer: { klasse: 1 } },
+          { month: '2026-08', von: '2026-07-01', arbeitszeit: { woche: 30 }, steuer: { klasse: 4 } },
+        ],
+      },
+    });
+    expect(wrapper.vm.monthlyHoursForView(new Date(2026, 3, 1))).toBe(88);
+    expect(wrapper.vm.monthlyHoursForView(new Date(2026, 7, 1))).toBe(126);
+    expect(wrapper.vm.steuerklasseForView(new Date(2026, 3, 1))).toBe(1);
+    expect(wrapper.vm.steuerklasseForView(new Date(2026, 7, 1))).toBe(4);
+    expect(wrapper.vm.steuerklasseForView(new Date(2026, 6, 1))).toBeNull();
+    expect(wrapper.vm.formatSteuerklasse(4)).toBe('IV');
+    expect(wrapper.vm.formatSteuerklasse(null)).toBe('—');
+
+    wrapper.vm.calendarYear = 2026;
+    wrapper.vm.calendarMonth = 7;
+    wrapper.vm.startEditStammdaten('steuerklasse');
+    expect(wrapper.vm.stammdatenDraft.steuerklasse).toBe('4');
+    wrapper.vm.stammdatenDraft.steuerklasse = '3';
+    mocks.api.patch.mockResolvedValueOnce({ data: { success: true, data: { _id: 'employee-1' } } });
+    await wrapper.vm.saveStammdaten();
+    expect(mocks.api.patch).toHaveBeenCalledWith(
+      '/api/personal/mitarbeiter/employee-1/lohn-stammdaten/2026-08',
+      { steuerklasse: '3' },
+    );
+  });
   it('connects the active tab to its panel and supports arrow, Home and End navigation', async () => {
     render();
     wrapper.vm.expanded = true;

@@ -138,6 +138,7 @@ import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import api from '@/utils/api';
+import { personGroupForMonth } from '@/utils/employeePayrollMasterData';
 
 library.add(faDownload, faMinus, faPlus, faTableColumns, faXmark);
 
@@ -187,7 +188,7 @@ const ALL_FIELDS = [
     },
   },
   { key: 'locationV2', label: 'Location', get: ma => locationLabel(ma.locationV2) },
-  { key: 'persgruppe', label: 'Personengruppe', get: ma => ma.persgruppe ? (PERSGRUPPE_MAP[ma.persgruppe] || String(ma.persgruppe)) : '' },
+  { key: 'persgruppe', label: 'Personengruppe', get: ma => PERSGRUPPE_MAP[personGroupForMonth(ma)] || '' },
   { key: 'erstellt_von', label: 'Erstellt von', get: ma => ma.erstellt_von || '' },
   { key: 'austrittsdatum', label: 'Austrittsdatum', get: ma => ma.austrittsdatum ? formatDate(ma.austrittsdatum) : '' },
   { key: 'berufe', label: 'Berufe', get: ma => (ma.berufe || []).map(beruf => beruf.designation || beruf).filter(Boolean).join(', ') },

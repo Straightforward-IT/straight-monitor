@@ -51,6 +51,7 @@ router.get('/mitarbeiter/:flipUserId', asyncHandler(async (req, res) => {
       'austrittsdatum',
       'arbeitsverhaeltnis',
       'arbeitszeit',
+      'lohnStammdaten',
       'persgruppe',
       'isBewerberstatus',
       'isStudent',

@@ -97,6 +97,7 @@
         <div class="form-grid form-grid--employment">
           <div class="form-group form-group--employment-type">
             <label :for="fieldId('persgruppe')">Personengruppe</label>
+            <AppTextInput :id="fieldId('persgruppe-month')" v-model="form.persgruppeMonth" type="month" aria-label="Monat der Personengruppe" />
             <AppSelect :id="fieldId('persgruppe')" v-model="form.persgruppe" class="form-input">
               <option :value="null">— nicht gesetzt —</option>
               <option :value="101">101 – Festangestellt (Festi)</option>
@@ -106,7 +107,7 @@
             </AppSelect>
             <label class="checkbox-label">
               <input v-model="form.persgruppe_set_explicitly" type="checkbox" />
-              Manuell gesetzt – nicht vom Import überschreiben
+              Für diesen Monat manuell gesetzt – nicht vom Import überschreiben
             </label>
           </div>
           <div class="form-group">
@@ -339,6 +340,7 @@ import AppButton from "@/components/ui-elements/AppButton.vue";
 import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
 import AppTextInput from "@/components/ui-elements/AppTextInput.vue";
 import AppSelect from "@/components/ui-elements/AppSelect.vue";
+import { currentPayrollMonth, personGroupForMonth } from '@/utils/employeePayrollMasterData';
 
 const props = defineProps({
   mitarbeiter: {
@@ -406,6 +408,7 @@ const form = ref({
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
+  persgruppeMonth: currentPayrollMonth(),
   persgruppe_set_explicitly: false,
   vorarbeitgebertage: { year: new Date().getFullYear(), days: 0 },
   adresse: { strasse: "", plz: "", ort: "", land: "" },
@@ -440,8 +443,9 @@ watch(
         nationalitaet: newVal.nationalitaet != null ? String(newVal.nationalitaet) : "",
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
-        persgruppe: newVal.persgruppe ?? null,
-        persgruppe_set_explicitly: !!newVal.persgruppe_set_explicitly,
+        persgruppe: personGroupForMonth(newVal),
+        persgruppeMonth: currentPayrollMonth(),
+        persgruppe_set_explicitly: !!newVal.lohnStammdaten?.find(entry => entry.month === currentPayrollMonth())?.persgruppe_set_explicitly,
         vorarbeitgebertage: {
           year: newVal.vorarbeitgebertage?.year ?? new Date().getFullYear(),
           days: newVal.vorarbeitgebertage?.days ?? 0,
@@ -476,6 +480,11 @@ watch(
   },
   { immediate: true }
 );
+
+watch(() => form.value.persgruppeMonth, month => {
+  form.value.persgruppe = personGroupForMonth(props.mitarbeiter, month);
+  form.value.persgruppe_set_explicitly = !!props.mitarbeiter?.lohnStammdaten?.find(entry => entry.month === month)?.persgruppe_set_explicitly;
+});
 
 function addEmail() {
   if (props.saving) return;

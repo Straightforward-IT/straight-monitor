@@ -58,6 +58,16 @@ function assignmentHours(record) {
   return null;
 }
 function error(status, message) { const value = new Error(message); value.status = status; throw value; }
+function resolveMonthlyHours(employee, year, month) {
+  if (employee && typeof employee.getMonthlyWorkingHours === 'function') return employee.getMonthlyWorkingHours(year, month);
+  if (!employee || (!employee.arbeitszeit && !employee.lohnStammdaten)) return null;
+  const doc = new Mitarbeiter({
+    ...employee,
+    arbeitszeit: employee.arbeitszeit,
+    lohnStammdaten: employee.lohnStammdaten,
+  });
+  return typeof doc.getMonthlyWorkingHours === 'function' ? doc.getMonthlyWorkingHours(year, month) : null;
+}
 
 // The injectable facts allow focused verification without network or live data.
 async function calculate(employee, { year, month, now = new Date(), context, records } = {}) {
@@ -125,12 +135,12 @@ async function calculate(employee, { year, month, now = new Date(), context, rec
   result.workedHours = Number(sums.workedHours.numerator) / Number(sums.workedHours.denominator);
   result.plannedHours = Number(sums.plannedHours.numerator) / Number(sums.plannedHours.denominator);
   if (mode.type === 'hours' || mode.type === 'days-hours') {
-    const monthlyHours = Number(employee.arbeitszeit?.monat);
-    if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) {
+    const monthlyHours = resolveMonthlyHours(employee, year, month);
+    if (!Number.isFinite(Number(monthlyHours)) || Number(monthlyHours) <= 0) {
       if (mode.type === 'hours') return unresolved('MONTHLY_HOURS_MISSING', 'Es sind keine gültigen Monatsstunden hinterlegt.');
       result.monthlyHours = null;
       result.issues.push({ code: 'MONTHLY_HOURS_MISSING', message: 'Es sind keine gültigen Monatsstunden hinterlegt.' });
-    } else result.monthlyHours = monthlyHours;
+    } else result.monthlyHours = Number(monthlyHours);
     result.hoursIssues = result.issues.filter(issue => ['MONTHLY_HOURS_MISSING', 'HOURS_MISSING'].includes(issue.code));
     result.hoursStatus = result.hoursIssues.length ? 'UNRESOLVED' : 'RESOLVED';
   }
@@ -156,7 +166,7 @@ async function contingent(employeeId, query = {}) {
   if (!/^\d{4}$/.test(String(query.year)) || !/^\d{1,2}$/.test(String(query.month))) error(400, 'Ein gültiges Jahr und ein Monat sind erforderlich.');
   const year = Number(query.year), month = Number(query.month);
   if (year < 1900 || year > 9999 || month < 1 || month > 12) error(400, 'Jahr oder Monat ist ungültig.');
-  const employee = await Mitarbeiter.findById(employeeId).select('personalnr personalnrHistory vorname nachname eintrittsdatum arbeitszeit arbeitsverhaeltnis vorarbeitgebertage');
+  const employee = await Mitarbeiter.findById(employeeId).select('personalnr personalnrHistory vorname nachname eintrittsdatum arbeitszeit lohnStammdaten arbeitsverhaeltnis vorarbeitgebertage');
   if (!employee) error(404, 'Mitarbeiter nicht gefunden.');
   return calculate(employee, { year, month });
 }

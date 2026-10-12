@@ -156,7 +156,7 @@
                   @pointerenter="activeSegment = slice.id"
                   @pointerleave="activeSegment = null"
                 >
-                  <title>{{ slice.label }} · {{ metricLabel(slice.value) }}</title>
+                  <title>{{ slice.label }} · {{ segmentMetricLabel(slice) }}</title>
                 </circle>
                 <template v-if="ring.over">
                   <circle
@@ -186,14 +186,16 @@
               </g>
             </svg>
             <figcaption class="hover-data-card__ring-center">
-              <strong :class="{ 'hover-data-card__ring-value--over': ring.over }">{{ formatMetric(view.metric?.value) }}</strong>
-              <span>von {{ metricLabel(view.metric?.limit) }}</span>
+              <strong :class="{ 'hover-data-card__ring-value--over': ring.over }">{{ metricValueDisplay }}</strong>
+              <span v-if="hasMetricLimit">von {{ metricLimitLabel }}</span>
+              <span v-else>{{ view.metric?.unit }}</span>
             </figcaption>
               </template>
               <template v-else>
                 <figcaption class="hover-data-card__column-caption">
-                  <strong :class="{ 'hover-data-card__ring-value--over': ring.over }">{{ formatMetric(view.metric?.value) }}</strong>
-                  <span>von {{ metricLabel(view.metric?.limit) }}</span>
+                  <strong :class="{ 'hover-data-card__ring-value--over': ring.over }">{{ metricValueDisplay }}</strong>
+                  <span v-if="hasMetricLimit">von {{ metricLimitLabel }}</span>
+                  <span v-else>{{ view.metric?.unit }}</span>
                 </figcaption>
                 <div class="hover-data-card__column-track" aria-hidden="true">
                   <div
@@ -335,10 +337,14 @@ const activeSegment = ref(null);
 const chartView = ref('column');
 const coordinates = ref({ top: 0, left: 0 });
 const view = computed(() => buildHoverDataCard(props.data));
-const segments = computed(() => (view.value.segments || []).filter(segment => Number.isFinite(segment.value) && segment.value > 0));
+const segments = computed(() => (view.value.diagramSegments || view.value.segments || []).filter(segment => Number.isFinite(segment.value) && segment.value > 0));
+const hasMetricLimit = computed(() => view.value.metric?.limit != null);
+const metricValueDisplay = computed(() => view.value.metric?.valueDisplay ?? formatMetric(view.value.metric?.value));
+const metricLimitLabel = computed(() => view.value.metric?.limitDisplay != null ? `${view.value.metric.limitDisplay} ${view.value.metric.unit || 'Std.'}` : metricLabel(view.value.metric?.limit));
 const chartDescription = computed(() => {
-  const split = segments.value.map(segment => `${segment.label}: ${metricLabel(segment.value)}`).join(', ');
-  return `${metricLabel(view.value.metric?.value)} von ${metricLabel(view.value.metric?.limit)}${split ? ` – ${split}` : ''}`;
+  const split = segments.value.map(segment => `${segment.label}: ${segmentMetricLabel(segment)}`).join(', ');
+  const value = view.value.metric?.valueDisplay != null ? `${metricValueDisplay.value} ${view.value.metric.unit || 'Std.'}` : metricLabel(view.value.metric?.value);
+  return `${value}${hasMetricLimit.value ? ` von ${metricLimitLabel.value}` : ''}${split ? ` – ${split}` : ''}`;
 });
 
 // Ring geometry in viewBox units (r = 40). The ring always represents
@@ -369,7 +375,7 @@ const ring = computed(() => {
     cursor += length;
     return slice;
   });
-  const over = total > limit ? {
+  const over = hasMetricLimit.value && total > limit ? {
     offset: limit / scale * RING_LENGTH,
     length: (total - limit) / scale * RING_LENGTH,
     angle: limit / scale * 360,
@@ -382,7 +388,8 @@ const columnSegments = computed(() => {
   const order = props.data.type === 'days'
     ? ['remaining', 'planned', 'worked', 'prior-employer']
     : ['remaining', 'planned', 'worked'];
-  return [...ring.value.slices].sort((left, right) => order.indexOf(left.id) - order.indexOf(right.id));
+  const rank = id => order.includes(id) ? order.indexOf(id) : order.length;
+  return [...ring.value.slices].sort((left, right) => rank(left.id) - rank(right.id));
 });
 const columnLimitStyle = computed(() => ({
   top: `${(ring.value.over?.angle || 0) / 3.6}%`,
@@ -435,6 +442,10 @@ function displayDate(value) { return value ? value.split('-').reverse().join('.'
 
 function metricLabel(value) {
   return view.value.metric?.currency ? formatMetric(value) : `${formatMetric(value)} ${view.value.metric?.unit || 'Std.'}`;
+}
+
+function segmentMetricLabel(segment) {
+  return segment.valueDisplay != null ? `${segment.valueDisplay} ${view.value.metric?.unit || 'Std.'}` : metricLabel(segment.value);
 }
 
 function updatePosition() {

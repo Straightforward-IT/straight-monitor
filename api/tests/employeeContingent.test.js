@@ -102,7 +102,7 @@ describe('Tarifgesteuerte Mitarbeiterkontingente', () => {
     assert.equal(result.periods.days.from, '2025-11-15');
   });
   it('zeigt fehlende Monatsstunden und unbekannte Gruppen ausdrücklich', async () => {
-    const fixed = fixture('21195'); fixed.employee.arbeitszeit.monat = 0;
+    const fixed = fixture('21195'); fixed.employee.arbeitszeit[0].monat = 0;
     assert.equal((await fixed.run()).issues[0].code, 'MONTHLY_HOURS_MISSING');
     assert.equal((await fixture('99999').run()).issues[0].code, 'GROUP_UNSUPPORTED');
     const missing = fixture(); missing.context.data.assignments = []; missing.employee.arbeitsverhaeltnis.typ = 2;
@@ -128,7 +128,7 @@ describe('Tarifgesteuerte Mitarbeiterkontingente', () => {
   it('erhält Tage neben fehlenden Monatsstunden für beide KZF-Gruppen', async () => {
     for (const id of ['21015', '22436']) {
       const { employee, run } = fixture(id);
-      employee.arbeitszeit.monat = 0;
+      employee.arbeitszeit[0].monat = 0;
       const result = await run([shift('2026-10-01')]);
       assert.equal(result.type, 'days-hours');
       assert.equal(result.workedDays, 1);
@@ -136,6 +136,78 @@ describe('Tarifgesteuerte Mitarbeiterkontingente', () => {
       assert.equal(result.monthlyHours, null);
       assert.equal(result.hoursIssues[0].code, 'MONTHLY_HOURS_MISSING');
     }
+  });
+  it('berechnet Monatsstunden aus dem exakten Snapshot und verwendet keinen fremden Monat', () => {
+    const employee = new Mitarbeiter({
+      vorname: 'Snapshot',
+      nachname: 'Test',
+      arbeitszeit: [
+        { month: '2026-04', von: '2026-01-01', bis: '2026-06-30', woche: 20 },
+        { month: '2026-08', von: '2026-07-01', woche: 30 },
+      ],
+    });
+    assert.equal(employee.getMonthlyWorkingHours(2026, 4), 88);
+    assert.equal(employee.getMonthlyWorkingHours(2026, 8), 126);
+    assert.equal(employee.getMonthlyWorkingHours(2026, 7), null);
+  });
+  it('beachtet von/bis und erhält andere Monate beim Snapshot-Upsert', () => {
+    const employee = new Mitarbeiter({
+      vorname: 'Snapshot',
+      nachname: 'Range',
+      lohnStammdaten: [{ month: '2026-08', von: '2026-09-01', arbeitszeit: { woche: 30 } }],
+    });
+    assert.equal(employee.getMonthlyWorkingHours(2026, 8), null);
+
+    const merged = Mitarbeiter.mergeLohnStammdatenSnapshot(
+      [{ month: '2026-04', arbeitszeit: { woche: 20 } }, { month: '2026-08', arbeitszeit: { woche: 25 } }],
+      { month: '2026-08', arbeitszeit: { woche: 30 }, steuer: { klasse: 3 } }
+    );
+    assert.deepEqual(merged.map(entry => [entry.month, entry.arbeitszeit.woche]), [
+      ['2026-04', 20],
+      ['2026-08', 30],
+    ]);
+    assert.equal(Object.hasOwn(merged[1].arbeitszeit, 'monat'), false);
+    const persistedShape = new Mitarbeiter({
+      vorname: 'Snapshot',
+      nachname: 'Persisted',
+      lohnStammdaten: merged,
+    }).toObject();
+    assert.equal(Object.hasOwn(persistedShape.lohnStammdaten[1].arbeitszeit, 'monat'), false);
+  });
+  it('löst Arbeitszeit und Steuerklasse je Monat aus den Lohn-Stammdaten auf', () => {
+    const employee = new Mitarbeiter({
+      vorname: 'Lohn',
+      nachname: 'Stammdaten',
+      lohnStammdaten: [
+        { month: '2026-04', von: '2026-01-01', bis: '2026-06-30', arbeitszeit: { woche: 20 }, steuer: { klasse: 1 } },
+        { month: '2026-08', von: '2026-07-01', arbeitszeit: { woche: 30 }, steuer: { klasse: 4, faktor: 0.92 } },
+      ],
+    });
+    assert.equal(employee.getMonthlyWorkingHours(2026, 4), 88);
+    assert.equal(employee.getMonthlyWorkingHours(2026, 8), 126);
+    assert.equal(employee.getSteuerklasseForMonth(2026, 4), 1);
+    assert.equal(employee.getSteuerklasseForMonth(2026, 8), 4);
+    // No snapshot covers July, so neither hours nor tax class may leak across months.
+    assert.equal(employee.getMonthlyWorkingHours(2026, 7), null);
+    assert.equal(employee.getSteuerklasseForMonth(2026, 7), null);
+    assert.equal(employee.getArbeitszeitSnapshotForMonth(2026, 4).woche, 20);
+  });
+  it('liest nicht migrierte arbeitszeit-Daten weiter und lässt sie von lohnStammdaten überschreiben', () => {
+    const employee = new Mitarbeiter({
+      vorname: 'Mix',
+      nachname: 'Test',
+      arbeitszeit: [
+        { month: '2026-04', woche: 20 },
+        { month: '2026-08', woche: 25 },
+      ],
+      lohnStammdaten: [{ month: '2026-08', arbeitszeit: { woche: 30 }, steuer: { klasse: 5 } }],
+    });
+    assert.equal(employee.getMonthlyWorkingHours(2026, 4), 88);
+    assert.equal(employee.getMonthlyWorkingHours(2026, 8), 126);
+    assert.equal(employee.getSteuerklasseForMonth(2026, 8), 5);
+
+    const converted = Mitarbeiter.lohnStammdatenFromLegacyArbeitszeit([{ month: '2026-04', von: '2026-01-01', woche: 20 }]);
+    assert.deepEqual(converted, [{ month: '2026-04', von: '2026-01-01', bis: null, arbeitszeit: { woche: 20 }, steuer: {} }]);
   });
   it('fällt bei fehlender Tarifzuordnung auf Vollzeit, Teilzeit oder Kurzfristig zurück', async () => {
     for (const [typ, type] of [[0, 'hours'], [1, 'hours'], [3, 'days']]) {

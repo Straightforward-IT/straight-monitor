@@ -15,6 +15,10 @@
         <div><dt>Entgeltgruppe</dt><dd data-wage="group">{{ data.baseRate?.payGroup?.name || 'Nicht eindeutig zugeordnet' }}</dd></div>
         <div><dt>ÜTZ</dt><dd data-wage="above">{{ aboveTariffValue !== null ? formatTariffDecimal(aboveTariffValue, true) : 'Klärung erforderlich' }}</dd></div>
         <div v-if="total !== null"><dt>Summe (Tariflohn + ÜTZ)</dt><dd data-wage="total">{{ formatTariffDecimal(total, true) }}</dd></div>
+        <div><dt>Steuerklasse</dt><dd data-wage="tax-class">{{ formatTaxClass(data.payrollMasterData?.taxClass) }}</dd></div>
+        <div><dt>Steuerfaktor</dt><dd data-wage="tax-factor">{{ data.payrollMasterData?.taxFactor != null ? formatTariffDecimal(String(data.payrollMasterData.taxFactor)) : 'Nicht hinterlegt' }}</dd></div>
+        <div><dt>Personengruppe</dt><dd data-wage="person-group">{{ personGroupLabel }}</dd></div>
+        <div><dt>Wochenstunden</dt><dd data-wage="weekly-hours">{{ formatWeeklyHours(data.payrollMasterData?.weeklyHours) }}</dd></div>
       </dl>
       <p v-if="!compact && !resolved" class="employee-tariff-wage__notice" role="status">{{ data.baseRate?.message || 'Der Tariflohn konnte nicht eindeutig ermittelt werden.' }}</p>
       <p v-if="!compact && aboveTariffNotice" class="employee-tariff-wage__notice" role="status">{{ aboveTariffNotice }}</p>
@@ -48,12 +52,29 @@ const aboveTariffValue = computed(() => {
   return null;
 });
 const total = computed(() => resolved.value && aboveTariffValue.value !== null ? decimalSum(data.value.baseRate.value, aboveTariffValue.value) : null);
+const personGroupLabel = computed(() => {
+  const group = data.value?.payrollMasterData?.personGroup;
+  const labels = { 101: 'Festangestellt', 110: 'Kurzfristig', 109: 'Geringfügig', 106: 'Werkstudent' };
+  return labels[group] ? `${group} · ${labels[group]}` : 'Nicht hinterlegt';
+});
 const aboveTariffNotice = computed(() => {
   const above = data.value?.aboveTariff;
   if (!above || above.code === 'ABOVE_TARIFF_MISSING' || above.code === 'NO_ACTIVE_IMPORT') return '';
   if (above.status === 'RESOLVED' && !hasAboveTariff.value) return 'Kein individueller ÜTZ-Betrag hinterlegt; für die Summe wird 0,00 € verwendet.';
   return above.status !== 'RESOLVED' ? above.message || 'Die ÜTZ konnte nicht eindeutig ermittelt werden.' : '';
 });
+function formatTaxClass(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 6
+    ? ['I', 'II', 'III', 'IV', 'V', 'VI'][numeric - 1]
+    : 'Nicht hinterlegt';
+}
+function formatWeeklyHours(value) {
+  if (value === null || value === undefined || value === '') return 'Nicht hinterlegt';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 'Nicht hinterlegt';
+  return `${numeric.toLocaleString('de-DE', { maximumFractionDigits: 2 })} Std.`;
+}
 function reload() {
   if (!props.active || !isAdmin.value || !props.employeeId || !props.date) { clear(); return; }
   return run(signal => api.get(`/api/tariffs/employees/${encodeURIComponent(props.employeeId)}/wage-info`, { signal, params: { date: props.date } }));

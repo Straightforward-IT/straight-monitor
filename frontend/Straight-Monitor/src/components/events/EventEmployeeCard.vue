@@ -69,6 +69,7 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useFlipAll } from '@/stores/flipAll';
 import api from '@/utils/api';
+import { personGroupForMonth } from '@/utils/employeePayrollMasterData';
 
 library.add(
   faBan,
@@ -126,7 +127,7 @@ const department = computed(() => {
 
 const persgruppeLabel = computed(() => {
   const labels = { 101: 'Festi', 110: 'KZF', 109: 'Mini', 106: 'Werkst.' };
-  return labels[props.employee?.persgruppe] || 'Keine Persgruppe';
+  return labels[personGroupForMonth(props.employee)] || 'Keine Persgruppe';
 });
 
 function entryLabel(entry) {

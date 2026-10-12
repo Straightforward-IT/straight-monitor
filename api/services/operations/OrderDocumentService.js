@@ -4,6 +4,7 @@ const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
 const DocuSealVorgang = require('../../models/Signature/DocuSealVorgang');
 const Reisekosten = require('../../models/Signature/Reisekostenabrechnung');
 const { orderForUser, objectId, fail } = require('../TimeCaptureService');
+const { canAccessOfficeDocument } = require('./OrderDocumentAccessService');
 
 function descriptor(kind, doc, values) {
   return { id: `${kind}-${doc._id}`, kind, recordId: String(doc._id), date: doc.datum || doc.updatedAt || doc.createdAt, ...values };
@@ -17,7 +18,15 @@ async function list(user, number) {
     DocuSealVorgang.find({ $or: [{ auftragNr: order.auftragNr }, { 'linkedEntity.type': 'Auftrag', 'linkedEntity.refId': order._id }] }).select('name status signedPdfKey updatedAt').lean(),
     Reisekosten.find({ auftragNr: order.auftragNr }).select('kopf.name kopf.vorname kopf.titel status r2Key anlagen signaturVorgang updatedAt').lean(),
   ]);
+  const uploads = (await Promise.all((order.einsatzdokumente || []).map(async doc => (
+    await canAccessOfficeDocument(doc, user) ? doc : null
+  )))).filter(Boolean);
   const documents = [
+    ...uploads.map(doc => descriptor('upload', doc, {
+      category: 'Weitere', title: doc.title || doc.filename, filename: doc.filename,
+      mimeType: doc.mimeType, date: doc.uploadedAt, preview: 'url', available: !!doc.key,
+      status: doc.type === 'einsatznachweis' ? 'Einsatznachweis' : 'Auftragsdokument',
+    })),
     ...reports.map(doc => descriptor('eventreport', doc, { category: 'EventReport', title: `EventReport · ${doc.name_teamleiter}`, teamLeader: doc.name_teamleiter, status: 'Eingereicht', preview: 'pdf' })),
     ...slips.map(doc => descriptor('laufzettel', doc, { category: 'Weitere', title: `Laufzettel · ${doc.name_mitarbeiter}`, status: doc.status === 'ABGESCHLOSSEN' ? 'Abgeschlossen' : 'Erfasst', preview: 'pdf' })),
     ...signatures.map(doc => descriptor('signature', doc, {
@@ -51,7 +60,13 @@ async function preview(user, number, kind, id, attachmentId, download) {
     return { buffer: await renderReportPdf(kind, doc, order) };
   }
   let doc, key, filename;
-  if (kind === 'signature') {
+  if (kind === 'upload') {
+    doc = (order.einsatzdokumente || []).find(item => String(item._id) === String(id));
+    if (doc && !(await canAccessOfficeDocument(doc, user))) {
+      fail(404, 'Dokument ist mit diesem Auftrag nicht verknüpft.');
+    }
+    key = doc?.key; filename = doc?.filename;
+  } else if (kind === 'signature') {
     doc = await SignaturVorgang.findOne({ _id: id, auftragNr: order.auftragNr }).lean();
     key = doc?.r2KeySigned || (doc?.status !== 'completed' ? doc?.r2KeyUnsigned : null);
     filename = doc?.fileName || `${doc?.name || 'Dokument'}.pdf`;

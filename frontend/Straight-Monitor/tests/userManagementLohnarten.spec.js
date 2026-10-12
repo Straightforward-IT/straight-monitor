@@ -4,6 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createModalDock } from '@bleck-it/vue-modal-dock';
 import UserManagement from '@/components/UserManagement.vue';
+import { formatWageCalculationType } from '@/utils/wageCalculationTypes';
+import { formatAverageStorageType } from '@/utils/averageStorageTypes';
+
+const displayedValue = (field, value) => field === 'berechnungsartCode' ? formatWageCalculationType(value)
+  : field === 'durchschnittsspeicherCode' ? formatAverageStorageType(value) : value;
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
@@ -50,7 +55,7 @@ async function render() {
   await wrapper.get('button[data-tab-id="lohn"]').trigger('click');
 }
 
-it('displays every imported and stored Lohnart value without interpreting codes', async () => {
+it('preserves every imported value and displays the calculation-code meaning', async () => {
   await render();
   const headers = wrapper.findAll('.lohn th[data-field]').map(header => header.attributes('data-field'));
   expect(headers).toHaveLength(fields.length);
@@ -58,7 +63,7 @@ it('displays every imported and stored Lohnart value without interpreting codes'
   expect(importedFields).toHaveLength(24);
   expect(importedFields.every(field => headers.includes(field))).toBe(true);
   for (const field of fields) {
-    expect(wrapper.get(`.lohn tbody td[data-field="${field}"]`).text()).toBe(records[0][field]);
+    expect(wrapper.get(`.lohn tbody td[data-field="${field}"]`).text()).toBe(displayedValue(field, records[0][field]));
   }
   expect(wrapper.findAll('.lohn tbody td')).toHaveLength(fields.length + 1);
   expect(wrapper.get('.lohn__zuschlag').text()).toBe(records[0].zuschlagsProzent);
@@ -92,10 +97,10 @@ it('sorts every value numerically in both directions', async () => {
     const header = wrapper.get(`.lohn th[data-field="${field}"]`);
     if (header.attributes('aria-sort') !== 'ascending') await header.get('button').trigger('click');
     expect(header.attributes('aria-sort')).toBe('ascending');
-    expect(wrapper.findAll(`.lohn tbody td[data-field="${field}"]`).map(cell => cell.text())).toEqual(['2', '10']);
+    expect(wrapper.findAll(`.lohn tbody td[data-field="${field}"]`).map(cell => cell.text())).toEqual(['2', '10'].map(value => displayedValue(field, value)));
     await header.get('button').trigger('click');
     expect(header.attributes('aria-sort')).toBe('descending');
-    expect(wrapper.findAll(`.lohn tbody td[data-field="${field}"]`).map(cell => cell.text())).toEqual(['10', '2']);
+    expect(wrapper.findAll(`.lohn tbody td[data-field="${field}"]`).map(cell => cell.text())).toEqual(['10', '2'].map(value => displayedValue(field, value)));
   }
 });
 
@@ -120,4 +125,39 @@ it('keeps empty values last in both sort directions', async () => {
   expect(wrapper.findAll('.lohn tbody td[data-field="steuerartCode"]').map(cell => cell.text())).toEqual(['2', '10', '-', '-']);
   await header.get('button').trigger('click');
   expect(wrapper.findAll('.lohn tbody td[data-field="steuerartCode"]').map(cell => cell.text())).toEqual(['10', '2', '-', '-']);
+});
+
+it('searches the calculation meaning while preserving source codes and unknown values', async () => {
+  records = [{ _id: 'amount', lohnartNummer: '201', berechnungsartCode: '0' },
+    { _id: 'hours', lohnartNummer: '202', berechnungsartCode: '2' },
+    { _id: 'unknown', lohnartNummer: '203', berechnungsartCode: '99' }];
+  await render();
+  expect(wrapper.findAll('.lohn td[data-field="berechnungsartCode"]').map(cell => cell.text())).toEqual([
+    '0 · Betrag', '2 · Stunden × Stundenlohn', '99 · Unbekannte Berechnungsart',
+  ]);
+  expect(wrapper.findAll('.lohn td[data-field="berechnungsartCode"] span')[1].attributes('title')).toContain('eigenen Satz');
+  await wrapper.get('.lohn input[aria-label="Lohnart suchen"]').setValue('Stundenlohn');
+  expect(wrapper.findAll('.lohn td[data-field="lohnartNummer"]').map(cell => cell.text())).toEqual(['202']);
+  expect(records.map(row => row.berechnungsartCode)).toEqual(['0', '2', '99']);
+});
+
+it('displays and searches average contributions without replacing source codes', async () => {
+  records = [
+    { _id: 'zero', lohnartNummer: '201', durchschnittsspeicherCode: 0 },
+    { _id: 'add', lohnartNummer: '202', durchschnittsspeicherCode: '1' },
+    { _id: 'subtract', lohnartNummer: '203', durchschnittsspeicherCode: '7' },
+    { _id: 'unknown', lohnartNummer: '204', durchschnittsspeicherCode: '99' },
+    { _id: 'missing', lohnartNummer: '205' },
+  ];
+  await render();
+  expect(wrapper.findAll('.lohn td[data-field="durchschnittsspeicherCode"]').map(cell => cell.text())).toEqual([
+    '0 · Keine Addition im Durchschnittsbetrag',
+    '1 · Addition im Durchschnitt (Tage, Stunden, Betrag)',
+    '7 · Subtraktion im Durchschnitt (Stunden)',
+    '99 · Unbekannte Durchschnittsart', '-',
+  ]);
+  expect(wrapper.findAll('.lohn td[data-field="durchschnittsspeicherCode"] span')[2].attributes('title')).toContain('Nur Stunden werden subtrahiert');
+  await wrapper.get('.lohn input[aria-label="Lohnart suchen"]').setValue('Subtraktion im Durchschnitt');
+  expect(wrapper.findAll('.lohn td[data-field="lohnartNummer"]').map(cell => cell.text())).toEqual(['203']);
+  expect(records.map(row => row.durchschnittsspeicherCode)).toEqual([0, '1', '7', '99', undefined]);
 });

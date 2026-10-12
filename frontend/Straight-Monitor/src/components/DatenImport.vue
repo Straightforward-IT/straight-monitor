@@ -10,7 +10,7 @@
     <div class="last-import-section">
       <div v-if="loadingHistory" class="loading-history">Lade Historie...</div>
       <div v-else class="history-grid">
-        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'nationalitaet', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history', 'vorarbeitgebertage'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
+        <div v-for="type in (isAdmin ? ['einsatz-komplett', 'personal', 'monatliche-lohndaten', 'verfuegbarkeit', 'adressen', 'kunden', 'einsatzort', 'beruf', 'qualifikation', 'nationalitaet', 'lohnart', 'kundenkondition', 'rechnung', 'kundenpreis', 'personalnr-history', 'vorarbeitgebertage'] : ['einsatz-komplett', 'personal', 'verfuegbarkeit'])" :key="type" class="history-card">
           <div class="history-header">
             <span class="history-title">{{ getLabel(type) }}</span>
             <span class="status-dot" :class="getDisplayUpload(type)?.status || 'none'"></span>
@@ -29,6 +29,8 @@
       </div>
     </div>
 
+
+    <ZvooveHoursImport v-if="isAdmin" />
 
     <!-- Personal Bereich -->
     <div class="import-section">
@@ -91,12 +93,12 @@
                     <tr><td>P – Qualischlüssel (kommasep.)</td><td>Q – Personengruppe (PERSGR)</td><td>R – Arbeitsverhältnis gültig von</td></tr>
                     <tr><td>S – Arbeitsverhältnis-Typ (0–3)</td><td>T – Durchschnitt bei Fortführen (0/1)</td><td>U – Arbeitszeit gültig von</td></tr>
                     <tr><td>V – Arbeitszeit gültig bis</td><td>W–AC – Arbeitszeit Mo–So</td><td>AD – Wochenstunden (ARBZEITWCH)</td></tr>
-                    <tr><td>AE – Monatsstunden (ARBZEITMON)</td><td>AF – Zeitkonto Plus-Limit</td><td>AG – Zeitkonto Minus-Limit</td></tr>
+                    <tr><td>AE – Monatsstunden (ARBZEITMON, wird nicht übernommen)</td><td>AF – Zeitkonto Plus-Limit</td><td>AG – Zeitkonto Minus-Limit</td></tr>
                     <tr><td>AH – Strasse</td><td>AI – PLZ</td><td>AJ – Ort</td></tr>
                     <tr><td>AK – Land</td><td>AL – Telefon (TEL)</td><td>AM – E-Mail (EMAIL)</td></tr>
                     <tr><td>AN – Strasse2</td><td>AO – PLZ2</td><td>AP – Ort2</td></tr>
                     <tr><td>AQ – Land2</td><td>AR – Telefon2 (TEL2)</td><td>AS – E-Mail2 (EMAIL2)</td></tr>
-                    <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td colspan="2">Abgleich mit Nationalitäten-Import</td></tr>
+                    <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td>AU – Steuerklasse (STKLASSE)</td><td>Abgleich mit Nationalitäten-Import</td></tr>
                   </tbody></table>
                 </div>
               </details>
@@ -355,6 +357,32 @@
         <h2>Finanzen</h2>
       </div>
       <div class="imports-layout">
+
+        <div class="import-card">
+          <div class="card-header">
+            <div class="header-content">
+              <h2>Monatliche Lohndaten (LGELENA)</h2>
+              <p class="subtitle">Monatliche Lohnstammdaten ab Januar 2026, einschließlich zukünftiger Jahre</p>
+            </div>
+            <span v-if="monatlicheLohndatenFile" class="status-indicator ready"><i class="fas fa-check"></i> Bereit</span>
+          </div>
+          <div class="card-content">
+            <AppFileDropzone label="Monatliche Lohndaten" :file="monatlicheLohndatenFile" accept=".xlsx,.xls" :disabled="loading" @select="setFile($event, 'monatliche-lohndaten')" />
+            <div class="requirements-hint">
+              <details>
+                <summary>Benötigte Spalten anzeigen</summary>
+                <div class="table-scroll">
+                  <table class="req-table"><tbody>
+                    <tr><td>ID</td><td>LGJAHR</td><td>LGMONAT</td><td>PERSONALNR</td></tr>
+                    <tr><td>PERSGR</td><td>STKLASSE</td><td>STFAKTOR</td><td>WOARBZEIT</td></tr>
+                  </tbody></table>
+                </div>
+                <p>Spalten werden anhand der Überschriften zugeordnet. Kein Prüffeld erforderlich. Weitere LGELENA-Spalten (Kinderfreibetrag, Brutto, Steuern, Beiträge und Name) werden nicht gespeichert.</p>
+                <p>Frühere Personalnummern werden abgeglichen. Mitgelieferte Werte ersetzen den jeweiligen Monat, auch leere Werte; manuell gesperrte Personengruppen bleiben erhalten. Andere Monate, Tagesstunden und Zeitkontolimits bleiben unverändert.</p>
+              </details>
+            </div>
+          </div>
+        </div>
 
         <!-- Rechnungen Import -->
         <div class="import-card">
@@ -691,10 +719,11 @@ import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
+import ZvooveHoursImport from '@/components/payroll/ZvooveHoursImport.vue';
 
 export default {
   name: "DatenImport",
-  components: { PageLayout, ModalFrame, AppButton, AppTextInput, AppFileDropzone },
+  components: { PageLayout, ModalFrame, AppButton, AppTextInput, AppFileDropzone, ZvooveHoursImport },
   setup() {
     const authStore = useAuth();
     const dataCache = useDataCache();
@@ -711,6 +740,7 @@ export default {
       isDev: import.meta.env.DEV,
       einsatzFile: null,
       personalFile: null,
+      monatlicheLohndatenFile: null,
       verfuegbarkeitFile: null,
       berufFile: null,
       qualifikationFile: null,
@@ -761,6 +791,7 @@ export default {
         einsatz: 'Einsätze (Legacy)',
         'einsatz-komplett': 'Zvoove Komplett Import',
         personal: 'Personal',
+        'monatliche-lohndaten': 'Monatliche Lohndaten',
         adressen: 'Adressen',
         einsatzort: 'Einsatzorte',
         verfuegbarkeit: 'Verfügbarkeiten',
@@ -796,6 +827,7 @@ export default {
       }
       if (type === 'einsatz') this.einsatzFile = file;
       if (type === 'personal') this.personalFile = file;
+      if (type === 'monatliche-lohndaten') this.monatlicheLohndatenFile = file;
       if (type === 'verfuegbarkeit') this.verfuegbarkeitFile = file;
       if (type === 'beruf') this.berufFile = file;
       if (type === 'qualifikation') this.qualifikationFile = file;
@@ -950,6 +982,12 @@ export default {
           if (!response.success) hasErrors = true;
         }
 
+        if (this.monatlicheLohndatenFile && this.isAdmin) {
+          const response = await this.uploadFile(this.monatlicheLohndatenFile, 'monatliche-lohndaten');
+          results.push({ type: 'Monatliche Lohndaten', ...response });
+          if (!response.success) hasErrors = true;
+        }
+
         // Combine results for modal
         this.resultModalData = this.combineResults(results);
         this.showResultModal = true;
@@ -966,7 +1004,7 @@ export default {
         
         // Invalidate caches so the next navigation shows fresh data
         const einsatzResult = results.find(r => r.type === 'Einsätze');
-        if (personalResult?.success) this.dataCache.invalidateCache('mitarbeiter');
+        if (personalResult?.success || results.find(result => result.type === 'Monatliche Lohndaten')?.success) this.dataCache.invalidateCache('mitarbeiter');
         if (einsatzResult?.success) {
           this.dataCache.invalidateCache('auftraege');
           this.dataCache.invalidateCache('kunden');
@@ -1169,6 +1207,7 @@ export default {
     resetAll() {
       this.einsatzFile = null;
       this.personalFile = null;
+      this.monatlicheLohndatenFile = null;
       this.verfuegbarkeitFile = null;
       this.berufFile = null;
       this.qualifikationFile = null;
@@ -1185,7 +1224,7 @@ export default {
       this.fetchLastUploads();
     },
     hasAnyFile() {
-      const adminFiles = this.isAdmin ? (this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.nationalitaetFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile || this.vorarbeitgebertageFile) : false;
+      const adminFiles = this.isAdmin ? (this.monatlicheLohndatenFile || this.adressenFile || this.einsatzortFile || this.kundenFile || this.berufFile || this.qualifikationFile || this.nationalitaetFile || this.lohnartFile || this.rechnungFile || this.kundenpreisFile || this.kundenkonditionFile || this.personalnrHistoryFile || this.vorarbeitgebertageFile) : false;
       return this.einsatzFile || this.personalFile || this.verfuegbarkeitFile || adminFiles;
     },
 

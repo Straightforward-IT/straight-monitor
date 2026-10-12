@@ -104,3 +104,73 @@ test('missing monthly hours remain unknown while the day panel stays available',
   assert.equal(buildHoverDataCard(card.panels[1]).type, 'notice');
   assert.equal(buildHoverDataCard(card.panels[1]).metric, undefined);
 });
+
+test('imported monthly hours replace assignment forecasts and include every recorded code', () => {
+  const card = buildHoverDataCard({ type: 'hours', title: 'Festangestellt', workedHours: 131.5, plannedHours: 20,
+    importedHours: { total: '129', limit: '129.9', byCode: [
+      { kb: '', label: 'Produktive Stunden', hours: '123', days: 19 },
+      { kb: 'FS', label: 'FS · Tageskennzeichnung', hours: '0', days: 11 },
+      { kb: 'FA', label: 'Freizeitausgleich', hours: '6', days: 1 },
+    ] } });
+  assert.equal(card.metric.value, 129);
+  assert.equal(card.metric.valueDisplay, '129,00');
+  assert.equal(card.metric.limitDisplay, '129,90');
+  assert.equal(card.segments.find(segment => segment.id === 'remaining').value, 0.9);
+  assert.equal(card.segments.find(segment => segment.id === 'over-limit'), undefined);
+  assert.match(card.sections[1].rows[1].value, /0,00 Std\. · 11 Tage/);
+  assert.equal(card.sections[1].rows[1].label, 'FS · Tageskennzeichnung');
+  assert.match(card.sections[1].rows[2].value, /6,00 Std\. · 1 Tag/);
+  assert.equal(card.note, undefined);
+  assert.ok(!card.sections.flatMap(section => section.rows).some(row => ['Eingesetzt', 'Geplant', 'Belegt'].includes(row.label)));
+});
+
+test('unlimited imported overview stays available without monthly quota or resolved payroll wages', () => {
+  const card = buildHoverDataCard({ type: 'hours', hoursStatus: 'UNRESOLVED', importedHours: { total: '1.004999999999999999', limit: null,
+    byCode: [{ kb: '', label: 'Produktive Stunden', hours: '1.004999999999999999', days: 1 },
+      { kb: 'FS', label: 'Tageskennzeichnung', hours: null, days: 2 },
+      { kb: 'ZZ', label: 'Zuordnung offen', hours: '0', days: 1, kind: 'unresolved' }] } });
+  assert.equal(card.type, 'hours');
+  assert.equal(card.metric.limit, null);
+  assert.equal(card.metric.valueDisplay, '1,00');
+  assert.equal(card.metric.limitDisplay, null);
+  assert.equal(card.segments.find(segment => segment.id === 'remaining'), undefined);
+  assert.equal(card.segments.find(segment => segment.id === 'over-limit'), undefined);
+  assert.equal(card.segments.find(segment => segment.id === 'kb-ZZ').color, '#d9a441');
+  assert.match(card.sections[1].rows[1].value, /— Std\. · 2 Tage/);
+  assert.ok(!card.sections.flatMap(section => section.rows).some(row => row.label === 'Monats-Sollstunden'));
+});
+
+test('signed imported corrections preserve the exact net balance and all original breakdown values', () => {
+  const card = buildHoverDataCard({ type: 'hours', importedHours: { total: '8', limit: '10', byCode: [
+    { kb: '', label: 'Produktive Stunden', hours: '10', days: 2 }, { kb: 'FA', label: 'Korrektur', hours: '-2', days: 1 },
+  ] } });
+  assert.equal(card.metric.value, 8);
+  assert.equal(card.segments.find(segment => segment.id === 'kb-FA').value, -2);
+  assert.equal(card.diagramSegments[0].value, 8);
+  assert.equal(card.diagramSegments[0].label, 'Saldo der erfassten Stunden');
+  assert.match(card.sections[1].rows[1].value, /-2,00 Std\./);
+  assert.equal(card.diagramSegments.find(segment => segment.id === 'remaining').role, 'remaining');
+  const negative = buildHoverDataCard({ type: 'hours', importedHours: { total: '-2', limit: null, byCode: [{ kb: '', label: 'Korrektur', hours: '-2', days: 1 }] } });
+  assert.equal(negative.metric.valueDisplay, '-2,00');
+  assert.equal(negative.diagramSegments[0].value, 0);
+});
+
+test('combined day and imported-hour cards keep the day allowance and replace only the hourly panel', () => {
+  const card = buildHoverDataCard({ type: 'days-hours', workedDays: 12, importedHours: { total: '20', limit: '15', byCode: [] } });
+  assert.equal(card.panels[1].title, 'Erfasste Stunden');
+  assert.equal(buildHoverDataCard(card.panels[0]).metric.value, 12);
+  const hours = buildHoverDataCard(card.panels[1]);
+  assert.equal(hours.metric.value, 20);
+  assert.equal(hours.sections.at(-1).rows.find(row => row.label === 'Überschreitung').value, '5,00 Std.');
+});
+
+test('corrections above the monthly allowance mark overage without adding it to consumption again', () => {
+  const card = buildHoverDataCard({ type: 'hours', importedHours: { total: '12', limit: '10', byCode: [
+    { kb: '', label: 'Produktive Stunden', hours: '15', days: 2 }, { kb: 'FA', label: 'Korrektur', hours: '-3', days: 1 },
+  ] } });
+  const overage = card.diagramSegments.find(segment => segment.id === 'over-limit');
+  assert.equal(overage.value, 2);
+  assert.equal(overage.role, 'over');
+  assert.equal(card.diagramSegments.find(segment => segment.id === 'remaining').role, 'remaining');
+  assert.equal(card.diagramSegments.filter(segment => segment.role !== 'over').reduce((sum, segment) => sum + segment.value, 0), 12);
+});
