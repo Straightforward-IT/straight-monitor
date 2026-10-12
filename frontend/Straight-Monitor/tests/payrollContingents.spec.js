@@ -91,13 +91,14 @@ describe('Payroll Zvoove month and tariff contingent integration', () => {
     mocks.api.get.mockImplementation((url, config) => url.includes('/analytics/contingent') ? Promise.resolve({ data: tariffData })
       : config.params.month === '2026-10' ? old.promise : Promise.resolve({ data: { ...monthData, employee: { ...monthData.employee, id: 'employee-2', name: 'Aktueller Monat' } } }));
     render(); await flushPromises();
-    expect(wrapper.text()).toContain('werden geladen');
+    expect(wrapper.getComponent(ZvooveTimeWorkspace).props('loading')).toBe(true);
     mocks.route.query = { employeeId: 'employee-2', month: '2026-11' }; await nextTick(); await flushPromises();
     old.resolve({ data: { ...monthData, employee: { ...monthData.employee, name: 'Veraltet' } } }); await flushPromises();
     expect(wrapper.getComponent(ZvooveTimeWorkspace).props('employee').name).toBe('Aktueller Monat');
     mocks.api.get.mockImplementation(async url => { if (url.includes('/api/payroll/')) throw { response: { data: { message: 'Kein Zugriff auf den Standort.' } } }; return { data: tariffData }; });
     await wrapper.get('[aria-label="Stand neu laden"]').trigger('click'); await flushPromises();
     expect(wrapper.get('[role="alert"]').text()).toBe('Kein Zugriff auf den Standort.');
-    expect(wrapper.findComponent(ZvooveTimeWorkspace).exists()).toBe(false);
+    expect(wrapper.getComponent(ZvooveTimeWorkspace).isVisible()).toBe(false);
+    expect(wrapper.getComponent(ZvooveTimeWorkspace).props('entries')).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import registry from '../../../../shared/payroll/wageCalculationTypes.json';
+import registry from '../../../../api/shared/payroll/wageCalculationTypes.json';
 
 export const WageCalculationType = Object.freeze(Object.fromEntries(registry.types.map(type => [type.key, type.code])));
 export const wageCalculationFields = registry.fields;

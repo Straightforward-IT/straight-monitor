@@ -1,4 +1,4 @@
-import registry from '../../../../shared/payroll/averageStorageTypes.json';
+import registry from '../../../../api/shared/payroll/averageStorageTypes.json';
 
 export const AverageStorageType = Object.freeze(Object.fromEntries(registry.types.map(type => [type.key, type.code])));
 const definitions = new Map(registry.types.map(type => [type.code, type]));

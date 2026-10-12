@@ -1,4 +1,4 @@
-const registry = require('../../../shared/payroll/wageCalculationTypes.json');
+const registry = require('../../shared/payroll/wageCalculationTypes.json');
 
 // Descriptive metadata only. These source codes do not resolve rates or
 // authorize calculation; unknown imported values must remain intact.

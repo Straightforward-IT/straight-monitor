@@ -1,10 +1,15 @@
 # Berechnungsarten der Lohnarten
 
 Die vom Benutzer vorgegebenen Zvoove-Codes stehen zentral in
-`shared/payroll/wageCalculationTypes.json`. Backend und Frontend verwenden
+`api/shared/payroll/wageCalculationTypes.json`. Backend und Frontend verwenden
 dieselbe Definition. `berechnungsartCode` bleibt als ursprünglicher String
 gespeichert; die Bedeutung wird beim Lesen ergänzt, nicht in die Datenbank kopiert.
 Unbekannte Codes bleiben erhalten und werden ausdrücklich als unbekannt angezeigt.
+
+Die gemeinsamen JSON-Definitionen liegen innerhalb von `api/`, damit sie auch
+bei einem Heroku-Deployment nur dieses Verzeichnisses enthalten sind. Das Frontend
+importiert dieselben Dateien direkt; es gibt keine separate Kopie oder
+Build-Abhängigkeit für das Backend.
 
 | Code | Bedeutung | Eingaben |
 | --- | --- | --- |
@@ -53,7 +58,7 @@ und baut noch kein neues Erfassungsformular oder Abrechnungssystem.
 `durchschnittsspeicherCode` bestimmt, welche Mengen einer Lohnart zur
 Durchschnittsbildung beitragen. Diese Codes gehören zu einem eigenen Enum,
 unabhängig von der Berechnungsart. Die gemeinsamen Definitionen stehen in
-`shared/payroll/averageStorageTypes.json`. Die Lohnarten-API ergänzt
+`api/shared/payroll/averageStorageTypes.json`. Die Lohnarten-API ergänzt
 `durchschnittsspeicherung`; unbekannte Codes liefern `null` und bleiben gespeichert.
 
 | Code | Tage | Stunden | Betrag |

@@ -1,4 +1,4 @@
-const registry = require('../../../shared/payroll/averageStorageTypes.json');
+const registry = require('../../shared/payroll/averageStorageTypes.json');
 
 // Contribution metadata only. The future average tool must resolve the
 // reference period, quantities and denominator before calculating a rate.

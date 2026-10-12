@@ -15,14 +15,13 @@
         <p v-if="!employeeId" class="payroll-page__notice">Wähle einen Mitarbeiter, um seine importierten Zvoove-Stunden für den Monat anzuzeigen.</p>
         <template v-else>
           <EmployeeCard :key="employeeId" :mitarbeiter-id="employeeId" :enable-header-context-menu="true" class="payroll-page__employee-card" />
-          <p v-if="loading" role="status">Monatsstunden werden geladen …</p>
-          <p v-else-if="error" role="alert">{{ error }}</p>
-          <template v-else-if="data">
+          <p v-if="error" role="alert">{{ error }}</p>
+          <template v-if="data">
             <p class="payroll-page__notice">Zvoove-Import · Schreibgeschützte Monatsstunden</p>
             <ul v-if="data.issues?.length" class="payroll-page__issues" aria-label="Hinweise zum importierten Datenstand"><li v-for="(issue, index) in data.issues" :key="`${issue.code}:${index}`">{{ issue.message }}</li></ul>
             <p v-if="!data.entries.length" class="payroll-page__notice">Für diesen Mitarbeiter und Monat liegen noch keine importierten Zvoove-Stunden vor.</p>
-            <ZvooveTimeWorkspace :key="`${employeeId}:${month}`" :employee="data.employee" :month="month" :entries="data.entries" :totals="data.totals" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" @select-day="openDayDetails" />
           </template>
+          <ZvooveTimeWorkspace v-show="!error" :key="employeeId" :employee="workspaceEmployee" :month="month" :entries="data?.entries || []" :totals="data?.totals" :loading="loading" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" @select-day="openDayDetails" />
         </template>
       </div>
       <SidePanelFrame v-model="detailsOpen" class="payroll-page__day-panel" width="clamp(360px, 32vw, 480px)" :title="selectedDayLabel" :subtitle="data?.employee?.name || ''" :close-on-escape="false" @close="focusSelectedDay">
@@ -69,10 +68,11 @@ const monthDate = computed({ get: () => { const [year, number] = month.value.spl
 const selectedEmployeeId = computed({ get: () => employeeId.value || null, set: value => replaceQuery({ employeeId: value || '' }) });
 const selectedEmployee = computed(() => data.value?.employee && String(data.value.employee.id) === employeeId.value
   ? { _id: data.value.employee.id, personalnr: data.value.employee.personalNr, vorname: data.value.employee.name, nachname: '' } : null);
+const workspaceEmployee = computed(() => data.value?.employee || { id: employeeId.value });
 const selectedDayEntries = computed(() => (data.value?.entries || []).filter(entry => entry.date === selectedDay.value));
 const selectedDayLabel = computed(() => selectedDay.value
   ? new Date(`${selectedDay.value}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Tagesdetails');
-function openDayDetails(date) { selectedDay.value = date; detailsOpen.value = true; }
+function openDayDetails(date) { if (!loading.value && !error.value) { selectedDay.value = date; detailsOpen.value = true; } }
 function focusSelectedDay() { nextTick(() => document.querySelector(`.payroll-page [data-day="${selectedDay.value}"] .tmx-date`)?.focus({ preventScroll: true })); }
 function replaceQuery(patch) {
   const query = { ...route.query, ...patch };
