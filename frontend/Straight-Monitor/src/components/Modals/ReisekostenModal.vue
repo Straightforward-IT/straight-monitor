@@ -65,7 +65,14 @@
                     <option value="mietwagen">Mietwagen</option>
                     <option value="bahn">Bahn</option>
                     <option value="flugzeug">Flugzeug</option>
+                    <option value="taxi">Taxi</option>
+                    <option value="roller">Roller</option>
+                    <option value="zweiradMietfahrzeug">Zweirad-Mietfahrzeug</option>
+                    <option value="freitext">Freies Feld</option>
                   </select>
+                </label>
+                <label v-if="form.kopf.transportmittel === 'freitext'">Freies Feld
+                  <AppTextInput v-model="form.kopf.transportmittelFreitext" placeholder="Verkehrsmittel eingeben" />
                 </label>
                 <label>Ort (Unterschrift)<AppTextInput v-model="form.ort" placeholder="z. B. Hamburg" /></label>
                 <label>Reisebeginn (Datum)<input v-model="form.kopf.reisebeginn" type="date" /></label>
@@ -325,7 +332,7 @@ function emptyForm() {
   return {
     kopf: {
       titel: '', name: '', vorname: '', firma: 'H. & P. Straightforward GmbH', zweck: '',
-      reiseziel: '', start: '', ziel: '', reisebeginn: '', reiseende: '', transportmittel: 'privatpkw',
+      reiseziel: '', start: '', ziel: '', reisebeginn: '', reiseende: '', transportmittel: 'privatpkw', transportmittelFreitext: '',
       tage: 0, stunden: '', nummernschild: '', kostenstelle: '',
     },
     fahrtkosten: [],
@@ -469,6 +476,7 @@ function applyDefaults(d) {
   form.kopf.reisebeginn = isoToDateInput(d.kopf?.reisebeginn);
   form.kopf.reiseende = isoToDateInput(d.kopf?.reiseende);
   form.kopf.transportmittel = d.kopf?.transportmittel || 'privatpkw';
+  form.kopf.transportmittelFreitext = d.kopf?.transportmittelFreitext || '';
   form.kopf.tage = d.kopf?.tage || 0;
   form.kopf.stunden = d.kopf?.stunden || '';
   form.kopf.nummernschild = d.kopf?.nummernschild || '';

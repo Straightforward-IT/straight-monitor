@@ -53,7 +53,8 @@ const ReisekostenabrechnungSchema = new mongoose.Schema({
     ziel:            { type: String, default: '' },
     reisebeginn:     { type: Date, default: null },
     reiseende:       { type: Date, default: null },
-    transportmittel: { type: String, default: 'privatpkw' }, // dienstwagen|privatpkw|mietwagen|bahn|flugzeug
+    transportmittel: { type: String, default: 'privatpkw' }, // dienstwagen|privatpkw|mietwagen|bahn|flugzeug|taxi|roller|zweiradMietfahrzeug|freitext
+    transportmittelFreitext: { type: String, default: '' },
     tage:            { type: Number, default: 0 },
     stunden:         { type: String, default: '' },
     nummernschild:   { type: String, default: '' },

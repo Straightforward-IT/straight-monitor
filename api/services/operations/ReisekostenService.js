@@ -197,6 +197,7 @@ class ReisekostenService {
         reisebeginn: von ? new Date(von).toISOString() : null,
         reiseende: bis ? new Date(bis).toISOString() : null,
         transportmittel: 'privatpkw',
+        transportmittelFreitext: '',
         tage: tage,
         stunden: '',
         nummernschild: '',
@@ -335,12 +336,26 @@ class ReisekostenService {
       ['mietwagen', 'Mietwagen'],
       ['bahn', 'Bahn'],
       ['flugzeug', 'Flugzeug'],
+      ['taxi', 'Taxi'],
+      ['roller', 'Roller'],
+      ['zweiradMietfahrzeug', 'Zweirad-Mietfahrzeug'],
+      ['freitext', 'Freies Feld'],
     ];
     options.forEach(([key, label], idx) => {
       this._checkbox(ctx, rightX, ry - idx * 14, tm === key, label);
     });
     // Nummernschild als Feld rechts neben den Checkboxen.
     this._labeledField(ctx, rightX + halfW + 10, halfW, ry, kopf.nummernschild || '', 'Nummernschild', 1, false);
+    this._labeledField(
+      ctx,
+      rightX + halfW + 10,
+      halfW,
+      ry - (options.length - 1) * 14,
+      tm === 'freitext' ? kopf.transportmittelFreitext || '' : '',
+      'Freies Feld',
+      1,
+      false,
+    );
     ry -= options.length * 14 + 6;
 
     // Gesamtdauer.

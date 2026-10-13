@@ -62,6 +62,7 @@ function sanitizeDoc(body = {}) {
       reisebeginn: kopf.reisebeginn ? new Date(kopf.reisebeginn) : null,
       reiseende: kopf.reiseende ? new Date(kopf.reiseende) : null,
       transportmittel: str(kopf.transportmittel) || 'privatpkw',
+      transportmittelFreitext: str(kopf.transportmittelFreitext),
       tage: Number(kopf.tage) || 0,
       stunden: str(kopf.stunden),
       nummernschild: str(kopf.nummernschild),
