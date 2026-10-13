@@ -1,0 +1,234 @@
+{
+  "fields": {
+    "berechnungsartCode": { "label": "Berechnungsart", "family": "calculation", "group": "calculation" },
+    "durchschnittsspeicherCode": { "label": "Durchschnitt SP1", "family": "averageStorage", "group": "calculation" },
+    "durchschnittsspeicher2Code": { "label": "Durchschnitt SP2", "family": "averageStorage", "group": "calculation" },
+    "steuerungSpeicherungCode": { "label": "Steuerung/Speicherung", "family": "storage", "group": "calculation" },
+    "fehlzeitenbetrachtungCode": { "label": "Fehlzeitenbetrachtung", "family": "absenceTreatment", "group": "time" },
+    "tagesMonatsuebergabeCode": { "label": "Tages-/Monatsübergabe", "family": "periodTransfer", "group": "time" },
+    "fakturierungCode": { "label": "Bereitstellung Konditionstabellen", "family": "conditionProvision", "group": "conditions" },
+    "gleitzeitCode": { "label": "AZK-Stunden", "family": "azk", "group": "tariff" },
+    "verrechnungCode": { "label": "Verrechnung", "family": "offset", "group": "tariff" },
+    "steuerartCode": { "label": "Steuer", "family": "tax", "group": "accounting" },
+    "sozialversicherungCode": { "label": "Sozialversicherung", "family": "socialInsurance", "group": "accounting" },
+    "pfaendungCode": { "label": "Pfändung", "family": "garnishment", "group": "accounting" },
+    "bgPflichtCode": { "label": "BG-Pflicht", "family": "bg", "group": "accounting" }
+  },
+  "families": {
+    "calculation": {
+      "label": "Berechnungsart",
+      "registry": "wageCalculationTypes",
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K1", "Documentation/Payroll/Berechnungsarten.md:Berechnungsarten", "https://go.zvoove.com/knowledge/wie-koennen-stunden-von-urlaub-und-krankheit-in-der-eel-meldung-zur-berechnung-der-geleisteten-stunden-beruecksichtigt-werden"],
+      "note": "Beschreibende Formelmetadaten. Satzquelle und benötigte Grundlagen sind pro Lohnart gesondert festzulegen; es erfolgt keine automatische Berechnung.",
+      "definitionNotes": {
+        "17": "Art 17 beschreibt einen Betrag aus Stunden × Stundenlohn. Die Stundenübergabe ist eine eigene Einstellung: Zvoove nennt für die EEL-Berücksichtigung zusätzlich den Haken Lohnart mit Stundenwert übergeben. Vorrang eines vorhandenen Betrags und vollständige Übergabesemantik bleiben gesondert zu klären."
+      }
+    },
+    "averageStorage": {
+      "label": "Durchschnittsspeicherung",
+      "registry": "averageStorageTypes",
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K2", "Documentation/Payroll/Berechnungsarten.md:Durchschnittsspeicherung für das spätere Schnitt-Tool"],
+      "note": "SP1 und SP2 sind unabhängige Speicher. Die Kennzeichnung allein liefert keinen Durchschnittssatz."
+    },
+    "tax": {
+      "label": "Steuer (K4)",
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K4"],
+      "note": "Importierte Steuerkennzeichnung aus Zvoove. Daraus wird in diesem Schritt keine Steuerberechnung abgeleitet.",
+      "types": [
+        { "code": "0", "key": "TAXABLE", "label": "Steuerpflichtig" },
+        { "code": "1", "key": "TAX_FREE", "label": "Steuerfrei" },
+        { "code": "2", "key": "ONE_OFF_PAYMENT", "label": "Einmalbezug" },
+        { "code": "3", "key": "NON_CASH_BENEFIT", "label": "Geldwertvorteil" },
+        { "code": "4", "key": "SHORT_TIME_ALLOWANCE", "label": "Kurzarbeitergeld" },
+        { "code": "5", "key": "EMPLOYER_FLAT_TAX_15", "label": "AG 15 % Pauschallohnsteuer" },
+        { "code": "6", "key": "EMPLOYEE_FLAT_TAX_15", "label": "AN 15 % Pauschallohnsteuer" },
+        { "code": "7", "key": "EMPLOYER_FLAT_TAX_20", "label": "AG 20 % Pauschallohnsteuer" },
+        { "code": "8", "key": "EMPLOYEE_FLAT_TAX_20", "label": "AN 20 % Pauschallohnsteuer" },
+        { "code": "9", "key": "EMPLOYER_FLAT_TAX_25", "label": "AG 25 % Pauschallohnsteuer" },
+        { "code": "10", "key": "EMPLOYEE_FLAT_TAX_25", "label": "AN 25 % Pauschallohnsteuer" },
+        { "code": "11", "key": "BENEFIT_EMPLOYER_FLAT_TAX_15", "label": "GWV AG 15 % Pauschallohnsteuer" },
+        { "code": "12", "key": "BENEFIT_EMPLOYEE_FLAT_TAX_15", "label": "GWV AN 15 % Pauschallohnsteuer" },
+        { "code": "13", "key": "BENEFIT_EMPLOYER_FLAT_TAX_20", "label": "GWV AG 20 % Pauschallohnsteuer" },
+        { "code": "14", "key": "BENEFIT_EMPLOYEE_FLAT_TAX_20", "label": "GWV AN 20 % Pauschallohnsteuer" },
+        { "code": "15", "key": "BENEFIT_EMPLOYER_FLAT_TAX_25", "label": "GWV AG 25 % Pauschallohnsteuer" },
+        { "code": "16", "key": "BENEFIT_EMPLOYEE_FLAT_TAX_25", "label": "GWV AN 25 % Pauschallohnsteuer" },
+        { "code": "17", "key": "EMPLOYER_FLAT_TAX_30", "label": "AG 30 % Pauschallohnsteuer" },
+        { "code": "18", "key": "EMPLOYEE_FLAT_TAX_30", "label": "AN 30 % Pauschallohnsteuer" },
+        { "code": "19", "key": "BENEFIT_EMPLOYER_FLAT_TAX_30", "label": "GWV AG 30 % Pauschallohnsteuer" },
+        { "code": "20", "key": "BENEFIT_EMPLOYEE_FLAT_TAX_30", "label": "GWV AN 30 % Pauschallohnsteuer" },
+        { "code": "22", "key": "ONE_OFF_PAYMENT_FAVOURABILITY", "label": "Einmalbezug (Günstigerprüfung)" }
+      ]
+    },
+    "storage": {
+      "label": "Steuerung/Speicherung (K6)",
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K6", "Documentation/Lohnarten/Lohnarten5.pdf:K6 Fortsetzung"],
+      "note": "Diese Steuerung ist unabhängig von Gesamtstunden, Auswertungskennzeichen und BG-Stunden. Die importierte Kennzeichnung wird beschrieben, nicht ausgeführt.",
+      "types": [
+        { "code": "0", "key": "STORE_HOUR_SUMS", "label": "Stundensummen speichern in \"Stunden\"" },
+        { "code": "2", "key": "PAID_ABSENCE_PAY_ZVOOVE", "label": "Lohnfortzahlung für bezahlte Fehlzeiten (zvoove)" },
+        { "code": "3", "key": "SHORT_TIME_WINTER_ALLOWANCE", "label": "Kurzarbeitergeld / Winterausfallgeld" },
+        { "code": "4", "key": "DO_NOT_STORE_HOURS", "label": "Stunden nicht speicherbar" },
+        { "code": "5", "key": "TAX_FREE_COMMUTING_BENEFIT", "label": "Steuerfreie Arbeitgeberleistungen, die auf die Entfernungspauschale anzurechnen sind" },
+        { "code": "6", "key": "TAX_FREE_TRAVEL_MEAL_BENEFIT", "label": "steuerfreie Verpflegungzuschüsse bei Auswärtstätigkeit" },
+        { "code": "7", "key": "ABSENCE_DAYS", "label": "Fehltage" },
+        { "code": "8", "key": "VACATION_DAYS", "label": "Urlaubstage" },
+        { "code": "9", "key": "EMPLOYER_SAVINGS_CONTRIBUTION", "label": "AG-Anteil VWL" },
+        { "code": "11", "key": "CHRISTMAS_PAY", "label": "Weihnachtsgeld" },
+        { "code": "12", "key": "FLAT_TAX_EMPLOYER_COMMUTING", "label": "Pauschalbesteuerte AG-Leistungen für Fahrten zw. Wohnung u. Arbeitsstätte" },
+        { "code": "13", "key": "TAX_FREE_DOUBLE_HOUSEHOLD", "label": "Steuerfreie AG-Leistungen bei doppelter Haushaltsführung" },
+        { "code": "14", "key": "MATERNITY_PAY_U2", "label": "AG-Zuschuss zum Mutterschaftsgeld (Erstattung U2)" },
+        { "code": "15", "key": "PARTIAL_RETIREMENT_SUPPLEMENT", "label": "Aufstockungsbetrag(Altersteilzeit)" },
+        { "code": "16", "key": "CONTINUED_PAY_U1", "label": "Lohnfortzahlung (Erstattung U1)" },
+        { "code": "17", "key": "FUTURE_PROVISION", "label": "Zukunftssicherung" },
+        { "code": "18", "key": "VACATION_DAYS_PAYOUT", "label": "Urlaubstage für Abgeltung" },
+        { "code": "19", "key": "ADDITIONAL_PARTIAL_RETIREMENT_SUPPLEMENT", "label": "Zusätzl. Aufstockungsbetrag (Altersteilzeit)" },
+        { "code": "20", "key": "TAX_FREE_EMPLOYER_PENSION", "label": "Steuerfreie Beiträge AG an eine Pensionskasse oder einen Pensionsfonds" },
+        { "code": "21", "key": "VACATION_PAY", "label": "Urlaubsgeld" },
+        { "code": "22", "key": "DOUBLE_TAX_TREATY", "label": "Doppelbesteuerungsabkommen" },
+        { "code": "23", "key": "TARIFF_VACATION_DAYS_PAYOUT", "label": "Urlaubstage für Abgeltung aus Tarif / zvoove" },
+        { "code": "24", "key": "MULTI_YEAR_COMPENSATION", "label": "Steuerpfl. Arbeitslohn/Entschädigung für mehrere Kalenderjahre (Günstigerprüfung)" },
+        { "code": "25", "key": "OVERTIME_PAY", "label": "Lohnart für Mehrarbeitsvergütung" },
+        { "code": "26", "key": "EMPLOYER_SHORT_TIME_SUPPLEMENT", "label": "Arbeitgeberzuschuss zum KUG" },
+        { "code": "27", "key": "SICK_SHORT_TIME_WINTER_ALLOWANCE", "label": "Kurzarbeitergeld / Winterausfallgeld - Krank" },
+        { "code": "28", "key": "EMPLOYMENT_PROHIBITION_PAY_U2", "label": "Lohnfortzahlung Beschäftigungsverbot (Erstattung U2)" },
+        { "code": "29", "key": "TRAVEL_MEALS_IN_KIND", "label": "Mahlzeit nach Sachbezugswert während berufl. Auswärtstätigkeit zur Verfügung gestellt" },
+        { "code": "30", "key": "EMPLOYER_PENSION_SECTION_100", "label": "Arbeitgeberfinanzierte betriebl. Altersvorsorge (§100 EStG BAV-Förderbetrag ab 2018)" },
+        { "code": "31", "key": "EMPLOYER_PENSION_FLAT_15", "label": "Arbeitgeberfinanzierte betriebl. Altersvorsorge ab 2019 - pauschaler AG Zuschuss 15%" },
+        { "code": "32", "key": "EMPLOYER_PENSION_SOCIAL_SAVINGS_LIMIT", "label": "Arbeitgeberfinanzierte betriebl. Altersvorsorge ab 2019 - AG Zuschuss 15% max. bis SV-Ersparnis" },
+        { "code": "33", "key": "DEFERRED_COMPENSATION", "label": "Entgeltumwandlung" },
+        { "code": "34", "key": "EMPLOYER_PROFESSIONAL_PENSION", "label": "AG-Anteil/Zuschuss RV an berufsstndische Versorgungseinrichtungen" },
+        { "code": "35", "key": "EMPLOYEE_PROFESSIONAL_PENSION", "label": "AN-Anteil an berufsstndische Versorgungseinrichtungen" },
+        { "code": "36", "key": "INFECTION_PROTECTION_COMPENSATION", "label": "Verdienstausfallentschädigung IfSG" },
+        { "code": "37", "key": "TAX_FREE_EMPLOYER_SHORT_TIME_SUPPLEMENT", "label": "Arbeitgeberzuschuss zum KUG steuerfrei" },
+        { "code": "38", "key": "TAX_FREE_CORONA_2020", "label": "AG-Zuschuss Corona 2020 steuerfrei" },
+        { "code": "39", "key": "ENERGY_ALLOWANCE_2022", "label": "Energiepreispauschale 2022" }
+      ]
+    },
+    "azk": {
+      "label": "AZK-Stunden (K7)",
+      "source": ["Documentation/Lohnarten/Lohnarten5.pdf:K7"],
+      "note": "Kennzeichnung des Stundenbeitrags zum AZK. Eine tatsächliche AZK-Verrechnung ist noch nicht implementiert.",
+      "types": [
+        { "code": "0", "key": "NOT_RELEVANT", "label": "nicht relevante Lohnart für AZK-Stunden" },
+        { "code": "1", "key": "ADD_HOURS", "label": "Stunden der Lohnart in AZK-Stunden addieren" },
+        { "code": "2", "key": "SUBTRACT_HOURS", "label": "Stunden der Lohnart von AZK-Stunden subtrahieren" }
+      ]
+    },
+    "garnishment": {
+      "label": "Pfändung (K8)",
+      "source": ["Documentation/Lohnarten/Lohnarten5.pdf:K8"],
+      "note": "Importierte Pfändungskennzeichnung. Daraus wird keine Pfändungsberechnung abgeleitet.",
+      "types": [
+        { "code": "0", "key": "FULLY_ATTACHABLE", "label": "voll pfändbar (gem. Pfändungstabelle)" },
+        { "code": "1", "key": "NOT_ATTACHABLE", "label": "Unpfändbar (Paragr. 850 a ZPO)" },
+        { "code": "2", "key": "PARTLY_NOT_ATTACHABLE", "label": "teilweise unpfändbar" },
+        { "code": "3", "key": "SEVERANCE_FULLY_ATTACHABLE", "label": "voll pfändbar (Abfindung)" }
+      ]
+    },
+    "socialInsurance": {
+      "label": "Sozialversicherung (K11)",
+      "source": ["Documentation/Lohnarten/Lohnarten5.pdf:K11"],
+      "note": "Importierte SV-Kennzeichnung; eine Beitragsberechnung erfolgt noch nicht.",
+      "types": [
+        { "code": "0", "key": "LIABLE", "label": "Sozialversicherungspflichtig" },
+        { "code": "1", "key": "EXEMPT", "label": "Sozialversicherungsfrei" },
+        { "code": "2", "key": "ONE_OFF_PAYMENT", "label": "Einmalbezug" },
+        { "code": "3", "key": "NON_CASH_BENEFIT", "label": "Geldwertvorteil" },
+        { "code": "4", "key": "SHORT_TIME_ALLOWANCE", "label": "Kurzarbeitergeld" },
+        { "code": "5", "key": "ONE_OFF_REPAYMENT", "label": "Rückzahlung für Einmalbezug" },
+        { "code": "6", "key": "EMPLOYER_ONLY", "label": "Sozialversicherungspflichtig nur AG" }
+      ]
+    },
+    "bg": {
+      "label": "BG-Pflicht",
+      "source": ["Documentation/Lohnarten/Lohnarten5.pdf:BG", "Documentation/Lohnarten/Lohnarten.xlsx:Tabelle1!AM:AN"],
+      "note": "Spaltenzuordnung für die BG-Liste. Der Beitrag zu bezahlten Stunden ist eine unabhängige Einstellung.",
+      "types": [
+        { "code": "0", "key": "NOT_LIABLE", "label": "nicht BG-pflichtig" },
+        { "code": "1", "key": "LIABLE", "label": "BG-pflichtig" }
+      ]
+    },
+    "conditionProvision": {
+      "label": "Bereitstellung Konditionstabellen",
+      "source": ["Documentation/Payroll/Berechnungsarten.md:Bereitstellung in Konditionstabellen (Fakturierung)", "https://go.zvoove.com/knowledge/wo-kann-ich-festlegen-ob-eine-lohnart-nur-lohn-oder-fakturseitig-bzw.-f%C3%BCr-beides-gelten-und-ber%C3%BCcksichtigt-werden-soll"],
+      "note": "Steuert ausschließlich die Bereitstellung in Konditionstabellen. Kein globaler Ausschluss aus Lohnabrechnung, Fehlzeiten oder Sonderzahlungen.",
+      "types": [
+        { "code": "0", "key": "WAGE_AND_INVOICE", "label": "Lohn + Faktur", "aliases": ["Lohn+Faktur"], "wage": true, "invoice": true },
+        { "code": "1", "key": "WAGE_ONLY", "label": "Nur Lohn", "wage": true, "invoice": false },
+        { "code": "2", "key": "INVOICE_ONLY", "label": "Nur Faktur", "wage": false, "invoice": true },
+        { "code": "3", "key": "NEITHER", "label": "Weder Lohn noch Faktur", "wage": false, "invoice": false }
+      ]
+    },
+    "offset": {
+      "label": "Verrechnung",
+      "source": ["Documentation/Lohnarten/Lohnarten.xlsx:Tabelle1!BU:BX", "Benutzerbestätigung:ÜTZ 110 → 602, Priorität 1", "https://go.zvoove.com/knowledge/warum-wird-der-branchenzuschlag-nicht-mit-der-uebertariflichen-zulage-verrechnet"],
+      "note": "Verrechnungsart, Ziel-Lohnart und Priorität sind getrennte Angaben. Vorzeichen, Reihenfolge und Begrenzung sind noch ungeklärt; Personalstamm und auftragsseitige Vereinbarungen können zusätzlich steuern.",
+      "unmappedOptions": [
+        { "key": "TARIFF_SUPPLEMENT", "label": "Tariflicher Zuschlag", "note": "Auswahl im Zvoove-Dialog bestätigt; numerischer Code noch unbelegt. Die Dropdown-Reihenfolge begründet keinen Code 4." }
+      ],
+      "types": [
+        { "code": "0", "key": "NONE", "label": "Keine Auswahl", "aliases": ["keine Auswahl"] },
+        { "code": "1", "key": "INDUSTRY_SUPPLEMENT", "label": "Branchenzuschlag" },
+        { "code": "2", "key": "ALLOWANCE_SUPPLEMENT", "label": "Zulage/Zuschlag" },
+        { "code": "3", "key": "ABOVE_TARIFF_ALLOWANCE", "label": "ÜTZ" }
+      ]
+    },
+    "absenceTreatment": {
+      "label": "Fehlzeitenbetrachtung",
+      "source": ["Documentation/Lohnarten/Lohnarten.xlsx:Tabelle1!BC:BD"],
+      "note": "Im vorliegenden Stamm belegte Auswahl. Diese Einstellung ersetzt keine noch offene Tageszählung im Durchschnittsspeicher.",
+      "types": [
+        { "code": "0", "key": "NONE", "label": "keine Auswahl" },
+        { "code": "1", "key": "WHOLE_DAYS_VACATION_WAGE_TYPE", "label": "Ganze Tage, Urlaubslohnart" }
+      ]
+    },
+    "periodTransfer": {
+      "label": "Tages-/Monatsübergabe",
+      "source": ["Documentation/Lohnarten/Lohnarten.xlsx:Tabelle1!AX:AY"],
+      "note": "Nur die im Export belegte Auswahl wird zugeordnet. Eine leere Zelle bleibt fehlend und ist kein Code 0.",
+      "types": [
+        { "code": "M", "key": "MONTH_AMOUNT", "label": "Monat Betrag" }
+      ]
+    },
+    "conditionUsage": {
+      "label": "Verwendung der Kundenkondition",
+      "source": ["api/models/Customer/KundenKondition.js:verwendung", "Benutzerbestätigung:Kundenkonditionen F/Faktur und L/Lohn"],
+      "note": "Verwendung einer konkreten Kondition, unabhängig von der Bereitstellung der Lohnart. Fakturregeln erzeugen keine Mitarbeiterzuschläge.",
+      "types": [
+        { "code": "F", "key": "INVOICE", "label": "Faktur" },
+        { "code": "L", "key": "WAGE", "label": "Lohn" }
+      ]
+    },
+    "supplementaryPension": {
+      "label": "Zusatzversorgungskasse (K3)",
+      "catalogOnly": true,
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K3"],
+      "note": "Definition dokumentiert; die Datenspaltenzuordnung im aktuellen Export ist ungeklärt.",
+      "types": [
+        { "code": "0", "key": "EXEMPT", "label": "Frei" },
+        { "code": "1", "key": "LIABLE", "label": "Pflichtig" },
+        { "code": "2", "key": "LIABLE_TAX", "label": "Pflichtig/Steuern" }
+      ]
+    },
+    "alternativeFlatTax": {
+      "label": "Alternative Pauschalsteuer (K5)",
+      "catalogOnly": true,
+      "source": ["Documentation/Lohnarten/Lohnarten4.pdf:K5"],
+      "note": "Definition dokumentiert; steuerSpezialCode wird ohne belegte Datenspaltenzuordnung nicht als K5 interpretiert.",
+      "types": [
+        { "code": "0", "key": "NORMAL", "label": "normale Berechnung" },
+        { "code": "1", "key": "ALTERNATIVE_RATE", "label": "abweichender Steuersatz" }
+      ]
+    },
+    "paidHoursBg": {
+      "label": "BG-Liste / bezahlte Stunden (BG2)",
+      "catalogOnly": true,
+      "source": ["Documentation/Lohnarten/Lohnarten5.pdf:BG2", "Benutzerscreenshot:Lohnart 100, Tab Lohn"],
+      "note": "Datenspaltenzuordnung ungeklärt. IBGSPALTESTD_SUB wird weder direkt noch invertiert als BG2 interpretiert; Gesamtstunden und Auswertungen sind unabhängig.",
+      "types": [
+        { "code": "0", "key": "EXCLUDE", "label": "Lohnart nicht mitzählen bei bezahlten Stunden" },
+        { "code": "1", "key": "INCLUDE", "label": "Lohnart mitzählen bei bezahlten Stunden" }
+      ]
+    }
+  }
+}

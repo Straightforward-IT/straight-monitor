@@ -1601,6 +1601,29 @@ GET    /api/bewerber/:id/einladung   # Get invitations status
 ```
 
 ### Work Order Management (`/api/auftraege`)
+
+Normal customer orders use a planning-first staged editor. A new order has one starting calendar day; overnight shifts keep their actual end interval and do not create a second order. Selecting several individual dates creates independent daily `Auftrag`/`Schicht` records linked by an `Auftragsgruppe`. The compact group owns shared defaults and stable shift keys; daily records retain their ordinary IDs, relations, status and staffing. Explicit per-field day overrides are never overwritten by common synchronization.
+
+Interactive customer reassignment is prohibited after creation; trusted Zvoove corrections remain supported. Normal editor submission/release requires a saved customer-owned Einsatzort. Legacy address snapshots remain readable and can prefill explicit master-data creation; neither automatic conversion nor splitting existing imported multi-day orders is performed. Pseudo-order flows retain their separate behavior.
+
+The editor uses these additional contracts:
+
+```
+GET    /api/auftraege/editor/context/:auftragNr        # Order/group context and paginated linked days
+POST   /api/auftraege/editor/candidates                # Read-only staffing preview for staged shifts
+POST   /api/auftraege/editor/review                    # Read-only before/after effects across linked days
+POST   /api/auftraege/editor/submissions               # Validate/register a staged submission
+GET    /api/auftraege/editor/submissions/:id           # Durable progress and recovery status
+POST   /api/auftraege/editor/submissions/:id/process    # Apply one bounded batch, returning committed orders
+POST   /api/auftraege/editor/submissions/:id/complete   # Verify declared attachments and finalize readiness
+```
+
+Common shift settings synchronize into existing daily fields so downstream calendars, exports, public jobs and time capture still consume independent orders and actual time windows. Employees are never cloned between dates. Commit validation checks effective staffing, permissions and version tokens. Each bounded transaction includes its daily Chronik changes; an unlimited set is not globally atomic. Failed or interrupted operations expose completed/failed/pending days and resume only unfinished work using stable operation identities.
+
+Bestellung text is stored as editable order/group metadata. Attachments use the existing `/:auftragNr/einsatzdokumente` R2 upload/list/download/delete routes, with separate group/order relation ownership and internal visibility. Shared files have one metadata owner and one R2 object; day-specific files supplement them. The existing 30 MB file limit remains. Files queue until final confirmation, upload outside MongoDB transactions, and retain per-file retry state if the database submission has already succeeded.
+
+Legacy work-order endpoints remain available, subject to the customer/site/group invariants:
+
 ```
 GET    /api/auftraege                # List all work orders
 GET    /api/auftraege/:id            # Get order details

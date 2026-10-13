@@ -2,754 +2,482 @@
   <ModalFrame
     :model-value="true"
     :title="modalTitle"
-    subtitle="Event"
-    size="Monitor Event-Wizard"
+    :subtitle="creating ? 'Neuer Auftrag' : `${draft.customer?.kundName || 'Auftrag'} · ${dateLabel(order.day)}`"
+    size="xl"
     :minimizable="minimizable"
     :minimize-id="minimizeId"
     :minimize-title="minimizeTitle || modalTitle"
     :close-on-escape="closeOnEscape"
     :layer="layer"
-    class="event-wizard-frame"
-    style="--mf-max-width: min(1480px, 98vw); --mf-max-height: 96dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
-    @close="emit('close')"
+    class="auftrag-editor-frame"
+    style="--mf-max-width: min(1280px, 96vw); --mf-max-height: 94dvh; --mf-body-padding: 0; --mf-body-overflow: hidden"
+    @close="requestClose"
   >
     <template #actions>
-      <span v-if="event" class="wizard-state" :class="event.auftStatus === 2 ? 'confirmed' : 'draft'">
-        {{ event.auftStatus === 2 ? 'Bestätigt' : 'Entwurf' }} · {{ event.monitorId || `#${event.auftragNr}` }}
-      </span>
-      <span v-if="statusMessage" class="save-state">{{ statusMessage }}</span>
+      <span v-if="!creating" class="order-status">{{ order.auftStatus === 2 ? 'Bestätigt' : 'Entwurf' }}</span>
     </template>
+    <div class="auftrag-editor">
+      <AppTabs v-model="activeTab" :tabs="tabs" :id-prefix="tabPrefix" label="Auftrag bearbeiten" size="sm" scroll-controls />
+      <main class="editor-body" :aria-busy="loading || busy">
+        <LoadingSpinner v-if="loading" label="Auftrag wird geladen …" />
+        <p v-if="error" class="feedback feedback--error" role="alert">{{ error }}</p>
+        <p v-if="notice" class="feedback" role="status">{{ notice }}</p>
+        <div v-if="!loading && (linked || creating && dates.length > 1)" class="day-navigation">
+          <label v-if="creating">Tag planen
+            <AppSelect :model-value="activeDay" :disabled="pending" @update:model-value="selectDay">
+              <option v-for="day in dates" :key="day" :value="day">{{ dateLabel(day) }}</option>
+            </AppSelect>
+          </label>
+          <label v-else>Verknüpfter Auftrag
+            <AppSelect :model-value="String(order.auftragNr)" :disabled="pending" @update:model-value="switchOrder">
+              <option v-for="member in members" :key="member.auftragNr" :value="String(member.auftragNr)">{{ dateLabel(member.day || member.startingDay || member.vonDatum) }} · #{{ member.auftragNr }}</option>
+            </AppSelect>
+          </label>
+          <AppButton v-if="nextCursor" variant="ghost" size="sm" :disabled="pending" @click="load(order.auftragNr, nextCursor)">Weitere Tage laden</AppButton>
+          <span>Gemeinsame Änderungen gelten für alle erbenden Tage. Personal bleibt tagesspezifisch.</span>
+        </div>
 
-    <LoadingSpinner v-if="loading && !event" label="Auftrag wird geladen …" />
-    <div v-else class="wizard-shell">
-      <nav class="wizard-steps" aria-label="Auftragsschritte">
-        <button
-          v-for="(step, index) in steps"
-          :key="step.id"
-          type="button"
-          :disabled="!event && index > 0"
-          :class="{ active: currentStep === index, done: event && index < Math.max(currentStep, event.wizardStep || 0) }"
-          @click="goToStep(index)"
-        >
-          <span>{{ index + 1 }}</span>
-          <div><strong>{{ step.label }}</strong><small>{{ step.hint }}</small></div>
-        </button>
-      </nav>
-
-      <main class="wizard-content">
-        <p v-if="errorMessage" class="wizard-error">{{ errorMessage }}</p>
-
-        <section v-if="currentStep === 0" class="wizard-page">
-          <header class="page-heading">
-            <div><span class="eyebrow">Schritt 1</span><h3>Was soll disponiert werden?</h3><p>Die Kerndaten legen Zeitraum, Standort und Kundenkontext für alle weiteren Vorschläge fest.</p></div>
-          </header>
-
-          <div class="form-grid order-grid">
-            <label class="field wide"><span>Titel *</span><input v-model.trim="form.eventTitel" type="text" placeholder="Worum geht es bei diesem Auftrag?" /></label>
-            <label class="field"><span>Standort *</span><select v-model="form.locationV2" :disabled="!!event && event.auftStatus === 2"><option value="">Standort wählen</option><option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option></select></label>
-            <label class="field"><span>Von *</span><input v-model="form.vonDatum" type="datetime-local" /></label>
-            <label class="field"><span>Bis *</span><input v-model="form.bisDatum" type="datetime-local" /></label>
-            <label class="field"><span>Bestelldatum</span><input v-model="form.bestDatum" type="date" /></label>
-            <label class="field"><span>Referenz</span><input v-model.trim="form.referenz" type="text" placeholder="Bestellung, PO, Ansprechpartner …" /></label>
-            <div class="field wide customer-field">
-              <span>Kunde {{ form.isPseudo ? '(optional)' : '*' }}</span>
-              <div v-if="selectedCustomer" class="selected-customer"><strong>{{ selectedCustomer.kundName }}</strong><span>{{ selectedCustomer.kuerzel || `Kunde ${selectedCustomer.kundenNr}` }}</span><button type="button" @click="selectCustomer(null)">Ändern</button></div>
-              <KundeSearch v-else :location-v2="form.locationV2 || null" placeholder="Kunde nach Name, Nummer oder Kürzel suchen …" @select="selectCustomer" />
-              <div v-if="recentCustomers.length" class="suggestion-row"><span>Zuletzt an diesem Standort</span><button v-for="customer in recentCustomers" :key="customer._id" type="button" @click="selectCustomer(customer)">{{ customer.kuerzel || customer.kundName }}</button></div>
+        <section v-if="!loading && activeTab === 'order'" :id="panelId('order')" role="tabpanel" :aria-labelledby="`${tabPrefix}-order`">
+          <header class="section-heading"><h3>Auftragsdaten</h3><span>Kontext, Bestellung und Einsatzort</span></header>
+          <fieldset :disabled="pending">
+            <div class="context-grid">
+              <article class="editor-card">
+                <h4>Auftrag & Kunde</h4>
+                <label class="field">Titel <AppTextInput :model-value="order.eventTitel" aria-label="Auftragstitel" @update:model-value="setOrder('eventTitel', $event.trim())" /></label>
+                <label class="field">Standort
+                  <AppSelect :model-value="order.locationV2" :disabled="!creating && order.auftStatus === 2" aria-label="Standort" @update:model-value="setOrder('locationV2', $event)">
+                    <option value="">Standort wählen</option><option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option>
+                  </AppSelect>
+                </label>
+                <div class="field">
+                  <span>Kunde {{ creating ? '*' : '· fest zugeordnet' }}</span>
+                  <KundeSearch v-if="creating" v-model="draft.customer" :location-v2="order.locationV2 || null" :disabled="pending" input-id="auftrag-editor-kunde" @select="selectCustomer" />
+                  <div v-else class="fixed-customer"><strong>{{ draft.customer?.kundName || `Kunde ${order.kundenNr || 'fehlt'}` }}</strong><small>Nach Erstellung nicht änderbar</small></div>
+                </div>
+                <div class="form-row">
+                  <label class="field">Bestelldatum <AppTextInput :model-value="order.bestDatum" type="date" @update:model-value="setOrder('bestDatum', $event)" /></label>
+                  <label class="field">Referenz <AppTextInput :model-value="order.referenz" placeholder="Bestellung / PO" @update:model-value="setOrder('referenz', $event.trim())" /></label>
+                </div>
+              </article>
+              <article class="editor-card">
+                <h4>Startdatum</h4>
+                <template v-if="creating">
+                  <div class="chip-row">
+                    <FilterChip :active="!multiDay" :disabled="pending" @click="useSingleDay">Ein Tag</FilterChip>
+                    <FilterChip :active="multiDay" :disabled="pending" @click="multiDay = true">Mehrere Tage</FilterChip>
+                  </div>
+                  <label v-if="!multiDay" class="field">Auftragstag <AppTextInput :model-value="dates[0]" type="date" @update:model-value="setSingleDay" /></label>
+                  <template v-else>
+                    <p class="muted">Ein eigener Auftrag je ausgewähltem Startdatum. Auch nicht aufeinanderfolgende Tage sind möglich.</p>
+                    <div class="date-add"><AppTextInput v-model="dateDraft" type="date" aria-label="Weiteres Startdatum" /><AppButton variant="secondary" :disabled="!dateDraft" @click="addDate">Tag hinzufügen</AppButton></div>
+                    <ul class="selected-dates"><li v-for="day in dates" :key="day"><span>{{ dateLabel(day) }}</span><AppButton variant="ghost" size="sm" :disabled="dates.length === 1" :aria-label="`${dateLabel(day)} entfernen`" @click="removeDate(day)">Entfernen</AppButton></li></ul>
+                  </template>
+                </template>
+                <template v-else><strong>{{ dateLabel(order.day) }}</strong><p class="muted">Der Auftrag gehört zum Starttag. Eine Schicht darf nach Mitternacht enden.</p></template>
+              </article>
             </div>
-            <div class="field wide"><span>Labels</span><div class="label-editor"><span v-for="(label, index) in form.labels" :key="`${label.name}-${index}`" class="order-label" :style="{ '--label-color': label.color }">{{ label.name }}<button type="button" @click="form.labels.splice(index, 1)">×</button></span><input v-model.trim="labelDraft" maxlength="20" placeholder="Label hinzufügen" @keydown.enter.prevent="addLabel" /><button type="button" @click="addLabel">+</button></div></div>
-          </div>
-        </section>
-
-        <section v-else-if="currentStep === 1" class="wizard-page">
-          <header class="page-heading split"><div><span class="eyebrow">Schritt 2</span><h3>Wo findet der Einsatz statt?</h3><p>Die Adresse wird als stabiler Snapshot im Auftrag gespeichert.</p></div><ToolbarButton v-if="selectedCustomer" variant="secondary" @click="showSiteModal = true">+ Einsatzort anlegen</ToolbarButton></header>
-          <div v-if="selectedCustomer" class="site-layout">
-            <div class="site-list">
-              <button v-for="site in sites" :key="site._id" type="button" class="site-card" :class="{ active: form.einsatzort === site._id }" @click="selectSite(site)"><span class="site-pin">⌖</span><div><small>{{ recentSiteIds.has(site._id) ? 'Zuletzt verwendet' : 'Einsatzort' }}</small><strong>{{ site.bezeichnung }}</strong><span>{{ siteAddress(site) }}</span></div><b>{{ form.einsatzort === site._id ? '✓' : '›' }}</b></button>
-              <p v-if="!sites.length" class="empty-state">Noch keine Einsatzorte für diesen Kunden vorhanden.</p>
-            </div>
-            <button type="button" class="one-off-toggle" :class="{ active: oneOffAddress }" @click="enableOneOffAddress"><span>＋</span><div><strong>Einmalige Auftragsadresse</strong><small>Nur für diesen Auftrag, ohne neuen Stammdaten-Einsatzort</small></div></button>
-          </div>
-          <div v-else class="empty-state prominent">Bitte zuerst im Schritt „Auftrag“ einen Kunden auswählen.</div>
-          <div v-if="oneOffAddress" class="address-panel">
-            <h4>Einmalige Adresse</h4>
-            <div class="form-grid"><label class="field wide"><span>Bezeichnung</span><input v-model.trim="form.eventLocation" /></label><label class="field wide"><span>Straße</span><input v-model.trim="form.eventStrasse" /></label><label class="field"><span>PLZ</span><input v-model.trim="form.eventPlz" /></label><label class="field"><span>Ort</span><input v-model.trim="form.eventOrt" /></label></div>
-          </div>
-          <EinsatzortFormModal v-if="showSiteModal" :kunden-nr="form.kundenNr" @close="showSiteModal = false" @saved="siteCreated" />
-        </section>
-
-        <section v-else-if="currentStep === 2" class="wizard-page shifts-page">
-          <header class="page-heading split"><div><span class="eyebrow">Schritt 3</span><h3>Schichten & Einsatzinformationen</h3><p>Jede Schicht ist eigenständig planbar und erhält ihren eingefrorenen Informationstext.</p></div><ToolbarButton @click="addShift">+ Schicht hinzufügen</ToolbarButton></header>
-          <div v-if="recentShiftPatterns.length" class="pattern-strip"><span>Letzte Schichten übernehmen</span><button v-for="pattern in recentShiftPatterns.slice(0, 6)" :key="pattern._id" type="button" @click="addShiftFromPattern(pattern)">{{ pattern.bezeichnung || 'Schicht' }} · {{ shortTime(pattern.uhrzeitVon) }}</button></div>
-          <div class="shift-stack">
-            <article v-for="(shift, index) in shifts" :key="shift._id || shift._localId" class="shift-card">
-              <header><div class="shift-number">{{ index + 1 }}</div><div><span>Schicht {{ index + 1 }}</span><strong>{{ shift.bezeichnung || 'Neue Schicht' }}</strong></div><div class="shift-actions"><button type="button" title="Duplizieren" @click="duplicateShift(shift)">Duplizieren</button><button type="button" title="Auf Folgetage wiederholen" @click="repeatShift(shift)">Wiederholen</button><button class="danger-link" type="button" @click="removeShift(shift)">Löschen</button></div></header>
-              <div class="form-grid shift-grid">
-                <label class="field wide"><span>Bezeichnung *</span><input v-model.trim="shift.bezeichnung" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Datum</span><input v-model="shift.datumVon" type="date" @input="syncShiftEndDate(shift)" /></label>
-                <label class="field"><span>Bis Datum</span><input v-model="shift.datumBis" type="date" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Von</span><input v-model="shift.uhrzeitVon" type="time" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Bis</span><input v-model="shift.uhrzeitBis" type="time" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Bedarf</span><input v-model.number="shift.bedarf" type="number" min="0" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Garantiestunden</span><input v-model.number="shift.garantiestundenLohn" type="number" min="0" step="0.25" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Beruf</span><select v-model="shift.berufSchl" @change="classificationChanged(shift)"><option value="">Kein Beruf</option><option v-for="job in berufe" :key="job._id" :value="String(job.jobKey)">{{ job.jobKey }} · {{ job.designation }}</option></select></label>
-                <label class="field"><span>Qualifikation</span><select v-model="shift.qualSchl" @change="classificationChanged(shift)"><option value="">Keine Qualifikation</option><option v-for="qualification in qualifikationen" :key="qualification._id" :value="String(qualification.qualificationKey)">{{ qualification.qualificationKey }} · {{ qualification.designation }}</option></select></label>
-                <label class="field"><span>Treffpunkt-Zeit</span><input v-model="shift.treffpunkt" type="time" @input="markShiftDirty(shift)" /></label>
-                <label class="field wide"><span>Treffpunkt-Ort</span><input v-model.trim="shift.treffpunktOrt" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Ansprechpartner</span><input v-model.trim="shift.ansprechpartnerName" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>Telefon</span><input v-model.trim="shift.ansprechpartnerTelefon" @input="markShiftDirty(shift)" /></label>
-                <label class="field"><span>E-Mail</span><input v-model.trim="shift.ansprechpartnerEmail" type="email" @input="markShiftDirty(shift)" /></label>
-              </div>
-              <div class="info-editor-head"><div><span class="eyebrow">Public Monitor</span><h4>Einsatzinformationen</h4></div><div><span v-if="shift.einsatzinformation?.templateVersion" class="template-version">Snapshot V{{ shift.einsatzinformation.templateVersion }}</span><button v-if="shift._id" type="button" @click="applyLatestTemplate(shift)">Neueste Vorlage anwenden</button></div></div>
-              <div v-if="shift.templateSuggestion" class="template-suggestion"><span>Für Beruf oder Qualifikation ist eine passendere Vorlage verfügbar.</span><button type="button" @click="applyResolvedTemplate(shift, true)">Passende Vorlage übernehmen?</button></div>
-              <RichTextTemplateEditor :model-value="shift.infoSource" :textmarks="textmarks" :preview-html="shift.infoPreview" :unresolved="shift.infoUnresolved" @update:model-value="setShiftInformation(shift, $event)" @change="previewShiftInformation(shift)" />
-              <footer><span>{{ shift._dirty ? 'Ungespeicherte Änderungen' : shift._id ? 'Gespeichert' : 'Noch nicht gespeichert' }}</span><button class="secondary-button" type="button" :disabled="savingShiftId === (shift._id || shift._localId)" @click="saveOneShift(shift)">{{ savingShiftId === (shift._id || shift._localId) ? 'Speichert …' : 'Schicht speichern' }}</button></footer>
+            <AuftragSiteSelection v-if="!creating" :order="order" :sites="sites" :linked="linked" :disabled="pending" @select="setOrder('einsatzort', $event)" @scope="model.toggleOrderOverride('einsatzort')" @saved="siteSaved" />
+            <article class="editor-card bestellung">
+              <div class="card-heading"><h4>Bestellung</h4><FilterChip v-if="linked" :active="order.bestelltextOverride" @click="model.toggleOrderOverride('bestelltext')">{{ order.bestelltextOverride ? 'Nur dieser Tag' : 'Gemeinsam' }}</FilterChip></div>
+              <label class="field">Bestellungstext (optional)<AppTextarea :model-value="order.bestelltext" rows="4" placeholder="Was wurde bestellt? Angaben aus E-Mail oder Telefonat …" @update:model-value="setOrder('bestelltext', $event)" /></label>
+              <div v-if="linked" class="chip-row"><FilterChip :active="fileTarget === 'group'" @click="fileTarget = 'group'">Anlagen für alle Tage</FilterChip><FilterChip :active="fileTarget === 'order'" @click="fileTarget = 'order'">Anlagen nur für diesen Tag</FilterChip></div>
+              <AppFileDropzone label="Bestelldokumente" prompt="Bestelldokumente hinzufügen" hint="Mehrere Dateien möglich · maximal 30 MB je Datei · intern sichtbar" multiple :disabled="pending" @select="queueFiles($event, linked ? fileTarget : 'order')" />
+              <ul v-if="files.length" class="file-list"><li v-for="file in files" :key="file.id"><div><strong>{{ file.file?.name || file.filename }}</strong><small>{{ file.target === 'group' ? 'Alle verknüpften Tage' : dateLabel(file.day || drafts[file.dayKey]?.order.day) }} · {{ fileStatus(file.status) }}</small><span v-if="file.error" class="error-text">{{ file.error }}</span></div><AppButton v-if="file.status === 'pending'" size="sm" variant="ghost" :disabled="pending" @click="files.splice(files.indexOf(file), 1)">Entfernen</AppButton></li></ul>
+              <OrderDocuments v-if="order.auftragNr" :key="documentRefresh" :auftrag-nr="order.auftragNr" :allow-upload="false" compact />
             </article>
-            <button v-if="!shifts.length" type="button" class="empty-shift" @click="addShift"><strong>Erste Schicht anlegen</strong><span>Zeiten, Bedarf, Beruf und Einsatzinformationen gemeinsam erfassen</span></button>
-          </div>
+          </fieldset>
         </section>
 
-        <section v-else-if="currentStep === 3" class="wizard-page staffing-page">
-          <header class="page-heading split"><div><span class="eyebrow">Schritt 4</span><h3>Personal planen</h3><p>Vorschläge verbinden Verfügbarkeit, fachliche Passung, Kundenhistorie und Standort.</p></div><label class="location-toggle"><input v-model="includeOtherLocations" type="checkbox" @change="loadCandidates" /> Weitere freigegebene Standorte</label></header>
-          <div class="staffing-layout">
-            <aside class="staff-shifts"><button v-for="shift in shifts" :key="shift._id" type="button" :class="{ active: selectedShiftId === shift._id }" @click="selectPlanningShift(shift)" @dragover.prevent @drop.prevent="dropCandidateOnShift(shift)"><span>{{ formatDate(shift.datumVon) }} · {{ shortTime(shift.uhrzeitVon) }}</span><strong>{{ shift.bezeichnung }}</strong><small>{{ assignmentsForShift(shift).length }} / {{ shift.bedarf || 0 }} eingeplant</small></button></aside>
-            <div v-if="planningShift" class="candidate-panel" @dragover.prevent @drop="dropCandidate">
-              <div class="planning-summary"><div><span>Aktive Schicht</span><strong>{{ planningShift.bezeichnung }}</strong><small>{{ formatDate(planningShift.datumVon) }} · {{ shortTime(planningShift.uhrzeitVon) }}–{{ shortTime(planningShift.uhrzeitBis) }}</small></div><b :class="{ full: assignmentsForShift(planningShift).length >= planningShift.bedarf }">{{ assignmentsForShift(planningShift).length }} / {{ planningShift.bedarf || 0 }}</b></div>
-              <div v-if="currentAssignments.length" class="planned-strip"><article v-for="assignment in currentAssignments" :key="assignment._id"><div><strong>{{ assignment.mitarbeiterData ? `${assignment.mitarbeiterData.vorname} ${assignment.mitarbeiterData.nachname}` : `Personal ${assignment.personalNr}` }}</strong><small v-if="assignment.conflictOverride?.confirmed">Konflikt bestätigt: {{ assignment.conflictOverride.reason }}</small></div><button type="button" @click="removeAssignment(assignment)">Entfernen</button></article></div>
-              <div class="candidate-toolbar"><div><FilterChip v-for="group in candidateGroups" :key="group.id" :active="candidateFilter === group.id" @click="candidateFilter = group.id">{{ group.label }} <CountBadge :count="group.count" color="orange" /></FilterChip></div><ToolbarButton variant="secondary" :disabled="!selectedCandidateIds.size" @click="assignSelectedCandidates">{{ selectedCandidateIds.size }} ausgewählte einplanen</ToolbarButton></div>
-              <div v-if="candidateLoading" class="empty-state">Verfügbarkeiten und Konflikte werden geprüft …</div>
-              <div v-else class="candidate-list">
-                <article v-for="candidate in filteredCandidates" :key="candidate._id" class="candidate-card" :class="candidate.status" draggable="true" @dragstart="dragCandidateId = candidate._id"><input type="checkbox" :checked="selectedCandidateIds.has(candidate._id)" @change="toggleCandidate(candidate._id)" /><div class="candidate-avatar">{{ initials(candidate) }}</div><div class="candidate-body"><div><strong>{{ candidate.vorname }} {{ candidate.nachname }}</strong><span>{{ candidate.status === 'recommended' ? 'Empfohlen' : candidate.status === 'possible' ? 'Möglich' : 'Konflikt' }}</span></div><p><span v-for="reason in candidate.reasons" :key="reason">✓ {{ reason }}</span><span v-for="warning in candidate.warnings" :key="warning">△ {{ warning }}</span><span v-for="conflict in candidate.conflicts" :key="conflict.label" class="conflict">! {{ conflict.label }}</span></p><div class="mini-dispo"><i v-for="day in dispoDays" :key="day" :class="dispoTone(candidate, day)" :title="day">{{ day.slice(8) }}</i></div></div><button type="button" @click="assignCandidate(candidate)">Einplanen</button></article>
-                <p v-if="!filteredCandidates.length" class="empty-state">Keine Mitarbeitenden in dieser Auswahl.</p>
-              </div>
+        <section v-if="!loading && activeTab === 'site'" :id="panelId('site')" role="tabpanel" :aria-labelledby="`${tabPrefix}-site`"><AuftragSiteSelection :order="order" :sites="sites" :linked="linked" :disabled="pending" @select="setOrder('einsatzort', $event)" @scope="model.toggleOrderOverride('einsatzort')" @saved="siteSaved" /></section>
+
+        <section v-if="!loading && activeTab === 'planning'" :id="panelId('planning')" role="tabpanel" :aria-labelledby="`${tabPrefix}-planning`">
+          <header class="section-heading"><div><h3>Schichten & Personal</h3><span>{{ dateLabel(order.day) }} · {{ totalAssigned }} / {{ totalDemand }} eingeplant</span></div><AppButton :disabled="pending" @click="createShift()">Schicht hinzufügen</AppButton></header>
+          <div v-if="linked" class="chip-row"><FilterChip :active="!newShiftDayOnly" :disabled="pending" @click="newShiftDayOnly = false">Neue Schicht gemeinsam</FilterChip><FilterChip :active="newShiftDayOnly" :disabled="pending" @click="newShiftDayOnly = true">Neue Schicht nur für diesen Tag</FilterChip></div>
+          <p v-if="!order.einsatzort" class="feedback">Für die Planung einen Einsatzort unter <AppButton variant="ghost" size="sm" @click="activeTab = creating ? 'site' : 'order'">Auftragsdaten</AppButton> auswählen oder speichern.</p>
+          <div v-if="patterns.length" class="pattern-row"><small>Letzte Schichten</small><AppButton v-for="pattern in patterns.slice(0, 6)" :key="pattern._id" variant="ghost" size="sm" :disabled="pending" @click="createShift(pattern)">{{ pattern.bezeichnung }} · {{ pattern.uhrzeitVon }}</AppButton></div>
+          <div v-if="shifts.length" class="planning-layout">
+            <aside class="shift-list" aria-label="Schichtauswahl">
+              <button v-for="shift in shifts" :key="shift.clientId" type="button" :class="{ selected: selectedShift?.clientId === shift.clientId }" :disabled="pending" @click="selectShift(shift)" @dragover.prevent @drop.prevent="dropOnShift(shift)">
+                <strong>{{ shift.bezeichnung || 'Neue Schicht' }}</strong><span>{{ shift.uhrzeitVon || '–' }}–{{ shift.uhrzeitBis || '–' }}{{ shift.datumBis > shift.datumVon ? ` · bis ${dateLabel(shift.datumBis)}` : '' }}</span><small>{{ assignmentsFor(shift).length }} / {{ shift.bedarf || 0 }} eingeplant</small>
+              </button>
+            </aside>
+            <div v-if="selectedShift" class="shift-details editor-card">
+              <div class="card-heading"><h4>Schicht bearbeiten</h4><div><AppButton variant="ghost" size="sm" :disabled="pending" @click="duplicateShift">Duplizieren</AppButton><AppButton variant="danger" size="sm" :disabled="pending" @click="deleteShiftConfirm = true">Löschen</AppButton></div></div>
+              <fieldset :disabled="pending">
+                <div class="field"><ScopeLabel field="bezeichnung" text="Bezeichnung" /><AppTextInput :model-value="selectedShift.bezeichnung" aria-label="Schichtbezeichnung" @update:model-value="editShift('bezeichnung', $event)" /></div>
+                <div class="form-row"><div class="field"><ScopeLabel field="uhrzeitVon" text="Von" /><AppTextInput :model-value="selectedShift.uhrzeitVon" type="time" aria-label="Schichtbeginn" @update:model-value="editShift('uhrzeitVon', $event)" /></div><div class="field"><ScopeLabel field="uhrzeitBis" text="Bis" /><AppTextInput :model-value="selectedShift.uhrzeitBis" type="time" aria-label="Schichtende" @update:model-value="editShift('uhrzeitBis', $event)" /></div></div>
+                <div class="form-row"><div class="field"><ScopeLabel field="datumBis" text="Enddatum" /><AppTextInput :model-value="selectedShift.datumBis" type="date" aria-label="Schicht-Enddatum" :min="selectedShift.datumVon" @update:model-value="editShift('datumBis', $event)" /></div><div class="field"><ScopeLabel field="bedarf" text="Bedarf" /><AppTextInput :model-value="selectedShift.bedarf" type="number" aria-label="Personalbedarf" min="0" @update:model-value="editShift('bedarf', $event)" /></div></div>
+                <div class="form-row"><div class="field"><ScopeLabel field="berufSchl" text="Beruf" /><AppSelect :model-value="selectedShift.berufSchl" aria-label="Beruf" @update:model-value="editShift('berufSchl', $event)"><option value="">Kein Beruf</option><option v-for="job in jobs" :key="job._id" :value="String(job.jobKey)">{{ job.designation }}</option></AppSelect></div><div class="field"><ScopeLabel field="qualSchl" text="Qualifikation" /><AppSelect :model-value="selectedShift.qualSchl" aria-label="Qualifikation" @update:model-value="editShift('qualSchl', $event)"><option value="">Keine Qualifikation</option><option v-for="qualification in qualifications" :key="qualification._id" :value="String(qualification.qualificationKey)">{{ qualification.designation }}</option></AppSelect></div></div>
+                <label class="field">Garantiestunden <AppTextInput v-model.number="selectedShift.garantiestundenLohn" type="number" min="0" step="0.25" /></label>
+                <details class="shift-extra"><summary>Treffpunkt & Ansprechpartner</summary>
+                  <div class="form-row"><div class="field"><ScopeLabel field="treffpunkt" text="Treffpunktzeit" /><AppTextInput :model-value="selectedShift.treffpunkt" type="time" aria-label="Treffpunktzeit" @update:model-value="editShift('treffpunkt', $event)" /></div><div class="field"><ScopeLabel field="treffpunktOrt" text="Treffpunkt" /><AppTextInput :model-value="selectedShift.treffpunktOrt" aria-label="Treffpunkt-Ort" @update:model-value="editShift('treffpunktOrt', $event)" /></div></div>
+                  <div v-for="field in contactFields" :key="field.key" class="field"><ScopeLabel :field="field.key" :text="field.label" /><AppTextInput :model-value="selectedShift[field.key]" :aria-label="field.label" :type="field.type || 'text'" @update:model-value="editShift(field.key, $event)" /></div>
+                </details>
+                <details class="shift-extra"><summary>Einsatzinformationen <small v-if="selectedShift.einsatzinformation?.templateVersion">· Snapshot V{{ selectedShift.einsatzinformation.templateVersion }}</small><small v-if="selectedShift.infoUnresolved.length"> · {{ selectedShift.infoUnresolved.length }} offene Textmarken</small></summary>
+                  <AppButton size="sm" variant="secondary" :disabled="pending || !order.kundenNr" @click="templateConfirm = true">Aktuelle passende Vorlage übernehmen</AppButton>
+                  <RichTextTemplateEditor :key="selectedShift.clientId" :model-value="selectedShift.einsatzinformationSourceHtml" :disabled="pending" :textmarks="textmarks" :preview-html="selectedShift.infoPreview" :unresolved="selectedShift.infoUnresolved" @update:model-value="setInformation" @change="previewInformation" />
+                </details>
+              </fieldset>
             </div>
-            <div v-else class="empty-state prominent">Speichere zuerst mindestens eine Schicht.</div>
+            <section v-if="selectedShift" class="personnel editor-card" aria-label="Personal für die ausgewählte Schicht">
+              <div class="card-heading"><h4>Personal</h4><strong>{{ assignmentsFor(selectedShift).length }} / {{ selectedShift.bedarf || 0 }}</strong></div>
+              <p class="muted">Einplanungen werden vorgemerkt und erst nach der Prüfung gespeichert.</p>
+              <ul class="assignments"><li v-for="assignment in assignmentsFor(selectedShift)" :key="assignment._id || assignment.clientId"><div><strong>{{ employeeName(assignment) }}</strong><small>{{ assignment.type === 'assign' ? 'Vorgemerkt' : 'Eingeplant' }}</small></div><AppButton variant="ghost" size="sm" :disabled="pending" @click="removeAssignment(assignment)">Entfernen</AppButton></li></ul>
+              <FilterChip :active="includeOtherLocations" :disabled="pending" @click="includeOtherLocations = !includeOtherLocations; loadCandidates()">Weitere freigegebene Standorte</FilterChip>
+              <div class="candidate-filter"><FilterChip v-for="filter in candidateFilters" :key="filter.id" :active="candidateFilter === filter.id" :disabled="pending" @click="candidateFilter = filter.id">{{ filter.label }} {{ candidates.filter(candidate => candidate.status === filter.id).length }}</FilterChip></div>
+              <AppButton v-if="selectedCandidateIds.size" variant="secondary" size="sm" :disabled="pending" @click="assignSelected">{{ selectedCandidateIds.size }} ausgewählte einplanen</AppButton>
+              <LoadingSpinner v-if="candidateLoading" label="Personal wird geprüft …" />
+              <div v-else class="candidate-list">
+                <article v-for="candidate in filteredCandidates" :key="candidate._id" class="candidate" :class="candidate.status" :draggable="!pending" @dragstart="dragCandidateId = candidate._id">
+                  <input type="checkbox" :aria-label="`${candidate.vorname} ${candidate.nachname} auswählen`" :checked="selectedCandidateIds.has(candidate._id)" :disabled="pending" @change="toggleCandidate(candidate._id)" />
+                  <div><strong>{{ candidate.vorname }} {{ candidate.nachname }}</strong><small>{{ [...(candidate.reasons || []), ...(candidate.warnings || []), ...(candidate.conflicts || []).map(item => item.label)].join(' · ') }}</small></div>
+                  <AppButton variant="ghost" size="sm" :disabled="pending" @click="assign(candidate)">Einplanen</AppButton>
+                </article>
+                <p v-if="!filteredCandidates.length" class="muted">Keine Mitarbeitenden in dieser Auswahl.</p>
+              </div>
+              <AppButton variant="ghost" size="sm" :disabled="pending || candidateLoading" @click="loadCandidates">Vorschläge aktualisieren</AppButton>
+            </section>
           </div>
+          <AppButton v-else variant="outlined" :disabled="pending" @click="createShift()">Erste Schicht anlegen</AppButton>
         </section>
 
-        <section v-else class="wizard-page review-page">
-          <header class="page-heading"><div><span class="eyebrow">Schritt 5</span><h3>Prüfen & freigeben</h3><p>Offener Personalbedarf ist sichtbar, verhindert die Freigabe aber nicht.</p></div></header>
-          <div class="review-grid">
-            <article><span>Auftrag</span><h4>{{ form.eventTitel }}</h4><dl><div><dt>Monitor-ID</dt><dd>{{ event.monitorId || `#${event.auftragNr}` }}</dd></div><div><dt>Typ</dt><dd>Monitor-Auftrag</dd></div><div><dt>Kunde</dt><dd>{{ selectedCustomer?.kundName || 'Kein Kunde' }}</dd></div><div><dt>Zeitraum</dt><dd>{{ formatDateTime(form.vonDatum) }} – {{ formatDateTime(form.bisDatum) }}</dd></div></dl><button type="button" @click="currentStep = 0">Bearbeiten</button></article>
-            <article><span>Einsatzort</span><h4>{{ form.eventLocation || selectedSite?.bezeichnung || 'Nicht gewählt' }}</h4><p>{{ [form.eventStrasse, [form.eventPlz, form.eventOrt].filter(Boolean).join(' ')].filter(Boolean).join(', ') }}</p><button type="button" @click="currentStep = 1">Bearbeiten</button></article>
-            <article class="wide"><span>Schichten & Besetzung</span><div class="review-shifts"><div v-for="shift in shifts" :key="shift._id"><strong>{{ shift.bezeichnung }}</strong><span>{{ formatDate(shift.datumVon) }} · {{ shortTime(shift.uhrzeitVon) }}–{{ shortTime(shift.uhrzeitBis) }}</span><b>{{ assignmentsForShift(shift).length }} / {{ shift.bedarf || 0 }}</b><small :class="{ invalid: !shift.infoSource || shift.infoUnresolved?.length }">{{ shift.infoSource ? shift.infoUnresolved?.length ? `${shift.infoUnresolved.length} Textmarke(n) ohne Wert` : 'Einsatzinformation vollständig' : form.isPseudo ? 'Ohne Einsatzinformation zulässig' : 'Einsatzinformation fehlt' }}</small></div></div><button type="button" @click="currentStep = 2">Schichten bearbeiten</button></article>
-            <article v-if="conflictAssignments.length" class="wide conflict-review"><span>Bestätigte Konflikte</span><div v-for="assignment in conflictAssignments" :key="assignment._id"><strong>{{ assignment.mitarbeiterData ? `${assignment.mitarbeiterData.vorname} ${assignment.mitarbeiterData.nachname}` : `Personal ${assignment.personalNr}` }}</strong><p>{{ assignment.conflictOverride.reason }}</p><small>{{ (assignment.conflictOverride.conflicts || []).map(conflict => conflict.label).join(' · ') }}</small></div><button type="button" @click="currentStep = 3">Planung prüfen</button></article>
-          </div>
-          <div v-if="releaseErrors.length" class="release-errors"><strong>Vor der Freigabe noch prüfen</strong><button v-for="item in releaseErrors" :key="`${item.step}-${item.field}`" type="button" @click="currentStep = item.step"><span>Schritt {{ item.step + 1 }}</span>{{ item.message }}</button></div>
-          <div class="release-callout"><div><span>Bereit für die Disposition?</span><strong>{{ openDemand }} offene Positionen</strong><small>Der Auftrag kann trotzdem bestätigt werden.</small></div><ToolbarButton :disabled="pending" @click="releaseOrder">Auftrag freigeben</ToolbarButton></div>
+        <section v-if="!loading && activeTab === 'review'" :id="panelId('review')" role="tabpanel" :aria-labelledby="`${tabPrefix}-review`">
+          <header class="section-heading"><h3>{{ creating ? 'Prüfen & erstellen' : 'Änderungen prüfen' }}</h3><span>Erst nach Bestätigung werden Auftrag, Schichten und Personal gespeichert.</span></header>
+          <article class="editor-card"><h4>{{ creating ? `${dates.length} Auftrag${dates.length === 1 ? '' : 'e'} erstellen` : 'Betroffene Aufträge' }}</h4><p>{{ draft.customer?.kundName }} · {{ order.eventTitel }}</p><p v-if="creating">{{ dates.map(dateLabel).join(' · ') }}</p><p v-else-if="linked" class="muted">Gemeinsame Änderungen betreffen alle erbenden Tage, auch bereits bestätigte Aufträge. Tagesspezifische Werte bleiben erhalten.</p><p>{{ totalDemand - totalAssigned > 0 ? `${totalDemand - totalAssigned} offene Positionen – Freigabe trotzdem möglich` : 'Bedarf gedeckt' }}</p></article>
+          <LoadingSpinner v-if="reviewLoading" label="Auswirkungen auf verknüpfte Aufträge werden geprüft …" />
+          <p v-if="reviewError" class="feedback feedback--error" role="alert">{{ reviewError }} <AppButton variant="ghost" size="sm" :disabled="reviewLoading || pending" @click="loadReview()">Erneut prüfen</AppButton></p>
+          <p v-if="serverReview" class="muted">{{ serverReview.totalAffected }} betroffene Aufträge · {{ reviewDays.length }} angezeigt</p>
+          <article v-for="day in reviewDays" :key="day.key || day.auftragNr || day.day" class="editor-card review-changes"><div class="card-heading"><h4>{{ dateLabel(day.day) }}{{ day.auftragNr ? ` · #${day.auftragNr}` : '' }}</h4><AppButton variant="ghost" size="sm" :disabled="pending" @click="goToChanges(day)">Bearbeiten</AppButton></div><dl><div v-for="(change, index) in day.changes" :key="change.key || `${change.label}-${index}`"><dt>{{ change.label }}</dt><dd><span>{{ changeValue(change.before) }}</span><span aria-hidden="true">→</span><strong>{{ changeValue(change.after) }}</strong></dd></div></dl></article>
+          <AppButton v-if="serverReview?.nextCursor" variant="secondary" :disabled="reviewLoading || pending" @click="loadReview(serverReview.nextCursor)">Weitere betroffene Tage anzeigen</AppButton>
+          <p v-if="!reviewDays.length && !creating && !reviewLoading && !reviewError" class="feedback">Keine Feld- oder Personaländerungen vorgemerkt.</p>
+          <article v-if="files.length" class="editor-card"><h4>Anlagen</h4><ul class="file-list"><li v-for="file in files" :key="file.id"><div><strong>{{ file.file?.name || file.filename }}</strong><small>{{ file.target === 'group' ? 'Alle Tage' : dateLabel(file.day || drafts[file.dayKey]?.order.day) }} · {{ fileStatus(file.status) }}</small><span v-if="file.error" class="error-text">{{ file.error }}</span><AppFileDropzone v-if="!file.file && file.status !== 'completed'" :label="`${file.filename} erneut auswählen`" prompt="Originaldatei erneut auswählen" :disabled="busy" @select="model.restoreFile(file, $event)" /></div></li></ul></article>
+          <p v-for="site in savedSites" :key="site._id" class="feedback">Einsatzort „{{ site.bezeichnung }}“ bereits als Kundenstammdaten gespeichert. Die Auftragszuordnung wird erst bei der Übernahme gespeichert.</p>
+          <ul v-if="validation.length" class="feedback feedback--error"><li v-for="message in validation" :key="message">{{ message }}</li></ul>
+          <article v-if="progress" class="editor-card" role="status"><h4>{{ progress.status === 'completed' ? 'Aufträge gespeichert · Anlagen abschließen' : 'Vorgang läuft / ist unvollständig' }}</h4><p>{{ progress.completed }} / {{ progress.total }} Tage gespeichert</p><p v-if="progress.failedDays?.length">Fehlgeschlagen: {{ progress.failedDays.join(', ') }}</p><p v-if="progress.pendingDays?.length">Ausstehend: {{ progress.pendingDays.join(', ') }}</p><p class="muted">Bereits gespeicherte Tage bleiben erhalten. Erneut versuchen setzt nur ausstehende Arbeiten fort.</p></article>
+          <div v-if="!creating && order.auftStatus !== 2 && !dirty && !pending" class="release"><strong>Auftrag ist ein Entwurf</strong><AppButton :loading="releasing" @click="release">Auftrag freigeben</AppButton></div>
         </section>
       </main>
-
-      <footer class="wizard-footer"><button type="button" class="text-button" :disabled="pending" @click="emit('close')">Schließen</button><span></span><ToolbarButton v-if="currentStep > 0" variant="secondary" :disabled="pending" @click="currentStep--">Zurück</ToolbarButton><ToolbarButton variant="secondary" :disabled="pending" @click="saveCurrentStep(false)">{{ pending ? 'Speichert …' : currentStep === 3 ? 'Planung speichern' : event ? 'Entwurf speichern' : 'Entwurf anlegen' }}</ToolbarButton><ToolbarButton v-if="currentStep < 4" :disabled="pending" @click="saveCurrentStep(true)">{{ event || currentStep ? 'Speichern & weiter' : 'Entwurf anlegen & weiter' }}</ToolbarButton><ToolbarButton v-else :disabled="pending" @click="releaseOrder">Auftrag freigeben</ToolbarButton></footer>
+      <footer class="editor-footer">
+        <AppButton variant="ghost" :disabled="busy || releasing" @click="requestClose">Schließen</AppButton>
+        <span role="status">{{ busy ? 'Wird übernommen …' : pending ? 'Vorgang unvollständig' : dirty ? 'Ungespeicherte Änderungen' : 'Gespeicherter Stand' }}</span>
+        <AppButton v-if="creating && activeTab !== 'review'" :disabled="pending" @click="nextStage">Weiter</AppButton>
+        <AppButton v-else-if="activeTab !== 'review'" :disabled="busy || releasing" @click="activeTab = 'review'">Änderungen prüfen</AppButton>
+        <AppButton v-else :loading="busy" :disabled="releasing || progress?.canResume === false || !pending && (validation.length > 0 || !dirty && !creating || !reviewReady)" @click="confirmSubmission">{{ progress?.canResume === false ? 'Anderer Bearbeiter übernimmt' : pending ? 'Ausstehende Arbeiten erneut versuchen' : creating ? 'Aufträge erstellen' : 'Änderungen übernehmen' }}</AppButton>
+      </footer>
+      <div v-if="confirmClose || deleteShiftConfirm || templateConfirm || conflictCandidate" class="confirm-overlay">
+        <section ref="confirmCard" class="editor-card confirm-card" role="alertdialog" aria-modal="true" tabindex="-1" :aria-labelledby="`${tabPrefix}-confirm`" @keydown.escape.stop.prevent="cancelConfirmation">
+          <h3 :id="`${tabPrefix}-confirm`">{{ confirmClose ? 'Änderungen verwerfen?' : deleteShiftConfirm ? 'Schicht löschen?' : templateConfirm ? 'Gespeicherten Snapshot ersetzen?' : 'Planungskonflikt bestätigen' }}</h3>
+          <p>{{ confirmClose ? 'Vorgemerkte Felder, Einplanungen und nicht hochgeladene Anlagen gehen verloren. Gespeicherte Einsatzorte bleiben erhalten.' : deleteShiftConfirm ? 'Schicht und zugehörige Einplanungen werden zur Löschung vorgemerkt. Die Prüfung zeigt die Auswirkungen vor dem Speichern.' : templateConfirm ? 'Die aktuelle passende Vorlage ersetzt den Informationstext als vorgemerkte Änderung.' : conflictCandidate.conflicts.map(item => item.label).join(' · ') }}</p>
+          <label v-if="conflictCandidate" class="field">Begründung <AppTextarea v-model.trim="conflictReason" rows="3" /></label>
+          <div v-if="deleteShiftConfirm && linked" class="chip-row"><FilterChip :active="!deleteDayOnly" @click="deleteDayOnly = false">Alle verknüpften Tage</FilterChip><FilterChip :active="deleteDayOnly" @click="deleteDayOnly = true">Nur dieser Tag</FilterChip></div>
+          <div class="confirm-actions"><AppButton variant="secondary" @click="cancelConfirmation">Weiter bearbeiten</AppButton><AppButton :variant="conflictCandidate || templateConfirm ? 'primary' : 'danger'" :disabled="Boolean(conflictCandidate && !conflictReason)" @click="runConfirmation">{{ confirmClose ? 'Verwerfen' : deleteShiftConfirm ? 'Löschen vormerken' : templateConfirm ? 'Vorlage übernehmen' : 'Konflikt bestätigen & vormerken' }}</AppButton></div>
+        </section>
+      </div>
     </div>
   </ModalFrame>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
-import EinsatzortFormModal from '@/components/Modals/EinsatzortFormModal.vue';
-import CountBadge from '@/components/ui-elements/CountBadge.vue';
+import AuftragSiteSelection from '@/components/orders/AuftragSiteSelection.vue';
+import AppTabs from '@/components/ui-elements/AppTabs.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
+import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import AppTextarea from '@/components/ui-elements/AppTextarea.vue';
+import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
+import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
 import RichTextTemplateEditor from '@/components/ui-elements/RichTextTemplateEditor.vue';
-import ToolbarButton from '@/components/ui-elements/ToolbarButton.vue';
 import { useAuth } from '@/stores/auth';
+import { editorDay, scopeField, shiftDto, useAuftragEditor } from '@/composables/useAuftragEditor';
 import api from '@/utils/api';
 
 const props = defineProps({
-  auftragNr: { type: [String, Number], default: null },
-  initialLocationV2: { type: String, default: '' },
-  minimizable: { type: Boolean, default: true },
-  minimizeId: { type: String, default: '' },
-  minimizeTitle: { type: String, default: '' },
-  closeOnEscape: { type: Boolean, default: false },
-  layer: { type: String, default: 'base' },
+  auftragNr: { type: [String, Number], default: null }, initialLocationV2: { type: String, default: '' },
+  minimizable: { type: Boolean, default: true }, minimizeId: { type: String, default: '' },
+  minimizeTitle: { type: String, default: '' }, closeOnEscape: { type: Boolean, default: false }, layer: { type: String, default: 'base' },
 });
 const emit = defineEmits(['close', 'updated']);
 const auth = useAuth();
-const steps = [
-  { id: 'order', label: 'Auftrag', hint: 'Kerndaten' },
-  { id: 'site', label: 'Einsatzort', hint: 'Adresse' },
-  { id: 'shifts', label: 'Schichten', hint: 'Bedarf & Infos' },
-  { id: 'staffing', label: 'Personal', hint: 'Verfügbarkeit' },
-  { id: 'review', label: 'Prüfen', hint: 'Freigabe' },
-];
-
-const now = new Date();
-const later = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-const toLocalDateTime = value => {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return '';
-  const pad = number => String(number).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-const toDate = value => value ? toLocalDateTime(value).slice(0, 10) : '';
-const addDays = (value, count) => { const date = new Date(`${value}T12:00:00`); date.setDate(date.getDate() + count); return toDate(date); };
-
-const event = ref(null);
-const currentStep = ref(0);
-const loading = ref(Boolean(props.auftragNr));
-const pending = ref(false);
-const errorMessage = ref('');
-const statusMessage = ref('');
-const releaseErrors = ref([]);
-const locations = ref([]);
-const recentCustomers = ref([]);
-const recentShiftPatterns = ref([]);
-const sites = ref([]);
-const recentSiteIds = ref(new Set());
-const shifts = ref([]);
-const assignments = ref([]);
-const berufe = ref([]);
-const qualifikationen = ref([]);
-const placeholders = ref({});
-const selectedCustomer = ref(null);
-const oneOffAddress = ref(false);
-const showSiteModal = ref(false);
-const labelDraft = ref('');
-const savingShiftId = ref(null);
-const selectedShiftId = ref('');
-const candidates = ref([]);
-const candidateLoading = ref(false);
-const candidateFilter = ref('recommended');
-const selectedCandidateIds = ref(new Set());
-const includeOtherLocations = ref(false);
-const dragCandidateId = ref('');
-const dispoEntries = ref([]);
-
-const form = reactive({
-  auftragNr: '', isPseudo: false, eventTitel: '', locationV2: props.initialLocationV2 || auth.user?.locationV2?._id || auth.user?.locationV2 || '', kundenNr: null,
-  vonDatum: toLocalDateTime(now), bisDatum: toLocalDateTime(later), bestDatum: toDate(now), referenz: '', labels: [], einsatzort: '', eventLocation: '', eventStrasse: '', eventPlz: '', eventOrt: '',
-});
-const modalTitle = computed(() => event.value ? `${event.value.eventTitel || 'Auftrag'} · #${event.value.auftragNr}` : 'Neuen Auftrag anlegen');
-const selectedSite = computed(() => sites.value.find(site => site._id === form.einsatzort) || null);
-const planningShift = computed(() => shifts.value.find(shift => shift._id === selectedShiftId.value) || shifts.value.find(shift => shift._id) || null);
-const currentAssignments = computed(() => planningShift.value ? assignmentsForShift(planningShift.value) : []);
-const candidateGroups = computed(() => ['recommended', 'possible', 'conflict'].map(id => ({ id, label: id === 'recommended' ? 'Empfohlen' : id === 'possible' ? 'Möglich' : 'Konflikte', count: candidates.value.filter(candidate => candidate.status === id).length })));
-const filteredCandidates = computed(() => candidates.value.filter(candidate => candidate.status === candidateFilter.value));
+const model = useAuftragEditor({ auftragNr: props.auftragNr, locationV2: props.initialLocationV2 || String(auth.user?.locationV2?._id || auth.user?.locationV2 || ''), onUpdated: row => emit('updated', row) });
+const { creating, drafts, draft, order, shifts, dates, activeDay, multiDay, group, members, nextCursor, loading, busy, error, notice, progress, files, savedSites, dirty, pending, linked, validation, changesByDay, load, setOrder, setShift, toggleOverride, addShift, assignmentsFor, stageAssignment, removeAssignment, queueFiles } = model;
+const activeTab = ref(props.auftragNr ? 'planning' : 'order');
+const tabPrefix = `auftrag-editor-${props.minimizeId || crypto.randomUUID()}`;
+const panelId = id => `${tabPrefix}-panel-${id}`;
+const tabs = computed(() => (creating.value
+  ? [{ id: 'order', label: '1 · Auftrag' }, { id: 'site', label: '2 · Einsatzort' }, { id: 'planning', label: '3 · Schichten & Personal' }, { id: 'review', label: '4 · Prüfen' }]
+  : [{ id: 'planning', label: 'Schichten & Personal' }, { id: 'order', label: 'Auftragsdaten' }, { id: 'review', label: 'Prüfen' }]
+).map(tab => ({ ...tab, panelId: panelId(tab.id), disabled: busy.value })));
+const modalTitle = computed(() => creating.value ? 'Auftrag anlegen' : `${order.value.eventTitel || 'Auftrag'} · #${order.value.auftragNr || props.auftragNr}`);
+const locations = ref([]), jobs = ref([]), qualifications = ref([]), sites = ref([]), patterns = ref([]), placeholders = ref({});
+const selectedShiftId = ref(''), dateDraft = ref(editorDay(new Date())), fileTarget = ref('group'), documentRefresh = ref(0);
+const newShiftDayOnly = ref(false), deleteDayOnly = ref(false), conflictQueue = ref([]);
+const serverReview = ref(null), reviewLoading = ref(false), reviewError = ref('');
+const reviewDays = computed(() => linked.value && !creating.value && serverReview.value ? serverReview.value.orders : changesByDay.value);
+const reviewReady = computed(() => !linked.value || creating.value || Boolean(serverReview.value && !reviewLoading.value && !reviewError.value && !serverReview.value.errors?.length));
+const selectedShift = computed(() => shifts.value.find(shift => shift.clientId === selectedShiftId.value) || shifts.value[0] || null);
+const totalAssigned = computed(() => shifts.value.reduce((sum, shift) => sum + assignmentsFor(shift).length, 0));
+const totalDemand = computed(() => shifts.value.reduce((sum, shift) => sum + Number(shift.bedarf || 0), 0));
 const textmarks = computed(() => Object.entries(placeholders.value).map(([key, label]) => ({ key, label })));
-const openDemand = computed(() => shifts.value.reduce((sum, shift) => sum + Math.max(0, Number(shift.bedarf || 0) - assignmentsForShift(shift).length), 0));
-const conflictAssignments = computed(() => assignments.value.filter(assignment => assignment.conflictOverride?.confirmed));
-const dispoDays = computed(() => { const start = toDate(form.vonDatum); const end = toDate(form.bisDatum); if (!start || !end) return []; const days = []; for (let index = 0, day = start; day <= end && index < 10; index += 1, day = addDays(day, 1)) days.push(day); return days; });
+const contactFields = [{ key: 'ansprechpartnerName', label: 'Ansprechpartner' }, { key: 'ansprechpartnerTelefon', label: 'Telefon', type: 'tel' }, { key: 'ansprechpartnerEmail', label: 'E-Mail', type: 'email' }];
+const confirmClose = ref(false), deleteShiftConfirm = ref(false), templateConfirm = ref(false), conflictCandidate = ref(null), conflictReason = ref(''), releasing = ref(false);
+const confirmCard = ref(null);
+const confirming = computed(() => confirmClose.value || deleteShiftConfirm.value || templateConfirm.value || Boolean(conflictCandidate.value));
+let previousFocus;
+const candidates = ref([]), candidateLoading = ref(false), candidateFilter = ref('recommended'), includeOtherLocations = ref(false), selectedCandidateIds = ref(new Set()), dragCandidateId = ref('');
+const candidateFilters = [{ id: 'recommended', label: 'Empfohlen' }, { id: 'possible', label: 'Möglich' }, { id: 'conflict', label: 'Konflikte' }];
+const filteredCandidates = computed(() => candidates.value.filter(candidate => candidate.status === candidateFilter.value && !assignmentsFor(selectedShift.value || {}).some(assignment => String(assignment.mitarbeiterId || assignment.mitarbeiterData?._id) === String(candidate._id))));
+let candidateRequest = 0, contextRequest = 0, previewRequest = 0, reviewRequest = 0, candidateTimer;
+const dateLabel = value => { const day = editorDay(value); return day ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'Europe/Berlin' }).format(new Date(`${day}T12:00:00Z`)) : 'Kein Datum'; };
+const fileStatus = status => ({ pending: 'Vorgemerkt', missing: 'Originaldatei fehlt', uploading: 'Lädt hoch …', failed: 'Upload ausstehend', completed: 'Gespeichert' })[status];
+const changeValue = value => value === '' || value == null ? '–' : Array.isArray(value) ? value.join(', ') || '–' : typeof value === 'boolean' ? value ? 'Ja' : 'Nein' : String(value).replace(/<[^>]*>/g, '').slice(0, 500);
+const employeeName = item => item.employeeName || (item.mitarbeiterData ? `${item.mitarbeiterData.vorname} ${item.mitarbeiterData.nachname}` : `Personal ${item.personalNr}`);
 
-function hydrate(data) {
-  event.value = data;
-  Object.assign(form, {
-    auftragNr: data.auftragNr, isPseudo: Boolean(data.isPseudo), eventTitel: data.eventTitel || '', locationV2: String(data.locationV2?._id || data.locationV2 || ''), kundenNr: data.kundenNr ?? null,
-    vonDatum: toLocalDateTime(data.vonDatum), bisDatum: toLocalDateTime(data.bisDatum), bestDatum: toDate(data.bestDatum), referenz: data.referenz || '', labels: [...(data.labels || [])], einsatzort: String(data.einsatzort?._id || data.einsatzort || ''),
-    eventLocation: data.eventLocation || '', eventStrasse: data.eventStrasse || '', eventPlz: data.eventPlz || '', eventOrt: data.eventOrt || '',
-  });
-  selectedCustomer.value = data.kundeData || selectedCustomer.value;
-  oneOffAddress.value = !data.einsatzort && Boolean(data.eventStrasse || data.eventPlz || data.eventOrt);
-  shifts.value = (data.schichten || []).map(normalizeShift);
-  assignments.value = data.einsaetze || [];
-  selectedShiftId.value ||= shifts.value.find(shift => shift._id)?._id || '';
-}
-function normalizeShift(shift) {
-  return { ...shift, datumVon: toDate(shift.datumVon), datumBis: toDate(shift.datumBis || shift.datumVon), berufSchl: shift.berufSchl ? String(shift.berufSchl) : '', qualSchl: shift.qualSchl ? String(shift.qualSchl) : '', infoSource: shift.infoSource ?? shift.einsatzinformation?.sourceHtml ?? '', infoPreview: shift.infoPreview ?? shift.einsatzinformation?.renderedHtml ?? '', infoUnresolved: shift.infoUnresolved ?? shift.einsatzinformation?.unresolvedPlaceholders ?? [], templateSuggestion: false, _dirty: shift._dirty ?? false };
-}
-function newShift(values = {}) {
-  return normalizeShift({ _localId: `shift-${Date.now()}-${Math.random()}`, bezeichnung: '', datumVon: toDate(form.vonDatum), datumBis: toDate(form.vonDatum), uhrzeitVon: form.vonDatum.slice(11, 16), uhrzeitBis: form.bisDatum.slice(11, 16), bedarf: 1, garantiestundenLohn: 0, treffpunkt: '', treffpunktOrt: '', ansprechpartnerName: '', ansprechpartnerTelefon: '', ansprechpartnerEmail: '', ...values, einsatzinformation: values.einsatzinformation || {} , _dirty: true });
-}
-async function loadBaseData() {
-  const [locationsResponse, jobsResponse, qualificationsResponse] = await Promise.all([api.get('/api/locations'), api.get('/api/import/berufe'), api.get('/api/import/qualifikationen')]);
-  locations.value = locationsResponse.data || [];
-  berufe.value = jobsResponse.data.data || [];
-  qualifikationen.value = qualificationsResponse.data.data || [];
-  if (!form.locationV2 && locations.value.length === 1) form.locationV2 = locations.value[0]._id;
-}
-async function loadDetails() {
-  if (!props.auftragNr && !event.value?.auftragNr) return;
-  loading.value = true;
-  try { const { data } = await api.get(`/api/auftraege/${props.auftragNr || event.value.auftragNr}/details`); hydrate(data); await loadSites(); await Promise.all([loadRecentOptions(), loadDispoPreview(), loadPlaceholders()]); }
-  catch (error) { errorMessage.value = error.response?.data?.message || 'Auftrag konnte nicht geladen werden.'; }
-  finally { loading.value = false; }
-}
-async function loadRecentOptions() {
-  if (!form.locationV2) return;
+const ScopeLabel = defineComponent({
+  props: { field: { type: String, required: true }, text: { type: String, required: true } },
+  setup(scope) {
+    return () => h('span', { class: 'scope-label' }, [scope.text, linked.value && selectedShift.value && (selectedShift.value.dayOnly || selectedShift.value._id && !selectedShift.value.groupShiftKey ? h('small', 'Nur dieser Tag') : h(FilterChip, {
+      active: selectedShift.value.overrides.includes(scopeField(scope.field)), disabled: pending.value,
+      'aria-label': `${scope.text}: ${selectedShift.value.overrides.includes(scopeField(scope.field)) ? 'Gemeinsamen Wert wiederherstellen' : 'Nur diesen Tag bearbeiten'}`,
+      onClick: event => { event.preventDefault(); toggleOverride(selectedShift.value, scope.field); },
+    }, () => selectedShift.value.overrides.includes(scopeField(scope.field)) ? 'Nur dieser Tag' : 'Gemeinsam'))]);
+  },
+});
+async function siteSaved(site) { savedSites.push(site); setOrder('einsatzort', site._id); await loadContext(); }
+async function loadContext() {
+  const request = ++contextRequest;
+  if (!order.value.kundenNr) { sites.value = []; patterns.value = []; placeholders.value = {}; return; }
   try {
-    const { data } = await api.get('/api/auftraege/recent-options', { params: { locationV2: form.locationV2, ...(form.kundenNr ? { kundenNr: form.kundenNr } : {}), ...(form.einsatzort ? { einsatzortId: form.einsatzort } : {}) } });
-    recentCustomers.value = data.recentCustomers || [];
-    recentShiftPatterns.value = data.recentShiftPatterns || [];
-    recentSiteIds.value = new Set((data.recentEinsatzorte || []).map(site => site._id));
-    if (data.recentEinsatzorte?.length) { const order = new Map(data.recentEinsatzorte.map((site, index) => [site._id, index])); sites.value.sort((a, b) => (order.get(a._id) ?? 999) - (order.get(b._id) ?? 999)); }
-  } catch { recentCustomers.value = []; }
+    const [siteResponse, recentResponse, infoResponse] = await Promise.all([
+      api.get(`/api/kunden/${order.value.kundenNr}/einsatzorte`),
+      api.get('/api/auftraege/recent-options', { params: { locationV2: order.value.locationV2, kundenNr: order.value.kundenNr, einsatzortId: order.value.einsatzort || undefined } }),
+      api.get(`/api/kunden/${order.value.kundenNr}/einsatzinformationen`),
+    ]);
+    if (request !== contextRequest) return;
+    sites.value = (siteResponse.data || []).filter(site => site.isActive !== false);
+    patterns.value = recentResponse.data.recentShiftPatterns || [];
+    placeholders.value = infoResponse.data.placeholders || {};
+  } catch (failure) { if (request === contextRequest) error.value = failure.response?.data?.message || 'Einsatzorte und Vorlagen konnten nicht geladen werden.'; }
 }
-async function loadSites() {
-  if (!form.kundenNr) { sites.value = []; return; }
-  const { data } = await api.get(`/api/kunden/${form.kundenNr}/einsatzorte`);
-  sites.value = (data || []).filter(site => site.isActive !== false);
-}
-async function loadPlaceholders() {
-  if (!form.kundenNr) return;
-  try { const { data } = await api.get(`/api/kunden/${form.kundenNr}/einsatzinformationen`); placeholders.value = data.placeholders || {}; }
-  catch { placeholders.value = {}; }
-}
-
 async function selectCustomer(customer) {
-  if (customer && selectedCustomer.value?._id === customer._id) return;
-  selectedCustomer.value = customer;
-  form.kundenNr = customer?.kundenNr ?? null;
-  form.einsatzort = ''; oneOffAddress.value = false;
-  Object.assign(form, { eventLocation: '', eventStrasse: '', eventPlz: '', eventOrt: '' });
-  await Promise.all([loadSites(), loadRecentOptions(), loadPlaceholders()]);
-  if (!customer) {
-    shifts.value.forEach(shift => {
-      if (!shift.einsatzinformation?.customized) {
-        shift.infoSource = ''; shift.infoPreview = ''; shift.infoUnresolved = [];
-        shift.einsatzinformation = { customized: false }; shift._applyLatestTemplate = true; shift._dirty = true;
-      }
-    });
-    return;
+  if (!creating.value) return;
+  if (order.value.kundenNr !== (customer?.kundenNr ?? null)) {
+    for (const value of Object.values(drafts)) { value.customer = customer; value.order.einsatzort = ''; value.order.einsatzortOverride = false; }
+    setOrder('kundenNr', customer?.kundenNr ?? null); setOrder('einsatzort', '');
+    await loadContext();
   }
-  await Promise.all(shifts.value.map(shift => classificationChanged(shift)));
 }
-async function selectSite(site) {
-  form.einsatzort = site._id; oneOffAddress.value = false;
-  Object.assign(form, { eventLocation: site.bezeichnung || site.adresse?.name || '', eventStrasse: site.adresse?.strasse || '', eventPlz: site.adresse?.plz || '', eventOrt: site.adresse?.ort || '' });
-  await Promise.all([loadRecentOptions(), ...shifts.value.map(shift => classificationChanged(shift))]);
+function setSingleDay(day) {
+  dates.value = day ? [day] : []; activeDay.value = day; order.value.day = day;
+  if (day) shifts.value.forEach(shift => { shift.datumVon = day; if (shift.datumBis < day) shift.datumBis = day; });
 }
-async function enableOneOffAddress() { oneOffAddress.value = true; form.einsatzort = ''; await Promise.all([loadRecentOptions(), ...shifts.value.map(shift => classificationChanged(shift))]); }
-async function siteCreated(site) { showSiteModal.value = false; await loadSites(); await selectSite(site); }
-function siteAddress(site) { return [site.adresse?.strasse, [site.adresse?.plz, site.adresse?.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Keine Adresse'; }
-function addLabel() { if (!labelDraft.value || form.labels.some(label => label.name.toLowerCase() === labelDraft.value.toLowerCase())) return; form.labels.push({ name: labelDraft.value, color: '#eeaf67' }); labelDraft.value = ''; }
-
-function orderPayload() { return { eventTitel: form.eventTitel, locationV2: form.locationV2, kundenNr: form.kundenNr, vonDatum: form.vonDatum, bisDatum: form.bisDatum, bestDatum: form.bestDatum || null, referenz: form.referenz, labels: form.labels }; }
-async function saveOrder() {
-  if (!form.eventTitel || !form.locationV2 || !form.vonDatum || !form.bisDatum || (!form.isPseudo && !form.kundenNr)) throw new Error('Bitte Titel, Standort, Zeitraum und Kunde vollständig angeben.');
-  const response = event.value
-    ? await api.patch(`/api/auftraege/${event.value.auftragNr}`, orderPayload(false))
-    : await api.post('/api/auftraege', orderPayload(true));
-  if (event.value) Object.assign(event.value, response.data); else event.value = response.data;
-  event.value.kundeData = selectedCustomer.value;
-  form.auftragNr = event.value.auftragNr;
-  await Promise.all(shifts.value.filter(shift => shift.infoSource).map(shift => previewShiftInformation(shift)));
-  emitUpdated();
+function useSingleDay() { multiDay.value = false; setSingleDay(activeDay.value); }
+function addDate() { if (!dateDraft.value || dates.value.includes(dateDraft.value)) return; dates.value = [...dates.value, dateDraft.value].sort(); }
+function removeDate(day) { dates.value = dates.value.filter(value => value !== day); if (activeDay.value === day) selectDay(dates.value[0]); }
+function selectDay(day) { model.selectCreationDay(day); selectedShiftId.value = ''; loadCandidates(); }
+function nextDay(day) { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); }
+async function switchOrder(number) { await load(number); selectedShiftId.value = ''; await loadContext(); await loadCandidates(); }
+function createShift(pattern = {}) { const { _id, datumVon, datumBis, ...values } = pattern; const shift = addShift({ ...values, dayOnly: newShiftDayOnly.value }); selectedShiftId.value = shift.clientId; applyTemplate(false); }
+function duplicateShift() {
+  const shift = addShift({ ...selectedShift.value, clientId: undefined, groupShiftKey: undefined, bezeichnung: `${selectedShift.value.bezeichnung} – Kopie`, overrides: [], dayOnly: newShiftDayOnly.value });
+  selectedShiftId.value = shift.clientId; previewInformation();
 }
-async function saveSite() {
-  // Freie Step-Navigation darf keine geänderten Kunden- oder Standortdaten
-  // mit einem veralteten serverseitigen Auftragskontext kombinieren.
-  await saveOrder();
-  if (!form.isPseudo && !form.einsatzort && !(form.eventStrasse && form.eventPlz && form.eventOrt)) throw new Error('Bitte einen Einsatzort oder eine vollständige einmalige Adresse wählen.');
-  const { data } = await api.patch(`/api/auftraege/${event.value.auftragNr}`, { einsatzort: form.einsatzort || null, eventLocation: form.eventLocation, eventStrasse: form.eventStrasse, eventPlz: form.eventPlz, eventOrt: form.eventOrt, wizardStep: 1 });
-  Object.assign(event.value, data); emitUpdated();
+function selectShift(shift) { selectedShiftId.value = shift.clientId; selectedCandidateIds.value = new Set(); loadCandidates(); }
+function editShift(field, value) {
+  setShift(selectedShift.value, field, value);
+  if (['uhrzeitVon', 'uhrzeitBis'].includes(field) && selectedShift.value.uhrzeitBis && selectedShift.value.uhrzeitVon && selectedShift.value.uhrzeitBis <= selectedShift.value.uhrzeitVon && selectedShift.value.datumBis === selectedShift.value.datumVon) setShift(selectedShift.value, 'datumBis', nextDay(selectedShift.value.datumVon));
+  if (['berufSchl', 'qualSchl'].includes(field) && !selectedShift.value.einsatzinformationCustomized) applyTemplate(false);
 }
-
-function addShift() { const shift = newShift(); shifts.value.push(shift); applyResolvedTemplate(shift); }
-function addShiftFromPattern(pattern) { shifts.value.push(newShift({ ...pattern, _id: undefined, datumVon: toDate(form.vonDatum), datumBis: toDate(form.vonDatum), einsatzinformation: {} })); }
-function duplicateShift(shift) { shifts.value.push(newShift({ ...shift, _id: undefined, _localId: undefined, bezeichnung: `${shift.bezeichnung} – Kopie`, einsatzinformation: {}, infoSource: shift.infoSource, infoPreview: shift.infoPreview, infoUnresolved: [...(shift.infoUnresolved || [])] })); }
-function repeatShift(shift) { const count = Math.min(30, Math.max(1, Number(window.prompt('Für wie viele weitere Tage wiederholen?', '1')) || 0)); for (let day = 1; day <= count; day += 1) shifts.value.push(newShift({ ...shift, _id: undefined, _localId: undefined, datumVon: addDays(shift.datumVon, day), datumBis: addDays(shift.datumBis || shift.datumVon, day), einsatzinformation: {}, infoSource: shift.infoSource })); }
-async function removeShift(shift) {
-  if (shift._id && !window.confirm('Schicht und ihre Einplanungen löschen?')) return;
-  errorMessage.value = '';
+function setInformation(value) { selectedShift.value.einsatzinformationSourceHtml = value; selectedShift.value.einsatzinformationCustomized = true; }
+async function applyTemplate(explicit) {
+  const shift = selectedShift.value;
+  if (!shift || !order.value.kundenNr) return;
   try {
-    if (shift._id) await api.delete(`/api/auftraege/${event.value.auftragNr}/schichten/${shift._id}`);
-    shifts.value = shifts.value.filter(item => item !== shift);
-    assignments.value = assignments.value.filter(item => String(item.schicht?._id || item.schicht) !== String(shift._id)
-      && !(shift.idAuftragArbeitsschichten != null && item.idAuftragArbeitsschichten === shift.idAuftragArbeitsschichten));
-    if (shift._id) emitUpdated();
-  } catch (error) { errorMessage.value = error.response?.data?.message || 'Schicht konnte nicht gelöscht werden.'; }
-}
-function markShiftDirty(shift) { shift._dirty = true; }
-function syncShiftEndDate(shift) { if (!shift.datumBis || shift.datumBis < shift.datumVon) shift.datumBis = shift.datumVon; markShiftDirty(shift); previewShiftInformation(shift); }
-function setShiftInformation(shift, value) { shift.infoSource = value; shift.einsatzinformation ||= {}; shift.einsatzinformation.customized = true; shift.templateSuggestion = false; markShiftDirty(shift); }
-function jobId(shift) { return berufe.value.find(job => String(job.jobKey) === String(shift.berufSchl))?._id || null; }
-function qualificationId(shift) { return qualifikationen.value.find(item => String(item.qualificationKey) === String(shift.qualSchl))?._id || null; }
-function templateResolveParams(shift) { return form.einsatzort ? { einsatzortId: form.einsatzort, berufId: jobId(shift), qualifikationId: qualificationId(shift) } : {}; }
-async function fetchResolvedTemplate(shift) {
-  if (!form.kundenNr) return { template: null, resolution: null };
-  const { data } = await api.get(`/api/kunden/${form.kundenNr}/einsatzinformationen/resolve`, { params: templateResolveParams(shift) });
-  return data;
-}
-async function classificationChanged(shift) {
-  markShiftDirty(shift);
-  if (shift.einsatzinformation?.customized || shift.infoSource && !shift.einsatzinformation?.template) {
-    try { const data = await fetchResolvedTemplate(shift); shift.templateSuggestion = Boolean(data.template); } catch { shift.templateSuggestion = false; }
-    return previewShiftInformation(shift);
-  }
-  await applyResolvedTemplate(shift);
-}
-async function applyResolvedTemplate(shift, confirmed = false) {
-  if (!form.kundenNr) return;
-  try {
-    const data = await fetchResolvedTemplate(shift);
-    if (!data.template) {
-      if (!shift.einsatzinformation?.customized) {
-        shift.infoSource = ''; shift.infoPreview = ''; shift.infoUnresolved = [];
-        shift.einsatzinformation = { customized: false }; shift.templateSuggestion = false;
-        shift._applyLatestTemplate = true; shift._dirty = true;
-      }
-      return;
+    const { data } = await api.get(`/api/kunden/${order.value.kundenNr}/einsatzinformationen/resolve`, { params: {
+      einsatzortId: order.value.einsatzort || undefined,
+      berufId: jobs.value.find(job => String(job.jobKey) === String(shift.berufSchl))?._id,
+      qualifikationId: qualifications.value.find(qualification => String(qualification.qualificationKey) === String(shift.qualSchl))?._id,
+    } });
+    if (data.template) {
+      shift.einsatzinformationSourceHtml = data.template.htmlTemplate; shift.einsatzinformationCustomized = false;
+      shift.applyLatestTemplate = explicit;
+      await previewInformation();
     }
-    shift.infoSource = data.template.htmlTemplate;
-    shift.einsatzinformation = { ...(shift.einsatzinformation || {}), template: data.template._id, templateVersion: data.template.version, resolution: data.resolution, customized: false };
-    shift.templateSuggestion = false; shift._applyLatestTemplate = true; shift._dirty = true;
-    await previewShiftInformation(shift);
-    if (confirmed) statusMessage.value = 'Passende Vorlage übernommen';
-  } catch { /* Eine fehlende Vorlage darf den Entwurf nicht blockieren. */ }
+  } catch (failure) { error.value = failure.response?.data?.message || 'Die passende Vorlage konnte nicht geladen werden.'; }
 }
-async function applyLatestTemplate(shift) { if (window.confirm('Den gespeicherten Snapshot ausdrücklich durch die aktuellste passende Vorlage ersetzen?')) await applyResolvedTemplate(shift, true); }
-async function previewShiftInformation(shift) {
-  if (!form.kundenNr || !shift.infoSource) { shift.infoPreview = ''; shift.infoUnresolved = []; return; }
+async function previewInformation() {
+  const shift = selectedShift.value; const request = ++previewRequest;
+  if (!shift || !order.value.kundenNr || !shift.einsatzinformationSourceHtml) return;
   try {
-    const { data } = await api.post(`/api/kunden/${form.kundenNr}/einsatzinformationen/preview`, { htmlTemplate: shift.infoSource, ...(form.einsatzort ? { einsatzortId: form.einsatzort, berufId: jobId(shift), qualifikationId: qualificationId(shift) } : {}), auftrag: { ...event.value, ...form }, schicht: shift, location: locations.value.find(location => location._id === form.locationV2) });
-    shift.infoPreview = data.renderedHtml; shift.infoUnresolved = data.unresolvedPlaceholders || [];
-  } catch (error) { errorMessage.value = error.response?.data?.message || 'Einsatzinformation enthält ungültige Inhalte.'; }
+    const { data } = await api.post(`/api/kunden/${order.value.kundenNr}/einsatzinformationen/preview`, { htmlTemplate: shift.einsatzinformationSourceHtml, einsatzortId: order.value.einsatzort || undefined, auftrag: order.value, schicht: shift });
+    if (request === previewRequest) { shift.infoPreview = data.renderedHtml; shift.infoUnresolved = data.unresolvedPlaceholders || []; }
+  } catch (failure) { if (request === previewRequest) error.value = failure.response?.data?.message || 'Die Einsatzinformation konnte nicht geprüft werden.'; }
 }
-function shiftPayload(shift) { return { bezeichnung: shift.bezeichnung, datumVon: shift.datumVon, datumBis: shift.datumBis, uhrzeitVon: shift.uhrzeitVon, uhrzeitBis: shift.uhrzeitBis, bedarf: Number(shift.bedarf || 0), garantiestundenLohn: Number(shift.garantiestundenLohn || 0), berufSchl: shift.berufSchl || null, qualSchl: shift.qualSchl || null, treffpunkt: shift.treffpunkt || null, treffpunktOrt: shift.treffpunktOrt || '', ansprechpartnerName: shift.ansprechpartnerName || '', ansprechpartnerTelefon: shift.ansprechpartnerTelefon || '', ansprechpartnerEmail: shift.ansprechpartnerEmail || '', einsatzinformationSourceHtml: shift.infoSource || '', einsatzinformationCustomized: Boolean(shift.einsatzinformation?.customized), applyLatestTemplate: Boolean(shift._applyLatestTemplate) }; }
-async function saveShift(shift, persistContext = true) {
-  if (!shift.bezeichnung) throw new Error('Jede Schicht benötigt eine Bezeichnung.');
-  savingShiftId.value = shift._id || shift._localId;
-  try { if (persistContext) await saveSite(); const { data } = shift._id ? await api.patch(`/api/auftraege/${event.value.auftragNr}/schichten/${shift._id}`, shiftPayload(shift)) : await api.post(`/api/auftraege/${event.value.auftragNr}/schichten`, shiftPayload(shift)); Object.assign(shift, normalizeShift(data)); shift._applyLatestTemplate = false; }
-  finally { savingShiftId.value = null; }
-}
-async function saveOneShift(shift) { errorMessage.value = ''; try { await saveShift(shift); statusMessage.value = 'Schicht gespeichert'; emitUpdated(); } catch (error) { errorMessage.value = error.response?.data?.message || error.message || 'Schicht konnte nicht gespeichert werden.'; } }
-async function saveAllShifts() { await saveSite(); if (!shifts.value.length) throw new Error('Lege mindestens eine Schicht an.'); for (const shift of shifts.value) if (!shift._id || shift._dirty) await saveShift(shift, false); selectedShiftId.value ||= shifts.value[0]._id; emitUpdated(); }
-
-function assignmentsForShift(shift) { return assignments.value.filter(assignment => String(assignment.schicht?._id || assignment.schicht || '') === String(shift._id) || (shift.idAuftragArbeitsschichten != null && assignment.idAuftragArbeitsschichten === shift.idAuftragArbeitsschichten)); }
-async function selectPlanningShift(shift) { selectedShiftId.value = shift._id; selectedCandidateIds.value = new Set(); await loadCandidates(); }
 async function loadCandidates() {
-  if (!planningShift.value?._id) return;
+  const request = ++candidateRequest;
+  candidates.value = []; selectedCandidateIds.value = new Set(); candidateLoading.value = false;
+  if (!selectedShift.value?.datumVon || !selectedShift.value.datumBis || !order.value.kundenNr || !order.value.einsatzort || pending.value) return;
   candidateLoading.value = true;
-  try { const { data } = await api.get(`/api/auftraege/${event.value.auftragNr}/schichten/${planningShift.value._id}/candidates`, { params: { includeOtherLocations: includeOtherLocations.value } }); candidates.value = data.candidates || []; event.value.planningVersion = data.planningVersion; await loadDispoPreview(); }
-  catch (error) { errorMessage.value = error.response?.data?.message || 'Mitarbeitervorschläge konnten nicht geladen werden.'; }
-  finally { candidateLoading.value = false; }
+  try {
+    const { data } = await api.post('/api/auftraege/editor/candidates', { auftragNr: order.value.auftragNr, kundenNr: order.value.kundenNr, locationV2: order.value.locationV2, einsatzort: order.value.einsatzort, schicht: shiftDto(selectedShift.value), includeOtherLocations: includeOtherLocations.value, stagedAssignments: model.stagedAssignments() });
+    if (!Array.isArray(data.candidates)) throw new Error('Die Personalprüfung hat keine gültige Vorschlagsliste geliefert.');
+    if (request === candidateRequest) candidates.value = data.candidates;
+  } catch (failure) { if (request === candidateRequest) error.value = failure.response?.data?.message || 'Personal konnte nicht geprüft werden.'; }
+  finally { if (request === candidateRequest) candidateLoading.value = false; }
 }
-async function validatePlanning() {
-  await saveAllShifts();
-  const { data } = await api.put(`/api/auftraege/${event.value.auftragNr}/planning`, {
-    planningVersion: Number(event.value.planningVersion || 0),
-    operations: [],
-  });
-  event.value.planningVersion = data.planningVersion;
-  const existingById = new Map(assignments.value.map(assignment => [assignment._id, assignment]));
-  assignments.value = (data.assignments || assignments.value).map(assignment => ({ ...existingById.get(assignment._id), ...assignment }));
+function toggleCandidate(id) { const ids = new Set(selectedCandidateIds.value); if (ids.has(id)) ids.delete(id); else ids.add(id); selectedCandidateIds.value = ids; }
+function assign(candidate) { if (candidate.conflicts?.length) { conflictCandidate.value = candidate; conflictReason.value = ''; } else { stageAssignment(candidate, selectedShift.value, undefined, includeOtherLocations.value); loadCandidates(); } }
+function assignSelected() {
+  const selected = candidates.value.filter(item => selectedCandidateIds.value.has(item._id));
+  for (const candidate of selected.filter(item => !item.conflicts?.length)) stageAssignment(candidate, selectedShift.value, undefined, includeOtherLocations.value);
+  conflictQueue.value = selected.filter(item => item.conflicts?.length);
+  conflictCandidate.value = conflictQueue.value.shift() || null; conflictReason.value = ''; loadCandidates();
 }
-async function loadDispoPreview() { if (!form.vonDatum || !form.bisDatum || !form.locationV2) return; try { const { data } = await api.get('/api/dispo', { params: { von: form.vonDatum, bis: form.bisDatum, locationV2: form.locationV2 } }); dispoEntries.value = data.eintraege || []; } catch { dispoEntries.value = []; } }
-function toggleCandidate(id) { const next = new Set(selectedCandidateIds.value); next.has(id) ? next.delete(id) : next.add(id); selectedCandidateIds.value = next; }
-async function assignCandidate(candidate, targetShift = planningShift.value) {
-  if (!targetShift?._id) return;
-  let conflictOverride;
-  if (candidate.conflicts?.length) { const reason = window.prompt(`Konflikte:\n${candidate.conflicts.map(item => `• ${item.label}`).join('\n')}\n\nBegründung für die Einplanung:`); if (!reason?.trim()) return; conflictOverride = { confirmed: true, reason: reason.trim() }; }
-  try { selectedShiftId.value = targetShift._id; await api.post(`/api/auftraege/${event.value.auftragNr}/einsaetze`, { mitarbeiterId: candidate._id, schichtId: targetShift._id, includeOtherLocations: includeOtherLocations.value, conflictOverride }); await loadDetails(); emitUpdated(); selectedShiftId.value = targetShift._id; await loadCandidates(); }
-  catch (error) { errorMessage.value = error.response?.data?.message || 'Einplanung fehlgeschlagen.'; }
+async function dropOnShift(shift) {
+  const id = dragCandidateId.value; dragCandidateId.value = ''; selectedShiftId.value = shift.clientId;
+  await loadCandidates();
+  const candidate = candidates.value.find(item => item._id === id);
+  if (candidate) assign(candidate); else error.value = 'Der Mitarbeiter ist für diese Schicht nicht verfügbar.';
 }
-async function assignSelectedCandidates() {
-  const operations = [];
-  for (const id of selectedCandidateIds.value) {
-    const candidate = candidates.value.find(item => item._id === id);
-    if (!candidate) continue;
-    let conflictOverride;
-    if (candidate.conflicts?.length) {
-      const reason = window.prompt(`Konflikte bei ${candidate.vorname} ${candidate.nachname}:\n${candidate.conflicts.map(item => `• ${item.label}`).join('\n')}\n\nBegründung für die Einplanung:`);
-      if (!reason?.trim()) continue;
-      conflictOverride = { confirmed: true, reason: reason.trim() };
-    }
-    operations.push({ type: 'assign', schichtId: planningShift.value._id, mitarbeiterId: candidate._id, conflictOverride });
+function cancelConfirmation() { confirmClose.value = false; deleteShiftConfirm.value = false; templateConfirm.value = false; conflictCandidate.value = null; conflictQueue.value = []; }
+function confirmationKeydown(event) {
+  if (!confirming.value || !confirmCard.value?.getClientRects().length || event.key !== 'Tab') return;
+  const controls = [...confirmCard.value.querySelectorAll('button:not([disabled]),textarea:not([disabled])')];
+  const index = controls.indexOf(document.activeElement);
+  if (index < 0 || !event.shiftKey && index === controls.length - 1 || event.shiftKey && index === 0) {
+    event.preventDefault(); (event.shiftKey ? controls.at(-1) : controls[0])?.focus();
   }
-  if (!operations.length) return;
-  errorMessage.value = '';
-  try {
-    const { data } = await api.put(`/api/auftraege/${event.value.auftragNr}/planning`, {
-      planningVersion: Number(event.value.planningVersion || 0),
-      includeOtherLocations: includeOtherLocations.value,
-      operations,
-    });
-    event.value.planningVersion = data.planningVersion;
-    await loadDetails();
-    emitUpdated();
-    await loadCandidates();
-  } catch (error) { errorMessage.value = error.response?.data?.message || 'Mehrfach-Einplanung fehlgeschlagen.'; }
-  finally { selectedCandidateIds.value = new Set(); }
 }
-async function removeAssignment(assignment) {
-  errorMessage.value = '';
-  try {
-    await api.delete(`/api/auftraege/${event.value.auftragNr}/einsaetze/${assignment._id}`);
-    assignments.value = assignments.value.filter(item => item._id !== assignment._id);
-    emitUpdated();
-    await loadCandidates();
-  } catch (error) { errorMessage.value = error.response?.data?.message || 'Einplanung konnte nicht entfernt werden.'; }
-}
-function dropCandidate() { const candidate = candidates.value.find(item => item._id === dragCandidateId.value); dragCandidateId.value = ''; if (candidate) assignCandidate(candidate); }
-async function dropCandidateOnShift(shift) {
-  const candidateId = dragCandidateId.value;
-  dragCandidateId.value = '';
-  if (!candidateId) return;
-  if (shift._id === planningShift.value?._id) {
-    const candidate = candidates.value.find(item => item._id === candidateId);
-    if (candidate) await assignCandidate(candidate, shift);
-    return;
+async function runConfirmation() {
+  if (confirmClose.value) { emit('close'); return; }
+  if (deleteShiftConfirm.value) { model.deleteShift(selectedShift.value, linked.value && deleteDayOnly.value); selectedShiftId.value = ''; }
+  if (templateConfirm.value) await applyTemplate(true);
+  if (conflictCandidate.value) {
+    stageAssignment(conflictCandidate.value, selectedShift.value, { confirmed: true, reason: conflictReason.value, conflicts: conflictCandidate.value.conflicts }, includeOtherLocations.value);
+    if (conflictQueue.value.length) { conflictCandidate.value = conflictQueue.value.shift(); conflictReason.value = ''; return; }
+    loadCandidates();
   }
+  cancelConfirmation();
+}
+function requestClose() {
+  if (busy.value || releasing.value) return;
+  if (pending.value && progress.value?.canResume !== false) { error.value = 'Der Vorgang ist noch unvollständig. Bitte unter Prüfen die ausstehenden Arbeiten fortsetzen.'; activeTab.value = 'review'; return; }
+  if (dirty.value) confirmClose.value = true; else emit('close');
+}
+function nextStage() {
+  if (activeTab.value === 'order' && (!order.value.kundenNr || !order.value.eventTitel || !order.value.locationV2)) { error.value = 'Bitte Titel, Kunde und Standort angeben.'; return; }
+  if (activeTab.value === 'site' && !order.value.einsatzort) { error.value = 'Bitte einen Einsatzort auswählen oder speichern.'; return; }
+  error.value = ''; activeTab.value = ({ order: 'site', site: 'planning', planning: 'review' })[activeTab.value] || 'review';
+}
+async function loadReview(cursor) {
+  if (!linked.value || creating.value || pending.value) return;
+  const request = ++reviewRequest; reviewLoading.value = true; reviewError.value = '';
+  if (!cursor) serverReview.value = null;
   try {
-    const { data } = await api.get(`/api/auftraege/${event.value.auftragNr}/schichten/${shift._id}/candidates`, { params: { includeOtherLocations: includeOtherLocations.value } });
-    const candidate = (data.candidates || []).find(item => item._id === candidateId);
-    if (!candidate) throw new Error('Mitarbeiter ist für diese Schicht nicht verfügbar.');
-    event.value.planningVersion = data.planningVersion;
-    await assignCandidate(candidate, shift);
-  } catch (error) { errorMessage.value = error.response?.data?.message || error.message || 'Einplanung per Drag-and-drop fehlgeschlagen.'; }
+    const { data } = await api.post('/api/auftraege/editor/review', { ...model.submissionPayload(), cursor });
+    if (request !== reviewRequest) return;
+    if (!Array.isArray(data.orders)) throw new Error('Die Änderungsprüfung hat keine betroffenen Aufträge geliefert.');
+    const rows = cursor ? [...serverReview.value.orders, ...data.orders] : data.orders;
+    serverReview.value = { ...data, orders: rows };
+    if (data.errors?.length) reviewError.value = data.errors.map(item => typeof item === 'string' ? item : item.message).join(' ');
+  } catch (failure) { if (request === reviewRequest) reviewError.value = failure.response?.data?.message || failure.message || 'Die Änderungen konnten nicht geprüft werden.'; }
+  finally { if (request === reviewRequest) reviewLoading.value = false; }
 }
-function dispoTone(candidate, day) { const entries = [...(candidate.dispoEntries || []), ...dispoEntries.value].filter(entry => String(entry.mitarbeiter?._id || entry.mitarbeiter) === String(candidate._id) && toDate(entry.datumVon) <= day && toDate(entry.datumBis || entry.datumVon) >= day); if (entries.some(entry => entry.typ === 'abwesenheit' || entry.verfuegbarkeit === 'blocked')) return 'blocked'; if (entries.some(entry => entry._source === 'einsatz' || entry.verfuegbarkeit === 'eingeplant')) return 'planned'; if (entries.some(entry => entry.verfuegbarkeit === 'available')) return 'available'; return 'unknown'; }
-
-async function saveCurrentStep(advance) {
-  pending.value = true; errorMessage.value = ''; statusMessage.value = '';
+async function confirmSubmission() { if (!pending.value && !reviewReady.value) return; await model.submit(); documentRefresh.value += 1; }
+async function release() {
+  if (dirty.value || pending.value || releasing.value) return;
+  releasing.value = true; error.value = '';
+  try { const { data } = await api.post(`/api/auftraege/${order.value.auftragNr}/release`); order.value.auftStatus = data.auftrag?.auftStatus || 2; notice.value = 'Auftrag freigegeben.'; emit('updated', { ...order.value, schichten: shifts.value, einsaetze: draft.value.assignments }); }
+  catch (failure) { error.value = failure.response?.data?.message || 'Freigabe fehlgeschlagen.'; }
+  finally { releasing.value = false; }
+}
+function goToChanges(day) { if (day.auftragNr && day.auftragNr !== order.value.auftragNr) switchOrder(day.auftragNr); activeTab.value = day.changes.some(change => change.kind !== 'order') ? 'planning' : 'order'; }
+watch(() => order.value?.kundenNr, loadContext);
+watch(() => order.value?.locationV2, () => { if (creating.value) loadContext(); });
+watch(() => order.value?.einsatzort, () => { loadContext(); loadCandidates(); });
+watch(() => selectedShift.value && JSON.stringify(shiftDto(selectedShift.value)), () => { clearTimeout(candidateTimer); candidateTimer = setTimeout(loadCandidates, 250); });
+watch(activeTab, value => { if (value === 'review') loadReview(); else { reviewRequest++; reviewLoading.value = false; serverReview.value = null; } });
+watch(confirming, async open => { if (open) { previousFocus = document.activeElement; await nextTick(); confirmCard.value?.focus(); } else previousFocus?.focus(); });
+watch(() => JSON.stringify(model.submissionPayload()), () => { if (activeTab.value === 'review' && !pending.value) loadReview(); });
+onBeforeUnmount(() => { clearTimeout(candidateTimer); candidateRequest++; contextRequest++; previewRequest++; reviewRequest++; document.removeEventListener('keydown', confirmationKeydown); });
+onMounted(async () => {
+  document.addEventListener('keydown', confirmationKeydown);
   try {
-    if (currentStep.value === 0) await saveOrder();
-    else if (currentStep.value === 1) await saveSite();
-    else if (currentStep.value === 2) await saveAllShifts();
-    else if (currentStep.value === 3) await validatePlanning();
-    else await saveAllShifts();
-    if (advance && currentStep.value < 4) { currentStep.value += 1; await api.patch(`/api/auftraege/${event.value.auftragNr}`, { wizardStep: currentStep.value }); if (currentStep.value === 3) await loadCandidates(); }
-    statusMessage.value = 'Entwurf gespeichert';
-  } catch (error) { errorMessage.value = error.response?.data?.message || error.message || 'Speichern fehlgeschlagen.'; }
-  finally { pending.value = false; }
-}
-async function releaseOrder() { pending.value = true; errorMessage.value = ''; releaseErrors.value = []; try { await saveAllShifts(); const { data } = await api.post(`/api/auftraege/${event.value.auftragNr}/release`); event.value.auftStatus = data.auftrag?.auftStatus || 2; statusMessage.value = 'Auftrag freigegeben'; emitUpdated(); } catch (error) { releaseErrors.value = error.response?.data?.errors || []; errorMessage.value = error.response?.data?.message || error.message || 'Freigabe fehlgeschlagen.'; } finally { pending.value = false; } }
-async function goToStep(index) { if (!event.value && index > 0) return; currentStep.value = index; errorMessage.value = ''; if (index === 3) await loadCandidates(); }
-function emitUpdated() {
-  if (!event.value) return;
-  event.value = {
-    ...event.value,
-    kundeData: selectedCustomer.value,
-    schichten: shifts.value,
-    einsaetze: assignments.value,
-  };
-  emit('updated', event.value);
-}
-function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${toDate(value)}T12:00:00`)) : '—'; }
-function formatDateTime(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date); }
-function shortTime(value) { return String(value || '').slice(0, 5) || '—'; }
-function initials(candidate) { return `${candidate.vorname?.[0] || ''}${candidate.nachname?.[0] || ''}`.toUpperCase(); }
-
-watch(() => form.locationV2, loadRecentOptions);
-onMounted(async () => { try { await loadBaseData(); if (props.auftragNr) await loadDetails(); else await loadRecentOptions(); } catch (error) { errorMessage.value = error.response?.data?.message || 'Grunddaten konnten nicht geladen werden.'; } finally { loading.value = false; } });
+    const [locationResponse, jobResponse, qualificationResponse] = await Promise.all([api.get('/api/locations'), api.get('/api/import/berufe'), api.get('/api/import/qualifikationen')]);
+    locations.value = locationResponse.data || []; jobs.value = jobResponse.data.data || []; qualifications.value = qualificationResponse.data.data || [];
+    if (props.auftragNr) { await load(props.auftragNr); if (pending.value) activeTab.value = 'review'; }
+    await loadContext(); await loadCandidates(); await nextTick();
+  } catch (failure) { error.value = failure.response?.data?.message || failure.message || 'Grunddaten konnten nicht geladen werden.'; }
+});
 </script>
 
 <style scoped>
-.wizard-shell { display: grid; grid-template-rows: auto minmax(0,1fr) auto; width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; }
-.wizard-steps { display: grid; grid-template-columns: repeat(5,1fr); border-bottom: 1px solid; }
-.wizard-steps button { display: flex; align-items: center; gap: .65rem; min-width: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
-.wizard-steps button > span { display: grid; place-items: center; border-radius: 50%; font-weight: 700; }
-.wizard-steps button div { display: grid; min-width: 0; }
-.wizard-steps small { overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
-.wizard-content { overflow: auto; padding: clamp(1rem,2vw,2rem); }
-.wizard-page { width: min(1180px,100%); margin: 0 auto; }
-.page-heading { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1.35rem; }
-.page-heading h3 { margin: .16rem 0 .3rem; font-size: clamp(1.3rem,2vw,1.8rem); }
-.page-heading p { margin: 0; }
-.page-heading.split { align-items: flex-end; }
-.eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.order-type { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-bottom: 1rem; }
-.order-type button { display: grid; gap: .2rem; padding: 1rem; border: 1px solid; text-align: left; cursor: pointer; }
-.form-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .8rem; }
-.field { display: grid; align-content: start; gap: .35rem; min-width: 0; }
-.field.wide { grid-column: span 2; }
-.field > span { font-size: .73rem; font-weight: 700; }
-.field input,.field select { box-sizing: border-box; width: 100%; min-height: 42px; padding: .58rem .68rem; border: 1px solid; border-radius: 9px; outline: none; }
-.order-grid { padding: 1.1rem; border: 1px solid; }
-.selected-customer { display: flex; align-items: center; gap: .6rem; min-height: 42px; padding: .45rem .7rem; border: 1px solid; border-radius: 9px; }
-.selected-customer button { margin-left: auto; border: 0; background: transparent; cursor: pointer; }
-.suggestion-row,.pattern-strip { display: flex; align-items: center; gap: .4rem; margin-top: .45rem; overflow-x: auto; }
-.suggestion-row > span,.pattern-strip > span { flex: 0 0 auto; font-size: .7rem; font-weight: 700; }
-.suggestion-row button,.pattern-strip button { flex: 0 0 auto; padding: .32rem .55rem; border: 1px solid; border-radius: 7px; cursor: pointer; }
-.label-editor { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; min-height: 42px; padding: .35rem; border: 1px solid; border-radius: 9px; }
-.label-editor input { flex: 1; min-width: 140px; min-height: 30px; border: 0; }
-.label-editor > button { width: 30px; height: 30px; border: 0; border-radius: 7px; color: #fff; }
-.order-label { padding: .27rem .45rem; border: 1px solid var(--label-color); border-radius: 7px; color: var(--label-color); font-size: .77rem; font-weight: 700; }
-.order-label button { border: 0; color: inherit; background: transparent; }
-.site-layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(240px,1fr); gap: 1rem; }
-.site-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; }
-.site-card,.one-off-toggle { display: flex; align-items: center; gap: .8rem; padding: .9rem; border: 1px solid; text-align: left; cursor: pointer; }
-.site-card > div,.one-off-toggle > div { display: grid; gap: .16rem; min-width: 0; }
-.site-card small { font-size: .68rem; font-weight: 700; text-transform: uppercase; }
-.site-card span:not(.site-pin),.one-off-toggle small { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
-.site-card b { margin-left: auto; }
-.site-pin,.one-off-toggle > span { display: grid; flex: 0 0 2.2rem; width: 2.2rem; height: 2.2rem; place-items: center; border-radius: 7px; }
-.address-panel { margin-top: 1rem; padding: 1rem; border: 1px solid; }
-.address-panel h4 { margin: 0 0 .8rem; }
-.primary-button,.secondary-button,.text-button,.release-button { min-height: 40px; padding: .58rem .85rem; border-radius: 9px; cursor: pointer; font-weight: 700; }
-.primary-button,.release-button { border: 1px solid var(--primary); color: #fff; background: var(--primary); }
-.secondary-button { border: 1px solid var(--border); color: var(--text); background: var(--surface); }
-.text-button { border: 0; background: transparent; }
-.pattern-strip { margin: -.5rem 0 1rem; }
-.shift-stack { display: grid; gap: 1rem; }
-.shift-card { overflow: hidden; border: 1px solid; }
-.shift-card > header { display: flex; align-items: center; gap: .7rem; padding: .8rem 1rem; border-bottom: 1px solid; }
-.shift-number { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 7px; font-weight: 700; }
-.shift-card > header > div:nth-child(2) { display: grid; }
-.shift-card > header span { font-size: .68rem; text-transform: uppercase; }
-.shift-actions { display: flex; gap: .3rem; margin-left: auto; }
-.shift-actions button,.info-editor-head button { padding: .35rem .5rem; border: 1px solid; border-radius: 7px; cursor: pointer; }
-.shift-grid { padding: 1rem; }
-.info-editor-head { display: flex; align-items: flex-end; justify-content: space-between; gap: .8rem; padding: .1rem 1rem .6rem; }
-.info-editor-head h4 { margin: .1rem 0 0; }
-.info-editor-head > div:last-child { display: flex; align-items: center; gap: .45rem; }
-.template-version { padding: .28rem .45rem; border-radius: 99px; font-size: .72rem; font-weight: 700; }
-.shift-card :deep(.rich-template-editor) { margin: 0 1rem; }
-.template-suggestion { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: 0 1rem .6rem; padding: .55rem .7rem; border-radius: 8px; }
-.template-suggestion button { border: 0; background: transparent; font-weight: 700; }
-.shift-card > footer { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; padding: .75rem 1rem; }
-.shift-card > footer span { margin-right: auto; font-size: .76rem; }
-.empty-shift { display: grid; gap: .25rem; padding: 3rem; border: 2px dashed; border-radius: 9px; cursor: pointer; }
-.staffing-layout { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 1rem; }
-.staff-shifts { display: grid; align-content: start; gap: .45rem; }
-.staff-shifts button { display: grid; gap: .15rem; padding: .75rem; border: 1px solid; border-radius: 8px; text-align: left; }
-.staff-shifts span,.staff-shifts small { font-size: .72rem; }
-.candidate-panel { min-width: 0; }
-.planning-summary { display: flex; align-items: center; padding: 1rem; border-radius: 9px; }
-.planning-summary > div { display: grid; }
-.planning-summary b { margin-left: auto; padding: .55rem .7rem; border-radius: 7px; }
-.planned-strip { display: flex; gap: .5rem; padding: .65rem 0; overflow-x: auto; }
-.planned-strip article { display: flex; align-items: center; gap: .6rem; flex: 0 0 auto; padding: .55rem .7rem; border: 1px solid; }
-.planned-strip article div { display: grid; }
-.planned-strip small { color: #b45309; }
-.planned-strip button { border: 0; background: transparent; }
-.candidate-toolbar { display: flex; align-items: center; justify-content: space-between; margin: .5rem 0; }
-.candidate-toolbar > div { display: flex; gap: .35rem; }
-.candidate-list { display: grid; gap: .5rem; }
-.candidate-card { display: flex; align-items: center; gap: .7rem; padding: .7rem; border: 1px solid; border-left: 4px solid var(--border); }
-.candidate-avatar { display: grid; flex: 0 0 2.3rem; width: 2.3rem; height: 2.3rem; place-items: center; border-radius: 50%; font-weight: 700; }
-.candidate-body { min-width: 0; flex: 1; }
-.candidate-body > div:first-child { display: flex; justify-content: space-between; }
-.candidate-body > div:first-child span { font-size: .7rem; font-weight: 700; text-transform: uppercase; }
-.candidate-body p { display: flex; flex-wrap: wrap; gap: .28rem; margin: .3rem 0; }
-.candidate-body p span { padding: .18rem .35rem; border-radius: 5px; font-size: .7rem; }
-.candidate-card > button { border: 0; background: transparent; font-weight: 700; }
-.mini-dispo { display: flex; gap: 2px; }
-.mini-dispo i { display: grid; width: 22px; height: 18px; place-items: center; border-radius: 3px; font-size: .58rem; font-style: normal; }
-.location-toggle { display: flex; align-items: center; gap: .45rem; font-size: .8rem; }
-.review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
-.review-grid > article { position: relative; padding: 1rem; border: 1px solid; }
-.review-grid article.wide { grid-column: 1/-1; }
-.review-grid article > span { font-size: .68rem; font-weight: 700; text-transform: uppercase; }
-.review-grid h4 { margin: .25rem 0 .6rem; }
-.review-grid article > button { position: absolute; top: .7rem; right: .7rem; border: 0; background: transparent; }
-.review-grid dl { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: 0; }
-.review-grid dl div { display: grid; }
-.review-grid dt { font-size: .7rem; }
-.review-grid dd { margin: 0; }
-.review-shifts { display: grid; gap: .4rem; }
-.review-shifts > div { display: grid; grid-template-columns: 1.5fr 1fr auto 1.3fr; gap: .7rem; align-items: center; padding: .55rem; border-radius: 8px; }
-.release-errors { display: grid; gap: .35rem; margin-top: .8rem; padding: .8rem; border: 1px solid; border-radius: 9px; }
-.release-errors button { display: flex; gap: .5rem; border: 0; background: transparent; text-align: left; }
-.release-errors button span { font-weight: 700; }
-.release-callout { display: flex; align-items: center; margin-top: 1rem; padding: 1rem; border-radius: 9px; }
-.release-callout > div { display: grid; }
-.conflict-review > div { display: grid; grid-template-columns: minmax(160px,.7fr) minmax(0,1.4fr) minmax(0,1fr); gap: .7rem; padding: .55rem 0; border-top: 1px solid; }
-.conflict-review p,.conflict-review small { margin: 0; }
-.wizard-footer { display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem; border-top: 1px solid; }
-.wizard-footer > span { flex: 1; }
-.wizard-error { position: sticky; top: 0; z-index: 4; margin: 0 0 .8rem; padding: .65rem .8rem; border: 1px solid; border-radius: 8px; }
-.wizard-state { padding: .3rem .55rem; border-radius: 99px; font-size: .75rem; font-weight: 700; }
-.save-state { font-size: .78rem; }
-.wizard-loading,.empty-state { padding: 2rem; text-align: center; }
-.empty-state.prominent { border: 1px dashed; }
-/* Straight Monitor theme contract. Semantic status colours stay explicit; all
-   structural colours follow the same variables as Dispo and shared controls. */
-.wizard-shell { --wizard-success: #4caf50; --wizard-warning: #f59e0b; --wizard-danger: #e6584f; color: var(--text); background: var(--panel); }
-.wizard-steps,.wizard-footer { border-color: var(--border); background: var(--surface); }
-.wizard-steps { gap: 4px; padding: 12px 18px; }
-.wizard-steps button { padding: 7px 9px; border-radius: 8px; color: var(--muted); font-size: .82rem; opacity: .62; transition: color .15s ease,background .15s ease,opacity .15s ease; }
-.wizard-steps button:not(:disabled) { opacity: 1; }
-.wizard-steps button:hover:not(:disabled) { background: var(--hover); }
-.wizard-steps button > span { width: 24px; height: 24px; flex-basis: 24px; border: 2px solid currentColor; font-size: .7rem; }
-.wizard-steps button.active { color: var(--primary); background: transparent; }
-.wizard-steps button.active > span { border-color: var(--primary); color: #fff; background: var(--primary); }
-.wizard-steps button.done { color: var(--text); }
-.wizard-steps button.done > span { border-color: var(--wizard-success); color: #fff; background: var(--wizard-success); }
-.wizard-steps small { color: var(--muted); }
-.wizard-content { background: var(--panel); }
-.page-heading h3 { color: var(--text); font-weight: 650; }
-.page-heading p,.field > span,.order-type small,.selected-customer span,.suggestion-row > span,.pattern-strip > span,.shift-card > header span,.shift-card > footer span,.staff-shifts span,.staff-shifts small,.candidate-body > div:first-child span,.review-grid dt,.save-state,.empty-state { color: var(--muted); }
-.eyebrow { color: var(--primary); }
-.order-grid,.order-type button,.site-card,.one-off-toggle,.address-panel,.shift-card,.staff-shifts button,.candidate-card,.planned-strip article,.review-grid > article,.empty-state.prominent { border-color: var(--border); background: var(--surface); color: var(--text); box-shadow: none; }
-.order-grid,.shift-card { border-radius: 12px; }
-.order-type button,.site-card,.one-off-toggle,.address-panel,.candidate-card,.review-grid > article,.empty-state.prominent { border-radius: 9px; }
-.order-type button { color: var(--muted); }
-.order-type button:hover,.site-card:hover,.one-off-toggle:hover,.staff-shifts button:hover { border-color: color-mix(in srgb,var(--primary) 55%,var(--border)); }
-.order-type button.active,.site-card.active,.one-off-toggle.active,.staff-shifts button.active { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb,var(--primary) 6%,var(--surface)); box-shadow: inset 0 0 0 1px var(--primary); }
-.site-card small,.selected-customer button,.info-editor-head button:hover,.candidate-card > button,.review-grid article > button { color: var(--primary); }
-.site-card span:not(.site-pin),.one-off-toggle small { color: var(--muted); }
-.site-pin,.one-off-toggle > span { color: var(--primary); background: color-mix(in srgb,var(--primary) 10%,var(--surface)); }
-.selected-customer { border-color: var(--primary); background: color-mix(in srgb,var(--primary) 7%,var(--surface)); }
-.field input,.field select,.label-editor { border-color: var(--border); color: var(--text); background: var(--bg); }
-.field input:focus,.field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb,var(--primary) 18%,transparent); }
-.field input:disabled,.field select:disabled { opacity: .65; background: var(--hover); }
-.label-editor input { color: var(--text); background: transparent; }
-.label-editor > button { background: var(--primary); }
-.suggestion-row button,.pattern-strip button,.shift-actions button,.info-editor-head button { border-color: var(--border); color: var(--text); background: var(--surface); }
-.suggestion-row button:hover,.pattern-strip button:hover,.shift-actions button:hover,.info-editor-head button:hover { border-color: var(--primary); }
-.shift-card > header { border-color: var(--border); background: color-mix(in srgb,var(--surface) 82%,var(--panel)); }
-.shift-number,.candidate-avatar { color: var(--text); background: color-mix(in srgb,var(--primary) 28%,var(--surface)); }
-.shift-actions .danger-link { color: var(--wizard-danger); }
-.template-version { color: var(--primary); background: color-mix(in srgb,var(--primary) 12%,var(--surface)); }
-.template-suggestion { color: var(--text); background: color-mix(in srgb,var(--wizard-warning) 12%,var(--surface)); }
-.template-suggestion button { color: var(--primary); }
-.empty-shift { border-color: color-mix(in srgb,var(--primary) 55%,var(--border)); color: var(--primary); background: color-mix(in srgb,var(--primary) 5%,var(--surface)); }
-.empty-shift span { color: var(--muted); }
-.planning-summary { border: 1px solid color-mix(in srgb,var(--primary) 45%,var(--border)); color: var(--text); background: color-mix(in srgb,var(--primary) 10%,var(--surface)); }
-.planning-summary b { color: var(--primary); background: color-mix(in srgb,var(--primary) 14%,var(--surface)); }
-.planning-summary b.full { color: #fff; background: var(--wizard-success); }
-.planned-strip button { color: var(--wizard-danger); }
-.candidate-toolbar button:disabled,.event-wizard-frame :deep(.toolbar-btn:disabled) { cursor: not-allowed; opacity: .45; }
-.candidate-card.recommended { border-left-color: var(--wizard-success); }
-.candidate-card.possible { border-left-color: var(--primary); }
-.candidate-card.conflict { border-left-color: var(--wizard-danger); }
-.candidate-body p span { color: #368a5c; background: color-mix(in srgb,#368a5c 11%,var(--surface)); }
-.candidate-body p .conflict { color: var(--wizard-danger); background: color-mix(in srgb,var(--wizard-danger) 10%,var(--surface)); }
-.mini-dispo i { color: var(--muted); background: var(--hover); }
-.mini-dispo i.available { color: #368a5c; background: color-mix(in srgb,#368a5c 14%,var(--surface)); }
-.mini-dispo i.blocked { color: var(--wizard-danger); background: color-mix(in srgb,var(--wizard-danger) 12%,var(--surface)); }
-.mini-dispo i.planned { color: var(--primary); background: color-mix(in srgb,var(--primary) 18%,var(--surface)); }
-.location-toggle { color: var(--muted); }
-.location-toggle input,.candidate-card > input { accent-color: var(--primary); }
-.review-grid article > span { color: var(--primary); }
-.review-shifts > div { background: var(--hover); }
-.review-shifts small { color: #368a5c; }
-.review-shifts small.invalid { color: var(--wizard-danger); }
-.release-errors { border-color: color-mix(in srgb,var(--wizard-danger) 45%,var(--border)); background: color-mix(in srgb,var(--wizard-danger) 7%,var(--surface)); }
-.release-errors button { color: var(--wizard-danger); }
-.release-callout { border: 1px solid color-mix(in srgb,var(--primary) 45%,var(--border)); color: var(--text); background: color-mix(in srgb,var(--primary) 9%,var(--surface)); }
-.release-callout :deep(.toolbar-btn) { margin-left: auto; }
-.conflict-review > div { border-color: var(--border); }
-.conflict-review small { color: var(--wizard-warning); }
-.wizard-state.draft { color: var(--primary); background: color-mix(in srgb,var(--primary) 14%,var(--surface)); }
-.wizard-state.confirmed { color: #368a5c; background: color-mix(in srgb,#368a5c 14%,var(--surface)); }
-.wizard-error { border-color: color-mix(in srgb,var(--wizard-danger) 45%,var(--border)); color: var(--wizard-danger); background: color-mix(in srgb,var(--wizard-danger) 8%,var(--surface)); }
-.text-button { color: var(--muted); }
-.text-button:hover { color: var(--primary); }
-@media (max-width: 900px) { .wizard-steps button small { display: none; }.form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.site-layout,.staffing-layout { grid-template-columns: 1fr; }.staff-shifts { grid-template-columns: repeat(2,1fr); }.review-shifts > div { grid-template-columns: 1fr auto; }.review-shifts > div span,.review-shifts > div small { grid-column: 1/-1; } }
-@media (max-width: 600px) {
-  :global(.event-wizard-frame) { --mf-header-padding: 9px 12px; --mf-title-size: .96rem; --mf-subtitle-display: none; }
-  :global(.event-wizard-frame .mf-controls) { gap: 2px; }
-  :global(.event-wizard-frame .mf-close),
-  :global(.event-wizard-frame .mf-controls .mf-minimize) { width: 28px; height: 28px; }
-  .wizard-steps { grid-template-columns: repeat(5,1fr); gap: 0; overflow: visible; padding: 5px 8px; }
-  .wizard-steps button { justify-content: center; min-height: 34px; padding: 3px; }
-  .wizard-steps button > span { width: 22px; height: 22px; flex-basis: 22px; font-size: .65rem; }
-  .wizard-steps button div { display: none; }
-  .wizard-content { min-height: 0; padding: .75rem; }
-  .form-grid,.site-list,.order-type,.review-grid { grid-template-columns: 1fr; }
-  .field.wide,.review-grid article.wide { grid-column: auto; }
-  .page-heading { margin-bottom: 1rem; }
-  .page-heading.split { align-items: flex-start; flex-direction: column; }
-  .shift-actions { flex-wrap: wrap; }
-  .shift-actions button { font-size: .68rem; }
-  .candidate-toolbar { align-items: stretch; flex-direction: column; gap: .5rem; }
-  .wizard-footer { flex-wrap: wrap; gap: 6px; padding: 6px 8px; overflow: visible; }
-  .wizard-footer > span { display: none; }
-  .wizard-footer .text-button { min-height: 32px; margin-right: auto; padding: 4px 6px; }
-  .wizard-footer :deep(.toolbar-btn) { min-width: 0; min-height: 34px; padding: 7px 10px; font-size: .76rem; }
-  .release-callout { align-items: stretch; flex-direction: column; gap: .8rem; }
-  .release-callout :deep(.toolbar-btn) { width: 100%; margin-left: 0; justify-content: center; }
-  .conflict-review > div { grid-template-columns: 1fr; gap: .2rem; }
-}
-
-@media (max-width: 420px) {
-  .wizard-state,.save-state { display: none; }
-  .wizard-footer :deep(.toolbar-btn) { flex: 1 1 calc(50% - 3px); justify-content: center; }
-  .wizard-footer :deep(.toolbar-btn:last-child) { flex-basis: 100%; }
+.auftrag-editor { display: flex; flex: 1; height: 100%; flex-direction: column; min-height: 0; overflow: hidden; position: relative; color: var(--text); background: var(--panel); }
+.auftrag-editor :deep(.app-tabs-container) { flex-shrink: 0; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.editor-body { flex: 1; padding: 18px; overflow: auto; min-height: 0; }
+.editor-footer { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--surface); border-top: 1px solid var(--border); }
+.editor-footer > span { flex: 1; color: var(--muted); font-size: .8rem; }
+.order-status { font-size: .75rem; padding: 4px 9px; border: 1px solid var(--border); border-radius: 20px; }
+.section-heading,.card-heading { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-heading h3 { font-size: 1.15rem; font-weight: 650; margin: 0; }
+.section-heading span,.muted { color: var(--muted); font-size: .8rem; }
+.section-heading > div { display: grid; gap: 4px; }
+.editor-card { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; min-width: 0; }
+.editor-card h4 { font-size: .9rem; font-weight: 600; margin: 0 0 12px; }
+.card-heading h4 { margin: 0; }
+.context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field { display: grid; gap: 6px; margin-bottom: 12px; font-size: .78rem; color: var(--muted); min-width: 0; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.fixed-customer { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+.fixed-customer small,.assignments small,.candidate small,.file-list small { display: block; color: var(--muted); font-size: .72rem; margin-top: 3px; }
+.chip-row,.candidate-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.date-add { display: flex; gap: 8px; margin-top: 12px; }
+.selected-dates,.file-list,.assignments { padding: 0; margin: 10px 0; list-style: none; }
+.selected-dates li,.file-list li,.assignments li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.file-list strong { overflow-wrap: anywhere; }
+.day-navigation { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.day-navigation label { display: grid; gap: 5px; font-size: .75rem; flex-shrink: 0; }
+.day-navigation > span { color: var(--muted); font-size: .75rem; }
+.site-selection :deep(.site-grid) { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 8px; }
+.site-selection :deep(.site-choice) { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; text-align: left; cursor: pointer; font: inherit; }
+.site-selection :deep(.site-choice span) { color: var(--muted); font-size: .75rem; }
+.site-selection :deep(.selected),.shift-list button.selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.planning-layout { display: grid; grid-template-columns: 190px minmax(280px,1fr) minmax(280px,1fr); gap: 14px; align-items: start; }
+.shift-list { display: grid; gap: 8px; }
+.shift-list button { display: grid; gap: 5px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: left; font: inherit; cursor: pointer; }
+.shift-list button span,.shift-list button small { color: var(--muted); font-size: .75rem; }
+.scope-label { display: flex; align-items: center; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
+.scope-label :deep(.filter-chip) { font-size: .65rem; padding: 2px 5px; }
+.shift-extra { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+.shift-extra summary { cursor: pointer; font-size: .8rem; font-weight: 500; margin-bottom: 12px; }
+.pattern-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.candidate-list { display: grid; gap: 8px; margin-top: 12px; }
+.candidate { display: flex; align-items: center; gap: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 8px; border-left: 3px solid var(--status-success-text); }
+.candidate.possible { border-left-color: var(--status-warning); }.candidate.conflict { border-left-color: var(--status-danger-text); }
+.candidate > div { flex: 1; min-width: 0; }.candidate strong { font-size: .8rem; }.candidate small { overflow-wrap: anywhere; }
+.feedback { padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); font-size: .8rem; }
+.feedback--error,.error-text { color: var(--status-danger-text); }.feedback--error { border-color: var(--status-danger-text); }
+.feedback li { margin-left: 14px; }
+.review-changes dl { margin: 0; }.review-changes dl > div { display: grid; grid-template-columns: minmax(120px,1fr) 2fr; padding: 9px 0; border-bottom: 1px solid var(--border); gap: 16px; font-size: .8rem; }
+.review-changes dd { display: flex; gap: 14px; margin: 0; overflow-wrap: anywhere; }.review-changes dd > span:first-child { color: var(--muted); }
+.release { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.confirm-overlay { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 18px; background: var(--modal-overlay-bg,rgba(0,0,0,.45)); }
+.confirm-card { width: min(500px,100%); box-sizing: border-box; box-shadow: 0 12px 40px rgba(0,0,0,.2); }.confirm-card h3 { margin-bottom: 12px; }
+.confirm-card p { margin-bottom: 16px; font-size: .85rem; }.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+button:focus-visible,summary:focus-visible { outline: 2px solid var(--control-focus-ring,var(--primary)); outline-offset: 2px; }
+@media (max-width: 1050px) { .planning-layout { grid-template-columns: 170px minmax(0,1fr); }.personnel { grid-column: 2; }.section-heading > span { display: none; } }
+@media (max-width: 650px) {
+  :global(.auftrag-editor-frame) { --mf-max-width: 98vw; --mf-header-padding: 10px 12px; --mf-title-size: .95rem; }
+  .editor-body { padding: 10px; }.auftrag-editor :deep(.app-tabs-container) { padding: 0 8px; }
+  .context-grid,.planning-layout { grid-template-columns: 1fr; }.personnel { grid-column: auto; }
+  .shift-list { display: flex; overflow-x: auto; min-width: 0; padding: 1px; }.shift-list button { flex: 0 0 150px; }.editor-card { padding: 12px; }
+  .editor-footer { flex-wrap: wrap; padding: 8px; }.editor-footer > span { font-size: .7rem; }.editor-footer > :deep(.app-button:last-child) { max-width: 100%; white-space: normal; }
+  .day-navigation { align-items: flex-start; flex-direction: column; }.review-changes dl > div { grid-template-columns: 1fr; gap: 4px; }
+  .card-heading { flex-wrap: wrap; }.section-heading { align-items: flex-start; }.candidate { flex-wrap: wrap; }
 }
 </style>

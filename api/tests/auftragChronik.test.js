@@ -13,6 +13,7 @@ const Mitarbeiter = require('../models/Employee/Mitarbeiter');
 const User = require('../models/System/User');
 const Location = require('../models/System/Location');
 const Kunde = require('../models/Customer/Kunde');
+const Einsatzort = require('../models/Event/Einsatzort');
 const Sequence = require('../models/System/Sequence');
 const SignaturVorgang = require('../models/Signature/SignaturVorgang');
 require('../models/System/SignaturTyp');
@@ -43,7 +44,7 @@ describe('Auftrag Chronik routes with real transactions', function () {
   this.timeout(120000);
   let repl, server, base, oldSecret, user, admin, otherAdmin, location, order, shift, employee, replacement;
   const oid = () => new mongoose.Types.ObjectId();
-  const models = [Auftrag, Schicht, Einsatz, Entry, Mitarbeiter, User, Location, Kunde, Sequence, SignaturVorgang];
+  const models = [Auftrag, Schicht, Einsatz, Entry, Mitarbeiter, User, Location, Kunde, Einsatzort, Sequence, SignaturVorgang];
   const token = actor => jwt.sign({ user: { id: String(actor._id), role: 'ADMIN' } }, process.env.JWT_SECRET);
   async function request(method, path, body, actor = user) {
     const result = await fetch(`${base}/api/auftraege${path}`, { method,
@@ -243,9 +244,11 @@ describe('Auftrag Chronik routes with real transactions', function () {
   });
 
   it('records newly created Monitor orders and shifts only after persistence', async () => {
-    await Kunde.collection.insertOne({ _id: oid(), kundenNr: 123, locationV2: location._id });
+    const kundeId = oid();
+    await Kunde.collection.insertOne({ _id: kundeId, kundenNr: 123, locationV2: location._id });
+    const savedSite = await Einsatzort.create({ kunde: kundeId, bezeichnung: 'Test Einsatzort' });
     for (const sequence of [1, 2]) {
-      const created = await request('POST', '/', { kundenNr: 123, eventTitel: 'New order', locationV2: location._id, vonDatum: '2026-09-10', bisDatum: '2026-09-11', ...(sequence === 2 ? { isPseudo: true } : {}) });
+      const created = await request('POST', '/', { kundenNr: 123, einsatzort: savedSite._id, eventTitel: 'New order', locationV2: location._id, vonDatum: '2026-09-10', bisDatum: '2026-09-11', ...(sequence === 2 ? { isPseudo: true } : {}) });
       assert.equal(created.status, 201, JSON.stringify(created.body));
       assert.equal(created.body.auftragNr, 8000000 + sequence);
       assert.equal(created.body.monitorId, `M2${String(sequence).padStart(6, '0')}`);

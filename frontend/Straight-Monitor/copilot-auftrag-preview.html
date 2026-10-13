@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Isolated Auftrag layout check</title></head><body><div id="app"></div>
+<script type="module">
+import { createApp, h } from 'vue';
+import { createPinia } from 'pinia';
+import { createModalDock } from '@bleck-it/vue-modal-dock';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import EventModal from '/src/components/Modals/EventModal.vue';
+import { useAuth } from '/src/stores/auth.js';
+import '/src/assets/styles/main.scss';
+import '/src/assets/styles/theme.scss';
+const pinia = createPinia();
+const app = createApp({ render: () => h(EventModal, { auftragNr: new URLSearchParams(location.search).has('create') ? null : 42, minimizable: false }) });
+app.use(pinia); app.use(createModalDock());
+useAuth(pinia).user = { _id: 'fixture-user', locationV2: 'hh', roles: ['ADMIN'] };
+app.component('font-awesome-icon', FontAwesomeIcon);
+app.mount('#app');
+</script></body></html>

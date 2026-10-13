@@ -30,6 +30,9 @@ const EinsatzSchema = new mongoose.Schema({
     default: null,
     index: true,
   },
+  day: { type: String },
+  endDayOffset: { type: Number, min: 0 },
+  editorConflictKey: { type: String },
   source: {
     type: String,
     enum: ['monitor', 'zvoove'],

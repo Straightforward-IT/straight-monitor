@@ -5,6 +5,7 @@ const DocuSealVorgang = require('../../models/Signature/DocuSealVorgang');
 const Reisekosten = require('../../models/Signature/Reisekostenabrechnung');
 const { orderForUser, objectId, fail } = require('../TimeCaptureService');
 const { canAccessOfficeDocument } = require('./OrderDocumentAccessService');
+const { documentsForOrder } = require('./OrderDocumentOwnerService');
 
 function descriptor(kind, doc, values) {
   return { id: `${kind}-${doc._id}`, kind, recordId: String(doc._id), date: doc.datum || doc.updatedAt || doc.createdAt, ...values };
@@ -18,14 +19,15 @@ async function list(user, number) {
     DocuSealVorgang.find({ $or: [{ auftragNr: order.auftragNr }, { 'linkedEntity.type': 'Auftrag', 'linkedEntity.refId': order._id }] }).select('name status signedPdfKey updatedAt').lean(),
     Reisekosten.find({ auftragNr: order.auftragNr }).select('kopf.name kopf.vorname kopf.titel status r2Key anlagen signaturVorgang updatedAt').lean(),
   ]);
-  const uploads = (await Promise.all((order.einsatzdokumente || []).map(async doc => (
+  const uploads = (await Promise.all((await documentsForOrder(order)).map(async doc => (
     await canAccessOfficeDocument(doc, user) ? doc : null
   )))).filter(Boolean);
   const documents = [
     ...uploads.map(doc => descriptor('upload', doc, {
       category: 'Weitere', title: doc.title || doc.filename, filename: doc.filename,
       mimeType: doc.mimeType, date: doc.uploadedAt, preview: 'url', available: !!doc.key,
-      status: doc.type === 'einsatznachweis' ? 'Einsatznachweis' : 'Auftragsdokument',
+      relationTarget: doc.relationTarget, groupId: doc.groupId, type: doc.type,
+      status: doc.type === 'bestellung' ? 'Bestellung' : doc.type === 'einsatznachweis' ? 'Einsatznachweis' : 'Auftragsdokument',
     })),
     ...reports.map(doc => descriptor('eventreport', doc, { category: 'EventReport', title: `EventReport · ${doc.name_teamleiter}`, teamLeader: doc.name_teamleiter, status: 'Eingereicht', preview: 'pdf' })),
     ...slips.map(doc => descriptor('laufzettel', doc, { category: 'Weitere', title: `Laufzettel · ${doc.name_mitarbeiter}`, status: doc.status === 'ABGESCHLOSSEN' ? 'Abgeschlossen' : 'Erfasst', preview: 'pdf' })),
@@ -61,7 +63,7 @@ async function preview(user, number, kind, id, attachmentId, download) {
   }
   let doc, key, filename;
   if (kind === 'upload') {
-    doc = (order.einsatzdokumente || []).find(item => String(item._id) === String(id));
+    doc = (await documentsForOrder(order)).find(item => String(item._id) === String(id));
     if (doc && !(await canAccessOfficeDocument(doc, user))) {
       fail(404, 'Dokument ist mit diesem Auftrag nicht verknüpft.');
     }

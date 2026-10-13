@@ -60,6 +60,12 @@ function formatDate(date) {
   }).format(normalizedDate);
 }
 
+function employmentRelationshipText(startdatum) {
+  return startdatum
+    ? `hiermit kündigen wir das mit Ihnen seit dem ${formatDate(startdatum)} bestehende Arbeitsverhältnis fristgerecht zum`
+    : 'hiermit kündigen wir das mit Ihnen bestehende Arbeitsverhältnis fristgerecht zum';
+}
+
 function numberValue(value, label) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
@@ -110,6 +116,7 @@ class KuendigungService {
         anrede: 'herr',
         locationId: preferredLocation ? String(preferredLocation._id) : '',
         briefdatum: dateString(),
+        startdatum: employee.eintrittsdatum ? dateString(employee.eintrittsdatum) : '',
         beendigungsdatum: '',
         freistellung: 'none',
         freistellungAb: '',
@@ -157,7 +164,7 @@ class KuendigungService {
       ? `Sehr geehrte Frau ${prepared.nachname},`
       : `Sehr geehrter Herr ${prepared.nachname},`, { size: 10 });
     ctx.y -= 19;
-    this._text(ctx, `hiermit kündigen wir das mit Ihnen bestehende Arbeitsverhältnis fristgerecht zum ${formatDate(prepared.beendigungsdatum)} unter Wahrung der gesetzlichen Kündigungsfrist, hilfsweise zum nächsten zulässigen Zeitpunkt.`, { size: 10, lineGap: 4 });
+    this._text(ctx, `${employmentRelationshipText(prepared.startdatum)} ${formatDate(prepared.beendigungsdatum)} unter Wahrung der gesetzlichen Kündigungsfrist, hilfsweise zum nächsten zulässigen Zeitpunkt.`, { size: 10, lineGap: 4 });
     if (prepared.freistellungText) {
       ctx.y -= 16;
       this._text(ctx, prepared.freistellungText, { size: 10, lineGap: 4 });
@@ -254,6 +261,7 @@ class KuendigungService {
     }
     const briefdatum = parseDate(parameters.briefdatum, 'Briefdatum');
     const beendigungsdatum = parseDate(parameters.beendigungsdatum, 'Beendigungsdatum');
+    const startdatum = employee.eintrittsdatum ? dateString(employee.eintrittsdatum) : '';
     const freistellung = String(parameters.freistellung || 'none');
     if (!RELEASE_TYPES.has(freistellung)) {
       throw httpError(400, 'Die Freistellungsart ist ungültig.');
@@ -291,6 +299,7 @@ class KuendigungService {
       locationId: String(location._id),
       ort: location.address?.city || location.nameFull,
       briefdatum: dateString(briefdatum),
+      startdatum,
       beendigungsdatum: dateString(beendigungsdatum),
       freistellung,
       freistellungAb: freistellungAb ? dateString(freistellungAb) : '',

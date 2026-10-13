@@ -47,6 +47,7 @@ describe('KuendigungService', () => {
       nachname: 'Test',
       adresse: { strasse: 'Teststraße 1', plz: '20095', ort: 'Hamburg' },
       locationV2: locationId,
+      eintrittsdatum: new Date('2024-02-15T12:00:00.000Z'),
       isActive: true,
     };
     uploaded = [];
@@ -85,6 +86,7 @@ describe('KuendigungService', () => {
     assert.equal(defaults.parameters.anrede, 'herr');
     assert.equal(defaults.parameters.locationId, locationId);
     assert.match(defaults.parameters.briefdatum, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(defaults.parameters.startdatum, '2024-02-15');
     assert.equal(defaults.parameters.freistellung, 'none');
     assert.deepEqual(defaults.locations, [{ _id: locationId, name: 'Hamburg', ort: 'Hamburg' }]);
   });
@@ -94,6 +96,16 @@ describe('KuendigungService', () => {
     const pdf = await PDFDocument.load(buffer);
     assert.equal(pdf.getPageCount(), 1);
     assert.ok(buffer.length > 4_000);
+  });
+
+  it('omits the employment-start clause when no employment start date is available', async () => {
+    employee.eintrittsdatum = null;
+    const defaults = await service.getDefaults(employeeId);
+    const prepared = await service._validateParameters(employee, validParameters);
+    const buffer = await service.buildKuendigung(employee, validParameters);
+    assert.equal(defaults.parameters.startdatum, '');
+    assert.equal(prepared.startdatum, '');
+    assert.equal((await PDFDocument.load(buffer)).getPageCount(), 1);
   });
 
   it('uses the employee name without a salutation in the postal address', async () => {
@@ -155,6 +167,7 @@ describe('KuendigungService', () => {
     assert.equal(document.parameters.anrede, 'frau');
     assert.equal(document.parameters.ort, 'Hamburg');
     assert.equal(document.parameters.briefdatum, '2026-10-08');
+    assert.equal(document.parameters.startdatum, '2024-02-15');
     assert.equal(document.parameters.beendigungsdatum, '2026-11-30');
     assert.deepEqual(uploaded.map(([key, , contentType]) => [key, contentType]), [[document.r2Key, 'application/pdf']]);
     assert.equal((await PDFDocument.load(uploaded[0][1])).getPageCount(), 1);

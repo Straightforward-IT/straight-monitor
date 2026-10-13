@@ -32,10 +32,14 @@ const LABELS = {
   'einsatzinformation.template': 'Einsatzinformation – Vorlagen-ID',
   'einsatzinformation.templateVersion': 'Einsatzinformation – Version',
   'einsatzinformation.customized': 'Einsatzinformation – Individuell angepasst',
+  day: 'Starttag', auftragsgruppe: 'Auftragsgruppe', bestelltext: 'Bestellung',
+  bestelltextOverride: 'Bestellung nur für diesen Tag', einsatzortOverride: 'Einsatzort nur für diesen Tag',
+  groupShiftKey: 'Gemeinsame Schicht', overrides: 'Tagesspezifische Felder',
+  suppressedGroupShiftKeys: 'An diesem Tag unterdrückte Schichten', endDayOffset: 'Ende nach Starttag',
 };
 const FIELDS = {
-  Auftrag: 'geschSt locationV2 kundenNr eventTitel bediener dtAngelegtAm bestDatum vonDatum bisDatum eventStrasse eventPlz eventOrt eventLocation aktiv auftStatus referenz excludedTeamleiter statusOverrideTeamleiter labels einsatzort isPseudo source'.split(' '),
-  Schicht: 'bezeichnung treffpunkt treffpunktOrt ansprechpartnerName ansprechpartnerTelefon ansprechpartnerEmail letzteAusschreibung datumVon datumBis uhrzeitVon uhrzeitBis typ berufSchl qualSchl bedarf garantiestundenLohn endeOffen einsatzinformation.sourceHtml einsatzinformation.renderedHtml einsatzinformation.template einsatzinformation.templateVersion einsatzinformation.customized'.split(' '),
+  Auftrag: 'geschSt locationV2 kundenNr eventTitel bediener dtAngelegtAm bestDatum vonDatum bisDatum eventStrasse eventPlz eventOrt eventLocation aktiv auftStatus referenz excludedTeamleiter statusOverrideTeamleiter labels einsatzort isPseudo source day auftragsgruppe bestelltext bestelltextOverride einsatzortOverride suppressedGroupShiftKeys'.split(' '),
+  Schicht: 'bezeichnung treffpunkt treffpunktOrt ansprechpartnerName ansprechpartnerTelefon ansprechpartnerEmail letzteAusschreibung datumVon datumBis uhrzeitVon uhrzeitBis typ berufSchl qualSchl bedarf garantiestundenLohn endeOffen day endDayOffset groupShiftKey overrides einsatzinformation.sourceHtml einsatzinformation.renderedHtml einsatzinformation.template einsatzinformation.templateVersion einsatzinformation.customized'.split(' '),
   Einsatz: 'personalNr berufSchl qualSchl bezeichnung datumVon datumBis cProtBediener dtProtDatum schicht idAuftragArbeitsschichten schichtBezeichnung treffpunkt treffpunktOrt ansprechpartnerName ansprechpartnerTelefon ansprechpartnerEmail letzteAusschreibung detailDatumVon detailDatumBis uhrzeitVon uhrzeitBis typ bedarf garantiestundenLohn endeOffen isPseudo stundenlisteIncluded conflictOverride'.split(' '),
 };
 
@@ -102,7 +106,7 @@ async function snapshot(auftragNr) {
   const order = await Auftrag.findOne({ auftragNr }).select(['auftragNr', ...FIELDS.Auftrag].join(' ')).lean();
   if (!order) return {};
   // Sequential queries keep all reads in the same transaction snapshot.
-  const shifts = await Schicht.find({ auftragNr }).select(FIELDS.Schicht.join(' ')).lean();
+  const shifts = await Schicht.find({ auftragNr }).select(['idAuftragArbeitsschichten', ...FIELDS.Schicht].join(' ')).lean();
   const assignments = await Einsatz.find({ auftragNr }).select(FIELDS.Einsatz.join(' ')).lean();
   return { Auftrag: [order], Schicht: shifts, Einsatz: assignments };
 }
@@ -142,15 +146,50 @@ class RejectedResponse extends Error {
  * Never add external effects (email, uploads) to handlers using this wrapper.
  */
 function withAuftragChronik(action, handler) {
-  return asyncHandler(async (req, res) => {
+  const wrapped = asyncHandler(async (req, res) => {
     // Legacy handlers use parseInt; reject partial numbers before either the write or snapshot.
     if (req.params.auftragNr !== undefined && (!/^\d+$/.test(req.params.auftragNr)
       || !Number.isSafeInteger(Number(req.params.auftragNr)) || Number(req.params.auftragNr) <= 0)) {
       return res.status(400).json({ message: 'Ungültige Auftragsnummer.' });
     }
+    if (req.params.auftragNr) {
+      const existing = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) }).lean();
+      const queued = existing ? await require('../../models/Event/AuftragEditorDay').findOne({
+        auftragNr: existing.auftragNr, status: { $ne: 'completed' },
+      }).select('submission').lean() : null;
+      if (queued || existing?.submission) {
+        const operation = await require('../../models/Event/AuftragEditorSubmission').findById(queued?.submission || existing.submission).lean();
+        if (operation && (operation.status !== 'completed' || operation.ready === false)) return res.status(409).json({
+          code: operation.status === 'completed' ? 'ATTACHMENTS_PENDING' : existing.auftragsgruppe ? 'GROUP_PENDING' : 'SUBMISSION_PENDING',
+          submissionId: operation._id, message: 'Der Auftrag hat eine noch nicht abgeschlossene Einreichung.',
+        });
+      }
+      if (existing?.auftragsgruppe) {
+        const group = await require('../../models/Event/Auftragsgruppe').findById(existing.auftragsgruppe).lean();
+        if (group?.activeSubmission) return res.status(409).json({
+          code: 'GROUP_PENDING', submissionId: group.activeSubmission,
+          message: 'Die Auftragsgruppe hat eine noch nicht abgeschlossene Änderung.',
+        });
+        if (req.route?.path?.includes('/schichten') || (req.route?.path === '/:auftragNr'
+          && Object.keys(req.body || {}).some(key => ['einsatzort', 'bestelltext'].includes(key)))) {
+          return res.status(409).json({ code: 'GROUP_EDITOR_REQUIRED',
+            message: 'Gemeinsame Änderungen müssen über den Auftragseditor eingereicht werden.' });
+        }
+      }
+    }
     let result;
     try {
       result = await mongoose.connection.transaction(async () => {
+        if (req.params.auftragNr) {
+          const current = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) }).lean();
+          if (current?.auftragsgruppe) {
+            const Group = require('../../models/Event/Auftragsgruppe');
+            const reserved = await Group.updateOne({ _id: current.auftragsgruppe, activeSubmission: null },
+              { $inc: { revision: 1 } });
+            if (!reserved.modifiedCount) throw new RejectedResponse({ statusCode: 409,
+              body: { code: 'GROUP_PENDING', message: 'Die Gruppe hat eine noch nicht abgeschlossene Änderung.' } });
+          }
+        }
         const before = await snapshot(Number(req.params.auftragNr));
         const response = { statusCode: 200, body: undefined,
           status(code) { this.statusCode = code; return this; },
@@ -178,6 +217,20 @@ function withAuftragChronik(action, handler) {
     }
     res.status(result.statusCode).json(result.body);
   });
+  // The staged editor reuses these same domain mutations inside its own multi-order transaction.
+  wrapped.mutationHandler = handler;
+  return wrapped;
 }
 
-module.exports = { withAuftragChronik, buildChanges, canonical };
+async function recordOrderChanges(before, after, actor, action) {
+  if (!buildChanges(before, after).length) return;
+  const changes = buildChanges(before, after, await employeeNames(before, after));
+  const order = after.Auftrag?.[0] || before.Auftrag?.[0];
+  if (!actor?._id) throw new Error('Chronik: Benutzerkonto nicht gefunden');
+  await Entry.create({ auftragId: order._id, auftragNr: order.auftragNr,
+    orderTitle: order.eventTitel || '', locationV2: order.locationV2,
+    kind: 'change', action, actor: { id: actor._id, name: actor.name || actor.email },
+    summary: summary(action, changes), changes });
+}
+
+module.exports = { withAuftragChronik, buildChanges, canonical, snapshot, recordOrderChanges, employeeNames };

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AppTextarea from '@/components/ui-elements/AppTextarea.vue';
 import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
+import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 
 describe('shared form controls', () => {
   it('updates textarea values after IME composition', async () => {
@@ -25,5 +26,23 @@ describe('shared form controls', () => {
     await wrapper.setProps({ modelValue: true, disabled: true });
     expect(checkbox.element.checked).toBe(true);
     expect(checkbox.element.disabled).toBe(true);
+  });
+  it('retains single-file behavior and supports multiple queued files from selection and drop', async () => {
+    const first = new File(['first'], 'first.pdf');
+    const second = new File(['second'], 'second.pdf');
+    const single = mount(AppFileDropzone, { props: { label: 'Datei' } });
+    await single.trigger('drop', { dataTransfer: { files: [first, second] } });
+    expect(single.emitted('select')).toEqual([[first]]);
+    const multiple = mount(AppFileDropzone, { props: { label: 'Anlagen', multiple: true } });
+    const input = multiple.get('input');
+    Object.defineProperty(input.element, 'files', { value: [first, second] });
+    await input.trigger('change');
+    expect(multiple.emitted('select')).toEqual([[[first, second]]]);
+    await multiple.trigger('drop', { dataTransfer: { files: [first, second] } });
+    expect(multiple.emitted('select')).toHaveLength(2);
+    await multiple.setProps({ disabled: true });
+    await multiple.trigger('drop', { dataTransfer: { files: [first] } });
+    expect(multiple.emitted('select')).toHaveLength(2);
+    single.unmount(); multiple.unmount();
   });
 });

@@ -16,7 +16,7 @@ api.interceptors.request.use(cfg => {
 
 // 401 global abfangen
 api.interceptors.response.use(
-  res => { notifyAuftragMutation(res.config); return res; },
+  res => { notifyAuftragMutation(res.config, res.data); return res; },
   err => {
     if (err?.response?.status === 401) {
       localStorage.removeItem('token');

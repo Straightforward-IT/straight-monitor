@@ -16,6 +16,14 @@ The Chronik records successful changes made through the order routes by all auth
 | `POST /:auftragNr/einsaetze`, `PATCH /:auftragNr/einsaetze/:einsatzId`, `DELETE /:auftragNr/einsaetze/:einsatzId` | Assignments, employee replacement, times, and Stundenliste inclusion |
 | `POST /:auftragNr/pseudo-einsatz`, `DELETE /:auftragNr/pseudo-einsatz/:einsatzId` | Pseudo assignments |
 
+### Staged editor submissions
+
+The planning-first editor previews changes without recording mutations. Final submissions use the `/editor/submissions` API and apply bounded batches through `/editor/submissions/:id/process`. Each committed daily Auftrag has its own history, including inherited common-field changes and propagated shift/staffing effects. Group identity, explicit overrides and Bestellung changes retain their meaning in the recorded diff.
+
+The before/after review is session-local and is not a substitute for the committed Chronik. Candidate previews, navigation, cancelled edits and failed batches do not invent history. A retry must not duplicate a successful day's audit record. Business writes and their audit writes roll back together within a batch; a large linked set is deliberately not one unbounded transaction. Partial progress is explicit and only pending/failed work resumes.
+
+All affected orders are announced after a committed batch, not only the initially opened order. R2 attachment uploads remain outside MongoDB transactions and the existing file-storage audit boundary; their retry state must not imply the entire database submission was rolled back.
+
 Imported orders edited through these routes are included. Imports, background synchronization, employee master-data changes, file storage operations, and one-time maintenance repairs are outside this capture boundary. No model-wide hooks are installed. Technical-only updates and unchanged saves produce no event. Existing `stundenlisteChangeLog` writes and the Stundenliste status reader remain in place.
 
 Actor names, employee names (including historical personal-number matches), order titles, record labels, and displayed field values are saved as snapshots. Structured before/after values retain their original meaning; dates use ISO values, and booleans remain booleans. Subdocument IDs and confirmation/render timestamps are excluded from equality comparisons.

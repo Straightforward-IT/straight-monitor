@@ -260,64 +260,7 @@
 
     <EmployeeEmailTemplateTab v-else-if="activeTab === 'emailTemplates'" :locations="activeLocations" />
 
-    <section v-else-if="activeTab === 'lohn'" class="lohn">
-      <Toolbar>
-        <SearchBar class="toolbar-search" v-model="lohnartSearch" placeholder="Lohnart suchen..." aria-label="Lohnart suchen" />
-        <ToolbarLabel>{{ filteredLohnarten.length }} Lohnarten</ToolbarLabel>
-      </Toolbar>
-      <p v-if="lohnartError" class="um__error">{{ lohnartError }}</p>
-      <p v-else-if="lohnartenLoading" class="lohn__state">Lohnarten werden geladen...</p>
-      <div v-else class="um__table-wrap">
-        <table class="um__table lohn__table">
-          <thead>
-            <tr>
-              <th
-                v-for="column in lohnartColumns"
-                :key="column.field"
-                :data-field="column.field"
-                :class="{ 'lohn__th--zuschlag': column.field === 'zuschlagsProzent' }"
-                :aria-sort="lohnartSortField === column.field ? (lohnartSortDirection === 'asc' ? 'ascending' : 'descending') : 'none'"
-              >
-                <button type="button" class="lohn__sort-button" @click="sortLohnarten(column.field)">
-                  {{ column.label }}
-                  <font-awesome-icon v-if="lohnartSortField === column.field" :icon="lohnartSortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'" />
-                </button>
-              </th>
-              <th>Kundenkonditionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="lohnart in filteredLohnarten" :key="lohnart._id" :class="{ 'lohn__row--normalstunden': lohnart.lohnartNummer === '100' }">
-              <td v-for="column in lohnartColumns" :key="column.field" :data-field="column.field" :class="{ 'lohn__zuschlag': column.field === 'zuschlagsProzent' }">
-                <span v-if="column.field === 'lohnartNummer'" class="quali-key">{{ lohnart.lohnartNummer }}</span>
-                <template v-else-if="column.field === 'lohnartKurzzeichen'">
-                  <span v-if="lohnart.lohnartKurzzeichen" class="beruf-tag">{{ lohnart.lohnartKurzzeichen }}</span>
-                  <span v-else class="ma-unlinked">-</span>
-                </template>
-                <span v-else-if="column.field === 'berechnungsartCode'" :title="wageCalculationTypeHint(lohnart.berechnungsartCode)">
-                  {{ formatWageCalculationType(lohnart.berechnungsartCode) }}
-                </span>
-                <span v-else-if="column.field === 'durchschnittsspeicherCode'" :title="averageStorageTypeHint(lohnart.durchschnittsspeicherCode)">
-                  {{ formatAverageStorageType(lohnart.durchschnittsspeicherCode) }}
-                </span>
-                <template v-else>{{ lohnart[column.field] === '' ? '-' : (lohnart[column.field] ?? '-') }}</template>
-              </td>
-              <td class="lohn__kunden">
-                <div v-if="lohnart.lohnartNummer !== '100' && lohnart.kunden?.length" class="lohn__kunden-list">
-                  <button v-for="kunde in lohnart.kunden" :key="kunde._id" type="button" class="lohn__kunde-link" @click="openKundenPreise(kunde)">
-                    {{ kunde.kuerzel || kunde.kundName || kunde.kundenNr }}
-                  </button>
-                </div>
-                <span v-else-if="lohnart.lohnartNummer !== '100'" class="ma-unlinked">-</span>
-              </td>
-            </tr>
-            <tr v-if="!filteredLohnarten.length">
-              <td :colspan="lohnartColumns.length + 1" style="text-align:center; opacity:0.45; padding: 24px;">Keine Lohnarten vorhanden.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <WageTypesTab v-else-if="activeTab === 'lohn'" />
 
     <section v-else-if="activeTab === 'qualifikationen'" class="qualifikationen">
       <nav class="subtabs" aria-label="Qualifikationen und Berufe">
@@ -692,9 +635,7 @@ import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import AppToggleChip from '@/components/ui-elements/AppToggleChip.vue';
 import BewerberManagementTab from '@/components/BewerberManagementTab.vue';
 import EmployeeEmailTemplateTab from '@/components/EmployeeEmailTemplateTab.vue';
-import { useCustomerModals } from '@/composables/useCustomerModals';
-import { formatWageCalculationType, wageCalculationTypeHint } from '@/utils/wageCalculationTypes';
-import { formatAverageStorageType, averageStorageTypeHint } from '@/utils/averageStorageTypes';
+import WageTypesTab from '@/components/payroll/WageTypesTab.vue';
 
 // Map of asana_gid -> { name, email } for display in the table
 const asanaUserMap = ref({});
@@ -715,7 +656,6 @@ const managementTabs = [
 ];
 
 const auth = useAuth();
-const { openCustomer } = useCustomerModals();
 const currentUserId = computed(() => auth.user?._id || auth.user?.id);
 
 const users = ref([]);
@@ -819,91 +759,12 @@ const qualiSubTab = ref('qualifikation');
 const berufSearch = ref('');
 const qualiModal = reactive({ open: false, isNew: true, id: null, saving: false, error: '', form: { qualificationKey: '', designation: '' } });
 
-// ─── Lohnarten ──────────────────────────────────────────────────────────────
-const lohnarten = ref([]);
-const lohnartenLoading = ref(false);
-const lohnartError = ref('');
-const lohnartSearch = ref('');
-const lohnartSortField = ref('lohnartNummer');
-const lohnartSortDirection = ref('asc');
-const lohnartColumns = [
-  { field: 'lohnartNummer', label: 'Nr.' },
-  { field: 'lohnartKurzzeichen', label: 'Kürzel' },
-  { field: 'lohnartBezeichnung', label: 'Bezeichnung' },
-  { field: 'rechnungstext', label: 'Rechnungstext' },
-  { field: 'kostenart', label: 'Kostenart' },
-  { field: 'berechnungsartCode', label: 'Berechnungsart' },
-  { field: 'zuschlagsProzent', label: 'Zuschlag' },
-  { field: 'equalPayRelevanz', label: 'Equal Pay' },
-  { field: 'kb', label: 'KB' },
-  { field: 'fremdLohnartNummer', label: 'Fremdlohnart-Nr.' },
-  { field: 'durchschnittsspeicherCode', label: 'Durchschnittsspeicher' },
-  { field: 'zuschlagsgruppeWert', label: 'Zuschlagsgruppe' },
-  { field: 'steuerartCode', label: 'Steuerart' },
-  { field: 'steuerSpezialCode', label: 'Steuer Spezial' },
-  { field: 'sozialversicherungCode', label: 'Sozialversicherung' },
-  { field: 'pfaendungCode', label: 'Pfändung' },
-  { field: 'auswerten', label: 'Auswerten' },
-  { field: 'inStundenauswertung', label: 'In Stundenauswertung' },
-  { field: 'gleitzeitCode', label: 'Gleitzeit' },
-  { field: 'rechnungsspalte', label: 'Rechnungsspalte' },
-  { field: 'berechnungsgrundlageSpalte', label: 'Berechnungsgrundlage-Spalte' },
-  { field: 'fakturierungCode', label: 'Fakturierung' },
-  { field: 'branchenzuschlagCode', label: 'Branchenzuschlag' },
-  { field: 'branchenzuschlagLohnartNummer', label: 'Branchenzuschlag-Lohnart-Nr.' },
-  { field: 'branchenzuschlagPrioritaet', label: 'Branchenzuschlag-Priorität' },
-];
-
-const filteredLohnarten = computed(() => {
-  const query = lohnartSearch.value.trim().toLowerCase();
-  const filtered = !query ? lohnarten.value : lohnarten.value.filter((lohnart) =>
-    lohnartColumns.some(({ field }) => String(lohnart[field] ?? '').toLowerCase().includes(query))
-      || formatWageCalculationType(lohnart.berechnungsartCode).toLowerCase().includes(query)
-      || formatAverageStorageType(lohnart.durchschnittsspeicherCode).toLowerCase().includes(query));
-
-  return [...filtered].sort((left, right) => {
-    const leftValue = String(left[lohnartSortField.value] ?? '');
-    const rightValue = String(right[lohnartSortField.value] ?? '');
-    if (!leftValue && !rightValue) return 0;
-    if (!leftValue) return 1;
-    if (!rightValue) return -1;
-    const comparison = leftValue.localeCompare(rightValue, 'de', { numeric: true, sensitivity: 'base' });
-    return lohnartSortDirection.value === 'asc' ? comparison : -comparison;
-  });
-});
-
-function sortLohnarten(field) {
-  if (lohnartSortField.value === field) {
-    lohnartSortDirection.value = lohnartSortDirection.value === 'asc' ? 'desc' : 'asc';
-    return;
-  }
-  lohnartSortField.value = field;
-  lohnartSortDirection.value = 'asc';
-}
-
 async function fetchKunden() {
   try {
     const { data } = await api.get('/api/kunden');
     kunden.value = Array.isArray(data) ? data : [];
   } catch (e) {
     locationError.value = e?.response?.data?.message || 'Fehler beim Laden der Kunden.';
-  }
-}
-
-function openKundenPreise(kunde) {
-  openCustomer(kunde, { initialTab: 'preise' });
-}
-
-async function fetchLohnarten() {
-  lohnartenLoading.value = true;
-  lohnartError.value = '';
-  try {
-    const { data } = await api.get('/api/import/lohnarten');
-    lohnarten.value = data.data || [];
-  } catch (e) {
-    lohnartError.value = e?.response?.data?.message || 'Fehler beim Laden der Lohnarten.';
-  } finally {
-    lohnartenLoading.value = false;
   }
 }
 
@@ -1020,7 +881,6 @@ onMounted(async () => {
   await fetchKunden();
   await fetchSignatureTypes();
   await fetchQualifikationen();
-  await fetchLohnarten();
 });
 
 async function fetchUsers() {
@@ -1498,35 +1358,6 @@ function formatDate(d) {
 .qualifikationen {
   padding-top: 0;
 }
-.lohn {
-  padding-top: 22px;
-}
-.lohn__state { color: var(--muted); font-size: 0.85rem; }
-.lohn__table { th { white-space: nowrap; } }
-.lohn__sort-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  font-weight: inherit;
-  text-align: left;
-
-  &:hover { color: var(--primary); }
-  svg { font-size: 0.7rem; color: var(--primary); }
-}
-.lohn__th--zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.12); color: var(--primary) !important; }
-.lohn__zuschlag { background: rgba(var(--primary-rgb, 255, 120, 0), 0.08); color: var(--primary); font-weight: 700; }
-.lohn__row--normalstunden { opacity: 0.58; }
-.lohn__kunden { min-width: 180px; }
-.lohn__kunden-list { display: flex; flex-wrap: wrap; gap: 4px; }
-.lohn__kunde-link { padding: 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
-.lohn__kunde-link:hover { text-decoration: underline; }
 .qualifikationen__state { color: var(--muted); font-size: 0.85rem; }
 
 .subtabs {

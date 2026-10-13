@@ -10,6 +10,7 @@
       class="app-file-dropzone__input"
       type="file"
       :accept="accept"
+      :multiple="multiple"
       :aria-label="`${label}: Datei auswählen`"
       :disabled="disabled"
       @change="onChange"
@@ -38,6 +39,7 @@ const props = defineProps({
   file: { type: Object, default: null },
   accept: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  multiple: { type: Boolean, default: false },
 });
 
 function onDragOver() {
@@ -45,16 +47,16 @@ function onDragOver() {
 }
 
 function onChange(event) {
-  const file = event.target.files?.[0];
+  const files = Array.from(event.target.files || []);
   event.target.value = '';
-  if (file) emit('select', file);
+  if (files.length) emit('select', props.multiple ? files : files[0]);
 }
 
 function onDrop(event) {
   dragging.value = false;
   if (props.disabled) return;
-  const file = event.dataTransfer?.files?.[0];
-  if (file) emit('select', file);
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length) emit('select', props.multiple ? files : files[0]);
 }
 </script>
 

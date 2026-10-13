@@ -30,6 +30,11 @@ const SchichtSchema = new mongoose.Schema({
     default: 'zvoove',
     index: true,
   },
+  day: { type: String },
+  endDayOffset: { type: Number, min: 0 },
+  groupShiftKey: { type: String },
+  overrides: [{ type: String }],
+  clientId: { type: String },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -79,5 +84,8 @@ const SchichtSchema = new mongoose.Schema({
 
 SchichtSchema.index({ auftragNr: 1, idAuftragArbeitsschichten: 1, datumVon: 1 });
 SchichtSchema.index({ datumVon: 1, datumBis: 1 });
+SchichtSchema.index({ auftragNr: 1, groupShiftKey: 1 }, {
+  unique: true, partialFilterExpression: { groupShiftKey: { $type: 'string' } },
+});
 
 module.exports = mongoose.model('Schicht', SchichtSchema);

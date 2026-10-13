@@ -107,6 +107,13 @@ const AuftragSchema = new mongoose.Schema({
   wizardStep: { type: Number, default: 0, min: 0, max: 4 },
   wizardCompletedAt: { type: Date, default: null },
   planningVersion: { type: Number, default: 0, min: 0 },
+  day: { type: String, match: /^\d{4}-\d{2}-\d{2}$/, index: true },
+  auftragsgruppe: { type: mongoose.Schema.Types.ObjectId, ref: 'Auftragsgruppe', default: null, index: true },
+  submission: { type: mongoose.Schema.Types.ObjectId, ref: 'AuftragEditorSubmission', default: null },
+  einsatzortOverride: { type: Boolean, default: false },
+  bestelltext: { type: String, default: '', maxlength: 100000 },
+  bestelltextOverride: { type: Boolean, default: false },
+  suppressedGroupShiftKeys: [{ type: String }],
   stundenlisteChangeLog: [{
     changedAt: { type: Date, required: true },
     entity: { type: String, required: true },
@@ -135,7 +142,7 @@ const AuftragSchema = new mongoose.Schema({
     },
     type: {
       type: String,
-      enum: ['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges'],
+      enum: ['bestellung', 'einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges'],
       default: null,
     },
     publicEinsatzIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Einsatz' }],
@@ -151,6 +158,10 @@ const AuftragSchema = new mongoose.Schema({
     deliveryMessage: { type: String, maxlength: 1000, trim: true, default: '' },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     uploadedAt: { type: Date, default: Date.now },
+    relationTarget: { type: String, enum: ['order', 'group'], default: 'order' },
+    clientUploadId: { type: String, maxlength: 200 },
+    uploadHash: { type: String },
+    uploadStatus: { type: String, enum: ['pending', 'ready'], default: 'ready' },
   }],
   isPseudo: {
     type: Boolean,
@@ -164,5 +175,10 @@ AuftragSchema.statics.formatEventAddress = function formatEventAddress(a = {}) {
   const plzOrt = [a.eventPlz, a.eventOrt].filter(Boolean).join(' ');
   return [a.eventLocation, strasse, plzOrt].filter(Boolean).join(', ');
 };
+
+AuftragSchema.index({ auftragsgruppe: 1, day: 1 }, {
+  unique: true, partialFilterExpression: { auftragsgruppe: { $type: 'objectId' }, day: { $type: 'string' } },
+});
+AuftragSchema.index({ submission: 1, day: 1 });
 
 module.exports = mongoose.model('Auftrag', AuftragSchema);

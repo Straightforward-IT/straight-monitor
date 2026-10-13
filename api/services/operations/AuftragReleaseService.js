@@ -6,8 +6,8 @@ function validateAuftragRelease(auftrag = {}, schichten = []) {
   if (!auftrag.isPseudo && !auftrag.kundenNr) {
     errors.push({ step: 0, field: 'kundenNr', message: 'Ein Kunde ist erforderlich' });
   }
-  if (!auftrag.isPseudo && !auftrag.einsatzort && !(auftrag.eventStrasse && auftrag.eventPlz && auftrag.eventOrt)) {
-    errors.push({ step: 1, field: 'einsatzort', message: 'Einsatzort oder vollständige Auftragsadresse fehlt' });
+  if (!auftrag.isPseudo && !auftrag.einsatzort) {
+    errors.push({ step: 1, field: 'einsatzort', message: 'Ein gespeicherter Kunden-Einsatzort ist erforderlich' });
   }
   if (!schichten.length) {
     errors.push({ step: 2, field: 'schichten', message: 'Mindestens eine Schicht ist erforderlich' });

@@ -1,6 +1,9 @@
 <template>
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
       <div class="main-content">
+        <div class="orders-create-toolbar">
+          <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
+        </div>
         <Toolbar
           v-if="viewMode === 'calendar'"
           class="calendar-navigation"
@@ -1297,7 +1300,7 @@ export default {
     const { openDocumentPreview } = useDocumentPreviewModals();
     const { openCustomer } = useCustomerModals();
     const { openDocument } = useDocumentModals();
-    const { openEvent } = useEventModals();
+    const { openEvent, openCreateEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
     const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useDockedModals();
@@ -1322,6 +1325,7 @@ export default {
       openCustomer,
       openDocumentModal: openDocument,
       openEvent,
+      openCreateEvent,
       openReisekosten,
       openTimeCapture,
       restoreMinimizedStundenliste,
@@ -1717,11 +1721,11 @@ export default {
     },
     headerActionMenuItems() {
       const items = [
-        {
-          label: "Im Event-Editor öffnen",
+        ...(!this.selectedEvent?.isPseudo ? [{
+          label: "Schichten & Personal bearbeiten",
           action: "open-editor",
           icon: "fa-solid fa-pencil",
-        },
+        }] : []),
         {
           label: "Pseudo-MA einplanen",
           action: "plan-pseudo",
@@ -2811,25 +2815,23 @@ export default {
       if (!this.selectedEvent) return;
       this.showQuickActions = false;
       this.openEvent(this.selectedEvent, {
-        onUpdated: (updatedEvent) => {
-          const eventIndex = this.auftraege.findIndex(
-            (item) => String(item.auftragNr) === String(updatedEvent.auftragNr),
-          );
-          if (eventIndex !== -1) {
-            this.auftraege.splice(eventIndex, 1, {
-              ...this.auftraege[eventIndex],
-              ...updatedEvent,
-            });
-          }
-          if (
-            String(this.selectedEvent?.auftragNr) ===
-            String(updatedEvent.auftragNr)
-          ) {
-            this.selectedEvent = updatedEvent;
-            this.preparedSchichten = this.calculateSchichten(updatedEvent);
-          }
-        },
+        onUpdated: this.applyEditorOrder,
       });
+    },
+    openNewCustomerAuftrag() {
+      this.openCreateEvent({
+        initialLocationV2: this.filters.locationV2 || "",
+        onUpdated: this.applyEditorOrder,
+      });
+    },
+    applyEditorOrder(updatedEvent) {
+      const index = this.auftraege.findIndex(item => String(item.auftragNr) === String(updatedEvent.auftragNr));
+      if (index === -1) this.auftraege.push(updatedEvent);
+      else this.auftraege.splice(index, 1, { ...this.auftraege[index], ...updatedEvent });
+      if (String(this.selectedEvent?.auftragNr) === String(updatedEvent.auftragNr)) {
+        this.selectedEvent = updatedEvent;
+        this.preparedSchichten = this.calculateSchichten(updatedEvent);
+      }
     },
     async fetchAuftragDocs(auftragNr) {
       try {
@@ -3934,6 +3936,7 @@ export default {
   @media (max-width: 768px) {
     padding: 0;
   }
+  .orders-create-toolbar { display: flex; justify-content: flex-end; padding: 8px 12px; }
 }
 
 /* Info Grid in Sidebar */

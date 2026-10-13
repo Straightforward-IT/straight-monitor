@@ -12,7 +12,7 @@ module.exports = asyncHandler(async (req, res, next) => {
   const id = req.user?.id || req.user?._id;
   const user = id ? await User.findById(id).select('role roles').lean() : null;
   if (!user) return res.status(401).json({ message: 'Anmeldung erforderlich.' });
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Die Mitarbeiter- und Einsatzortkarte ist derzeit nur für Admins verfügbar.' });
+  if (!isAdmin(user)) return res.status(403).json({ message: 'Diese Funktion ist nur für Admins verfügbar.' });
   req.adminUser = user;
   next();
 });

@@ -6,6 +6,7 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const ZvooveVerfuegbarkeit = require('../../models/System/ZvooveVerfuegbarkeit');
 const resolveQueries = require('../../utils/resolveQueries');
+const { atTime, addDays } = require('../../utils/orderDay');
 
 function id(value) {
   return String(value?._id || value || '');
@@ -30,6 +31,11 @@ function dateWithTime(value, time, end = false) {
 }
 
 function shiftWindow(schicht) {
+  if (schicht.day) {
+    const offset = schicht.endDayOffset ?? (schicht.uhrzeitBis <= schicht.uhrzeitVon ? 1 : 0);
+    return { start: atTime(schicht.day, schicht.uhrzeitVon || '00:00'),
+      end: atTime(addDays(schicht.day, offset), schicht.uhrzeitBis || '23:59') };
+  }
   const start = dateWithTime(schicht.datumVon, schicht.uhrzeitVon, false);
   const end = dateWithTime(schicht.datumBis || schicht.datumVon, schicht.uhrzeitBis, true);
   if (start && end && end <= start) end.setDate(end.getDate() + 1);
@@ -82,7 +88,8 @@ async function accessibleLocationIds(requestedLocation, includeOtherLocations) {
   return requestedLocation ? [requestedLocation] : null;
 }
 
-async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations = false, employeeIds = null }) {
+async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations = false, employeeIds = null,
+  stagedDeployments = [], removedEinsatzIds = [] }) {
   const window = shiftWindow(schicht);
   if (!window.start || !window.end) return [];
   const locationIds = await accessibleLocationIds(auftrag.locationV2, includeOtherLocations);
@@ -107,7 +114,7 @@ async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations =
       datumVon: { $lte: window.end },
       datumBis: { $gte: window.start },
       $or: [{ schicht: { $ne: schicht._id } }, { schicht: null }],
-    }).select('_id personalNr auftragNr schichtBezeichnung datumVon datumBis uhrzeitVon uhrzeitBis').lean(),
+    }).select('_id schicht personalNr auftragNr schichtBezeichnung datumVon datumBis uhrzeitVon uhrzeitBis day endDayOffset editorConflictKey').lean(),
     () => ZvooveVerfuegbarkeit.find({ personalnr: { $in: personalNrs }, datum: { $gte: dateWithTime(window.start, null), $lte: dateWithTime(window.end, null, true) } }).lean(),
     () => Number.isInteger(auftrag.kundenNr) ? Auftrag.find({ kundenNr: auftrag.kundenNr }).distinct('auftragNr') : [],
     () => auftrag.einsatzort ? Auftrag.find({ einsatzort: auftrag.einsatzort }).distinct('auftragNr') : [],
@@ -140,7 +147,12 @@ async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations =
   }
 
   const deploymentsByPersonalNr = new Map();
-  for (const deployment of deployments) {
+  const removed = new Set(removedEinsatzIds.map(String));
+  const ownShiftKeys = new Set([schicht._id, schicht.clientId,
+    schicht.day && schicht.clientId ? `${schicht.day}:${schicht.clientId}` : null].filter(Boolean).map(String));
+  const effectiveDeployments = [...deployments.filter(item => !removed.has(String(item._id))), ...stagedDeployments]
+    .filter(item => !item.schicht || !ownShiftKeys.has(String(item.schicht)));
+  for (const deployment of effectiveDeployments) {
     if (!deploymentsByPersonalNr.has(Number(deployment.personalNr))) deploymentsByPersonalNr.set(Number(deployment.personalNr), []);
     deploymentsByPersonalNr.get(Number(deployment.personalNr)).push(deployment);
   }
@@ -194,16 +206,14 @@ async function getStaffingCandidates({ auftrag, schicht, includeOtherLocations =
 
     const employeeDeployments = employeePersonalNumbers.flatMap(number => deploymentsByPersonalNr.get(number) || []);
     for (const deployment of employeeDeployments) {
-      const deploymentWindow = {
-        start: dateWithTime(deployment.datumVon, deployment.uhrzeitVon),
-        end: dateWithTime(deployment.datumBis || deployment.datumVon, deployment.uhrzeitBis, true),
-      };
+      const deploymentWindow = shiftWindow(deployment);
       if (deploymentWindow.start && deploymentWindow.end && deploymentWindow.end <= deploymentWindow.start) deploymentWindow.end.setDate(deploymentWindow.end.getDate() + 1);
       if (overlaps(window.start, window.end, deploymentWindow.start, deploymentWindow.end)) {
         const overlapStart = new Date(Math.max(window.start.getTime(), deploymentWindow.start.getTime()));
         const overlapEnd = new Date(Math.min(window.end.getTime(), deploymentWindow.end.getTime()));
         const time = `${String(overlapStart.getHours()).padStart(2, '0')}:${String(overlapStart.getMinutes()).padStart(2, '0')}–${String(overlapEnd.getHours()).padStart(2, '0')}:${String(overlapEnd.getMinutes()).padStart(2, '0')}`;
-        conflicts.push({ type: 'deployment', label: `Überschneidung ${time} · Auftrag ${deployment.auftragNr}`, einsatzId: deployment._id });
+        conflicts.push({ type: 'deployment', label: `Überschneidung ${time} · Auftrag ${deployment.auftragNr}`,
+          einsatzId: deployment.editorConflictKey || deployment._id });
       }
     }
 

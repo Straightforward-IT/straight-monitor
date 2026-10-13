@@ -12,8 +12,6 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
 const Qualifikation = require('../../models/Event/Qualifikation');
 const Lohnart = require('../../models/Payroll/Lohnart');
-const { getWageCalculationType } = require('../../domain/payroll/wageCalculationTypes');
-const { getAverageStorageType } = require('../../domain/payroll/averageStorageTypes');
 const Nationalitaet = require('../../models/System/Nationalitaet');
 const Kundenpreis = require('../../models/Customer/Kundenpreis');
 const KundenKondition = require('../../models/Customer/KundenKondition');
@@ -1989,105 +1987,8 @@ router.post('/nationalitaet', auth, extendTimeout, upload.single('file'), async 
   }
 });
 
-// --- Lohnarten Import (LOHNART) ---
-router.get('/lohnarten', auth, async (req, res) => {
-  try {
-    const [lohnarten, kundenKonditionen] = await Promise.all([
-      Lohnart.find({}).sort({ lohnartNummer: 1 }).lean(),
-      KundenKondition.find({})
-        .select('lohnart kunde')
-        .populate({
-          path: 'kunde',
-          select: 'kundenNr kundName kuerzel kundStatus geschSt',
-          match: { kundStatus: 2 },
-        })
-        .lean(),
-    ]);
-    const kundenByLohnart = new Map();
-    for (const kondition of kundenKonditionen) {
-      if (!kondition.lohnart || !kondition.kunde) continue;
-
-      const lohnartId = String(kondition.lohnart);
-      const kunden = kundenByLohnart.get(lohnartId) || new Map();
-      kunden.set(String(kondition.kunde._id), kondition.kunde);
-      kundenByLohnart.set(lohnartId, kunden);
-    }
-    const data = lohnarten.map((lohnart) => ({
-      ...lohnart,
-      berechnungsart: getWageCalculationType(lohnart.berechnungsartCode),
-      durchschnittsspeicherung: getAverageStorageType(lohnart.durchschnittsspeicherCode),
-      kunden: [...(kundenByLohnart.get(String(lohnart._id))?.values() || [])]
-        .sort((left, right) => String(left.kundName || '').localeCompare(String(right.kundName || ''), 'de')),
-    }));
-    res.json({ success: true, data });
-  } catch (error) {
-    logger.error('GET Lohnarten Error:', error);
-    res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Lohnarten.', error: error.message });
-  }
-});
-
-router.post('/lohnart', auth, extendTimeout, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
-    }
-
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
-    const columns = [
-      ['LOHNARTNR', 'lohnartNummer'], ['LOHNARTKUR', 'lohnartKurzzeichen'], ['LOHNARTTXT', 'lohnartBezeichnung'],
-      ['RECHNUNGST', 'rechnungstext'], ['KOSTENART', 'kostenart'], ['FREMDLOHNA', 'fremdLohnartNummer'],
-      ['CBERECHNUN', 'berechnungsartCode'], ['CDURCHSPEI', 'durchschnittsspeicherCode'], ['CZUSCHLAG', 'zuschlagsProzent'], ['ZUSCHAUEGR', 'zuschlagsgruppeWert'],
-      ['CSTEUERKRA', 'steuerartCode'], ['CSTEUERSPE', 'steuerSpezialCode'], ['CSOZIAL', 'sozialversicherungCode'], ['CPFAENDUNG', 'pfaendungCode'],
-      ['AUSWERT', 'auswerten'], ['AUSWERTSTD', 'inStundenauswertung'], ['CGLEITZEIT', 'gleitzeitCode'],
-      ['RECHSPALTE', 'rechnungsspalte'], ['BGSPALTE', 'berechnungsgrundlageSpalte'], ['ILOHNFAKTUR', 'fakturierungCode'],
-      ['IBRANCHENZUSCHLAG', 'branchenzuschlagCode'], ['ILOHNARTBRANCHENZ', 'branchenzuschlagLohnartNummer'], ['PRIORITAETBZ', 'branchenzuschlagPrioritaet'], ['EQUALPAY', 'equalPayRelevanz'],
-    ];
-    const header = rawData[0]?.map((value) => String(value).trim().toUpperCase()) || [];
-    const hasHeader = header.includes('LOHNARTNR');
-    const indexByColumn = new Map(columns.map(([source], index) => [source, hasHeader ? header.indexOf(source) : index]));
-    const operations = [];
-
-    for (const row of rawData.slice(hasHeader ? 1 : 0)) {
-      const lohnartNummer = String(row[indexByColumn.get('LOHNARTNR')] ?? '').trim();
-      if (!lohnartNummer) continue;
-
-      const fields = {};
-      for (const [source, target] of columns) {
-        fields[target] = String(row[indexByColumn.get(source)] ?? '').trim();
-      }
-      operations.push({
-        updateOne: {
-          filter: { lohnartNummer },
-          update: { $set: fields },
-          upsert: true,
-        },
-      });
-    }
-
-    if (!operations.length) {
-      await logImport('lohnart', req.file.originalname, 'warning', 0, { message: 'Keine gültigen Lohnarten gefunden' }, req.user?.id);
-      return res.json({ success: true, message: 'Keine gültigen Lohnarten gefunden. (Erwarte LOHNARTNR als erste Spalte oder Spaltenüberschrift.)' });
-    }
-
-    const result = await Lohnart.bulkWrite(operations);
-    const inserted = result.upsertedCount || 0;
-    const updated = result.modifiedCount || 0;
-    const unchanged = operations.length - inserted - updated;
-    const response = {
-      success: true,
-      message: `${operations.length} Lohnarten verarbeitet: ${inserted} neu, ${updated} aktualisiert.`,
-      details: { total: operations.length, inserted, updated, unchanged },
-    };
-    await logImport('lohnart', req.file.originalname, 'success', operations.length, response.details, req.user?.id);
-    res.json(response);
-  } catch (error) {
-    logger.error('Import Lohnart Error:', error);
-    await logImport('lohnart', req.file?.originalname, 'failed', 0, { error: error.message }, req.user?.id);
-    res.status(500).json({ success: false, message: 'Fehler beim Importieren der Lohnarten.', error: error.message });
-  }
-});
+// --- Read-only wage type master data and Admin import ---
+router.use(require('../payroll/wageTypeRoutes').createWageTypeRouter({ logImport }));
 
 // --- Kundenkonditionen Import (KUNDEN_KOND) ---
 router.post('/kundenkondition', auth, extendTimeout, upload.single('file'), async (req, res) => {

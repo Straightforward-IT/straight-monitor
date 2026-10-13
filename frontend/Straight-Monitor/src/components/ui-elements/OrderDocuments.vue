@@ -40,7 +40,7 @@
       <p v-else-if="!documents.length">
       </p>
       <ul v-if="auftragNr">
-        <li class="order-documents__upload-item">
+        <li v-if="allowUpload" class="order-documents__upload-item">
           <label
             class="order-documents__upload-zone"
             :class="{ 'order-documents__upload-zone--dragging': dragging, 'order-documents__upload-zone--uploading': uploading }"
@@ -95,7 +95,7 @@ import { faArrowUpRightFromSquare, faClipboardList, faCloudArrowUp, faFileLines 
 import api from '@/utils/api';
 import { useDocumentModals } from '@/composables/useDocumentModals';
 import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
-const props = defineProps({ auftragNr: { type: [Number, String], default: null }, items: { type: Array, default: null }, title: { type: String, default: 'Auftragsdokumente' }, compact: { type: Boolean, default: false } });
+const props = defineProps({ auftragNr: { type: [Number, String], default: null }, items: { type: Array, default: null }, title: { type: String, default: 'Auftragsdokumente' }, compact: { type: Boolean, default: false }, allowUpload: { type: Boolean, default: true } });
 const { openDocument } = useDocumentModals();
 const { openDocumentPreview } = useDocumentPreviewModals();
 const documents = ref([]), loading = ref(false), error = ref(''), dragging = ref(false), uploading = ref(false), uploadError = ref('');

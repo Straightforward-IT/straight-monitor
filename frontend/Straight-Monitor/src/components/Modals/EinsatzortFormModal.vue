@@ -1,10 +1,10 @@
 <template>
-  <ModalFrame layer="elevated" style="--mf-max-width: 680px; --mf-body-padding: 20px" @close="emit('close')">
+  <ModalFrame layer="elevated" style="--mf-max-width: 680px; --mf-body-padding: 20px" @close="close">
     <template #header>
       <h3 class="form-title">{{ isEditing ? 'Einsatzort bearbeiten' : 'Einsatzort anlegen' }}</h3>
     </template>
 
-    <form id="einsatzort-form" class="form" @submit.prevent="save">
+    <form :id="formId" class="form" @submit.prevent="save">
       <div class="form-grid">
         <label class="form-field form-field--wide">
           <span>Bezeichnung <strong>*</strong></span>
@@ -40,7 +40,7 @@
 
     <template #footer>
       <button class="btn-secondary" type="button" :disabled="saving" @click="emit('close')">Abbrechen</button>
-      <button class="btn-primary" type="submit" form="einsatzort-form" :disabled="saving || !form.bezeichnung.trim()">
+      <button class="btn-primary" type="submit" :form="formId" :disabled="saving || !form.bezeichnung.trim()">
         {{ saving ? 'Wird gespeichert...' : 'Speichern' }}
       </button>
     </template>
@@ -55,15 +55,17 @@ import api from '@/utils/api';
 const props = defineProps({
   kundenNr: { type: [String, Number], required: true },
   einsatzort: { type: Object, default: null },
+  initialAddress: { type: Object, default: () => ({}) },
 });
 const emit = defineEmits(['close', 'saved']);
 const isEditing = computed(() => Boolean(props.einsatzort?._id));
 const saving = ref(false);
 const errorMessage = ref('');
 const nameInput = ref(null);
-const address = props.einsatzort?.adresse || {};
+const formId = `einsatzort-form-${crypto.randomUUID()}`;
+const address = props.einsatzort?.adresse || props.initialAddress;
 const form = reactive({
-  bezeichnung: props.einsatzort?.bezeichnung || '',
+  bezeichnung: props.einsatzort?.bezeichnung || props.initialAddress.bezeichnung || '',
   adressName: address.name || '',
   strasse: address.strasse || '',
   plz: address.plz || '',
@@ -89,6 +91,7 @@ async function save() {
   } finally {
     saving.value = false;
   }
+  function close() { if (!saving.value) emit('close'); }
 }
 </script>
 

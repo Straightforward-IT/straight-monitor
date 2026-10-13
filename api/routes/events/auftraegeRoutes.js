@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 const auth = require('../../middleware/auth');
 const Auftrag = require('../../models/Event/Auftrag');
@@ -21,6 +22,7 @@ const TelefonlisteService = require('../../services/operations/TelefonlisteServi
 const { loadAuftragMitarbeiterExport } = require('../../services/operations/AuftragMitarbeiterExportService');
 const R2Service = require('../../services/integrations/R2Service');
 const { canAccessOfficeDocument } = require('../../services/operations/OrderDocumentAccessService');
+const { documentsForOrder, documentOwner, authorizeDocumentMutation } = require('../../services/operations/OrderDocumentOwnerService');
 const SignaturVorgang = require('../../models/Signature/SignaturVorgang');
 const { buildStundenlistePdfFilename, contentDisposition } = require('../../utils/stundenlisteFilename');
 const {
@@ -34,6 +36,7 @@ const { withAuftragChronik } = require('../../services/operations/AuftragChronik
 const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
 const { invalidateForTimeChange } = require('../../services/operations/EinsatzBestaetigungService');
 const resolveQueries = require('../../utils/resolveQueries');
+const { canAccess } = require('../../services/TimeCaptureService');
 
 router.use(require('./auftragChronikRoutes'));
 
@@ -44,7 +47,7 @@ const uploadMem = multer({
 
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 const EINSATZ_DOK_SCOPES = new Set(['monitor', 'public']);
-const EINSATZ_DOK_TYPES = new Set(['einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges']);
+const EINSATZ_DOK_TYPES = new Set(['bestellung', 'einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges']);
 
 function normalizeDocumentScope(value) {
   const scope = String(value || 'monitor').trim().toLowerCase();
@@ -75,6 +78,9 @@ function serializeEinsatzDokument(document) {
     berufKeys: document.berufKeys || [],
     allowedRoles: document.allowedRoles || [],
     uploadedAt: document.uploadedAt,
+    relationTarget: document.relationTarget || 'order',
+    clientUploadId: document.clientUploadId,
+    groupId: document.groupId,
   };
 }
 
@@ -86,6 +92,7 @@ const AUFTRAG_EDITABLE_FIELDS = new Set([
   'eventStrasse', 'eventPlz', 'eventOrt', 'eventLocation',
   'aktiv', 'auftStatus', 'referenz', 'excludedTeamleiter',
   'statusOverrideTeamleiter', 'labels', 'einsatzort', 'wizardStep',
+  'bestelltext',
 ]);
 const SCHICHT_EDITABLE_FIELDS = new Set([
   'bezeichnung', 'treffpunkt', 'treffpunktOrt', 'ansprechpartnerName',
@@ -224,7 +231,7 @@ function userId(req) {
 async function loadRequestUser(req) {
   const id = userId(req);
   return mongoose.isValidObjectId(id)
-    ? User.findById(id).select('name email').lean()
+    ? User.findById(id).select('name email role roles locationV2 locationAccess').lean()
     : null;
 }
 
@@ -244,6 +251,11 @@ async function resolveWritableLocation(req, locationId) {
     () => loadRequestUser(req),
   ]);
   if (!location) throw validationError('Der gewählte Standort ist nicht aktiv oder existiert nicht');
+  if (!user || !canAccess(user, location._id)) {
+    const error = new Error('Für diesen Auftragsstandort fehlt die Berechtigung');
+    error.statusCode = 403;
+    throw error;
+  }
   return { location, user };
 }
 
@@ -260,6 +272,12 @@ async function assertCustomerMatchesLocation(customer, locationId) {
 
 async function assertOrderHasLocation(req, auftrag) {
   if (!auftrag?.locationV2) throw validationError('Dem Auftrag ist kein Standort zugeordnet');
+  const user = await loadRequestUser(req);
+  if (!user || !canAccess(user, auftrag.locationV2)) {
+    const error = new Error('Für diesen Auftragsstandort fehlt die Berechtigung');
+    error.statusCode = 403;
+    throw error;
+  }
 }
 
 async function allocateMonitorIdForAuftrag(entityType, auftrag) {
@@ -379,7 +397,8 @@ async function renderShiftInformation({ auftrag, schicht, sourceHtml, customized
     };
   }
 
-  const values = buildPlaceholderValues({ kunde, auftrag, einsatzort, schicht, beruf, qualifikation, location });
+  const values = buildPlaceholderValues({ kunde: kunde || {}, auftrag, einsatzort: einsatzort || {},
+    schicht, beruf: beruf || {}, qualifikation: qualifikation || {}, location: location || {} });
   const rendered = renderTemplate(frozenSource, values);
   const appliedTemplate = shouldApplyTemplate ? templateResult.template : null;
   return {
@@ -393,6 +412,48 @@ async function renderShiftInformation({ auftrag, schicht, sourceHtml, customized
     resolvedAt: new Date(),
   };
 }
+
+async function invokeEditorMutation(method, path, req, params, body) {
+  const layer = router.stack.find(entry => entry.route?.path === path && entry.route.methods[method]);
+  const handler = layer?.route.stack.map(entry => entry.handle).find(entry => entry.mutationHandler)?.mutationHandler;
+  if (!handler) throw new Error(`Auftragsmutation fehlt: ${method} ${path}`);
+  const response = { statusCode: 200, body: undefined,
+    status(code) { this.statusCode = code; return this; },
+    json(value) { this.body = value; return this; } };
+  await handler({ ...req, params, body }, response);
+  if (response.statusCode >= 400) {
+    const error = new Error(response.body?.message || 'Auftragsänderung abgelehnt');
+    error.statusCode = response.statusCode;
+    error.code = response.body?.code;
+    error.details = response.body;
+    throw error;
+  }
+  return response.body?.toObject ? response.body.toObject() : response.body;
+}
+
+async function readEditorDetails(req, number) {
+  const route = router.stack.find(entry => entry.route?.path === '/:auftragNr/details');
+  let value;
+  await route.route.stack.at(-1).handle({ ...req, params: { auftragNr: String(number) } },
+    { status() { return this; }, json(body) { value = body; } });
+  if (!value || value.success === false) throw validationError('Auftragsdetails konnten nicht geladen werden');
+  const group = value.auftragsgruppe ? await require('../../models/Event/Auftragsgruppe').findById(value.auftragsgruppe).lean() : null;
+  value.groupRevision = group?.revision ?? null;
+  value.groupStatus = group?.status ?? null;
+  value.dailyOrder = Boolean(value.day);
+  value.day ||= require('../../utils/orderDay').dayKey(value.vonDatum);
+  if (group && !value.bestelltextOverride) value.bestelltext = group.bestelltext;
+  value.schichten = value.schichten.map(shift => ({ ...shift, overrides: shift.overrides || [] }));
+  return value;
+}
+
+router.use('/editor', auth, require('./auftragEditorRoutes')({
+  invokeMutation: invokeEditorMutation, readDetails: readEditorDetails,
+  getEinsatzortForAuftrag, resolveWritableLocation, assertCustomerMatchesLocation,
+  normalizeEditablePatch, orderFields: AUFTRAG_EDITABLE_FIELDS, shiftFields: SCHICHT_EDITABLE_FIELDS,
+  renderShiftInformation,
+  employeePersonalNumbers,
+}));
 
 // GET /api/auftraege/search - Full-database search across all orders (ignores date range)
 // Query params: q (string), locationV2 (optional ObjectId), limit (default 25)
@@ -1268,6 +1329,7 @@ router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) =>
   const einsatzort = input.einsatzort
     ? await getEinsatzortForAuftrag(kundenNr, input.einsatzort)
     : null;
+  if (!einsatzort) throw validationError('Ein gespeicherter Kunden-Einsatzort ist erforderlich');
   const createData = {
     monitorId: await allocateMonitorId('auftrag', location.externalId),
     creationOrigin: 'manual',
@@ -1276,6 +1338,7 @@ router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) =>
     bisDatum,
     bestDatum: input.bestDatum ? new Date(input.bestDatum) : null,
     referenz: String(input.referenz || '').trim(),
+    bestelltext: String(input.bestelltext ?? ''),
     labels: Array.isArray(input.labels) ? input.labels : [],
     geschSt: location.externalId || null,
     locationV2: location._id,
@@ -1426,6 +1489,22 @@ router.patch('/:auftragNr', auth, withAuftragChronik('Auftrag.updated', async (r
   const current = await Auftrag.findOne({ auftragNr });
   if (!current) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   await assertOrderHasLocation(req, current);
+  if (!current.isPseudo && Object.hasOwn(patch, 'kundenNr') && Number(patch.kundenNr) !== Number(current.kundenNr)) {
+    throw validationError('Der Kunde eines bestehenden Auftrags kann nicht geändert werden');
+  }
+  if (!current.isPseudo) {
+    const siteId = Object.hasOwn(patch, 'einsatzort') ? patch.einsatzort : current.einsatzort;
+    if (!siteId) throw validationError('Ein gespeicherter Kunden-Einsatzort ist erforderlich');
+    await getEinsatzortForAuftrag(current.kundenNr, siteId);
+  }
+  if (current.day) {
+    const { dayKey } = require('../../utils/orderDay');
+    for (const key of ['vonDatum', 'bisDatum']) {
+      if (Object.hasOwn(patch, key) && dayKey(patch[key]) !== current.day) {
+        throw validationError('Der Starttag eines Tagesauftrags kann nicht geändert werden');
+      }
+    }
+  }
   if (current.source === 'monitor'
     && Object.prototype.hasOwnProperty.call(patch, 'auftStatus')
     && Number(patch.auftStatus) !== Number(current.auftStatus)) {
@@ -1535,6 +1614,9 @@ router.post('/:auftragNr/schichten', auth, withAuftragChronik('Schicht.created',
   editableInput.datumBis ||= editableInput.datumVon || auftrag.bisDatum;
   editableInput.bedarf ??= 1;
   const patch = normalizeEditablePatch(editableInput, SCHICHT_EDITABLE_FIELDS);
+  if (auftrag.day && require('../../utils/orderDay').dayKey(patch.datumVon) !== auftrag.day) {
+    throw validationError('Die Schicht muss am Starttag des Auftrags beginnen');
+  }
   const schicht = new Schicht({
     ...patch,
     monitorId: await allocateMonitorIdForAuftrag('schicht', auftrag),
@@ -1553,7 +1635,7 @@ router.post('/:auftragNr/schichten', auth, withAuftragChronik('Schicht.created',
     forceTemplate: Boolean(input.applyLatestTemplate),
   });
   await schicht.save();
-  await Auftrag.updateOne({ _id: auftrag._id }, { $max: { wizardStep: 2 } });
+  await Auftrag.updateOne({ _id: auftrag._id }, { $max: { wizardStep: 2 }, $inc: { planningVersion: 1 } });
   res.status(201).json(schicht);
 }));
 
@@ -1579,11 +1661,17 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!current) return res.status(404).json({ message: 'Schicht nicht gefunden' });
   await assertOrderHasLocation(req, auftrag);
+  if (auftrag.day && Object.hasOwn(patch, 'datumVon')
+    && require('../../utils/orderDay').dayKey(patch.datumVon) !== auftrag.day) {
+    throw validationError('Die Schicht muss am Starttag des Auftrags beginnen');
+  }
   const selectionChanged = ['berufSchl', 'qualSchl'].some(key => (
     Object.prototype.hasOwnProperty.call(patch, key)
     && editableValueChanged(key, patch[key], current[key])
   ));
-  const confirmationTimeChanged = hasEinsatzTimeChange(patch, current);
+  const confirmationTimeChanged = hasEinsatzTimeChange(patch, current)
+    || ['datumVon', 'datumBis'].some(key => Object.hasOwn(patch, key) && editableValueChanged(key, patch[key], current[key]));
+  const beforeShift = current.toObject();
   Object.assign(current, patch);
   current.einsatzinformation = await renderShiftInformation({
     auftrag,
@@ -1599,7 +1687,7 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
   const copiedFields = [
     'treffpunkt', 'treffpunktOrt', 'ansprechpartnerName',
     'ansprechpartnerTelefon', 'ansprechpartnerEmail', 'letzteAusschreibung',
-    'uhrzeitVon', 'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen',
+    'uhrzeitVon', 'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen', 'berufSchl', 'qualSchl',
   ];
   copiedFields.forEach(key => {
     if (Object.prototype.hasOwnProperty.call(patch, key)) einsatzPatch[key] = patch[key];
@@ -1641,6 +1729,8 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
       ],
     });
   }
+  await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
+  await recordStundenlisteChange(auftragNr, 'Schicht', getStundenlisteChangeDetails(beforeShift, patch));
 
   logger.info(`Schicht ${schicht._id} in Auftrag ${auftragNr} edited by user ${req.user?.id || 'unknown'}: ${Object.keys(patch).join(', ')}`);
   res.json(schicht);
@@ -1707,6 +1797,7 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
     () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  await assertOrderHasLocation(req, auftrag);
   if (Number(auftrag.planningVersion || 0) !== expectedVersion) {
     return res.status(409).json({ code: 'PLANNING_STALE', message: 'Die Planung wurde zwischenzeitlich geändert', planningVersion: auftrag.planningVersion || 0 });
   }
@@ -1774,10 +1865,11 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
       schicht,
       includeOtherLocations: Boolean(req.body?.includeOtherLocations),
       employeeIds: [mitarbeiter._id],
+      ...(req.editorScheduling || {}),
     });
     if (!candidate) return res.status(403).json({ message: 'Mitarbeiter liegt außerhalb der freigegebenen Standorte' });
     const override = operation.conflictOverride || {};
-    if (candidate.conflicts.length && (!override.confirmed || !String(override.reason || '').trim())) {
+    if (!conflictOverrideCovers(override, candidate.conflicts)) {
       return res.status(409).json({ code: 'PLANNING_CONFLICT', message: 'Konflikte müssen bestätigt und begründet werden', operation, conflicts: candidate.conflicts });
     }
     prepared.push({ type: 'assign', schicht, personalNr, conflicts: candidate.conflicts, override });
@@ -1815,6 +1907,9 @@ router.put('/:auftragNr/planning', auth, withAuftragChronik('planning.updated', 
       detailDatumBis: schicht.datumBis,
       uhrzeitVon: schicht.uhrzeitVon,
       uhrzeitBis: schicht.uhrzeitBis,
+      day: schicht.day,
+      endDayOffset: schicht.endDayOffset,
+      editorConflictKey: req.editorConflictKey,
       treffpunkt: schicht.treffpunkt,
       treffpunktOrt: schicht.treffpunktOrt,
       ansprechpartnerName: schicht.ansprechpartnerName,
@@ -1843,6 +1938,19 @@ router.post('/:auftragNr/release', auth, withAuftragChronik('Auftrag.released', 
     () => Schicht.find({ auftragNr }).lean(),
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  if (!auftrag.isPseudo) {
+    if (!auftrag.einsatzort) throw validationError('Ein gespeicherter Kunden-Einsatzort ist erforderlich');
+    await getEinsatzortForAuftrag(auftrag.kundenNr, auftrag.einsatzort);
+    if ((auftrag.einsatzdokumente || []).some(document => document.uploadStatus === 'pending')) {
+      return res.status(409).json({ code: 'DOCUMENTS_PENDING', message: 'Dokument-Uploads sind noch nicht abgeschlossen' });
+    }
+    if (auftrag.auftragsgruppe) {
+      const group = await require('../../models/Event/Auftragsgruppe').findById(auftrag.auftragsgruppe).lean();
+      if (group?.status !== 'completed' || group.einsatzdokumente?.some(document => document.uploadStatus === 'pending')) {
+        return res.status(409).json({ code: 'GROUP_PENDING', message: 'Die Auftragsgruppe oder ihre Dokumente sind noch unvollständig' });
+      }
+    }
+  }
   await assertOrderHasLocation(req, auftrag);
   const errors = validateAuftragRelease(auftrag, schichten);
   const shiftById = new Map(schichten.map(shift => [String(shift._id), shift]));
@@ -2076,6 +2184,7 @@ router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) =
   const { auftragNr } = req.params;
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
+  await assertOrderHasLocation(req, auftrag);
   const knownDocuments = auftrag.einsatzdokumente || [];
   const knownKeys = new Set(knownDocuments.map(document => document.key));
   const prefix = EINSATZ_DOK_PREFIX(auftragNr);
@@ -2095,7 +2204,7 @@ router.get('/:auftragNr/einsatzdokumente', auth, asyncHandler(async (req, res) =
   if (legacyDocuments.length) {
     await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: { $each: legacyDocuments } } });
   }
-  const documents = await Promise.all([...knownDocuments, ...legacyDocuments].map(async (document) => (
+  const documents = await Promise.all([...(await documentsForOrder(auftrag)), ...legacyDocuments].map(async (document) => (
     (await canAccessOfficeDocument(document, req.user)) ? document : null
   )));
   const docs = documents.filter(Boolean);
@@ -2107,7 +2216,7 @@ router.get('/:auftragNr/einsatzdokumente/:documentId/download', auth, asyncHandl
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(req.params.auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
   await assertOrderHasLocation(req, auftrag);
-  const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
+  const document = (await documentsForOrder(auftrag)).find(item => String(item._id) === req.params.documentId);
   if (!document || !(await canAccessOfficeDocument(document, req.user))) {
     return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });
   }
@@ -2125,7 +2234,6 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
 
   // Sanitise filename to prevent path traversal
   const safeName = req.file.originalname.replace(/[/\\:*?"<>|]/g, '_');
-  const key = `${EINSATZ_DOK_PREFIX(auftragNr)}${Date.now()}-${safeName}`;
   const title = String(req.body.title || '').trim();
   if (title.length > 200) return res.status(400).json({ success: false, message: 'Die Bezeichnung ist zu lang' });
   const scope = normalizeDocumentScope(req.body.scope);
@@ -2135,6 +2243,24 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   if (scope === 'monitor' && !EINSATZ_DOK_TYPES.has(type)) {
     return res.status(400).json({ success: false, message: 'Ungültiger Dokumenttyp' });
   }
+  const relationTarget = String(req.body.relationTarget || 'order');
+  const { model, owner, prefix } = await documentOwner(auftrag, relationTarget);
+  if ((type === 'bestellung' && scope !== 'monitor') || (req.body.type === 'bestellung' && scope !== 'monitor')
+    || (relationTarget === 'group' && (type !== 'bestellung' || scope !== 'monitor'))) {
+    throw validationError('Bestellungen und Gruppendokumente sind ausschließlich interne Office-Dokumente');
+  }
+  const clientUploadId = String(req.body.clientUploadId || '').trim();
+  if (clientUploadId.length > 200) throw validationError('Die Upload-ID ist zu lang');
+  await authorizeDocumentMutation(auftrag, owner, relationTarget, userId(req),
+    { clientUploadId, filename: safeName, size: req.file.size, type });
+  const uploadHash = crypto.createHash('sha256').update(req.file.buffer)
+    .update(JSON.stringify({ safeName, title, type, scope, relationTarget })).digest('hex');
+  let previous = clientUploadId ? owner.einsatzdokumente?.find(doc => doc.clientUploadId === clientUploadId) : null;
+  if (previous && previous.uploadHash !== uploadHash) return res.status(409).json({
+    code: 'UPLOAD_IDEMPOTENCY_CONFLICT', message: 'Diese Upload-ID wurde für eine andere Datei verwendet' });
+  if (previous?.uploadStatus === 'ready') return res.json({ success: true, data: serializeEinsatzDokument(previous) });
+  const documentId = previous?._id || new mongoose.Types.ObjectId();
+  const key = previous?.key || `${prefix}${documentId}-${safeName}`;
   if (scope !== 'public' && (publicEinsatzIds.length || publicRecipientFilter)) {
     return res.status(400).json({ success: false, message: 'Empfänger können nur für Public-Monitor-Dokumente gewählt werden' });
   }
@@ -2148,9 +2274,8 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
     }
   }
 
-  await R2Service.uploadFile(key, req.file.buffer, req.file.mimetype);
   const document = {
-    _id: new mongoose.Types.ObjectId(),
+    _id: documentId,
     key,
     filename: safeName,
     title,
@@ -2165,8 +2290,29 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
     allowedRoles: [],
     uploadedBy: req.user?._id || req.user?.id || null,
     uploadedAt: new Date(),
+    relationTarget,
+    clientUploadId: clientUploadId || undefined,
+    uploadHash,
+    uploadStatus: 'pending',
   };
-  await Auftrag.updateOne({ _id: auftrag._id }, { $push: { einsatzdokumente: document } });
+  if (!previous) {
+    const reservation = await model.updateOne({ _id: owner._id,
+      ...(clientUploadId ? { 'einsatzdokumente.clientUploadId': { $ne: clientUploadId } } : {}) },
+    { $push: { einsatzdokumente: document } });
+    if (!reservation.modifiedCount && clientUploadId) {
+      const refreshed = await model.findById(owner._id).lean();
+      previous = refreshed.einsatzdokumente.find(doc => doc.clientUploadId === clientUploadId);
+      if (!previous || previous.uploadHash !== uploadHash) return res.status(409).json({
+        code: 'UPLOAD_IDEMPOTENCY_CONFLICT', message: 'Diese Upload-ID wurde für eine andere Datei verwendet' });
+      if (previous.uploadStatus === 'ready') return res.json({ success: true, data: serializeEinsatzDokument(previous) });
+      // A concurrent reservation owns the key. A retry uses it, never creates a second binary/metadata owner.
+      return res.status(409).json({ code: 'UPLOAD_PENDING', message: 'Dieser Upload ist bereits vorgemerkt. Bitte erneut versuchen.' });
+    }
+  }
+  await R2Service.uploadFile(key, req.file.buffer, req.file.mimetype);
+  await model.updateOne({ _id: owner._id, 'einsatzdokumente._id': documentId },
+    { $set: { 'einsatzdokumente.$.uploadStatus': 'ready' } });
+  document.uploadStatus = 'ready';
 
   logger.info(`Einsatzdok uploaded: ${key} (${req.file.size} bytes) by user ${req.user?.id}`);
   res.json({ success: true, data: serializeEinsatzDokument(document) });
@@ -2179,12 +2325,18 @@ router.delete('/:auftragNr/einsatzdokumente/:documentId', auth, asyncHandler(asy
   const auftrag = await Auftrag.findOne({ auftragNr: parseAuftragNr(auftragNr) }).lean();
   if (!auftrag) return res.status(404).json({ success: false, message: 'Auftrag nicht gefunden' });
   await assertOrderHasLocation(req, auftrag);
-  const document = (auftrag.einsatzdokumente || []).find(item => String(item._id) === req.params.documentId);
+  const document = (await documentsForOrder(auftrag)).find(item => String(item._id) === req.params.documentId);
   if (!document || !(await canAccessOfficeDocument(document, req.user))) {
     return res.status(404).json({ success: false, message: 'Dokument nicht gefunden' });
   }
+  if (document.relationTarget === 'group' && (req.body?.relationTarget || req.query.relationTarget) !== 'group') {
+    return res.status(409).json({ code: 'GROUP_DOCUMENT_SCOPE_REQUIRED',
+      message: 'Das gemeinsame Dokument kann nur ausdrücklich für die gesamte Gruppe gelöscht werden.' });
+  }
+  const { model, owner } = await documentOwner(auftrag, document.relationTarget);
+  await authorizeDocumentMutation(auftrag, owner, document.relationTarget, userId(req));
   await R2Service.deleteFile(document.key);
-  await Auftrag.updateOne({ _id: auftrag._id }, { $pull: { einsatzdokumente: { _id: document._id } } });
+  await model.updateOne({ _id: owner._id }, { $pull: { einsatzdokumente: { _id: document._id } } });
   res.json({ success: true });
 }));
 
