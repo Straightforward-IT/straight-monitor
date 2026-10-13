@@ -108,12 +108,13 @@
                 <div class="form-row"><div class="field"><ScopeLabel field="uhrzeitVon" text="Von" /><AppTextInput :model-value="selectedShift.uhrzeitVon" type="time" aria-label="Schichtbeginn" @update:model-value="editShift('uhrzeitVon', $event)" /></div><div class="field"><ScopeLabel field="uhrzeitBis" text="Bis" /><AppTextInput :model-value="selectedShift.uhrzeitBis" type="time" aria-label="Schichtende" @update:model-value="editShift('uhrzeitBis', $event)" /></div></div>
                 <div class="form-row"><div class="field"><ScopeLabel field="datumBis" text="Enddatum" /><AppTextInput :model-value="selectedShift.datumBis" type="date" aria-label="Schicht-Enddatum" :min="selectedShift.datumVon" @update:model-value="editShift('datumBis', $event)" /></div><div class="field"><ScopeLabel field="bedarf" text="Bedarf" /><AppTextInput :model-value="selectedShift.bedarf" type="number" aria-label="Personalbedarf" min="0" @update:model-value="editShift('bedarf', $event)" /></div></div>
                 <div class="form-row"><div class="field"><ScopeLabel field="berufSchl" text="Beruf" /><AppSelect :model-value="selectedShift.berufSchl" aria-label="Beruf" @update:model-value="editShift('berufSchl', $event)"><option value="">Kein Beruf</option><option v-for="job in jobs" :key="job._id" :value="String(job.jobKey)">{{ job.designation }}</option></AppSelect></div><div class="field"><ScopeLabel field="qualSchl" text="Qualifikation" /><AppSelect :model-value="selectedShift.qualSchl" aria-label="Qualifikation" @update:model-value="editShift('qualSchl', $event)"><option value="">Keine Qualifikation</option><option v-for="qualification in qualifications" :key="qualification._id" :value="String(qualification.qualificationKey)">{{ qualification.designation }}</option></AppSelect></div></div>
-                <label class="field">Garantiestunden <AppTextInput v-model.number="selectedShift.garantiestundenLohn" type="number" min="0" step="0.25" /></label>
+                <label class="field">Garantiestunden {{ linked ? '· nur dieser Tag' : '' }} <AppTextInput :model-value="selectedShift.garantiestundenLohn" type="number" min="0" step="0.25" @update:model-value="editLocalShift(selectedShift, 'garantiestundenLohn', $event)" /></label>
                 <details class="shift-extra"><summary>Treffpunkt & Ansprechpartner</summary>
                   <div class="form-row"><div class="field"><ScopeLabel field="treffpunkt" text="Treffpunktzeit" /><AppTextInput :model-value="selectedShift.treffpunkt" type="time" aria-label="Treffpunktzeit" @update:model-value="editShift('treffpunkt', $event)" /></div><div class="field"><ScopeLabel field="treffpunktOrt" text="Treffpunkt" /><AppTextInput :model-value="selectedShift.treffpunktOrt" aria-label="Treffpunkt-Ort" @update:model-value="editShift('treffpunktOrt', $event)" /></div></div>
                   <div v-for="field in contactFields" :key="field.key" class="field"><ScopeLabel :field="field.key" :text="field.label" /><AppTextInput :model-value="selectedShift[field.key]" :aria-label="field.label" :type="field.type || 'text'" @update:model-value="editShift(field.key, $event)" /></div>
                 </details>
                 <details class="shift-extra"><summary>Einsatzinformationen <small v-if="selectedShift.einsatzinformation?.templateVersion">· Snapshot V{{ selectedShift.einsatzinformation.templateVersion }}</small><small v-if="selectedShift.infoUnresolved.length"> · {{ selectedShift.infoUnresolved.length }} offene Textmarken</small></summary>
+                  <p v-if="linked" class="muted">Manuelle Texte und ausdrücklich ersetzte Snapshots gelten nur für diesen Tag.</p>
                   <AppButton size="sm" variant="secondary" :disabled="pending || !order.kundenNr" @click="templateConfirm = true">Aktuelle passende Vorlage übernehmen</AppButton>
                   <RichTextTemplateEditor :key="selectedShift.clientId" :model-value="selectedShift.einsatzinformationSourceHtml" :disabled="pending" :textmarks="textmarks" :preview-html="selectedShift.infoPreview" :unresolved="selectedShift.infoUnresolved" @update:model-value="setInformation" @change="previewInformation" />
                 </details>
@@ -162,7 +163,7 @@
         <span role="status">{{ busy ? 'Wird übernommen …' : pending ? 'Vorgang unvollständig' : dirty ? 'Ungespeicherte Änderungen' : 'Gespeicherter Stand' }}</span>
         <AppButton v-if="creating && activeTab !== 'review'" :disabled="pending" @click="nextStage">Weiter</AppButton>
         <AppButton v-else-if="activeTab !== 'review'" :disabled="busy || releasing" @click="activeTab = 'review'">Änderungen prüfen</AppButton>
-        <AppButton v-else :loading="busy" :disabled="releasing || progress?.canResume === false || !pending && (validation.length > 0 || !dirty && !creating || !reviewReady)" @click="confirmSubmission">{{ progress?.canResume === false ? 'Anderer Bearbeiter übernimmt' : pending ? 'Ausstehende Arbeiten erneut versuchen' : creating ? 'Aufträge erstellen' : 'Änderungen übernehmen' }}</AppButton>
+        <AppButton v-else :loading="busy" :disabled="releasing || progress?.canResume === false || !pending && (validation.length > 0 || !dirty && !creating || !reviewReady)" @click="confirmSubmission">{{ progress?.canResume === false ? 'Anderer Bearbeiter übernimmt' : pending ? 'Ausstehende Arbeiten erneut versuchen' : creating ? dates.length === 1 ? 'Auftrag erstellen' : 'Aufträge erstellen' : 'Änderungen übernehmen' }}</AppButton>
       </footer>
       <div v-if="confirmClose || deleteShiftConfirm || templateConfirm || conflictCandidate" class="confirm-overlay">
         <section ref="confirmCard" class="editor-card confirm-card" role="alertdialog" aria-modal="true" tabindex="-1" :aria-labelledby="`${tabPrefix}-confirm`" @keydown.escape.stop.prevent="cancelConfirmation">
@@ -292,7 +293,14 @@ function editShift(field, value) {
   if (['uhrzeitVon', 'uhrzeitBis'].includes(field) && selectedShift.value.uhrzeitBis && selectedShift.value.uhrzeitVon && selectedShift.value.uhrzeitBis <= selectedShift.value.uhrzeitVon && selectedShift.value.datumBis === selectedShift.value.datumVon) setShift(selectedShift.value, 'datumBis', nextDay(selectedShift.value.datumVon));
   if (['berufSchl', 'qualSchl'].includes(field) && !selectedShift.value.einsatzinformationCustomized) applyTemplate(false);
 }
-function setInformation(value) { selectedShift.value.einsatzinformationSourceHtml = value; selectedShift.value.einsatzinformationCustomized = true; }
+function editLocalShift(shift, field, value) {
+  if (linked.value && !shift.overrides.includes(field)) shift.overrides.push(field);
+  setShift(shift, field, value);
+}
+function setInformation(value) {
+  editLocalShift(selectedShift.value, 'einsatzinformationSourceHtml', value);
+  editLocalShift(selectedShift.value, 'einsatzinformationCustomized', true);
+}
 async function applyTemplate(explicit) {
   const shift = selectedShift.value;
   if (!shift || !order.value.kundenNr) return;
@@ -303,7 +311,14 @@ async function applyTemplate(explicit) {
       qualifikationId: qualifications.value.find(qualification => String(qualification.qualificationKey) === String(shift.qualSchl))?._id,
     } });
     if (data.template) {
-      shift.einsatzinformationSourceHtml = data.template.htmlTemplate; shift.einsatzinformationCustomized = false;
+      const local = linked.value && (explicit || order.value.einsatzortOverride || shift.dayOnly || shift.overrides.some(field => ['berufSchl', 'qualSchl'].includes(field)));
+      if (local) {
+        editLocalShift(shift, 'einsatzinformationSourceHtml', data.template.htmlTemplate);
+        editLocalShift(shift, 'einsatzinformationCustomized', false);
+      } else {
+        setShift(shift, 'einsatzinformationSourceHtml', data.template.htmlTemplate);
+        setShift(shift, 'einsatzinformationCustomized', false);
+      }
       shift.applyLatestTemplate = explicit;
       await previewInformation();
     }

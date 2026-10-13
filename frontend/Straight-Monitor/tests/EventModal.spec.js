@@ -292,6 +292,32 @@ describe('staged editor state', () => {
     model.setShift(shift, 'datumBis', '');
     expect(model.validation.value.join(' ')).toContain('Start- und Enddatum');
   });
+  it('uses canonical end-day overrides and restores the relative common date', async () => {
+    setupApi(true); group.shifts[0].endDayOffset = 0;
+    const model = useAuftragEditor({ auftragNr: 42 }); await model.load(42);
+    const shift = model.shifts.value[0];
+    model.toggleOverride(shift, 'datumBis');
+    expect(shift.overrides).toEqual(['endDayOffset']);
+    model.setShift(shift, 'datumBis', next);
+    expect(shift.endDayOffset).toBe(2);
+    expect(model.submissionPayload().shifts[0].endDayOffset).toBe(2);
+    model.toggleOverride(shift, 'datumBis');
+    expect(shift.datumBis).toBe(day);
+    expect(model.dirty.value).toBe(false);
+  });
+  it('keeps new edit shifts unbound and separates a shared seed from a day override', async () => {
+    setupApi(true);
+    const model = useAuftragEditor({ auftragNr: 42 }); await model.load(42);
+    const shift = model.addShift({ bezeichnung: 'Neue Schicht', bedarf: 2 });
+    expect(shift.groupShiftKey).toBeUndefined();
+    model.toggleOverride(shift, 'bedarf'); model.setShift(shift, 'bedarf', 4);
+    const payload = model.submissionPayload();
+    expect(payload.shifts.find(item => item.clientId === shift.clientId)).toMatchObject({ bedarf: 4, overrides: ['bedarf'] });
+    expect(payload.commonShifts.find(item => item.clientId === shift.clientId).bedarf).toBe(2);
+    const extra = model.addShift({ bezeichnung: 'Nur heute', dayOnly: true });
+    expect(extra.groupShiftKey).toBeUndefined();
+    expect(model.submissionPayload().commonShifts.some(item => item.clientId === extra.clientId)).toBe(false);
+  });
   it('rejects oversized files visibly without losing valid files', () => {
     const model = useAuftragEditor({});
     const oversized = new File([], 'large.pdf'); Object.defineProperty(oversized, 'size', { value: 30 * 1024 * 1024 + 1 });

@@ -59,6 +59,9 @@
         @update:model-value="$emit('update:searchQuery', $event)"
       />
       <span class="order-count">{{ sortedOrders.length }} Aufträge</span>
+      <template v-if="$slots.actions" #actions>
+        <slot name="actions" />
+      </template>
       <template #bottom-actions>
         <AppSegmentedControl
           class="toolbar-period-controls"

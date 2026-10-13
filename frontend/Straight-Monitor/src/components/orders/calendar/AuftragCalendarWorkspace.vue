@@ -1,9 +1,6 @@
 <template>
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
       <div class="main-content">
-        <div class="orders-create-toolbar">
-          <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
-        </div>
         <Toolbar
           v-if="viewMode === 'calendar'"
           class="calendar-navigation"
@@ -116,6 +113,9 @@
               </div>
             </template>
           </div>
+          <template #actions>
+            <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
+          </template>
           <template #bottom-actions>
             <RouterLink
               v-if="dataStatus && !isMobile"
@@ -660,7 +660,11 @@
           @toggle-bedarf-status="toggleBedarfStatusFilter"
           @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
           @reset-filters="resetListFilters"
-        />
+        >
+          <template #actions>
+            <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
+          </template>
+        </AuftragListView>
       </div>
       <!-- End main-content -->
 
@@ -3936,7 +3940,6 @@ export default {
   @media (max-width: 768px) {
     padding: 0;
   }
-  .orders-create-toolbar { display: flex; justify-content: flex-end; padding: 8px 12px; }
 }
 
 /* Info Grid in Sidebar */
