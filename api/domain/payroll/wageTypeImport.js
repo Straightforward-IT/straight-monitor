@@ -173,6 +173,10 @@ function parseWageTypeWorkbook(buffer, { filename = '' } = {}) {
   }
   const first = rows[firstIndex];
   const normalized = first.map(normalizeHeader);
+  if (normalized.includes('lohnartnr') && normalized.includes('lohnart')) {
+    addIssue(issues, 'error', 'AMBIGUOUS_HEADERS', 'SQL- und Stammexport enthalten unterschiedliche Lohnartnummer-Spalten. Bitte genau ein Exportformat liefern.');
+    fail(issues);
+  }
   let format;
   let hasHeader = true;
   if (normalized.includes('lohnartnr')) format = 'sql';

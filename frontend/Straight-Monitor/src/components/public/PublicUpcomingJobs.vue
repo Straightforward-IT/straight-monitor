@@ -77,7 +77,7 @@ function formatShortDate(value) {
   if (!value) return '';
   const date = new Date(value);
   const today = new Date();
-  if (date.toDateString() === today.toDateString()) return 'Heute';
+  if (date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
 }
 </script>

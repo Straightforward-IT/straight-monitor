@@ -113,6 +113,9 @@ const AuftragSchema = new mongoose.Schema({
   einsatzortOverride: { type: Boolean, default: false },
   bestelltext: { type: String, default: '', maxlength: 100000 },
   bestelltextOverride: { type: Boolean, default: false },
+  eventTitelOverride: { type: Boolean, default: false },
+  referenzOverride: { type: Boolean, default: false },
+  bestDatumOverride: { type: Boolean, default: false },
   suppressedGroupShiftKeys: [{ type: String }],
   stundenlisteChangeLog: [{
     changedAt: { type: Date, required: true },

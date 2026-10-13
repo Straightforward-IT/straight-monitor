@@ -49,7 +49,7 @@ defineEmits(['confirm']);
 
 function formatDate(value) {
   if (!value) return 'Datum offen';
-  return new Date(value).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\.$/, '');
+  return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: 'short' }).replace(/\.$/, '');
 }
 
 function formatTime(einsatz) {

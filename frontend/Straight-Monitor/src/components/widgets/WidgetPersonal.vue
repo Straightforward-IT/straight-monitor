@@ -75,7 +75,7 @@ watch(
 );
 
 const formatDateTime = (d) =>
-  d ? new Intl.DateTimeFormat('de-DE', {
+  d ? new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
   }).format(new Date(d)) : null;

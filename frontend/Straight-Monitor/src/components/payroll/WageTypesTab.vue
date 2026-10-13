@@ -46,7 +46,11 @@
                 <span :title="column.setting ? getSettingHint(record, column.field) : undefined">{{ column.setting ? formatSetting(record, column.field) : rawDisplay(record[column.field]) }}</span>
               </td>
               <td class="lohn__kunden"><div v-if="record.kunden?.length" class="wage-types__customers">
-                <button v-for="customer in record.kunden" :key="customer._id" type="button" class="lohn__kunde-link wage-types__link" @click.stop="openCustomerPrices(customer)">{{ customer.kuerzel || customer.kundName || customer.kundenNr }}</button>
+                <button v-for="customer in record.kunden.slice(0, 3)" :key="customer._id" type="button" class="lohn__kunde-link wage-types__link" @click.stop="openCustomerPrices(customer)">{{ customer.kuerzel || customer.kundName || customer.kundenNr }}</button>
+                <details v-if="record.kunden.length > 3" class="wage-types__more-customers" @click.stop>
+                  <summary>{{ record.kunden.length - 3 }} weitere</summary>
+                  <div class="wage-types__customers"><button v-for="customer in record.kunden.slice(3)" :key="customer._id" type="button" class="lohn__kunde-link wage-types__link" @click.stop="openCustomerPrices(customer)">{{ customer.kuerzel || customer.kundName || customer.kundenNr }}</button></div>
+                </details>
               </div><span v-else>—</span></td>
               <td><AppButton size="sm" variant="secondary" :aria-label="`Lohnart ${record.lohnartNummer} anzeigen`" @click.stop="selectRecord(record)">Anzeigen</AppButton></td>
             </tr>
@@ -107,8 +111,9 @@ const activeFilterLabels = computed(() => [
 
 const searchableRecords = computed(() => records.value.map(row => {
   const metadata = getCodeMetadaten(row);
-  const meanings = Object.values(metadata).flatMap(setting => [setting.code, setting.label, setting.note]);
-  return { row, metadata, text: `${JSON.stringify(row)} ${meanings.join(' ')}`.toLocaleLowerCase('de') };
+  const meanings = Object.values(metadata).filter(setting => setting.status !== 'missing').flatMap(setting => [setting.code, setting.label, setting.note]);
+  const rawValues = Object.entries(row).filter(([key]) => !['codeMetadaten', 'berechnungsart', 'durchschnittsspeicherung'].includes(key)).flatMap(([, value]) => searchableValues(value));
+  return { row, metadata, text: [...rawValues, ...meanings].join(' ').toLocaleLowerCase('de') };
 }));
 const filteredRecords = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('de');
@@ -127,6 +132,11 @@ const filteredRecords = computed(() => {
 });
 
 function rawDisplay(value) { return value == null || value === '' ? '—' : String(value); }
+function searchableValues(value) {
+  if (value == null) return [];
+  if (typeof value === 'object') return Object.values(value).flatMap(searchableValues);
+  return [String(value)];
+}
 function resetFilters() { Object.keys(filters).forEach(key => { filters[key] = ''; }); }
 function sortBy(field) {
   sortDirection.value = sortField.value === field && sortDirection.value === 'asc' ? 'desc' : 'asc';
@@ -166,6 +176,9 @@ onBeforeUnmount(() => { request++; controller?.abort(); });
 .wage-types__sort { border: 0; padding: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: 600; text-align: left; }
 .wage-types__sort:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
 .wage-types__customers { display: flex; gap: 6px; flex-wrap: wrap; }
+.wage-types__more-customers { font-size: 12px; }
+.wage-types__more-customers summary { cursor: pointer; color: var(--muted); }
+.wage-types__more-customers .wage-types__customers { margin-top: 8px; }
 .wage-types__link { padding: 0; border: 0; background: transparent; color: var(--primary); font: inherit; cursor: pointer; text-align: left; }
 .wage-types__link:hover { text-decoration: underline; }
 .wage-types__state { color: var(--muted); padding: 12px 0; font-size: 13px; }

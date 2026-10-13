@@ -131,7 +131,7 @@ const timelineEnd = computed(() => startOfDay(Math.max(Date.now(), ...scopedEven
 const timelineDayCount = computed(() => timelineStart.value ? Math.max(0, Math.round((timelineEnd.value - timelineStart.value) / 86_400_000)) : 0);
 const selectedRangeStart = computed(() => timelineStart.value && addDays(timelineStart.value, dateRange.value[0]));
 const selectedRangeEnd = computed(() => timelineStart.value && addDays(timelineStart.value, dateRange.value[1]));
-const selectedRangeLabel = computed(() => selectedRangeStart.value && selectedRangeEnd.value ? `${selectedRangeStart.value.toLocaleDateString('de-DE')} – ${selectedRangeEnd.value.toLocaleDateString('de-DE')}` : '');
+const selectedRangeLabel = computed(() => selectedRangeStart.value && selectedRangeEnd.value ? `${selectedRangeStart.value.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} – ${selectedRangeEnd.value.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}` : '');
 const isDateRangeReset = computed(() => dateRange.value[0] === 0 && dateRange.value[1] === timelineDayCount.value);
 const visibleEvents = computed(() => scopedEvents.value.filter((event) => {
   const date = startOfDay(event.timestamp).getTime();
@@ -220,7 +220,7 @@ const chartOptions = computed(() => {
 });
 
 function formatRangeSliderLabel(offset) {
-  return addDays(timelineStart.value, offset).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+  return addDays(timelineStart.value, offset).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'short', year: '2-digit' });
 }
 
 function resetDateRange() {

@@ -633,7 +633,7 @@ watch(() => props.bucketEnabled, enabled => {
   }
 });
 let entrySequence = 0;
-const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
+const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' }));
 const selectedEntry = computed(() => workspace.data.entries.find(entry => entry.id === selectedEntryId.value));
 const selectedWeek = computed(() => monthWeeks(props.month).find(week => week.days.some(day => day.date === selectedDate.value)));
 const scopeLabel = computed(() => detailTab.value === 'history' ? `Alle Änderungen · ${monthLabel.value}` : detailScope.value === 'month' ? monthLabel.value : detailScope.value === 'week' ? `KW ${selectedWeek.value?.number} · ${monthLabel.value}` : shortDate(selectedDate.value));
@@ -678,7 +678,7 @@ const cardData = computed(() => {
       { label: over ? 'Über Kontingent' : 'Noch frei', value: formatMinutes(over || free), segment: over ? 'over' : 'remaining', emphasis: true },
     ] }], note: held.value ? `${formatMinutes(held.value)} sind gerade im Eimer und noch keinem Ziel zugeordnet.` : 'Ist-Zeit + angerechnete Fehlzeiten + Korrekturen + Planung.' };
 });
-function shortDate(date) { return new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+function shortDate(date) { return new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }); }
 function selectEntry(entry) {
   selectedEntryId.value = entry.id;
   selectedDate.value = entry.date;

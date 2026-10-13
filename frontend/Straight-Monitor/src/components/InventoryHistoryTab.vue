@@ -143,11 +143,11 @@ export default {
       // Datums-Filter
       if (this.dateFilter) {
         const filterDate = new Date(this.dateFilter);
-        const filterDateStr = filterDate.toLocaleDateString('de-DE');
+        const filterDateStr = filterDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
         
         processed = processed.filter((log) => {
           const logDate = new Date(log.timestamp);
-          const logDateStr = logDate.toLocaleDateString('de-DE');
+          const logDateStr = logDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
           return logDateStr === filterDateStr;
         });
       }
@@ -225,9 +225,9 @@ export default {
       data.forEach((item) => {
         const groupKey =
           key === "monat"
-            ? new Date(item.timestamp).toLocaleString("de-DE", { month: "long", year: "numeric" })
+            ? new Date(item.timestamp).toLocaleString("de-DE", { timeZone: 'Europe/Berlin', month: "long", year: "numeric" })
             : key === "tag"
-            ? new Date(item.timestamp).toLocaleDateString("de-DE")
+            ? new Date(item.timestamp).toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin' })
             : item[key] || "Unbekannt";
 
         if (!grouped[groupKey]) grouped[groupKey] = [];
@@ -268,11 +268,11 @@ export default {
     formatDisplayDate(dateString) {
       if (!dateString) return "";
       const date = new Date(dateString);
-      return date.toLocaleDateString('de-DE', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     },
     switchToDashboard() { this.$router.push("/"); },

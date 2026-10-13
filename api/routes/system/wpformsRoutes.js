@@ -2041,7 +2041,7 @@ router.post(
     if (sendUpdate) {
       try {
         const recipients = registry.getEventReportRecipients(report.location);
-        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         const html = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
             <div style="background:#ff7518;padding:16px 24px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:12px;">

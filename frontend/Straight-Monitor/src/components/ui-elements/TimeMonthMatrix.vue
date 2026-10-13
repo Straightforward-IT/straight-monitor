@@ -194,7 +194,7 @@ const typeMenuPosition = ref({ top: 0, left: 0, maxHeight: 220 });
 const entryTypes = TIME_ENTRY_TYPES;
 const weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const weeks = computed(() => monthWeeks(props.month));
-const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
+const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' }));
 const entriesByDate = computed(() => {
   const grouped = {};
   for (const entry of props.entries) (grouped[entry.date] ||= []).push(entry);

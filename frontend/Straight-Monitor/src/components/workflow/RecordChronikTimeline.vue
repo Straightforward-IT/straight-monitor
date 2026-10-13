@@ -30,7 +30,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faCircleDot, faSpinner, faTrash } from '@fortawesome/free-solid-svg-icons';
 import RecordChronikComposer from './RecordChronikComposer.vue';
 library.add(faCircleDot, faSpinner, faTrash);
-const props = defineProps({ items: { type: Array, default: () => [] }, loading: { type: Boolean, default: false }, draft: { type: String, default: '' }, adding: { type: Boolean, default: false }, composer: { type: Boolean, default: true }, currentUserName: { type: String, default: '' }, canDelete: { type: Function, default: () => false }, formatDate: { type: Function, default: (value) => new Date(value).toLocaleString('de-DE') } });
+const props = defineProps({ items: { type: Array, default: () => [] }, loading: { type: Boolean, default: false }, draft: { type: String, default: '' }, adding: { type: Boolean, default: false }, composer: { type: Boolean, default: true }, currentUserName: { type: String, default: '' }, canDelete: { type: Function, default: () => false }, formatDate: { type: Function, default: (value) => new Date(value).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) } });
 defineEmits(['update:draft', 'add', 'delete']);
 const feed = ref(null);
 function initials(name) { return String(name || '?').split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || '?'; }

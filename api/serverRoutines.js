@@ -72,7 +72,7 @@ function getApplicantFolderConfig(teamKey) {
 
 async function runSemiAnnualApplicantMailCleanup() {
   const dueMonths = parseMonthList(process.env.GDPR_BEWERBER_PURGE_MONTHS, [1, 7]);
-  const currentMonth = new Date().getMonth() + 1;
+  const currentMonth = Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', month: 'numeric' }).format()) - 1 + 1;
   const dryRun = String(process.env.GDPR_BEWERBER_DRY_RUN || "false").toLowerCase() === "true";
 
   if (!dueMonths.has(currentMonth)) {

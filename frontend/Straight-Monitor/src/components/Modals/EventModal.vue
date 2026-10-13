@@ -22,28 +22,28 @@
         <LoadingSpinner v-if="loading" label="Auftrag wird geladen …" />
         <p v-if="error" class="feedback feedback--error" role="alert">{{ error }}</p>
         <p v-if="notice" class="feedback" role="status">{{ notice }}</p>
-        <div v-if="!loading && (linked || creating && dates.length > 1)" class="day-navigation">
-          <label v-if="creating">Tag planen
-            <AppSelect :model-value="activeDay" :disabled="pending" @update:model-value="selectDay">
-              <option v-for="day in dates" :key="day" :value="day">{{ dateLabel(day) }}</option>
-            </AppSelect>
-          </label>
-          <label v-else>Verknüpfter Auftrag
-            <AppSelect :model-value="String(order.auftragNr)" :disabled="pending" @update:model-value="switchOrder">
-              <option v-for="member in members" :key="member.auftragNr" :value="String(member.auftragNr)">{{ dateLabel(member.day || member.startingDay || member.vonDatum) }} · #{{ member.auftragNr }}</option>
-            </AppSelect>
-          </label>
-          <AppButton v-if="nextCursor" variant="ghost" size="sm" :disabled="pending" @click="load(order.auftragNr, nextCursor)">Weitere Tage laden</AppButton>
-          <span>Gemeinsame Änderungen gelten für alle erbenden Tage. Personal bleibt tagesspezifisch.</span>
+        <div v-if="linked || creating && dates.length > 1" ref="dayNavigation" class="day-navigation">
+          <span class="day-navigation-label">{{ creating ? 'Tag planen' : 'Verknüpfter Auftrag' }}</span>
+          <div class="day-navigation-controls">
+            <AppTabs
+              :model-value="creating ? activeDay : String(order.auftragNr)"
+              :tabs="dayTabs"
+              :id-prefix="`${tabPrefix}-day`"
+              :label="creating ? 'Tag planen' : 'Verknüpfte Aufträge'"
+              variant="compact"
+              size="sm"
+              scroll-controls
+              @update:model-value="changeDay"
+            />
+            <AppButton v-if="nextCursor" variant="ghost" size="sm" :disabled="pending || loading" @click="load(order.auftragNr, nextCursor)">Weitere Tage laden</AppButton>
+          </div>
         </div>
 
         <section v-if="!loading && activeTab === 'order'" :id="panelId('order')" role="tabpanel" :aria-labelledby="`${tabPrefix}-order`">
-          <header class="section-heading"><h3>Auftragsdaten</h3><span>Kontext, Bestellung und Einsatzort</span></header>
           <fieldset :disabled="pending">
             <div class="context-grid">
               <article class="editor-card">
                 <h4>Auftrag & Kunde</h4>
-                <label class="field">Titel <AppTextInput :model-value="order.eventTitel" aria-label="Auftragstitel" @update:model-value="setOrder('eventTitel', $event.trim())" /></label>
                 <label class="field">Standort
                   <AppSelect :model-value="order.locationV2" :disabled="!creating && order.auftStatus === 2" aria-label="Standort" @update:model-value="setOrder('locationV2', $event)">
                     <option value="">Standort wählen</option><option v-for="location in locations" :key="location._id" :value="location._id">{{ location.shortName || location.nameFull }}</option>
@@ -54,9 +54,11 @@
                   <KundeSearch v-if="creating" v-model="draft.customer" :location-v2="order.locationV2 || null" :disabled="pending" input-id="auftrag-editor-kunde" @select="selectCustomer" />
                   <div v-else class="fixed-customer"><strong>{{ draft.customer?.kundName || `Kunde ${order.kundenNr || 'fehlt'}` }}</strong><small>Nach Erstellung nicht änderbar</small></div>
                 </div>
-                <div class="form-row">
-                  <label class="field">Bestelldatum <AppTextInput :model-value="order.bestDatum" type="date" @update:model-value="setOrder('bestDatum', $event)" /></label>
-                  <label class="field">Referenz <AppTextInput :model-value="order.referenz" placeholder="Bestellung / PO" @update:model-value="setOrder('referenz', $event.trim())" /></label>
+                <div class="field">
+                  <label :for="`${tabPrefix}-title`">Titel</label>
+                  <LinkedFieldControl :linked="linked" :model-value="!order.eventTitelOverride" label="Titel" :disabled="pending" @update:model-value="model.toggleOrderOverride('eventTitel')">
+                    <AppTextInput :id="`${tabPrefix}-title`" :model-value="order.eventTitel" aria-label="Auftragstitel" @update:model-value="setOrder('eventTitel', $event.trim())" />
+                  </LinkedFieldControl>
                 </div>
               </article>
               <article class="editor-card">
@@ -66,11 +68,20 @@
                     <FilterChip :active="!multiDay" :disabled="pending" @click="useSingleDay">Ein Tag</FilterChip>
                     <FilterChip :active="multiDay" :disabled="pending" @click="multiDay = true">Mehrere Tage</FilterChip>
                   </div>
-                  <label v-if="!multiDay" class="field">Auftragstag <AppTextInput :model-value="dates[0]" type="date" @update:model-value="setSingleDay" /></label>
+                  <div v-if="!multiDay" class="field">
+                    <span>Auftragstag</span>
+                    <DatePicker class="date-picker-control" :model-value="calendarDate(dates[0])" @update:model-value="setSingleDay(calendarDay($event))">
+                      <template #default="{ toggle }">
+                        <AppButton variant="secondary" block :disabled="pending" aria-label="Auftragstag wählen" @click="toggle">{{ dateLabel(dates[0]) }}</AppButton>
+                      </template>
+                    </DatePicker>
+                  </div>
                   <template v-else>
-                    <p class="muted">Ein eigener Auftrag je ausgewähltem Startdatum. Auch nicht aufeinanderfolgende Tage sind möglich.</p>
-                    <div class="date-add"><AppTextInput v-model="dateDraft" type="date" aria-label="Weiteres Startdatum" /><AppButton variant="secondary" :disabled="!dateDraft" @click="addDate">Tag hinzufügen</AppButton></div>
-                    <ul class="selected-dates"><li v-for="day in dates" :key="day"><span>{{ dateLabel(day) }}</span><AppButton variant="ghost" size="sm" :disabled="dates.length === 1" :aria-label="`${dateLabel(day)} entfernen`" @click="removeDate(day)">Entfernen</AppButton></li></ul>
+                    <DatePicker class="date-picker-control" multiple :model-value="dates.map(calendarDate)" @update:model-value="setMultipleDays">
+                      <template #default="{ toggle }">
+                        <AppButton variant="secondary" block :disabled="pending" aria-label="Auftragstage wählen" @click="toggle">{{ dates.length ? `${dates.length} ${dates.length === 1 ? 'Tag' : 'Tage'} ausgewählt` : 'Tage auswählen' }}</AppButton>
+                      </template>
+                    </DatePicker>
                   </template>
                 </template>
                 <template v-else><strong>{{ dateLabel(order.day) }}</strong><p class="muted">Der Auftrag gehört zum Starttag. Eine Schicht darf nach Mitternacht enden.</p></template>
@@ -78,9 +89,28 @@
             </div>
             <AuftragSiteSelection v-if="!creating" :order="order" :sites="sites" :linked="linked" :disabled="pending" @select="setOrder('einsatzort', $event)" @scope="model.toggleOrderOverride('einsatzort')" @saved="siteSaved" />
             <article class="editor-card bestellung">
-              <div class="card-heading"><h4>Bestellung</h4><FilterChip v-if="linked" :active="order.bestelltextOverride" @click="model.toggleOrderOverride('bestelltext')">{{ order.bestelltextOverride ? 'Nur dieser Tag' : 'Gemeinsam' }}</FilterChip></div>
-              <label class="field">Bestellungstext (optional)<AppTextarea :model-value="order.bestelltext" rows="4" placeholder="Was wurde bestellt? Angaben aus E-Mail oder Telefonat …" @update:model-value="setOrder('bestelltext', $event)" /></label>
-              <div v-if="linked" class="chip-row"><FilterChip :active="fileTarget === 'group'" @click="fileTarget = 'group'">Anlagen für alle Tage</FilterChip><FilterChip :active="fileTarget === 'order'" @click="fileTarget = 'order'">Anlagen nur für diesen Tag</FilterChip></div>
+              <div class="card-heading"><h4>Bestellung</h4></div>
+              <div class="form-row">
+                <div class="field">
+                  <label :for="`${tabPrefix}-order-date`">Bestelldatum</label>
+                  <LinkedFieldControl :linked="linked" :model-value="!order.bestDatumOverride" label="Bestelldatum" :disabled="pending" @update:model-value="model.toggleOrderOverride('bestDatum')">
+                    <AppTextInput :id="`${tabPrefix}-order-date`" :model-value="order.bestDatum" type="date" @update:model-value="setOrder('bestDatum', $event)" />
+                  </LinkedFieldControl>
+                </div>
+                <div class="field">
+                  <label :for="`${tabPrefix}-reference`">Referenz</label>
+                  <LinkedFieldControl :linked="linked" :model-value="!order.referenzOverride" label="Referenz" :disabled="pending" @update:model-value="model.toggleOrderOverride('referenz')">
+                    <AppTextInput :id="`${tabPrefix}-reference`" :model-value="order.referenz" placeholder="Bestellung / PO" @update:model-value="setOrder('referenz', $event.trim())" />
+                  </LinkedFieldControl>
+                </div>
+              </div>
+              <div class="field">
+                <label :for="`${tabPrefix}-order-text`">Bestellungstext (optional)</label>
+                <LinkedFieldControl :linked="linked" :model-value="!order.bestelltextOverride" label="Bestellungstext" :disabled="pending" multiline @update:model-value="model.toggleOrderOverride('bestelltext')">
+                  <AppTextarea :id="`${tabPrefix}-order-text`" :model-value="order.bestelltext" rows="4" placeholder="Was wurde bestellt? Angaben aus E-Mail oder Telefonat …" @update:model-value="setOrder('bestelltext', $event)" />
+                </LinkedFieldControl>
+              </div>
+              <div v-if="linked" class="card-heading attachment-scope"><span>Neue Bestellungsanlagen</span><LinkedScopeToggle :model-value="fileTarget === 'group'" label="Neue Bestellungsanlagen" :disabled="pending" @update:model-value="fileTarget = $event ? 'group' : 'order'" /></div>
               <AppFileDropzone label="Bestelldokumente" prompt="Bestelldokumente hinzufügen" hint="Mehrere Dateien möglich · maximal 30 MB je Datei · intern sichtbar" multiple :disabled="pending" @select="queueFiles($event, linked ? fileTarget : 'order')" />
               <ul v-if="files.length" class="file-list"><li v-for="file in files" :key="file.id"><div><strong>{{ file.file?.name || file.filename }}</strong><small>{{ file.target === 'group' ? 'Alle verknüpften Tage' : dateLabel(file.day || drafts[file.dayKey]?.order.day) }} · {{ fileStatus(file.status) }}</small><span v-if="file.error" class="error-text">{{ file.error }}</span></div><AppButton v-if="file.status === 'pending'" size="sm" variant="ghost" :disabled="pending" @click="files.splice(files.indexOf(file), 1)">Entfernen</AppButton></li></ul>
               <OrderDocuments v-if="order.auftragNr" :key="documentRefresh" :auftrag-nr="order.auftragNr" :allow-upload="false" compact />
@@ -104,14 +134,14 @@
             <div v-if="selectedShift" class="shift-details editor-card">
               <div class="card-heading"><h4>Schicht bearbeiten</h4><div><AppButton variant="ghost" size="sm" :disabled="pending" @click="duplicateShift">Duplizieren</AppButton><AppButton variant="danger" size="sm" :disabled="pending" @click="deleteShiftConfirm = true">Löschen</AppButton></div></div>
               <fieldset :disabled="pending">
-                <div class="field"><ScopeLabel field="bezeichnung" text="Bezeichnung" /><AppTextInput :model-value="selectedShift.bezeichnung" aria-label="Schichtbezeichnung" @update:model-value="editShift('bezeichnung', $event)" /></div>
-                <div class="form-row"><div class="field"><ScopeLabel field="uhrzeitVon" text="Von" /><AppTextInput :model-value="selectedShift.uhrzeitVon" type="time" aria-label="Schichtbeginn" @update:model-value="editShift('uhrzeitVon', $event)" /></div><div class="field"><ScopeLabel field="uhrzeitBis" text="Bis" /><AppTextInput :model-value="selectedShift.uhrzeitBis" type="time" aria-label="Schichtende" @update:model-value="editShift('uhrzeitBis', $event)" /></div></div>
-                <div class="form-row"><div class="field"><ScopeLabel field="datumBis" text="Enddatum" /><AppTextInput :model-value="selectedShift.datumBis" type="date" aria-label="Schicht-Enddatum" :min="selectedShift.datumVon" @update:model-value="editShift('datumBis', $event)" /></div><div class="field"><ScopeLabel field="bedarf" text="Bedarf" /><AppTextInput :model-value="selectedShift.bedarf" type="number" aria-label="Personalbedarf" min="0" @update:model-value="editShift('bedarf', $event)" /></div></div>
-                <div class="form-row"><div class="field"><ScopeLabel field="berufSchl" text="Beruf" /><AppSelect :model-value="selectedShift.berufSchl" aria-label="Beruf" @update:model-value="editShift('berufSchl', $event)"><option value="">Kein Beruf</option><option v-for="job in jobs" :key="job._id" :value="String(job.jobKey)">{{ job.designation }}</option></AppSelect></div><div class="field"><ScopeLabel field="qualSchl" text="Qualifikation" /><AppSelect :model-value="selectedShift.qualSchl" aria-label="Qualifikation" @update:model-value="editShift('qualSchl', $event)"><option value="">Keine Qualifikation</option><option v-for="qualification in qualifications" :key="qualification._id" :value="String(qualification.qualificationKey)">{{ qualification.designation }}</option></AppSelect></div></div>
+                <div class="field"><ScopeLabel text="Bezeichnung" /><ScopeControl field="bezeichnung" text="Bezeichnung"><AppTextInput :model-value="selectedShift.bezeichnung" aria-label="Schichtbezeichnung" @update:model-value="editShift('bezeichnung', $event)" /></ScopeControl></div>
+                <div class="form-row"><div class="field"><ScopeLabel text="Von" /><ScopeControl field="uhrzeitVon" text="Von"><AppTextInput :model-value="selectedShift.uhrzeitVon" type="time" aria-label="Schichtbeginn" @update:model-value="editShift('uhrzeitVon', $event)" /></ScopeControl></div><div class="field"><ScopeLabel text="Bis" /><ScopeControl field="uhrzeitBis" text="Bis"><AppTextInput :model-value="selectedShift.uhrzeitBis" type="time" aria-label="Schichtende" @update:model-value="editShift('uhrzeitBis', $event)" /></ScopeControl></div></div>
+                <div class="form-row"><div class="field"><ScopeLabel text="Enddatum" /><ScopeControl field="datumBis" text="Enddatum"><AppTextInput :model-value="selectedShift.datumBis" type="date" aria-label="Schicht-Enddatum" :min="selectedShift.datumVon" @update:model-value="editShift('datumBis', $event)" /></ScopeControl></div><div class="field"><ScopeLabel text="Bedarf" /><ScopeControl field="bedarf" text="Bedarf"><AppTextInput :model-value="selectedShift.bedarf" type="number" aria-label="Personalbedarf" min="0" @update:model-value="editShift('bedarf', $event)" /></ScopeControl></div></div>
+                <div class="form-row"><div class="field"><ScopeLabel text="Beruf" /><ScopeControl field="berufSchl" text="Beruf"><AppSelect :model-value="selectedShift.berufSchl" aria-label="Beruf" @update:model-value="editShift('berufSchl', $event)"><option value="">Kein Beruf</option><option v-for="job in jobs" :key="job._id" :value="String(job.jobKey)">{{ job.designation }}</option></AppSelect></ScopeControl></div><div class="field"><ScopeLabel text="Qualifikation" /><ScopeControl field="qualSchl" text="Qualifikation"><AppSelect :model-value="selectedShift.qualSchl" aria-label="Qualifikation" @update:model-value="editShift('qualSchl', $event)"><option value="">Keine Qualifikation</option><option v-for="qualification in qualifications" :key="qualification._id" :value="String(qualification.qualificationKey)">{{ qualification.designation }}</option></AppSelect></ScopeControl></div></div>
                 <label class="field">Garantiestunden {{ linked ? '· nur dieser Tag' : '' }} <AppTextInput :model-value="selectedShift.garantiestundenLohn" type="number" min="0" step="0.25" @update:model-value="editLocalShift(selectedShift, 'garantiestundenLohn', $event)" /></label>
                 <details class="shift-extra"><summary>Treffpunkt & Ansprechpartner</summary>
-                  <div class="form-row"><div class="field"><ScopeLabel field="treffpunkt" text="Treffpunktzeit" /><AppTextInput :model-value="selectedShift.treffpunkt" type="time" aria-label="Treffpunktzeit" @update:model-value="editShift('treffpunkt', $event)" /></div><div class="field"><ScopeLabel field="treffpunktOrt" text="Treffpunkt" /><AppTextInput :model-value="selectedShift.treffpunktOrt" aria-label="Treffpunkt-Ort" @update:model-value="editShift('treffpunktOrt', $event)" /></div></div>
-                  <div v-for="field in contactFields" :key="field.key" class="field"><ScopeLabel :field="field.key" :text="field.label" /><AppTextInput :model-value="selectedShift[field.key]" :aria-label="field.label" :type="field.type || 'text'" @update:model-value="editShift(field.key, $event)" /></div>
+                  <div class="form-row"><div class="field"><ScopeLabel text="Treffpunktzeit" /><ScopeControl field="treffpunkt" text="Treffpunktzeit"><AppTextInput :model-value="selectedShift.treffpunkt" type="time" aria-label="Treffpunktzeit" @update:model-value="editShift('treffpunkt', $event)" /></ScopeControl></div><div class="field"><ScopeLabel text="Treffpunkt" /><ScopeControl field="treffpunktOrt" text="Treffpunkt"><AppTextInput :model-value="selectedShift.treffpunktOrt" aria-label="Treffpunkt-Ort" @update:model-value="editShift('treffpunktOrt', $event)" /></ScopeControl></div></div>
+                  <div v-for="field in contactFields" :key="field.key" class="field"><ScopeLabel :text="field.label" /><ScopeControl :field="field.key" :text="field.label"><AppTextInput :model-value="selectedShift[field.key]" :aria-label="field.label" :type="field.type || 'text'" @update:model-value="editShift(field.key, $event)" /></ScopeControl></div>
                 </details>
                 <details class="shift-extra"><summary>Einsatzinformationen <small v-if="selectedShift.einsatzinformation?.templateVersion">· Snapshot V{{ selectedShift.einsatzinformation.templateVersion }}</small><small v-if="selectedShift.infoUnresolved.length"> · {{ selectedShift.infoUnresolved.length }} offene Textmarken</small></summary>
                   <p v-if="linked" class="muted">Manuelle Texte und ausdrücklich ersetzte Snapshots gelten nur für diesen Tag.</p>
@@ -186,9 +216,12 @@ import AppTabs from '@/components/ui-elements/AppTabs.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
+import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import AppTextarea from '@/components/ui-elements/AppTextarea.vue';
 import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import LinkedScopeToggle from '@/components/ui-elements/LinkedScopeToggle.vue';
+import LinkedFieldControl from '@/components/ui-elements/LinkedFieldControl.vue';
 import KundeSearch from '@/components/ui-elements/KundeSearch.vue';
 import LoadingSpinner from '@/components/ui-elements/LoadingSpinner.vue';
 import OrderDocuments from '@/components/ui-elements/OrderDocuments.vue';
@@ -214,8 +247,13 @@ const tabs = computed(() => (creating.value
   : [{ id: 'planning', label: 'Schichten & Personal' }, { id: 'order', label: 'Auftragsdaten' }, { id: 'review', label: 'Prüfen' }]
 ).map(tab => ({ ...tab, panelId: panelId(tab.id), disabled: busy.value })));
 const modalTitle = computed(() => creating.value ? 'Auftrag anlegen' : `${order.value.eventTitel || 'Auftrag'} · #${order.value.auftragNr || props.auftragNr}`);
+const dayNavigation = ref(null);
+const dayTabs = computed(() => (creating.value
+  ? dates.value.map(day => ({ id: day, label: dateLabel(day) }))
+  : members.value.map(member => ({ id: String(member.auftragNr), label: `${dateLabel(member.day || member.startingDay || member.vonDatum)} · #${member.auftragNr}` }))
+).map(tab => ({ ...tab, disabled: pending.value || loading.value })));
 const locations = ref([]), jobs = ref([]), qualifications = ref([]), sites = ref([]), patterns = ref([]), placeholders = ref({});
-const selectedShiftId = ref(''), dateDraft = ref(editorDay(new Date())), fileTarget = ref('group'), documentRefresh = ref(0);
+const selectedShiftId = ref(''), fileTarget = ref('group'), documentRefresh = ref(0);
 const newShiftDayOnly = ref(false), deleteDayOnly = ref(false), conflictQueue = ref([]);
 const serverReview = ref(null), reviewLoading = ref(false), reviewError = ref('');
 const reviewDays = computed(() => linked.value && !creating.value && serverReview.value ? serverReview.value.orders : changesByDay.value);
@@ -234,18 +272,28 @@ const candidateFilters = [{ id: 'recommended', label: 'Empfohlen' }, { id: 'poss
 const filteredCandidates = computed(() => candidates.value.filter(candidate => candidate.status === candidateFilter.value && !assignmentsFor(selectedShift.value || {}).some(assignment => String(assignment.mitarbeiterId || assignment.mitarbeiterData?._id) === String(candidate._id))));
 let candidateRequest = 0, contextRequest = 0, previewRequest = 0, reviewRequest = 0, candidateTimer;
 const dateLabel = value => { const day = editorDay(value); return day ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'Europe/Berlin' }).format(new Date(`${day}T12:00:00Z`)) : 'Kein Datum'; };
+const calendarDate = day => day ? new Date(`${day}T12:00:00`) : null;
+const calendarDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const fileStatus = status => ({ pending: 'Vorgemerkt', missing: 'Originaldatei fehlt', uploading: 'Lädt hoch …', failed: 'Upload ausstehend', completed: 'Gespeichert' })[status];
 const changeValue = value => value === '' || value == null ? '–' : Array.isArray(value) ? value.join(', ') || '–' : typeof value === 'boolean' ? value ? 'Ja' : 'Nein' : String(value).replace(/<[^>]*>/g, '').slice(0, 500);
 const employeeName = item => item.employeeName || (item.mitarbeiterData ? `${item.mitarbeiterData.vorname} ${item.mitarbeiterData.nachname}` : `Personal ${item.personalNr}`);
+const shiftCanShare = computed(() => linked.value && selectedShift.value && !selectedShift.value.dayOnly && !(selectedShift.value._id && !selectedShift.value.groupShiftKey));
 
 const ScopeLabel = defineComponent({
-  props: { field: { type: String, required: true }, text: { type: String, required: true } },
+  props: { text: { type: String, required: true } },
   setup(scope) {
-    return () => h('span', { class: 'scope-label' }, [scope.text, linked.value && selectedShift.value && (selectedShift.value.dayOnly || selectedShift.value._id && !selectedShift.value.groupShiftKey ? h('small', 'Nur dieser Tag') : h(FilterChip, {
-      active: selectedShift.value.overrides.includes(scopeField(scope.field)), disabled: pending.value,
-      'aria-label': `${scope.text}: ${selectedShift.value.overrides.includes(scopeField(scope.field)) ? 'Gemeinsamen Wert wiederherstellen' : 'Nur diesen Tag bearbeiten'}`,
-      onClick: event => { event.preventDefault(); toggleOverride(selectedShift.value, scope.field); },
-    }, () => selectedShift.value.overrides.includes(scopeField(scope.field)) ? 'Nur dieser Tag' : 'Gemeinsam'))]);
+    return () => h('span', { class: 'scope-label' }, [scope.text, linked.value && !shiftCanShare.value ? h('small', 'Nur dieser Tag') : null]);
+  },
+});
+const ScopeControl = defineComponent({
+  props: { field: { type: String, required: true }, text: { type: String, required: true } },
+  setup(scope, { slots }) {
+    return () => h(LinkedFieldControl, {
+      linked: Boolean(shiftCanShare.value),
+      modelValue: !selectedShift.value?.overrides.includes(scopeField(scope.field)),
+      label: scope.text, disabled: pending.value,
+      'onUpdate:modelValue': () => toggleOverride(selectedShift.value, scope.field),
+    }, slots);
   },
 });
 async function siteSaved(site) { savedSites.push(site); setOrder('einsatzort', site._id); await loadContext(); }
@@ -277,11 +325,27 @@ function setSingleDay(day) {
   if (day) shifts.value.forEach(shift => { shift.datumVon = day; if (shift.datumBis < day) shift.datumBis = day; });
 }
 function useSingleDay() { multiDay.value = false; setSingleDay(activeDay.value); }
-function addDate() { if (!dateDraft.value || dates.value.includes(dateDraft.value)) return; dates.value = [...dates.value, dateDraft.value].sort(); }
-function removeDate(day) { dates.value = dates.value.filter(value => value !== day); if (activeDay.value === day) selectDay(dates.value[0]); }
+function setMultipleDays(selected) {
+  dates.value = [...new Set(selected.map(calendarDay))].sort();
+  if (!dates.value.includes(activeDay.value)) {
+    if (dates.value.length) selectDay(dates.value[0]);
+    else { activeDay.value = ''; order.value.day = ''; }
+  }
+}
 function selectDay(day) { model.selectCreationDay(day); selectedShiftId.value = ''; loadCandidates(); }
 function nextDay(day) { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); }
 async function switchOrder(number) { await load(number); selectedShiftId.value = ''; await loadContext(); await loadCandidates(); }
+async function changeDay(value) {
+  if (pending.value || loading.value) return;
+  const restoreFocus = dayNavigation.value?.contains(document.activeElement);
+  if (creating.value) selectDay(value);
+  else await switchOrder(value);
+  await nextTick();
+  if (restoreFocus && (document.activeElement === document.body || dayNavigation.value?.contains(document.activeElement))) {
+    const selected = creating.value ? activeDay.value : String(order.value.auftragNr);
+    document.getElementById(`${tabPrefix}-day-${selected}`)?.focus({ preventScroll: true });
+  }
+}
 function createShift(pattern = {}) { const { _id, datumVon, datumBis, ...values } = pattern; const shift = addShift({ ...values, dayOnly: newShiftDayOnly.value }); selectedShiftId.value = shift.clientId; applyTemplate(false); }
 function duplicateShift() {
   const shift = addShift({ ...selectedShift.value, clientId: undefined, groupShiftKey: undefined, bezeichnung: `${selectedShift.value.bezeichnung} – Kopie`, overrides: [], dayOnly: newShiftDayOnly.value });
@@ -432,7 +496,7 @@ onMounted(async () => {
 
 <style scoped>
 .auftrag-editor { display: flex; flex: 1; height: 100%; flex-direction: column; min-height: 0; overflow: hidden; position: relative; color: var(--text); background: var(--panel); }
-.auftrag-editor :deep(.app-tabs-container) { flex-shrink: 0; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.auftrag-editor > :deep(.app-tabs-container) { flex-shrink: 0; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .editor-body { flex: 1; padding: 18px; overflow: auto; min-height: 0; }
 .editor-footer { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--surface); border-top: 1px solid var(--border); }
 .editor-footer > span { flex: 1; color: var(--muted); font-size: .8rem; }
@@ -451,12 +515,14 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .fixed-customer { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
 .fixed-customer small,.assignments small,.candidate small,.file-list small { display: block; color: var(--muted); font-size: .72rem; margin-top: 3px; }
 .chip-row,.candidate-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
-.date-add { display: flex; gap: 8px; margin-top: 12px; }
-.selected-dates,.file-list,.assignments { padding: 0; margin: 10px 0; list-style: none; }
-.selected-dates li,.file-list li,.assignments li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.date-picker-control { width: 100%; min-width: 0; }
+.file-list,.assignments { padding: 0; margin: 10px 0; list-style: none; }
+.file-list li,.assignments li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .file-list strong { overflow-wrap: anywhere; }
-.day-navigation { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.day-navigation label { display: grid; gap: 5px; font-size: .75rem; flex-shrink: 0; }
+.day-navigation { display: flex; flex-direction: column; gap: 6px; margin: 0; min-width: 0; }
+.day-navigation-controls { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.day-navigation-controls :deep(.app-tabs-container) { flex: 1; min-width: 0; }
+.day-navigation-label { font-weight: 600; }
 .day-navigation > span { color: var(--muted); font-size: .75rem; }
 .site-selection :deep(.site-grid) { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 8px; }
 .site-selection :deep(.site-choice) { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; text-align: left; cursor: pointer; font: inherit; }
@@ -467,7 +533,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .shift-list button { display: grid; gap: 5px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: left; font: inherit; cursor: pointer; }
 .shift-list button span,.shift-list button small { color: var(--muted); font-size: .75rem; }
 .scope-label { display: flex; align-items: center; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
-.scope-label :deep(.filter-chip) { font-size: .65rem; padding: 2px 5px; }
+.attachment-scope { margin-top: 12px; color: var(--muted); font-size: .78rem; }
 .shift-extra { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
 .shift-extra summary { cursor: pointer; font-size: .8rem; font-weight: 500; margin-bottom: 12px; }
 .pattern-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
@@ -488,7 +554,7 @@ button:focus-visible,summary:focus-visible { outline: 2px solid var(--control-fo
 @media (max-width: 1050px) { .planning-layout { grid-template-columns: 170px minmax(0,1fr); }.personnel { grid-column: 2; }.section-heading > span { display: none; } }
 @media (max-width: 650px) {
   :global(.auftrag-editor-frame) { --mf-max-width: 98vw; --mf-header-padding: 10px 12px; --mf-title-size: .95rem; }
-  .editor-body { padding: 10px; }.auftrag-editor :deep(.app-tabs-container) { padding: 0 8px; }
+  .editor-body { padding: 10px; }.auftrag-editor > :deep(.app-tabs-container) { padding: 0 8px; }
   .context-grid,.planning-layout { grid-template-columns: 1fr; }.personnel { grid-column: auto; }
   .shift-list { display: flex; overflow-x: auto; min-width: 0; padding: 1px; }.shift-list button { flex: 0 0 150px; }.editor-card { padding: 12px; }
   .editor-footer { flex-wrap: wrap; padding: 8px; }.editor-footer > span { font-size: .7rem; }.editor-footer > :deep(.app-button:last-child) { max-width: 100%; white-space: normal; }

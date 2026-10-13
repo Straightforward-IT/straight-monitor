@@ -176,7 +176,7 @@ function buildEmailHtml({ subject, fromName, fromAddr, bodyText, receivedDateTim
       .replace(/\n/g, "<br>") || "(kein Inhalt)";
 
   const meta = [
-    receivedDateTime ? `📥 <b>Eingang:</b> ${new Date(receivedDateTime).toLocaleString("de-DE")}` : "",
+    receivedDateTime ? `📥 <b>Eingang:</b> ${new Date(receivedDateTime).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}` : "",
     fromName || fromAddr ? `👤 <b>Von:</b> ${fromName || fromAddr} &lt;${fromAddr || "unbekannt"}&gt;` : "",
   ].filter(Boolean).join("<br>");
 
@@ -780,7 +780,7 @@ async function _mergeIntoExistingTask(existingTask, email, files = [], hint = {}
 
   // 2) Neue Bewerbung als Story (Kommentar) an bestehenden Task anhängen
   const dateInfo = email.receivedDateTime
-    ? new Date(email.receivedDateTime).toLocaleString("de-DE")
+    ? new Date(email.receivedDateTime).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })
     : "-";
 
   const contactLines = [];
@@ -940,7 +940,7 @@ async function uploadAttachmentsToTask(task_gid, files = []) {async function cre
   if (email.bodyPreview) bodyLines.push(email.bodyPreview); // <- parsed.asana_body (nur Tel/E-Mail)
   bodyLines.push(`Von: ${email.fromName || email.fromAddr || "unbekannt"} <${email.fromAddr || ""}>`);
   if (email.receivedDateTime) {
-    bodyLines.push(`Eingang: ${new Date(email.receivedDateTime).toLocaleString("de-DE")}`);
+    bodyLines.push(`Eingang: ${new Date(email.receivedDateTime).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}`);
   }
   if (hint.provider) {
     bodyLines.push(`Quelle: ${hint.provider}`);

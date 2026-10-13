@@ -112,7 +112,7 @@ const statusLabel = (status, isCurrent) => status === 'ACTIVE' && isCurrent === 
 function monthLabel(month) {
   if (!/^\d{4}-\d{2}$/.test(month || '')) return month || 'Monat ungeklärt';
   const date = new Date(`${month}-01T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? month : new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return Number.isNaN(date.getTime()) ? month : new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' }).format(date);
 }
 function timestamp(value) {
   const date = new Date(value);

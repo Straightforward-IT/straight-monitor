@@ -161,7 +161,7 @@ async function submitForm() {
   catch (requestError) { error.value = requestError.response?.data?.message || 'Die Angaben konnten nicht übermittelt werden.'; }
   finally { busy.value = false; }
 }
-function formatAppointment(value) { return value ? new Date(value).toLocaleString('de-DE', { dateStyle: 'full', timeStyle: 'short' }) : ''; }
+function formatAppointment(value) { return value ? new Date(value).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'full', timeStyle: 'short' }) : ''; }
 function formatFileSize(size) { return `${(Number(size || 0) / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`; }
 </script>
 

@@ -275,7 +275,7 @@ function indexToDate(idx) { return new Date(startDate.value.getFullYear(), start
 function indexToMonthStr(idx) { const d = indexToDate(idx); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function formatSliderLabel(idx) {
   const d = indexToDate(idx);
-  return `${d.toLocaleDateString('de-DE',{month:'short'})} '${d.toLocaleDateString('de-DE',{year:'2-digit'})}`;
+  return `${d.toLocaleDateString('de-DE',{ timeZone: 'Europe/Berlin',month:'short'})} '${d.toLocaleDateString('de-DE',{ timeZone: 'Europe/Berlin',year:'2-digit'})}`;
 }
 function buildMonthRange(from, to) {
   const [fy,fm] = from.split('-').map(Number), [ty,tm] = to.split('-').map(Number);
@@ -555,7 +555,7 @@ const drillChartOptions = computed(() => {
           title: items => {
             if (!items || !items.length || items[0] == null) return '';
             const d = drillDayData.value[items[0].dataIndex]; if (!d) return '';
-            return new Date(info.year, info.month - 1, d.day).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+            return new Date(info.year, info.month - 1, d.day).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long' });
           },
           label: ctx => {
             const v = ctx.parsed.y;

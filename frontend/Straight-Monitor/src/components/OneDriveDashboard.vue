@@ -385,7 +385,7 @@ function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+  return d.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function fileTypeLabel(item) {

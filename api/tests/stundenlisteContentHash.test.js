@@ -37,6 +37,21 @@ function contentHash(data) {
 }
 
 describe('Stundenliste content hash', () => {
+  it('formats calendar dates independently of the server timezone', () => {
+    const originalTimezone = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+
+    try {
+      assert.equal(
+        StundenlisteService._date(new Date('1990-01-01T00:00:00.000Z')),
+        '01.01.1990'
+      );
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
+  });
+
   it('identifies included assignments without a personal number', async () => {
     const originalFind = Einsatz.find;
     let criteria;

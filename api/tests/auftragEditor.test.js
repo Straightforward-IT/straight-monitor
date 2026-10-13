@@ -577,6 +577,169 @@ describe('Staged daily Auftrag editor', function () {
     assert.equal(String(restored.einsatzort), String(site._id));
   });
 
+  it('creates shared title/reference/order-date/note defaults with independent per-day overrides', async () => {
+    const dates = ['2026-10-24', '2026-10-26', '2026-10-28', '2026-10-30'];
+    const shared = { eventTitel: 'Gemeinsamer Titel', referenz: 'REF-COMMON', bestDatum: '2026-10-01',
+      bestelltext: 'Gemeinsame Notiz', einsatzort: String(site._id) };
+    const base = createDto();
+    const { orders } = await finish(await submit({ ...base, dates, shifts: [], commonShifts: [],
+      commonOrder: { ...shared, eventTitel: ` ${shared.eventTitel} `, referenz: ` ${shared.referenz} ` },
+      order: { ...base.order, eventTitel: 'Lokaler Titel', eventTitelOverride: true },
+      dayOverrides: [
+        { day: dates[1], order: { referenz: '', referenzOverride: true } },
+        { day: dates[2], order: { bestDatum: null, bestDatumOverride: true } },
+        { day: dates[3], order: { bestelltext: '', bestelltextOverride: true } },
+      ],
+    }));
+    const fields = ['eventTitel', 'referenz', 'bestDatum', 'bestelltext'];
+    for (const [index, field] of fields.entries()) {
+      assert.equal(orders[index][`${field}Override`], true);
+      for (const otherField of fields.filter(value => value !== field)) {
+        assert.equal(orders[index][`${otherField}Override`], false);
+        assert.equal(orders[index][otherField], otherField === 'bestDatum'
+          ? '2026-10-01T00:00:00.000Z' : shared[otherField]);
+      }
+    }
+    assert.equal(orders[0].eventTitel, 'Lokaler Titel');
+    assert.equal(orders[1].referenz, '');
+    assert.equal(orders[2].bestDatum, null);
+    assert.equal(orders[3].bestelltext, '');
+    const context = await request('GET', `/editor/context/${orders[2].auftragNr}`);
+    for (const field of fields) {
+      assert.equal(context.body.group[field], field === 'bestDatum' ? '2026-10-01T00:00:00.000Z' : shared[field]);
+    }
+    assert.equal((await Group.findOne()).kundenNr, customer.kundenNr);
+  });
+
+  it('synchronizes all four order fields independently, reviews exact inherited changes and restores inheritance', async () => {
+    const fields = ['eventTitel', 'referenz', 'bestDatum', 'bestelltext'];
+    const original = { eventTitel: 'Gemeinsamer Titel', referenz: 'REF-OLD', bestDatum: '2026-10-01', bestelltext: 'Gemeinsame Notiz' };
+    const base = createDto();
+    const { orders } = await finish(await submit({ ...base, dates: ['2026-10-24', '2026-10-26', '2026-10-28'],
+      order: { ...base.order, ...original }, shifts: [], commonShifts: [] }));
+    const localValues = { eventTitel: 'Lokaler Titel', referenz: '', bestDatum: null, bestelltext: '' };
+    for (const field of fields) {
+      const dto = await editDto(orders[1].auftragNr);
+      dto.order[field] = localValues[field];
+      dto.order[`${field}Override`] = true;
+      const saved = await finish(await submit(dto));
+      assert.equal(saved.progress.total, 1);
+      assert.equal(saved.orders[0][field], localValues[field]);
+      assert.equal(saved.orders[0][`${field}Override`], true);
+      const common = await Group.findOne().lean();
+      assert.equal(field === 'bestDatum' ? common[field].toISOString() : common[field],
+        field === 'bestDatum' ? '2026-10-01T00:00:00.000Z' : original[field]);
+    }
+    const changes = { eventTitel: 'Neuer gemeinsamer Titel', referenz: 'REF-NEW', bestDatum: '2026-10-02', bestelltext: 'Neue gemeinsame Notiz' };
+    const sharedEdit = await editDto(orders[0].auftragNr);
+    Object.assign(sharedEdit.order, changes);
+    const reviewed = await request('POST', '/editor/review', sharedEdit);
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+    assert.equal(reviewed.body.totalAffected, 2);
+    for (const order of reviewed.body.orders) {
+      assert.notEqual(order.auftragNr, orders[1].auftragNr);
+      for (const field of fields) {
+        const change = order.changes.find(item => item.key.endsWith(`:${field}`));
+        assert.equal(change.before, field === 'bestDatum' ? '2026-10-01T00:00:00.000Z' : original[field]);
+        assert.equal(change.after, field === 'bestDatum' ? '2026-10-02T00:00:00.000Z' : changes[field]);
+      }
+    }
+    await finish(await submit(sharedEdit));
+    const untouchedLocal = await Auftrag.findOne({ auftragNr: orders[1].auftragNr }).lean();
+    for (const field of fields) assert.equal(untouchedLocal[field], localValues[field]);
+    const reset = await editDto(orders[1].auftragNr);
+    Object.assign(reset.order, Object.fromEntries(fields.map(field => [`${field}Override`, false])));
+    const resetReview = await request('POST', '/editor/review', reset);
+    assert.equal(resetReview.status, 200, JSON.stringify(resetReview.body));
+    assert.equal(resetReview.body.totalAffected, 1);
+    for (const field of fields) assert.ok(resetReview.body.orders[0].changes.some(change =>
+      change.key.endsWith(`:${field}Override`) && change.before === true && change.after === false));
+    const restored = await finish(await submit(reset));
+    for (const field of fields) {
+      assert.equal(restored.orders[0][field], field === 'bestDatum' ? '2026-10-02T00:00:00.000Z' : changes[field]);
+      assert.equal(restored.orders[0][`${field}Override`], false);
+    }
+    const lastEntry = await Entry.findOne({ auftragNr: orders[1].auftragNr }).sort({ createdAt: -1, _id: -1 }).lean();
+    for (const field of fields) assert.ok(lastEntry.changes[0].fields.some(item => item.field === `${field}Override`));
+  });
+
+  it('preserves equal-value title overrides, nullable references and empty date overrides and rejects linked-field bypasses', async () => {
+    const { orders } = await finish(await submit(createDto({ dates: ['2026-10-24', '2026-10-26'], shifts: [] })));
+    const override = await editDto(orders[1].auftragNr);
+    Object.assign(override.order, { eventTitel: orders[1].eventTitel, eventTitelOverride: true,
+      referenz: null, referenzOverride: true, bestDatum: '', bestDatumOverride: true });
+    const saved = await finish(await submit(override));
+    assert.equal(saved.orders[0].eventTitelOverride, true);
+    assert.equal(saved.orders[0].referenz, null);
+    assert.equal(saved.orders[0].referenzOverride, true);
+    assert.equal(saved.orders[0].bestDatum, null);
+    assert.equal(saved.orders[0].bestDatumOverride, true);
+    const sharedEdit = await editDto(orders[0].auftragNr);
+    Object.assign(sharedEdit.order, { eventTitel: 'Anderer gemeinsamer Titel', referenz: 'Neue Referenz', bestDatum: '2026-10-03' });
+    await finish(await submit(sharedEdit));
+    const local = await request('GET', `/editor/context/${orders[1].auftragNr}`);
+    assert.equal(local.body.order.eventTitel, orders[1].eventTitel);
+    assert.equal(local.body.order.referenz, null);
+    assert.equal(local.body.order.bestDatum, null);
+    for (const field of ['eventTitel', 'referenz', 'bestDatum', 'eventTitelOverride', 'referenzOverride', 'bestDatumOverride']) {
+      const result = await request('PATCH', `/${orders[0].auftragNr}`, { [field]: field.endsWith('Override') ? true : '2026-10-04' });
+      assert.equal(result.status, 409, JSON.stringify(result.body));
+      assert.equal(result.body.code, 'GROUP_EDITOR_REQUIRED');
+    }
+  });
+
+  it('derives legacy defaults deterministically without read/review writes and retains differing member values on unrelated saves', async () => {
+    const group = await Group.create({ kundenNr: customer.kundenNr, locationV2: location._id, einsatzort: site._id,
+      bestelltext: 'Alte gemeinsame Notiz', shiftDefaults: [], status: 'completed', createdBy: user._id });
+    const now = new Date();
+    const common = { eventTitel: 'Kanonischer Titel', referenz: 'REF-CANON', bestDatum: new Date('2026-10-01') };
+    const local = { eventTitel: 'Abweichender Titel', referenz: '', bestDatum: null };
+    const rows = [common, local].map((values, index) => ({ _id: oid(), auftragNr: 8000001 + index,
+      ...values, day: index ? '2026-10-26' : '2026-10-24',
+      auftragsgruppe: group._id, kundenNr: customer.kundenNr, locationV2: location._id, einsatzort: site._id,
+      bestelltext: group.bestelltext, suppressedGroupShiftKeys: [], source: 'monitor', aktiv: 1, auftStatus: 1, planningVersion: 0,
+      vonDatum: atTime(index ? '2026-10-26' : '2026-10-24'), bisDatum: atTime(index ? '2026-10-26' : '2026-10-24'),
+      createdAt: now, updatedAt: now }));
+    await Auftrag.collection.insertMany(rows);
+    const beforeGroup = await Group.findById(group._id).lean();
+    const firstContext = await request('GET', '/editor/context/8000002');
+    assert.equal(firstContext.status, 200, JSON.stringify(firstContext.body));
+    for (const field of ['eventTitel', 'referenz', 'bestDatum']) {
+      assert.equal(firstContext.body.group[field], field === 'bestDatum' ? common[field].toISOString() : common[field]);
+      assert.equal(firstContext.body.order[field], local[field]);
+      assert.equal(firstContext.body.order[`${field}Override`], true);
+    }
+    const canonicalContext = await request('GET', '/editor/context/8000001');
+    for (const field of ['eventTitel', 'referenz', 'bestDatum']) assert.equal(canonicalContext.body.order[`${field}Override`], false);
+    const dto = await editDto(8000002);
+    dto.order.bestelltext = 'Nur die gemeinsame Notiz ändern';
+    const reviewed = await request('POST', '/editor/review', dto);
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+    assert.equal(reviewed.body.totalAffected, 2);
+    assert.ok(reviewed.body.orders.every(order => order.changes.every(change => change.key.endsWith(':bestelltext'))));
+    assert.deepEqual(await Group.findById(group._id).lean(), beforeGroup);
+    assert.equal(await Submission.countDocuments(), 0);
+    assert.equal(await Entry.countDocuments(), 0);
+    for (const row of await Auftrag.find({ auftragsgruppe: group._id }).lean()) {
+      assert.equal(row.eventTitelOverride, undefined);
+      assert.equal(row.updatedAt.getTime(), now.getTime());
+    }
+    await finish(await submit(dto));
+    const preserved = await Auftrag.findOne({ auftragNr: 8000002 }).lean();
+    for (const field of ['eventTitel', 'referenz', 'bestDatum']) {
+      assert.equal(preserved[field], local[field]);
+      assert.equal(preserved[`${field}Override`], true);
+    }
+    const unrelatedAudit = await Entry.findOne({ auftragNr: 8000002 }).lean();
+    assert.deepEqual(unrelatedAudit.changes[0].fields.map(field => field.field), ['bestelltext']);
+    const canonicalLocal = await editDto(8000001);
+    Object.assign(canonicalLocal.order, { eventTitel: 'Kanonischer Tag ist jetzt lokal', eventTitelOverride: true });
+    await finish(await submit(canonicalLocal));
+    const stable = await request('GET', '/editor/context/8000002');
+    assert.equal(stable.body.group.eventTitel, common.eventTitel);
+    assert.equal(stable.body.order.eventTitel, local.eventTitel);
+  });
+
   it('stores shared Bestellung files once, retries idempotently, lists/downloads through both days and requires explicit group deletion', async () => {
     const { orders } = await finish(await submit(createDto({ dates: ['2026-10-24', '2026-10-26'] })));
     async function upload(number, uploadId, content = 'Test Bestellung') {

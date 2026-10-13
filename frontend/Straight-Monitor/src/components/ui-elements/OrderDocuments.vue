@@ -100,7 +100,7 @@ const { openDocument } = useDocumentModals();
 const { openDocumentPreview } = useDocumentPreviewModals();
 const documents = ref([]), loading = ref(false), error = ref(''), dragging = ref(false), uploading = ref(false), uploadError = ref('');
 let request = 0, controller;
-const dateText = date => date ? new Date(date).toLocaleDateString('de-DE') : 'Datum offen';
+const dateText = date => date ? new Date(date).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : 'Datum offen';
 async function load() {
   const current = ++request;
   controller?.abort(); controller = new AbortController();

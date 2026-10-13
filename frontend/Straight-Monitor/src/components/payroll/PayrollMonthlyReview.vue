@@ -15,7 +15,7 @@
     <p v-else>Der Monatsabschluss erfolgt durch PAYROLL oder ADMIN.</p>
     <h3>Prüfhistorie</h3>
     <p v-if="!state.snapshots.length">Noch kein geprüfter Snapshot.</p>
-    <ul><li v-for="snapshot in state.snapshots" :key="snapshot._id">Revision {{ snapshot.revision }} · {{ new Date(snapshot.reviewedAt).toLocaleString('de-DE') }} <AppButton v-if="state.canReview" size="sm" variant="outlined" :disabled="busy" @click="$emit('preview', snapshot._id)">LODAS-Vorschau</AppButton></li></ul>
+    <ul><li v-for="snapshot in state.snapshots" :key="snapshot._id">Revision {{ snapshot.revision }} · {{ new Date(snapshot.reviewedAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) }} <AppButton v-if="state.canReview" size="sm" variant="outlined" :disabled="busy" @click="$emit('preview', snapshot._id)">LODAS-Vorschau</AppButton></li></ul>
     <template v-if="preview">
       <h3>Offline-Vorschau · Snapshot {{ preview.contentHash.slice(0, 12) }}</h3>
       <p>{{ preview.mappingComplete ? 'DATEV-Zuordnungen vollständig' : 'DATEV-Zuordnungen unvollständig' }} · Mapping-Version {{ preview.mappingVersion }} · Keine Übertragung</p>
@@ -53,7 +53,7 @@
         </div>
       </fieldset>
     </section>
-    <details><summary>Bearbeitungsverlauf</summary><ul><li v-for="entry in state.history" :key="entry.revision">{{ entry.revision }} · {{ entry.action }} · {{ entry.reason }} · {{ new Date(entry.at).toLocaleString('de-DE') }}</li></ul></details>
+    <details><summary>Bearbeitungsverlauf</summary><ul><li v-for="entry in state.history" :key="entry.revision">{{ entry.revision }} · {{ entry.action }} · {{ entry.reason }} · {{ new Date(entry.at).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) }}</li></ul></details>
   </section>
 </template>
 

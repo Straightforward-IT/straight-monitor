@@ -37,6 +37,7 @@ const { allocateMonitorId } = require('../../services/operations/MonitorIdServic
 const { invalidateForTimeChange } = require('../../services/operations/EinsatzBestaetigungService');
 const resolveQueries = require('../../utils/resolveQueries');
 const { canAccess } = require('../../services/TimeCaptureService');
+const { resolveGroupOrderDefaults, resolveOrderView } = require('../../services/operations/AuftragsgruppeOrderService');
 
 router.use(require('./auftragChronikRoutes'));
 
@@ -188,7 +189,7 @@ const STUNDENLISTE_ENTITY_LABELS = {
 
 function formatStundenlisteChangeValue(value) {
   if (value === null || value === undefined || value === '') return 'leer';
-  if (value instanceof Date) return value.toLocaleDateString('de-DE');
+  if (value instanceof Date) return value.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
   if (Array.isArray(value)) return value.map(formatStundenlisteChangeValue).join(', ') || 'leer';
   return String(value);
 }
@@ -431,18 +432,21 @@ async function invokeEditorMutation(method, path, req, params, body) {
   return response.body?.toObject ? response.body.toObject() : response.body;
 }
 
-async function readEditorDetails(req, number) {
+async function readEditorDetails(req, number, resolvedGroup) {
   const route = router.stack.find(entry => entry.route?.path === '/:auftragNr/details');
   let value;
   await route.route.stack.at(-1).handle({ ...req, params: { auftragNr: String(number) } },
     { status() { return this; }, json(body) { value = body; } });
   if (!value || value.success === false) throw validationError('Auftragsdetails konnten nicht geladen werden');
-  const group = value.auftragsgruppe ? await require('../../models/Event/Auftragsgruppe').findById(value.auftragsgruppe).lean() : null;
+  const group = resolvedGroup === undefined
+    ? value.auftragsgruppe
+      ? await resolveGroupOrderDefaults(await require('../../models/Event/Auftragsgruppe').findById(value.auftragsgruppe).lean()) : null
+    : resolvedGroup;
+  value = resolveOrderView(value, group);
   value.groupRevision = group?.revision ?? null;
   value.groupStatus = group?.status ?? null;
   value.dailyOrder = Boolean(value.day);
   value.day ||= require('../../utils/orderDay').dayKey(value.vonDatum);
-  if (group && !value.bestelltextOverride) value.bestelltext = group.bestelltext;
   value.schichten = value.schichten.map(shift => ({ ...shift, overrides: shift.overrides || [] }));
   return value;
 }
@@ -1337,7 +1341,7 @@ router.post('/', auth, withAuftragChronik('Auftrag.created', async (req, res) =>
     vonDatum,
     bisDatum,
     bestDatum: input.bestDatum ? new Date(input.bestDatum) : null,
-    referenz: String(input.referenz || '').trim(),
+    referenz: input.referenz === null ? null : String(input.referenz ?? '').trim(),
     bestelltext: String(input.bestelltext ?? ''),
     labels: Array.isArray(input.labels) ? input.labels : [],
     geschSt: location.externalId || null,

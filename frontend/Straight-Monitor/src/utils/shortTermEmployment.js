@@ -11,7 +11,7 @@ function localDate(value) {
 }
 
 function formatDate(date) {
-  return date.toLocaleDateString('de-DE', {
+  return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

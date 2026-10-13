@@ -108,7 +108,7 @@ function displayTitle(vorgang) {
 
 function formatDate(value) {
   if (!value) return '—';
-  return new Date(value).toLocaleDateString('de-DE', {
+  return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

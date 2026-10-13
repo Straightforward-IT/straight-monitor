@@ -95,7 +95,7 @@ async function load(older = false) {
 function reload() { return load(); }
 function loadOlder() { if (!loading.value && nextCursor.value) return load(true); }
 function canDelete(entry) { return isAdmin.value && String(entry.actor.id) === String(auth.user?._id || auth.user?.id); }
-function formatTime(value) { return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
+function formatTime(value) { return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
 function actionLabel(action) { return ({ created: 'angelegt', updated: 'geändert', deleted: 'gelöscht' })[action]; }
 function displayValue(raw, label) {
   if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw)) return formatTime(raw);

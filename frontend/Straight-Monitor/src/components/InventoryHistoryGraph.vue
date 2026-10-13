@@ -349,12 +349,12 @@ const timelineDayCount = computed(() => timelineStart.value
 const selectedRangeStart = computed(() => timelineStart.value && addDays(timelineStart.value, dateRange.value[0]));
 const selectedRangeEnd = computed(() => timelineStart.value && addDays(timelineStart.value, dateRange.value[1]));
 const selectedRangeLabel = computed(() => selectedRangeStart.value && selectedRangeEnd.value
-  ? `${selectedRangeStart.value.toLocaleDateString('de-DE')} – ${selectedRangeEnd.value.toLocaleDateString('de-DE')}`
+  ? `${selectedRangeStart.value.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} – ${selectedRangeEnd.value.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}`
   : '');
 const isDateRangeReset = computed(() => dateRange.value[0] === 0 && dateRange.value[1] === timelineDayCount.value);
 
 function formatRangeSliderLabel(offset) {
-  return addDays(timelineStart.value, offset).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+  return addDays(timelineStart.value, offset).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'short', year: '2-digit' });
 }
 
 function resetDateRange() {
@@ -522,7 +522,7 @@ function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  return date.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' });
 }
 
 function artLabel(art) {

@@ -250,7 +250,7 @@ class TelefonlisteService {
   }
 
   _dateRange(start, end) {
-    const format = (value) => value ? new Date(value).toLocaleDateString('de-DE') : '—';
+    const format = (value) => value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—';
     const from = format(start);
     const to = format(end);
     return from === to ? from : `${from} - ${to}`;
@@ -258,7 +258,7 @@ class TelefonlisteService {
 
   _footer(document, font) {
     document.getPages().forEach((page, index) => {
-      page.drawText(`Erstellt am ${new Date().toLocaleString('de-DE')} | Seite ${index + 1}/${document.getPageCount()}`, {
+      page.drawText(`Erstellt am ${new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })} | Seite ${index + 1}/${document.getPageCount()}`, {
         x: MARGIN,
         y: 20,
         size: 7,

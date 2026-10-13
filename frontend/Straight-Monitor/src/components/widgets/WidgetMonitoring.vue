@@ -62,13 +62,13 @@ const locationInitialized = ref(false);
 // Format time as HH:MM
 const formatTime = (timestamp) => {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString("de-DE", { timeZone: 'Europe/Berlin', hour: "2-digit", minute: "2-digit" });
 };
 
 // Format date as DD.MM.YYYY
 const formatDate = (timestamp) => {
   const date = new Date(timestamp);
-  return date.toLocaleDateString("de-DE");
+  return date.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin' });
 };
 
 // Art labels in German

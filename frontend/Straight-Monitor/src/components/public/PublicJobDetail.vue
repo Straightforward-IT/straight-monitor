@@ -759,8 +759,8 @@ function formatDate(d) {
   if (!d) return '—';
   const dt = new Date(d);
   const now = new Date();
-  if (dt.toDateString() === now.toDateString()) return 'Heute';
-  return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  if (dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === now.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
+  return dt.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatZeitraum(von, bis) {
@@ -981,7 +981,7 @@ function buildStundenlisteDefinition() {
     pageMargins: [22, 28, 22, 28],
     footer: (currentPage, pageCount) => ({
       columns: [
-        { text: `Erstellt am ${new Date().toLocaleString('de-DE')}`, style: 'footerLeft' },
+        { text: `Erstellt am ${new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}`, style: 'footerLeft' },
         { text: `Seite ${currentPage} / ${pageCount}`, alignment: 'right', style: 'footerRight' },
       ],
       margin: [28, 0, 28, 14],

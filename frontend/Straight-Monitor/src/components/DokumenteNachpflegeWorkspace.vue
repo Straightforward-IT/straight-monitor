@@ -600,7 +600,7 @@ const iconEventreport = computed(() => isDark.value ? eventreportDarkImg : event
 const activeTab = computed(() => props.tab);
 
 // Shared
-const todayStr = computed(() => new Date().toISOString().slice(0, 10));
+const todayStr = computed(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format());
 const sessionHistory = ref([]);
 
 const success = ref({ laufzettel: false, evaluierung: false, eventreport: false });
@@ -841,7 +841,7 @@ function typeLabel(type) {
 }
 function formatDate(d) {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 </script>
 

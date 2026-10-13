@@ -1099,7 +1099,7 @@ router.post(
         const recipients = registry.getEventReportRecipients(resolvedDocumentLocation.location);
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
         const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
-        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         const link = (href, label) =>
           `<a href="${href}" style="color:#ff7518;text-decoration:none;font-weight:600;">${label}</a>`;
         const row = (label, value) =>
@@ -1192,7 +1192,7 @@ router.post(
         try {
           // Auftrag-Infos laden
           const auftrag = await Auftrag.findOne({ auftragNr: Number(auftragnummer) }).lean();
-          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
           for (const fb of mitarbeiter_feedback.filter(f => f.text?.trim())) {
             const ma = maByNr[String(fb.personalNr)];
@@ -1493,7 +1493,7 @@ router.post(
             ? await Auftrag.findOne({ auftragNr: laufzettel.auftragnummer }).lean()
             : null;
 
-          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+          const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
           // 1) Subtasks des MA-Tasks holen
           const subtasksRes = await AsanaService.getSubtaskByTask(ma.asana_id);
@@ -1573,7 +1573,7 @@ router.post(
         const recipients = registry.getEventReportRecipients(laufzettel.location);
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
         const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
-        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
         const link = (href, label) =>
           `<a href="${href}" style="color:#ff7518;text-decoration:none;font-weight:600;">${label}</a>`;
         const row = (label, value) =>

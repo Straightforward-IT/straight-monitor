@@ -3052,7 +3052,7 @@ router.post('/vorarbeitgebertage', auth, extendTimeout, upload.single('file'), a
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    const year = new Date().getFullYear();
+    const year = Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format());
     const stats = { total: 0, updated: 0, unmatched: 0, invalid: 0, year };
 
     for (const row of rows.slice(1)) {

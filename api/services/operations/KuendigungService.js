@@ -53,7 +53,7 @@ function formatDate(date) {
     ? new Date(`${date}T12:00:00.000Z`)
     : date;
   return new Intl.DateTimeFormat('de-DE', {
-    timeZone: 'UTC',
+    timeZone: 'Europe/Berlin',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

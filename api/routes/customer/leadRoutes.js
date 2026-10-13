@@ -436,9 +436,9 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
   if (update.erwartetesAbschlussDatum !== undefined) {
     const oldDate = oldLead.erwartetesAbschlussDatum
-      ? new Date(oldLead.erwartetesAbschlussDatum).toLocaleDateString('de-DE') : '—';
+      ? new Date(oldLead.erwartetesAbschlussDatum).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—';
     const newDate = update.erwartetesAbschlussDatum
-      ? new Date(update.erwartetesAbschlussDatum).toLocaleDateString('de-DE') : '—';
+      ? new Date(update.erwartetesAbschlussDatum).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—';
     if (oldDate !== newDate) events.push(`${uName} – Erw. Abschluss geändert: ${oldDate} → ${newDate}`);
   }
   if (update.verlorenGrund !== undefined && update.verlorenGrund && update.verlorenGrund !== oldLead.verlorenGrund) {

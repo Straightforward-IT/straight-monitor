@@ -7,6 +7,7 @@ const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const User = require('../../models/System/User');
 const Entry = require('../../models/Event/AuftragChronikEntry');
 const asyncHandler = require('../../middleware/AsyncHandler');
+const { SHARED_ORDER_FIELDS, OVERRIDE_FIELDS, resolveGroupOrderDefaults, resolveOrderOverrides } = require('./AuftragsgruppeOrderService');
 
 // Only connection.transaction() scopes inherit a session; imports and ordinary queries are unaffected.
 mongoose.set('transactionAsyncLocalStorage', true);
@@ -34,11 +35,13 @@ const LABELS = {
   'einsatzinformation.customized': 'Einsatzinformation – Individuell angepasst',
   day: 'Starttag', auftragsgruppe: 'Auftragsgruppe', bestelltext: 'Bestellung',
   bestelltextOverride: 'Bestellung nur für diesen Tag', einsatzortOverride: 'Einsatzort nur für diesen Tag',
+  eventTitelOverride: 'Titel nur für diesen Tag', referenzOverride: 'Referenz nur für diesen Tag',
+  bestDatumOverride: 'Bestelldatum nur für diesen Tag',
   groupShiftKey: 'Gemeinsame Schicht', overrides: 'Tagesspezifische Felder',
   suppressedGroupShiftKeys: 'An diesem Tag unterdrückte Schichten', endDayOffset: 'Ende nach Starttag',
 };
 const FIELDS = {
-  Auftrag: 'geschSt locationV2 kundenNr eventTitel bediener dtAngelegtAm bestDatum vonDatum bisDatum eventStrasse eventPlz eventOrt eventLocation aktiv auftStatus referenz excludedTeamleiter statusOverrideTeamleiter labels einsatzort isPseudo source day auftragsgruppe bestelltext bestelltextOverride einsatzortOverride suppressedGroupShiftKeys'.split(' '),
+  Auftrag: 'geschSt locationV2 kundenNr eventTitel bediener dtAngelegtAm bestDatum vonDatum bisDatum eventStrasse eventPlz eventOrt eventLocation aktiv auftStatus referenz excludedTeamleiter statusOverrideTeamleiter labels einsatzort isPseudo source day auftragsgruppe bestelltext bestelltextOverride einsatzortOverride eventTitelOverride referenzOverride bestDatumOverride suppressedGroupShiftKeys'.split(' '),
   Schicht: 'bezeichnung treffpunkt treffpunktOrt ansprechpartnerName ansprechpartnerTelefon ansprechpartnerEmail letzteAusschreibung datumVon datumBis uhrzeitVon uhrzeitBis typ berufSchl qualSchl bedarf garantiestundenLohn endeOffen day endDayOffset groupShiftKey overrides einsatzinformation.sourceHtml einsatzinformation.renderedHtml einsatzinformation.template einsatzinformation.templateVersion einsatzinformation.customized'.split(' '),
   Einsatz: 'personalNr berufSchl qualSchl bezeichnung datumVon datumBis cProtBediener dtProtDatum schicht idAuftragArbeitsschichten schichtBezeichnung treffpunkt treffpunktOrt ansprechpartnerName ansprechpartnerTelefon ansprechpartnerEmail letzteAusschreibung detailDatumVon detailDatumBis uhrzeitVon uhrzeitBis typ bedarf garantiestundenLohn endeOffen isPseudo stundenlisteIncluded conflictOverride'.split(' '),
 };
@@ -105,6 +108,9 @@ async function snapshot(auftragNr) {
   if (!Number.isSafeInteger(auftragNr) || auftragNr <= 0) return {};
   const order = await Auftrag.findOne({ auftragNr }).select(['auftragNr', ...FIELDS.Auftrag].join(' ')).lean();
   if (!order) return {};
+  const group = order.auftragsgruppe
+    ? await resolveGroupOrderDefaults(await require('../../models/Event/Auftragsgruppe').findById(order.auftragsgruppe).lean()) : null;
+  Object.assign(order, resolveOrderOverrides(order, group));
   // Sequential queries keep all reads in the same transaction snapshot.
   const shifts = await Schicht.find({ auftragNr }).select(['idAuftragArbeitsschichten', ...FIELDS.Schicht].join(' ')).lean();
   const assignments = await Einsatz.find({ auftragNr }).select(FIELDS.Einsatz.join(' ')).lean();
@@ -171,7 +177,7 @@ function withAuftragChronik(action, handler) {
           message: 'Die Auftragsgruppe hat eine noch nicht abgeschlossene Änderung.',
         });
         if (req.route?.path?.includes('/schichten') || (req.route?.path === '/:auftragNr'
-          && Object.keys(req.body || {}).some(key => ['einsatzort', 'bestelltext'].includes(key)))) {
+          && Object.keys(req.body || {}).some(key => [...SHARED_ORDER_FIELDS, ...OVERRIDE_FIELDS].includes(key)))) {
           return res.status(409).json({ code: 'GROUP_EDITOR_REQUIRED',
             message: 'Gemeinsame Änderungen müssen über den Auftragseditor eingereicht werden.' });
         }

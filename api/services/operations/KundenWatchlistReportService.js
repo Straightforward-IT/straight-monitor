@@ -505,7 +505,7 @@ function buildReportHtml(report) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <p style="color:#9ca3af;font-size:12px;margin-top:16px">Erstellt am ${new Date().toLocaleDateString('de-DE')} · Straight Monitor</p>
+      <p style="color:#9ca3af;font-size:12px;margin-top:16px">Erstellt am ${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} · Straight Monitor</p>
     </div>`;
 }
 

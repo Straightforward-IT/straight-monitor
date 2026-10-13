@@ -12,7 +12,7 @@ defineEmits(['toggle']);
 const iconByType = { anruf: ['fas', 'phone'], meeting: ['fas', 'users'], email: ['fas', 'envelope'], aufgabe: ['fas', 'circle-check'], sonstiges: ['fas', 'calendar-days'] };
 function typeIcon(type) { return iconByType[type] || ['fas', 'calendar-days']; }
 function typeLabel(type) { return { anruf: 'Anruf', meeting: 'Termin', email: 'E-Mail', aufgabe: 'Aufgabe', sonstiges: 'Aktivität' }[type] || 'Aktivität'; }
-function formatDate(value) { return value ? new Date(value).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '—'; }
+function formatDate(value) { return value ? new Date(value).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' }) : '—'; }
 function isOverdue(activity) { return !activity.erledigt && activity.datum && new Date(activity.datum) < new Date(); }
 </script>
 

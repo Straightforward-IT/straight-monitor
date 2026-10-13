@@ -2766,7 +2766,7 @@ router.post(
       // Prepare all event report dates for quick lookup
       const eventReportDates = new Set(
         mitarbeiter?.eventreports?.map((report) =>
-          new Date(report.datum).toDateString()
+          new Date(report.datum).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })
         )
       );
 
@@ -2798,7 +2798,7 @@ router.post(
         row[0] = formattedDate;
 
         // Check if the date matches any event report
-        const rowDateString = excelDate.toDateString();
+        const rowDateString = excelDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
         const eventReportFound = eventReportDates.has(rowDateString) ? 1 : 0;
         row.push(eventReportFound);
 
@@ -2905,7 +2905,7 @@ router.post(
       const { stadt, monat, stadt_full, dokumentart, jahr: formJahr, ganzesJahr: formGanzesJahr, testMode: formTestMode } = req.body;
       const ganzesJahr = formGanzesJahr === 'true';
       const testMode = formTestMode === 'true';
-      const jahr = formJahr || new Date().getFullYear();
+      const jahr = formJahr || Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format());
 
       const pdfBuffer = req.files?.pdf?.[0]?.buffer;
       const excelBuffer = req.files?.excel?.[0]?.buffer;

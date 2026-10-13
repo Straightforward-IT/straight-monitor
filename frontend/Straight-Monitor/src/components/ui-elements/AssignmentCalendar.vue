@@ -26,7 +26,7 @@
           :aria-current="day.isToday && day.isCurrentMonth ? 'date' : undefined"
           :title="day.isToday && day.isCurrentMonth ? 'Heute' : undefined"
           :aria-pressed="selectedDate === day.date.getTime()"
-          :aria-label="day.date.toLocaleDateString('de-DE') + ': ' + day.einsaetze.length + (day.einsaetze.length === 1 ? ' Eintrag' : ' Einträge')"
+          :aria-label="day.date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) + ': ' + day.einsaetze.length + (day.einsaetze.length === 1 ? ' Eintrag' : ' Einträge')"
           @click.stop="onCalDayClick(day)"
         >
           <span class="dispo-cal-day-num">{{ day.number }}</span>
@@ -82,7 +82,7 @@ const props = defineProps({
 defineEmits(['previous', 'next', 'open']);
 const selectedDate = ref(null);
 watch(() => [props.calendarYear, props.calendarMonth], () => { selectedDate.value = null; });
-const monthName = offset => new Date(props.calendarYear, props.calendarMonth + offset).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+const monthName = offset => new Date(props.calendarYear, props.calendarMonth + offset).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' });
 const calendarMonthName = computed(() => monthName(0));
 const calendarMonthNameNext = computed(() => monthName(1));
 function buildMonth(offset) {
@@ -98,7 +98,7 @@ function buildMonth(offset) {
       const to = new Date(e.datumBis || e.datumVon); to.setHours(23, 59, 59, 999);
       return date >= from && date <= to;
     }) : [];
-    return { number: date.getDate(), date, isCurrentMonth, isToday: date.toDateString() === new Date().toDateString(), einsaetze };
+    return { number: date.getDate(), date, isCurrentMonth, isToday: date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }), einsaetze };
   });
 }
 const calendarDays = computed(() => buildMonth(0));
@@ -106,7 +106,7 @@ const calendarDaysNext = computed(() => buildMonth(1));
 const calendarSelectedDay = computed(() => [...calendarDays.value, ...calendarDaysNext.value].find(day => day.isCurrentMonth && day.date.getTime() === selectedDate.value));
 const formatCalSelectedDate = computed(() => {
   const day = calendarSelectedDay.value;
-  return day?.isToday ? 'Heute' : day?.date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  return day?.isToday ? 'Heute' : day?.date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit' });
 });
 function onCalDayClick(day) {
   if (day.isCurrentMonth) selectedDate.value = selectedDate.value === day.date.getTime() ? null : day.date.getTime();

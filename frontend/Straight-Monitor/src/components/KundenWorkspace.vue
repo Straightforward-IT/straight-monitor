@@ -626,7 +626,7 @@ function setStatusFilter(val) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('de-DE');
+  return new Date(dateStr).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
 }
 
 // ======================== Kontakte (MS Graph) ========================

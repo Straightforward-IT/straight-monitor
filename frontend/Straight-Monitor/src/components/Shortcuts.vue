@@ -119,7 +119,7 @@ function activityMeta(entry) {
 }
 
 function formatActivityTime(timestamp) {
-  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp));
+  return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp));
 }
 
 function handleTemplateCreated(template) {

@@ -320,7 +320,7 @@ export default {
       return htmlToPlainText(comment.html_text || comment.text || "");
     },
     formatCommentDate(value) {
-      return new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" });
+      return new Date(value).toLocaleString("de-DE", { timeZone: 'Europe/Berlin', dateStyle: "short", timeStyle: "short" });
     },
     async loadComments(taskId) {
       this.loadingComments = true;

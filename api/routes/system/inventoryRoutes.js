@@ -67,7 +67,7 @@ function inventoryReportHtml(location, rows, groupByShop) {
       <thead><tr><th>Artikel</th><th>Variation</th><th>Größe</th><th>Bestand</th><th>Soll</th></tr></thead>
       <tbody>${groupRows.map((row) => `<tr><td>${escapeHtml(row.bezeichnung)}</td><td>${escapeHtml(row.variation || 'Standard')}</td><td>${escapeHtml(row.groesse || 'Onesize')}</td><td style="text-align:right">${row.bestand}</td><td style="text-align:right">${row.soll}</td></tr>`).join('')}</tbody>
     </table>`).join('');
-  return `<div style="font-family:Arial,sans-serif;color:#222"><h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2><p>Stand: ${new Date().toLocaleDateString('de-DE')}</p>${tables}</div>`;
+  return `<div style="font-family:Arial,sans-serif;color:#222"><h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2><p>Stand: ${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}</p>${tables}</div>`;
 }
 
 async function currentUser(userId) {
@@ -176,7 +176,7 @@ router.post('/stock-report/email', auth, asyncHandler(async (req, res) => {
         shopUrl: stock.shopUrl || item.shopUrl || '',
       })));
     if (!rows.length) continue;
-    await sendMail([recipient], `Bestandsupdate ${location.nameFull} vom ${new Date().toLocaleDateString('de-DE')}`, inventoryReportHtml(location, rows, groupByShop), 'it');
+    await sendMail([recipient], `Bestandsupdate ${location.nameFull} vom ${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}`, inventoryReportHtml(location, rows, groupByShop), 'it');
     sent.push({ location: location.nameFull, recipient, count: rows.length });
   }
 

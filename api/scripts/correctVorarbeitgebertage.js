@@ -119,7 +119,7 @@ function dateRange(year) {
 }
 
 async function buildReport() {
-  const year = new Date().getFullYear();
+  const year = Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format());
   const { from, through } = dateRange(year);
   const employees = await Mitarbeiter.find({
     'vorarbeitgebertage.year': year,

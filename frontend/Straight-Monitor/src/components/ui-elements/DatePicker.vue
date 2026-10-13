@@ -8,11 +8,11 @@
           <div class="dp-popup" :class="{ 'dp-popup--inline': inline }" :style="inline ? undefined : popupStyle" @click.stop>
             <!-- Header -->
             <div class="dp-header">
-              <button class="dp-nav-btn" @click="previousView" :title="mode === 'month' ? 'Vorheriges Jahr' : 'Vorheriger Monat'">
+              <button type="button" class="dp-nav-btn" @click="previousView" :title="mode === 'month' ? 'Vorheriges Jahr' : 'Vorheriger Monat'">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" width="10" height="10" fill="currentColor"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z"/></svg>
               </button>
               <span class="dp-month-label">{{ viewLabel }}</span>
-              <button class="dp-nav-btn" @click="nextView" :title="mode === 'month' ? 'Nächstes Jahr' : 'Nächster Monat'">
+              <button type="button" class="dp-nav-btn" @click="nextView" :title="mode === 'month' ? 'Nächstes Jahr' : 'Nächster Monat'">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" width="10" height="10" fill="currentColor"><path d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z"/></svg>
               </button>
             </div>
@@ -27,7 +27,10 @@
               <button
                 v-for="cell in cells"
                 :key="cell.key"
+                type="button"
                 class="dp-cell"
+                :aria-label="cell.date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: 'numeric', month: 'long', year: 'numeric' })"
+                :aria-pressed="multiple ? cell.isSelected : undefined"
                 :class="{
                   'dp-cell--other': !cell.current,
                   'dp-cell--today': cell.isToday,
@@ -42,6 +45,7 @@
               <button
                 v-for="monthOption in monthOptions"
                 :key="monthOption.value"
+                type="button"
                 class="dp-month"
                 :class="{ 'dp-month--selected': monthOption.selected, 'dp-month--current': monthOption.current }"
                 @click="selectMonth(monthOption.value)"
@@ -52,6 +56,7 @@
               <button
                 v-for="yearOption in yearOptions"
                 :key="yearOption.value"
+                type="button"
                 class="dp-year"
                 :class="{ 'dp-year--current': yearOption.current, 'dp-year--selected': yearOption.selected }"
                 @click="selectYear(yearOption.value)"
@@ -59,8 +64,10 @@
             </div>
 
             <!-- Footer -->
-            <div v-if="isDayMode || mode === 'week'" class="dp-footer">
-              <button class="dp-today-btn" @click="selectToday">{{ mode === 'week' ? 'Aktuelle Woche' : 'Heute' }}</button>
+            <div v-if="isDayMode || mode === 'week'" class="dp-footer" :class="{ 'dp-footer--multiple': multiple }">
+              <button type="button" class="dp-today-btn" @click="selectToday">{{ mode === 'week' ? 'Aktuelle Woche' : 'Heute' }}</button>
+              <span v-if="multiple" class="dp-selection-count" role="status">{{ selectedDates.length }} ausgewählt</span>
+              <AppButton v-if="multiple" size="sm" @click="close">Fertig</AppButton>
             </div>
           </div>
         </div>
@@ -71,12 +78,18 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 const props = defineProps({
-  modelValue: { type: Date, default: null },
+  modelValue: {
+    type: [Date, Array],
+    default: null,
+    validator: value => value === null || (Array.isArray(value) ? value : [value]).every(date => date instanceof Date && !Number.isNaN(date.getTime())),
+  },
   popupOffset: { type: Number, default: 6 },
   inline: { type: Boolean, default: false },
   mode: { type: String, default: 'date' },
+  multiple: { type: Boolean, default: false, validator: (value, props) => !value || ['date', 'day'].includes(props.mode) },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -88,11 +101,15 @@ const rootEl = ref(null);
 const popupStyle = ref({});
 
 // The month currently displayed in the picker
-const viewDate = ref(props.modelValue ? new Date(props.modelValue) : new Date());
+const selectedDates = computed(() => Array.isArray(props.modelValue) ? props.modelValue : props.modelValue ? [props.modelValue] : []);
+const selectedDate = computed(() => selectedDates.value[0] || null);
+const viewDate = ref(selectedDate.value ? new Date(selectedDate.value) : new Date());
 const isDayMode = computed(() => props.mode === 'date' || props.mode === 'day');
 
 watch(() => props.modelValue, (val) => {
-  if (val) viewDate.value = new Date(val);
+  if (props.multiple && isOpen.value) return;
+  const date = Array.isArray(val) ? val[0] : val;
+  if (date) viewDate.value = new Date(date);
 });
 
 const monthLabel = computed(() =>
@@ -110,6 +127,9 @@ function isSameDay(a, b) {
   return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
+}
+function isSelected(date) {
+  return props.multiple ? selectedDates.value.some(value => isSameDay(date, value)) : isSameDay(date, selectedDate.value);
 }
 
 function weekStart(date) {
@@ -140,7 +160,7 @@ const cells = computed(() => {
   // Padding from previous month
   for (let i = startOffset - 1; i >= 0; i--) {
     const d = new Date(year, month, 0 - i);
-    result.push({ key: `p${i}`, date: d, day: d.getDate(), current: false, isToday: false, isSelected: false });
+    result.push({ key: `p${i}`, date: d, day: d.getDate(), current: false, isToday: false, isSelected: props.multiple && isSelected(d) });
   }
 
   // Current month days
@@ -152,8 +172,8 @@ const cells = computed(() => {
       day: d,
       current: true,
       isToday: isSameDay(date, today),
-      isSelected: isSameDay(date, props.modelValue),
-      isWeekSelected: props.mode === 'week' && isSameWeek(date, props.modelValue),
+      isSelected: isSelected(date),
+      isWeekSelected: props.mode === 'week' && isSameWeek(date, selectedDate.value),
     });
   }
 
@@ -161,7 +181,7 @@ const cells = computed(() => {
   const remaining = 42 - result.length;
   for (let d = 1; d <= remaining; d++) {
     const date = new Date(year, month + 1, d);
-    result.push({ key: `n${d}`, date, day: d, current: false, isToday: false, isSelected: false });
+    result.push({ key: `n${d}`, date, day: d, current: false, isToday: false, isSelected: props.multiple && isSelected(date) });
   }
 
   return result;
@@ -171,11 +191,11 @@ const monthOptions = computed(() => MONTHS.map((label, value) => ({
   label: label.slice(0, 3),
   value,
   current: today.getFullYear() === viewDate.value.getFullYear() && today.getMonth() === value,
-  selected: props.modelValue?.getFullYear() === viewDate.value.getFullYear() && props.modelValue?.getMonth() === value,
+  selected: selectedDate.value?.getFullYear() === viewDate.value.getFullYear() && selectedDate.value?.getMonth() === value,
 })));
 const yearOptions = computed(() => Array.from({ length: 12 }, (_, index) => {
   const value = yearRangeStart.value + index;
-  return { value, current: today.getFullYear() === value, selected: props.modelValue?.getFullYear() === value };
+  return { value, current: today.getFullYear() === value, selected: selectedDate.value?.getFullYear() === value };
 }));
 
 function prevMonth() {
@@ -211,6 +231,12 @@ function nextView() {
 }
 
 function selectValue(date) {
+  if (props.multiple) {
+    const values = selectedDates.value.filter(value => !isSameDay(value, date)).map(value => new Date(value));
+    if (!isSelected(date)) values.push(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+    emit('update:modelValue', values.sort((left, right) => left.getTime() - right.getTime()));
+    return;
+  }
   emit('update:modelValue', props.mode === 'week' ? weekStart(date) : new Date(date));
   close();
 }
@@ -472,7 +498,9 @@ function computePosition() {
   padding: 8px 12px;
   display: flex;
   justify-content: center;
+  &--multiple { align-items: center; justify-content: space-between; gap: 8px; }
 }
+.dp-selection-count { color: var(--muted); font-size: .7rem; white-space: nowrap; }
 
 .dp-today-btn {
   border: 1px solid var(--border, #e5e7eb);

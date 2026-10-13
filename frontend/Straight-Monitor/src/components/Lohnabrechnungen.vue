@@ -271,7 +271,7 @@ export default {
       excelName: "",
       stadt: "HH",
       monat: "01",
-      jahr: String(new Date().getFullYear()),
+      jahr: String(Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format())),
       dokumentart: "LA",
       ganzesJahr: false,
       testMode: false,
@@ -297,7 +297,7 @@ export default {
       return map[this.stadt] || "Unbekannt";
     },
     availableYears() {
-      const current = new Date().getFullYear();
+      const current = Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format());
       return [current, current - 1, current + 1];
     },
     canvasTransformStyle() {

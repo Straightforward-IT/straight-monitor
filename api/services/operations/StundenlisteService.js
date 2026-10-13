@@ -805,7 +805,12 @@ class StundenlisteService {
     if (!d) return '';
     const dt = d instanceof Date ? d : new Date(d);
     if (isNaN(dt.getTime())) return '';
-    return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return dt.toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Europe/Berlin',
+    });
   }
 
   _dateRange(von, bis) {

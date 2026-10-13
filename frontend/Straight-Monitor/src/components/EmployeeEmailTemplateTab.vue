@@ -456,7 +456,7 @@ async function previewTemplate() {
   }
 }
 
-function formatDate(value) { return value ? new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'; }
+function formatDate(value) { return value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'; }
 function formatFileSize(size) { return `${(Number(size || 0) / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`; }
 </script>
 

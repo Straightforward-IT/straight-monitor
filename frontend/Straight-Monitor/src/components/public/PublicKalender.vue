@@ -197,8 +197,8 @@ const props = defineProps({
 
 defineEmits(['back', 'open-job']);
 
-const currentMonth = ref(new Date().getMonth());
-const currentYear = ref(new Date().getFullYear());
+const currentMonth = ref(Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', month: 'numeric' }).format()) - 1);
+const currentYear = ref(Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()));
 const selectedDay = ref(null);
 const availabilityEntries = ref([]);
 const commentEntries = ref([]);
@@ -230,7 +230,7 @@ function formatDateFull(d) {
   if (!d) return '';
   const dt = new Date(d);
   const now = new Date();
-  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  if (dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === now.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
   return dt.toLocaleDateString('de-DE', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Berlin'
   });

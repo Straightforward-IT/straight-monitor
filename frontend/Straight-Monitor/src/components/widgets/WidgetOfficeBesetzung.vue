@@ -192,7 +192,7 @@ const officeGroups = computed(() => {
 const dateLabel = computed(() => {
   const today = toDateKey(new Date());
   if (selectedDate.value === today) return 'Heute';
-  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' }).format(parseDateKey(selectedDate.value));
+  return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit' }).format(parseDateKey(selectedDate.value));
 });
 
 function toDateKey(date) {

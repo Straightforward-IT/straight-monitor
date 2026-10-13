@@ -148,7 +148,7 @@ export default {
   },
   methods: {
     formatDate(value) {
-      return value ? new Date(value).toLocaleDateString('de-DE') : '—';
+      return value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—';
     },
     toggleExpand() {
       this.expanded = !this.expanded;

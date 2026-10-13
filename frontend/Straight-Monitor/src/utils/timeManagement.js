@@ -47,7 +47,7 @@ export function monthDays(month) {
   return Array.from({ length: new Date(year, number, 0).getDate() }, (_, index) => {
     const date = new Date(year, number - 1, index + 1);
     return { date: `${month}-${String(index + 1).padStart(2, '0')}`, day: index + 1,
-      weekday: date.toLocaleDateString('de-DE', { weekday: 'short' }), weekend: [0, 6].includes(date.getDay()) };
+      weekday: date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short' }), weekend: [0, 6].includes(date.getDay()) };
   });
 }
 export function monthWeeks(month) {

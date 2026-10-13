@@ -452,7 +452,7 @@ const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 const missingDocumentCount = computed(() => employeeDocuments.value.filter((item) => canUpload(item)).length);
 const submittedApplications = computed(() => Object.keys(demoState.applications).length);
 const openActionCount = computed(() => 2 + (submittedApplications.value ? 1 : 0));
-const formattedToday = computed(() => new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }));
+const formattedToday = computed(() => new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: '2-digit', month: 'long' }));
 const initials = computed(() => (props.vorname || 'PM').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase());
 const completedEinsatzCount = computed(() => {
   const todayEnd = new Date();
@@ -618,7 +618,7 @@ function cycleProfileRank() {
   rankPreviewTier.value = nextProfileRank.value;
 }
 function formatDuration(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
-function formatClock(value) { return value ? new Date(value).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–'; }
+function formatClock(value) { return value ? new Date(value).toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }) : '–'; }
 function formatDateInput(value) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10); }
 function normalizedTime(value) { return value ? String(value).slice(0, 5) : null; }
 function profileRankTier(count) {
@@ -668,20 +668,20 @@ function formatEinsatzDate(value) {
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  if (date.toDateString() === today.toDateString()) return 'Heute';
-  if (date.toDateString() === tomorrow.toDateString()) return 'Morgen';
-  return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\.$/, '');
+  if (date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
+  if (date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === tomorrow.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Morgen';
+  return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: 'short' }).replace(/\.$/, '');
 }
 function jobTime(job) { return `${normalizedTime(job.timeFrom) || 'offen'} – ${job.endOpen ? 'Ende offen' : normalizedTime(job.timeTo) || 'offen'}`; }
 function meetingPoint(job) { return [normalizedTime(job.meetingTime), job.meetingPlace].filter(Boolean).join(' · ') || 'Noch nicht angegeben'; }
-function weekday(value) { return new Date(value).toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '').toUpperCase(); }
-function shortDate(value) { return new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }); }
-function dayNumber(value) { return new Date(value).toLocaleDateString('de-DE', { day: '2-digit' }); }
-function monthShort(value) { return new Date(value).toLocaleDateString('de-DE', { month: 'short' }).replace('.', '').toUpperCase(); }
-function formatLongDate(value) { return new Date(value).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }); }
+function weekday(value) { return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short' }).replace('.', '').toUpperCase(); }
+function shortDate(value) { return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit' }); }
+function dayNumber(value) { return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit' }); }
+function monthShort(value) { return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'short' }).replace('.', '').toUpperCase(); }
+function formatLongDate(value) { return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: '2-digit', month: 'long' }); }
 function canUpload(document) { return ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(document.status); }
 function documentIcon(status) { return ['APPROVED', 'UPLOADED'].includes(status) ? 'fa-solid fa-circle-check' : ['REQUESTED', 'REJECTED', 'EXPIRED'].includes(status) ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation'; }
-function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE')}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE')} hochladen` : 'Bitte hochladen'; }
+function documentDescription(document) { if (document.status === 'APPROVED') return document.validUntil ? `Gültig bis ${new Date(document.validUntil).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}` : 'Geprüft und vollständig'; if (document.status === 'UPLOADED') return `In Prüfung · ${document.upload?.fileName || ''}`; if (document.status === 'REJECTED') return document.reviewNote || 'Bitte erneut hochladen'; if (document.status === 'EXPIRED') return 'Abgelaufen · bitte erneuern'; return document.dueAt ? `Bitte bis ${new Date(document.dueAt).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} hochladen` : 'Bitte hochladen'; }
 function payrollTitle(payroll) {
   const period = payroll.month ? `${String(payroll.month).padStart(2, '0')}/${payroll.year}` : String(payroll.year);
   return `${payrollTypeLabel(payroll.type)} ${period}`;

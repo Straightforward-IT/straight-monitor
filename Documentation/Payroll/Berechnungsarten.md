@@ -68,9 +68,10 @@ Die spätere Ausweisung besteht aus getrennten Positionen:
   Grundstundenlohn. Bei tarifgebundenen Mitarbeitern ist dies der Tarifgrundwert,
   ohne eine bereits eingerechnete ÜTZ. Die Satzquelle für eigene Verträge und
   mögliche individuelle Abweichungen bleibt noch festzulegen.
-- ÜTZ: gegebenenfalls als zusätzliche Position mit ihrem eigenen Satz und der
-  dafür festzulegenden ÜTZ-Lohnart. Fehlende ÜTZ zählt als null; widersprüchliche
-  Zuordnungen bleiben ungeklärt.
+- ÜTZ: gegebenenfalls als zusätzliche lohnseitige Position **110** mit ihrem
+  eigenen Satz. Fehlende ÜTZ zählt als null; widersprüchliche Zuordnungen bleiben
+  ungeklärt. Der endgültige Betrag kann von Verrechnungsregeln abhängen;
+  Ziel-Lohnart 602 wird nicht pauschal als weitere positive Zulage addiert.
 - Kundenbezogene Zuschläge: zusätzlich, wenn eine für den tatsächlichen
   Kunden/Einsatz passende lohnseitige Kondition greift, beispielsweise Nacht-
   oder Samstagszuschläge. Die bloße Verknüpfung einer Lohnart mit einem Kunden
@@ -150,12 +151,13 @@ einen anderen fachlichen Weg, etwa eine Fehlzeitenzuordnung oder eine tarifliche
 Sonderzahlungsregel, weiterhin verwendet werden. Der Code allein bestimmt
 weder die Erzeugung einer Lohnbuchung noch deren Berechnung oder Auszahlung.
 
-Beispiele aus dem vom Benutzer benannten Lohnartenbestand:
+Beispiele aus dem geprüften Stamm und den Benutzerangaben:
 
-- Code 1: AZK (+), AZK (-), VMA steuerfrei, VMA steuerpflichtig,
+- Code 1: AZK (+) **192**, AZK (-), VMA steuerfrei, VMA steuerpflichtig,
   Rückerstattung Hemden, HemdenRückzahlung, SneakerRückzahlung,
   Übernachtung steuerfrei, Prämie und Tantieme Geschäftsführer-Gesellschafter.
-- Code 3: Urlaub, Krankengeld und Urlaubsgeld.
+- Code 3: AZK (+) **191**, ÜTZ **110**, Verrechnung mit der übertariflichen
+  Zulage **602**, Urlaub, Krankengeld und Urlaubsgeld.
 
 Die Beispiele erklären die vorhandene Konfiguration; zukünftige Zuordnungen
 erfolgen über den gespeicherten Code, nicht über den Namen einer Lohnart.
@@ -163,16 +165,13 @@ Die vier Optionsnamen und die Einstellung auf Seite 2 des Lohnartenstamms sind
 in der [Zvoove-Dokumentation zur Bereitstellung von Lohnarten](https://go.zvoove.com/knowledge/wo-kann-ich-festlegen-ob-eine-lohnart-nur-lohn-oder-fakturseitig-bzw.-f%C3%BCr-beides-gelten-und-ber%C3%BCcksichtigt-werden-soll)
 beschrieben. Die numerische Zuordnung stammt aus der Bestätigung des Benutzers.
 
-Für die nächste Implementierung:
+Das gemeinsame Enum und seine Darstellung in API und Oberfläche sind in
+`api/shared/payroll/wageTypeSettings.json` umgesetzt. Es bleibt unabhängig von
+Berechnungsart, Durchschnitt, Steuer/SV, AZK und der Verwendung einer konkreten
+Kundenkondition (`F` beziehungsweise `L`). Fehlende oder unbekannte Codes werden
+ausdrücklich angezeigt und nicht als Code 0 oder Code 3 behandelt.
 
-- Ein eigenes gemeinsames Enum für diese vier Codes vorsehen, unabhängig von
-  Berechnungsart, Durchschnittsspeicherung, Steuer-/SV- und AZK-Einstellungen.
-- Den ursprünglichen String-Code erhalten und verständliche Metadaten beim
-  Lesen ergänzen, wie bei den bestehenden Lohnart-Enums. Fehlende oder unbekannte
-  Codes bleiben ungeklärt und dürfen nicht als Code 0 oder Code 3 gelten.
-- Die Bereitstellung der lohn- und fakturseitigen Konditionen getrennt steuern.
-  Andere Wege zur Erzeugung von Lohnarten dürfen insbesondere bei Code 3
-  nicht durch einen globalen Filter unterdrückt werden.
-
-Dieser Abschnitt dokumentiert die vereinbarten Regeln. Das Enum und seine
-Anwendung in API, Oberfläche und Konditionsverarbeitung sind noch zu implementieren.
+Die tatsächliche Erzeugung und Berechnung von Lohnpositionen folgt separat.
+Andere Erzeugungswege dürfen insbesondere bei Code 3 nicht durch einen globalen
+Filter unterdrückt werden. Import, Datenmodell und Detailübersicht beschreibt
+[Lohnartenstamm](Lohnartenstamm.md).

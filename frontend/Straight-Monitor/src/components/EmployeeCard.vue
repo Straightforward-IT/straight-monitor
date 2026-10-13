@@ -2076,8 +2076,8 @@ export default {
       // Mini-calendar
       calendarEinsaetze: [],
       calendarLoading: false,
-      calendarYear: new Date().getFullYear(),
-      calendarMonth: new Date().getMonth(),
+      calendarYear: Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()),
+      calendarMonth: Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', month: 'numeric' }).format()) - 1,
       calendarSelectedDay: null,
       showQualificationPicker: false,
       qualificationSearch: '',
@@ -2212,7 +2212,7 @@ export default {
     },
     vorarbeitgebertageDisplay() {
       const value = this.resolvedMa?.vorarbeitgebertage;
-      return value?.year === new Date().getFullYear() ? Number(value.days) || 0 : 0;
+      return value?.year === Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()) ? Number(value.days) || 0 : 0;
     },
     arbeitszeitHoverData() {
       if (!this.resolvedMa?._id) return null;
@@ -2272,7 +2272,7 @@ export default {
     // Mini-calendar
     calendarMonthName() {
       return new Date(this.calendarYear, this.calendarMonth)
-        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+        .toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' });
     },
     calendarDays() {
       const days = [];
@@ -2309,8 +2309,8 @@ export default {
     formatCalSelectedDate() {
       if (!this.calendarSelectedDay) return '';
       const d = this.calendarSelectedDay.date;
-      if (d.toDateString() === new Date().toDateString()) return 'Heute';
-      return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      if (d.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
+      return d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit' });
     },
     // Next month helpers
     calendarYearNext() {
@@ -2321,7 +2321,7 @@ export default {
     },
     calendarMonthNameNext() {
       return new Date(this.calendarYearNext, this.calendarMonthNext)
-        .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+        .toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' });
     },
     calendarDaysNext() {
       const days = [];
@@ -2877,7 +2877,7 @@ export default {
       try {
         const date = new Date(dateString);
         if (isNaN(date.getTime())) return '—';
-        return date.toLocaleDateString('de-DE', {
+        return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
           day: '2-digit',
           month: '2-digit',
           year: 'numeric'

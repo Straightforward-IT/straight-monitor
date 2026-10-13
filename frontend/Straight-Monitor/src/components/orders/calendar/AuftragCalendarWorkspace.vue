@@ -1574,7 +1574,7 @@ export default {
         const kw = this.getWeekNumber(d);
         const year = d.getFullYear();
         const isActive =
-          !!currentStart && d.toDateString() === currentStart.toDateString();
+          !!currentStart && d.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === currentStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
         const isTodayWeek =
           today >= d && today < new Date(d.getTime() + 7 * 86400000);
         const showYear = year !== prevYear;
@@ -1970,7 +1970,7 @@ export default {
     },
     formatDataStatus(dateStr) {
       if (!dateStr) return "";
-      return new Date(dateStr).toLocaleString("de-DE", {
+      return new Date(dateStr).toLocaleString("de-DE", { timeZone: 'Europe/Berlin',
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -2255,9 +2255,9 @@ export default {
       if (!dateStr) return "";
       const d = new Date(dateStr);
       const weekday = d
-        .toLocaleDateString("de-DE", { weekday: "short" })
+        .toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin', weekday: "short" })
         .replace(/\.$/, "");
-      const date = d.toLocaleDateString("de-DE", {
+      const date = d.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin',
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -2882,7 +2882,7 @@ export default {
     },
     formatDayDateFull(dateStr) {
       if (!dateStr) return "";
-      return new Date(dateStr).toLocaleDateString("de-DE", {
+      return new Date(dateStr).toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin',
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -2937,18 +2937,18 @@ export default {
     },
     isToday(date) {
       const today = new Date();
-      return date.toDateString() === today.toDateString();
+      return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     },
     formatDateRange(start, end) {
       if (!start || !end) return "";
       const opts = { day: "numeric", month: "short", year: "numeric" };
-      const startDate = start.toLocaleDateString("de-DE", opts);
-      const endDate = end.toLocaleDateString("de-DE", opts);
+      const startDate = start.toLocaleDateString("de-DE", { ...opts, timeZone: "Europe/Berlin" });
+      const endDate = end.toLocaleDateString("de-DE", { ...opts, timeZone: "Europe/Berlin" });
       return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
     },
     formatDayDate(date) {
       const today = new Date();
-      if (date.toDateString() === today.toDateString()) return "Heute";
+      if (date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return "Heute";
       return date.toLocaleDateString("de-DE", {
         day: "2-digit",
         month: "2-digit",
@@ -3133,7 +3133,7 @@ export default {
       }
     },
     openNewAuftragDialog() {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format();
       this.newAuftrag = {
         eventTitel: "",
         vonDatum: today,
@@ -3248,7 +3248,7 @@ export default {
 
       const eventTitle = String(this.selectedEvent.eventTitel || "").trim();
       const eventDate = this.selectedEvent.vonDatum
-        ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", { timeZone: "UTC" })
+        ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
         : "";
       this.isGeneratingHoursList = true;
       try {

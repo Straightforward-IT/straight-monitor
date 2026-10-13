@@ -55,9 +55,9 @@ const tabs = [
   { id: 'zusammenfassung', label: 'ZUSAMMENFASSUNG' },
 ].map(tab => ({ ...tab, panelId: `${tabsId}-panel-${tab.id}` }));
 
-const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }));
+const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' }));
 const selectedDateLabel = computed(() => props.selectedDate
-  ? new Date(`${props.selectedDate}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
+  ? new Date(`${props.selectedDate}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
 </script>
 
 <style scoped>

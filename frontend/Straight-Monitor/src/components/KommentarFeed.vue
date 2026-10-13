@@ -297,7 +297,7 @@ function formatRelative(ts) {
 
 function formatAbsolute(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleString('de-DE', {
+  return new Date(ts).toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });

@@ -410,7 +410,7 @@ const form = ref({
   persgruppe: null,
   persgruppeMonth: currentPayrollMonth(),
   persgruppe_set_explicitly: false,
-  vorarbeitgebertage: { year: new Date().getFullYear(), days: 0 },
+  vorarbeitgebertage: { year: Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()), days: 0 },
   adresse: { strasse: "", plz: "", ort: "", land: "" },
   adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
   fuehrerscheine: [],
@@ -447,7 +447,7 @@ watch(
         persgruppeMonth: currentPayrollMonth(),
         persgruppe_set_explicitly: !!newVal.lohnStammdaten?.find(entry => entry.month === currentPayrollMonth())?.persgruppe_set_explicitly,
         vorarbeitgebertage: {
-          year: newVal.vorarbeitgebertage?.year ?? new Date().getFullYear(),
+          year: newVal.vorarbeitgebertage?.year ?? Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()),
           days: newVal.vorarbeitgebertage?.days ?? 0,
         },
         adresse: {

@@ -66,6 +66,14 @@
           <h3>Quellspalten <span>({{ sourceColumns.length }})</span></h3>
           <p v-if="!sourceColumns.length" class="wage-detail__state">Für diesen Bestandsdatensatz ist noch keine Dateiherkunft gespeichert.</p>
           <div v-else class="wage-detail__source-wrap"><table class="wage-detail__source-table"><thead><tr><th>Index</th><th>Quellüberschrift</th><th>Vorkommen</th><th>Wert</th></tr></thead><tbody><tr v-for="(column, index) in sourceColumns" :key="index"><td>{{ column.index }}</td><td>{{ column.header }}</td><td>{{ column.occurrence }}</td><td>{{ rawDisplay(column.value) }}</td></tr></tbody></table></div>
+          <template v-if="sourceHistory.length">
+            <h3>Frühere Importquellen</h3>
+            <p class="wage-detail__hint">Bei Teilimporten bleiben nicht gelieferte Einstellungen erhalten. Ihre bisherigen Quellspalten sind hier weiterhin zugänglich.</p>
+            <details v-for="(source, historyIndex) in sourceHistory" :key="historyIndex" class="wage-detail__source-history">
+              <summary>{{ source.filename }} · {{ source.sheet }} · Zeile {{ source.row }} ({{ source.columns.length }} Spalten)</summary>
+              <div class="wage-detail__source-wrap"><table class="wage-detail__source-table"><thead><tr><th>Index</th><th>Quellüberschrift</th><th>Vorkommen</th><th>Wert</th></tr></thead><tbody><tr v-for="(column, index) in source.columns" :key="index"><td>{{ column.index }}</td><td>{{ column.header }}</td><td>{{ column.occurrence }}</td><td>{{ rawDisplay(column.value) }}</td></tr></tbody></table></div>
+            </details>
+          </template>
         </template>
       </section>
     </template>
@@ -100,7 +108,8 @@ const title = computed(() => {
 });
 const issues = computed(() => record.value?.issues || []);
 const sourceColumns = computed(() => record.value?.source?.columns || []);
-const rawEntries = computed(() => Object.entries(record.value || {}).filter(([key]) => !['codeMetadaten', 'berechnungsart', 'durchschnittsspeicherung', 'kunden', 'kundenkonditionen', 'verrechnungsbezug', 'source', 'issues'].includes(key)));
+const sourceHistory = computed(() => record.value?.sourceHistory || []);
+const rawEntries = computed(() => Object.entries(record.value || {}).filter(([key]) => !['codeMetadaten', 'berechnungsart', 'durchschnittsspeicherung', 'kunden', 'kundenkonditionen', 'verrechnungsbezug', 'source', 'sourceHistory', 'issues'].includes(key)));
 const conditions = computed(() => record.value?.kundenkonditionen || []);
 const conditionGroups = computed(() => [
   { key: 'L', label: 'Lohn', rows: conditions.value.filter(row => row.verwendung === 'L') },
@@ -203,6 +212,8 @@ onBeforeUnmount(() => { revision++; controller?.abort(); });
 .wage-detail__link { padding: 0; border: 0; background: transparent; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
 .wage-detail__link:hover { text-decoration: underline; }
 .wage-detail__source-wrap { overflow-x: auto; }
+.wage-detail__source-history { margin-top: 12px; font-size: 12px; }
+.wage-detail__source-history summary { cursor: pointer; color: var(--muted); line-height: 1.5; }
 .wage-detail__source-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .wage-detail__source-table th, .wage-detail__source-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .wage-detail__source-table th { color: var(--muted); }

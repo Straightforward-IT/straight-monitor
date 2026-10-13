@@ -82,7 +82,7 @@ export default {
   data() {
     return {
       headerData: {
-        timestamp: new Date().toLocaleString(),
+        timestamp: new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }),
         personalnummer: "",
         name: "",
         fromDate: "",
@@ -113,7 +113,7 @@ export default {
     formatDate(date) {
       if (!date) return "";
       const parsedDate = new Date(date);
-      return parsedDate.toLocaleDateString("de-DE");
+      return parsedDate.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin' });
     },
     formatDateTime(dateTime) {
       if (!dateTime) return "";

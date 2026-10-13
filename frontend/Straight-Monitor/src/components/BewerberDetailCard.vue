@@ -417,10 +417,10 @@ export default {
       return { label: 'Gesendet', tone: 'primary' };
     },
     formatDate(value) {
-      return value ? new Date(value).toLocaleDateString('de-DE') : '—';
+      return value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—';
     },
     formatDateTime(value) {
-      return value ? new Date(value).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+      return value ? new Date(value).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' }) : '—';
     },
     formatFileSize(size) {
       if (!size) return '';

@@ -15,6 +15,8 @@ const { getStaffingCandidates, shiftWindow } = require('./StaffingSuggestionServ
 const { dayKey, validDay, addDays, dayOffset, atTime } = require('../../utils/orderDay');
 const { canAccess } = require('../TimeCaptureService');
 const { prepareTemplate } = require('./EinsatzinformationService');
+const { SHARED_ORDER_FIELDS, NEW_SHARED_ORDER_FIELDS, OVERRIDE_FIELDS, sharedOrderValue, sharedOrderValuesEqual,
+  resolveGroupOrderDefaults, resolveOrderOverrides } = require('./AuftragsgruppeOrderService');
 
 const BATCH_SIZE = 10;
 const PAGE_SIZE = 50;
@@ -24,7 +26,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const equal = (left, right) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 const INFO_FIELDS = ['einsatzinformationSourceHtml', 'einsatzinformationCustomized', 'applyLatestTemplate'];
 const META_FIELDS = ['_id', 'clientId', 'groupShiftKey', 'overrides', 'deleted', 'dayOnly', 'expectedUpdatedAt', 'endDayOffset'];
-const ORDER_META = ['day', 'einsatzortOverride', 'bestelltextOverride'];
+const ORDER_META = ['day', ...OVERRIDE_FIELDS];
 
 function fail(statusCode, message, code = 'EDITOR_INVALID', details) {
   const error = new Error(message);
@@ -79,18 +81,26 @@ module.exports = function createEditorService(helpers) {
     if (!String(order.eventTitel || '').trim()) fail(400, 'Ein Auftragstitel ist erforderlich.');
   }
   function orderInput(input = {}) {
-    for (const field of ['einsatzortOverride', 'bestelltextOverride']) {
+    for (const field of OVERRIDE_FIELDS) {
       if (own(input, field) && typeof input[field] !== 'boolean') fail(400, `${field} muss ein Wahrheitswert sein.`);
     }
     if (Object.keys(input).some(field => !editableOrder.has(field) && !ORDER_META.includes(field))) {
       fail(400, 'Nicht editierbare Felder in den Auftragsdaten.');
     }
     const fields = Object.fromEntries(Object.entries(input).filter(([field]) => editableOrder.has(field)));
+    if (fields.bestDatum === '') fields.bestDatum = null;
     if (own(fields, 'eventTitel') && typeof fields.eventTitel !== 'string') fail(400, 'Der Auftragstitel muss ein Text sein.');
     if (own(fields, 'bestelltext') && (typeof fields.bestelltext !== 'string' || fields.bestelltext.length > 100000)) {
       fail(400, 'Die Bestellung muss ein Text mit höchstens 100000 Zeichen sein.');
     }
     return Object.keys(fields).length ? normalizeEditablePatch(fields, orderFields) : {};
+  }
+  function creationOrderInput(input) {
+    const fields = orderInput(input);
+    for (const field of ['eventTitel', 'referenz']) {
+      if (typeof fields[field] === 'string') fields[field] = fields[field].trim();
+    }
+    return fields;
   }
   function normalizeShift(input, current = null, day = null) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) fail(400, 'Ungültige Schicht.');
@@ -189,8 +199,9 @@ module.exports = function createEditorService(helpers) {
     const user = await actor(req);
     const order = await loadOrder(number);
     if (!canAccess(user, order.locationV2)) fail(403, 'Für diesen Auftragsstandort fehlt die Berechtigung.');
-    const details = await readDetails(req, order.auftragNr);
-    const group = order.auftragsgruppe ? await Group.findById(order.auftragsgruppe).lean() : null;
+    const group = order.auftragsgruppe
+      ? await resolveGroupOrderDefaults(await Group.findById(order.auftragsgruppe).lean()) : null;
+    const details = await readDetails(req, order.auftragNr, group);
     let members = [], nextCursor = null;
     if (group) {
       const filter = { auftragsgruppe: group._id };
@@ -202,9 +213,7 @@ module.exports = function createEditorService(helpers) {
         .sort({ auftragNr: 1 }).limit(PAGE_SIZE + 1).lean();
       members = rows.slice(0, PAGE_SIZE);
       nextCursor = rows.length > PAGE_SIZE ? String(members.at(-1).auftragNr) : null;
-      if (!order.bestelltextOverride) details.bestelltext = group.bestelltext;
     }
-    details.bestelltextOverride = Boolean(order.bestelltextOverride);
     details.day = order.day || dayKey(order.vonDatum);
     details.dailyOrder = Boolean(order.day);
     details.groupRevision = group?.revision ?? null;
@@ -312,16 +321,18 @@ module.exports = function createEditorService(helpers) {
     return { removedEinsatzIds, stagedDeployments };
   }
 
-  async function buildEditDay(order, input, defaults, group, newDefaults, main = false) {
+  async function buildEditDay(order, input, defaults, group, newDefaults, main = false, baselineGroup = group) {
     const patch = orderInput(input.order || {});
     if (own(patch, 'kundenNr') && Number(patch.kundenNr) !== Number(order.kundenNr)) fail(400, 'Der Kunde kann nicht geändert werden.');
     const effectiveOrder = { ...order, ...patch };
-    const metadata = { bestelltextOverride: own(input.order, 'bestelltextOverride') ? input.order.bestelltextOverride === true : order.bestelltextOverride,
-      einsatzortOverride: own(input.order, 'einsatzortOverride') ? input.order.einsatzortOverride === true : order.einsatzortOverride };
+    const baselineOverrides = resolveOrderOverrides(order, baselineGroup);
+    const metadata = Object.fromEntries(OVERRIDE_FIELDS.map(field => [field,
+      own(input.order, field) ? input.order[field] : baselineOverrides[field]]));
     if (group) {
       if (id(effectiveOrder.locationV2) !== id(group.locationV2)) fail(400, 'Der Standort einer Auftragsgruppe kann nicht geändert werden.');
-      if (!metadata.einsatzortOverride) patch.einsatzort = group.einsatzort;
-      if (!metadata.bestelltextOverride) patch.bestelltext = group.bestelltext;
+      for (const field of SHARED_ORDER_FIELDS) {
+        if (!metadata[`${field}Override`]) patch[field] = sharedOrderValue(field, group[field]);
+      }
       Object.assign(effectiveOrder, patch);
     }
     await contextValidation(input.req, effectiveOrder);
@@ -386,8 +397,11 @@ module.exports = function createEditorService(helpers) {
       shiftActions.push({ type: 'create', clientId: source?.clientId || definition.key, groupShiftKey: definition.key,
         fields: relative(fields, order.day || null), overrides });
     }
-    const orderPatch = Object.fromEntries(Object.entries(patch).filter(([field, value]) => !equal(value, order[field])));
-    return { orderPatch, metadata: { ...metadata, suppressedGroupShiftKeys: [...suppressed] },
+    const orderPatch = Object.fromEntries(Object.entries(patch).filter(([field, value]) =>
+      NEW_SHARED_ORDER_FIELDS.includes(field) && !metadata[`${field}Override`]
+        ? !sharedOrderValuesEqual(field, value, order[field])
+        : !equal(value, order[field])));
+    return { orderPatch, metadata: { ...metadata, suppressedGroupShiftKeys: [...suppressed] }, baselineOverrides,
       expectedUpdatedAt: order.updatedAt, planningVersion: order.planningVersion || 0,
       shiftVersions: saved.map(shift => ({ _id: shift._id, updatedAt: shift.updatedAt })),
       shiftActions, planning: input.planning || [], day: order.day || dayKey(order.vonDatum), main };
@@ -490,13 +504,13 @@ module.exports = function createEditorService(helpers) {
         let group, jobs = [], total = 0;
         const header = new Submission({ createdBy: user._id, clientSubmissionId, requestHash, mode: input.mode, total: 0 });
         if (input.mode === 'create') {
-          const patch = orderInput(input.order || {});
+          const patch = creationOrderInput(input.order || {});
           await contextValidation(req, patch);
           const commonOrder = input.commonOrder || {};
-          if (Object.keys(commonOrder).some(field => !['einsatzort', 'bestelltext'].includes(field))) {
+          if (Object.keys(commonOrder).some(field => !SHARED_ORDER_FIELDS.includes(field))) {
             fail(400, 'Ungültige gemeinsame Auftragsfelder.');
           }
-          const commonPatch = { ...patch, ...orderInput(commonOrder) };
+          const commonPatch = { ...patch, ...creationOrderInput(commonOrder) };
           await contextValidation(req, commonPatch);
           const requested = input.dates?.length ? input.dates : [input.order?.day || dayKey(input.order?.vonDatum)];
           if (!Array.isArray(requested) || requested.some(day => !validDay(day))) fail(400, 'Ungültige ausgewählte Starttage.');
@@ -521,8 +535,9 @@ module.exports = function createEditorService(helpers) {
           if (newDefaults.size !== definitions.length
             || new Set(definitions.map(definition => definition.key)).size !== definitions.length) fail(400, 'Gemeinsame Schichten müssen eindeutig benannt sein.');
           if (dates.length > 1) {
-            group = new Group({ kundenNr: patch.kundenNr, locationV2: patch.locationV2, einsatzort: commonPatch.einsatzort,
-              bestelltext: commonPatch.bestelltext ?? '', shiftDefaults: definitions.map(({ key, fields }) => ({ key, fields })),
+            group = new Group({ kundenNr: patch.kundenNr, locationV2: patch.locationV2,
+              ...Object.fromEntries(SHARED_ORDER_FIELDS.map(field => [field, sharedOrderValue(field, commonPatch[field])])),
+              shiftDefaults: definitions.map(({ key, fields }) => ({ key, fields })),
               activeSubmission: header._id, createdBy: user._id });
             if (!options.review) await group.save();
             header.group = group._id;
@@ -531,16 +546,16 @@ module.exports = function createEditorService(helpers) {
           for (const day of dates) {
             const extra = dailyInputs.get(day) || {};
             const dayOrderInput = day === mainDay ? { ...(input.order || {}), ...(extra.order || {}) } : extra.order || {};
-            const dayPatch = { ...commonPatch, ...(day === mainDay ? patch : {}), ...orderInput(extra.order || {}), day,
+            const dayPatch = { ...commonPatch, ...(day === mainDay ? patch : {}), ...creationOrderInput(extra.order || {}), day,
               vonDatum: atTime(day), bisDatum: atTime(day) };
             if (Number(dayPatch.kundenNr) !== Number(patch.kundenNr)) fail(400, 'Der Kunde kann nicht je Tag geändert werden.');
             if (id(dayPatch.locationV2) !== id(patch.locationV2)) fail(400, 'Der Standort kann nicht je Tag geändert werden.');
             await contextValidation(req, dayPatch);
             const metadata = { day, auftragsgruppe: group?._id || null, submission: header._id,
-              bestelltextOverride: dayOrderInput.bestelltextOverride === true,
-              einsatzortOverride: dayOrderInput.einsatzortOverride === true };
-            if (group && !metadata.bestelltextOverride) dayPatch.bestelltext = group.bestelltext;
-            if (group && !metadata.einsatzortOverride) dayPatch.einsatzort = group.einsatzort;
+              ...Object.fromEntries(OVERRIDE_FIELDS.map(field => [field, dayOrderInput[field] === true])) };
+            if (group) for (const field of SHARED_ORDER_FIELDS) {
+              if (!metadata[`${field}Override`]) dayPatch[field] = sharedOrderValue(field, group[field]);
+            }
             const extras = [...(day === mainDay ? input.shifts : []), ...(extra.shifts || [])];
             const suppressed = [];
             const shiftActions = definitions.map(definition => {
@@ -581,6 +596,11 @@ module.exports = function createEditorService(helpers) {
             fail(409, 'Die Auftragsgruppe wurde geändert oder hat eine laufende Einreichung.',
               group.activeSubmission ? 'GROUP_PENDING' : 'GROUP_STALE', { submissionId: group.activeSubmission });
           }
+          const baselineGroup = await resolveGroupOrderDefaults(group);
+          if (group) {
+            for (const field of NEW_SHARED_ORDER_FIELDS) group[field] = baselineGroup[field];
+            if (baselineGroup.legacyOrderFields.length) group.legacyOrderFields = baselineGroup.legacyOrderFields;
+          }
           const inputs = new Map([[mainOrder.auftragNr, { ...input, req }]]);
           for (const dto of overrideInputs) {
             const order = await loadOrder(dto.auftragNr);
@@ -601,10 +621,10 @@ module.exports = function createEditorService(helpers) {
               const order = number === mainOrder.auftragNr ? mainOrder : await loadOrder(number);
               const patch = orderInput(dto.order || {});
               if (own(patch, 'kundenNr') && Number(patch.kundenNr) !== Number(order.kundenNr)) fail(400, 'Der Kunde kann nicht geändert werden.');
-              for (const field of ['einsatzort', 'bestelltext']) {
-                const isOverride = own(dto.order, `${field}Override`) ? dto.order[`${field}Override`] === true : order[`${field}Override`];
-                if (own(patch, field) && !isOverride && !equal(id(field === 'einsatzort' ? patch[field] : null) || patch[field],
-                  id(field === 'einsatzort' ? order[field] : null) || order[field])) {
+              const baselineOverrides = resolveOrderOverrides(order, baselineGroup);
+              for (const field of SHARED_ORDER_FIELDS) {
+                const isOverride = own(dto.order, `${field}Override`) ? dto.order[`${field}Override`] : baselineOverrides[`${field}Override`];
+                if (own(patch, field) && !isOverride && !sharedOrderValuesEqual(field, patch[field], order[field])) {
                   markCommon(field, patch[field]);
                   group[field] = patch[field];
                 }
@@ -657,10 +677,12 @@ module.exports = function createEditorService(helpers) {
             if (!orders.length) break;
             for (const order of orders) {
               const dto = inputs.get(order.auftragNr) || { req, shifts: [], planning: [] };
-              const payload = await buildEditDay(order, dto, defaults, group, newDefaults, order.auftragNr === mainOrder.auftragNr);
+              const payload = await buildEditDay(order, dto, defaults, group, newDefaults,
+                order.auftragNr === mainOrder.auftragNr, baselineGroup);
               const day = order.day || dayKey(order.vonDatum);
               const filesForDay = (input.attachments || []).some(attachment => attachment.day === day);
-              if (hasPayloadChanges(payload, order) || filesForDay) jobs.push(await dayJob(header._id, total++, day, payload, order));
+              const baselineOrder = { ...order, ...resolveOrderOverrides(order, baselineGroup) };
+              if (hasPayloadChanges(payload, baselineOrder) || filesForDay) jobs.push(await dayJob(header._id, total++, day, payload, order));
               if (jobs.length === 100) { await storeJobs(jobs); jobs = []; }
               after = order.auftragNr;
             }
@@ -817,6 +839,7 @@ module.exports = function createEditorService(helpers) {
     for (const row of rows) {
       const existing = row.auftragNr ? await loadOrder(row.auftragNr) : null;
       const before = existing ? await snapshot(existing.auftragNr) : {};
+      if (before.Auftrag?.[0] && row.payload.baselineOverrides) Object.assign(before.Auftrag[0], row.payload.baselineOverrides);
       const state = await effectiveState(row.payload, existing);
       const order = { ...state.order, ...row.payload.metadata, _id: existing?._id || `new:${row.day}` };
       for (const shift of state.shifts) {
@@ -888,6 +911,7 @@ module.exports = function createEditorService(helpers) {
     await contextValidation(req, { ...(order || {}), ...payload.orderPatch });
     await validatePlanning(payload, order, req.editorScheduling);
     const before = order ? await snapshot(order.auftragNr) : {};
+    if (before.Auftrag?.[0] && payload.baselineOverrides) Object.assign(before.Auftrag[0], payload.baselineOverrides);
     if (!order) {
       const body = { ...payload.orderPatch };
       delete body.day;

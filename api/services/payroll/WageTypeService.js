@@ -1,4 +1,5 @@
 const Lohnart = require('../../models/Payroll/Lohnart');
+const { isDeepStrictEqual } = require('node:util');
 const KundenKondition = require('../../models/Customer/KundenKondition');
 const { getWageCalculationType } = require('../../domain/payroll/wageCalculationTypes');
 const { getAverageStorageType } = require('../../domain/payroll/averageStorageTypes');
@@ -72,9 +73,9 @@ function createWageTypeService(models = {}) {
     ]);
     const reference = offsetReference(row, target);
     const issues = [];
-    if (reference.status === 'missing') issues.push({ severity: 'WARNING', code: 'OFFSET_TARGET_MISSING', message: `Verrechnungslohnart ${targetNumber} ist im Stamm noch nicht vorhanden.` });
+    if (reference.status === 'missing') issues.push({ severity: 'warning', code: 'OFFSET_TARGET_MISSING', message: `Verrechnungslohnart ${targetNumber} ist im Stamm noch nicht vorhanden.` });
     for (const [field, metadata] of Object.entries(getCodeMetadaten(row))) {
-      if (metadata.status === 'unknown') issues.push({ severity: 'WARNING', code: 'UNKNOWN_CODE', field, message: `Für ${field} ist der Quellcode ${metadata.code} noch nicht dokumentiert.` });
+      if (metadata.status === 'unknown') issues.push({ severity: 'warning', code: 'UNKNOWN_CODE', field, message: `Für ${field} ist der Quellcode ${metadata.code} noch nicht dokumentiert.` });
     }
     return { ...enrich(row), kunden: customersFor(conditions), kundenkonditionen: conditions, verrechnungsbezug: reference, issues };
   }
@@ -92,9 +93,9 @@ function createWageTypeService(models = {}) {
       const previous = byNumber.get(record.lohnartNummer);
       const merged = { ...previous, ...record.fields };
       const targetNumber = text(merged.verrechnungslohnartNummer);
-      if (targetNumber && !available.has(targetNumber)) issues.push({ severity: 'WARNING', code: 'OFFSET_TARGET_MISSING', source: record.source, message: `Lohnart ${record.lohnartNummer}: Verrechnungslohnart ${targetNumber} ist im Stamm noch nicht vorhanden.` });
+      if (targetNumber && !available.has(targetNumber)) issues.push({ severity: 'warning', code: 'OFFSET_TARGET_MISSING', source: record.source, message: `Lohnart ${record.lohnartNummer}: Verrechnungslohnart ${targetNumber} ist im Stamm noch nicht vorhanden.` });
       const sameFields = previous && Object.entries(record.fields).every(([key, value]) => text(previous[key]) === text(value));
-      const sameSource = previous && JSON.stringify(previous.source || null) === JSON.stringify(record.source);
+      const sameSource = previous && isDeepStrictEqual(previous.source || null, record.source);
       if (sameFields && sameSource) { unchanged++; continue; }
       const update = { $set: { ...record.fields, source: record.source } };
       // Preserve the origin of fields retained from a previous, wider export.

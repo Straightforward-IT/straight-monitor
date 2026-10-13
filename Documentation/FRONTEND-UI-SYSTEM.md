@@ -31,6 +31,12 @@ Use `--status-danger-text`, `--status-success-text`, and `--status-warning-text`
 
 Button copy remains at the feature boundary because it carries product meaning. Prefer short verbs (`Speichern`, `Abbrechen`, `Entfernen`) and use the same verb for the same action across one workflow. Do not put feature-specific text into a generic component.
 
+## Linked-information convention
+
+Use `LinkedFieldControl` to place `LinkedScopeToggle` inside the trailing end of an input/select or at the top-right of a textarea. Each linkable field has its own control, not one toggle for an entire section. A highlighted link icon means **on: all linked days**; a broken link means **off: current date only**. Shared-by-default fields start on, while existing explicit overrides remain off. The tooltip and accessible name identify the field, current scope and toggle action. Enabling inheritance restores the common value rather than silently publishing a local override.
+
+The Auftrag editor applies this convention independently to Titel, Referenz, Bestelldatum, Bestellung text and shared shift fields. Einsatzort and new Bestellung attachments retain their independent ownership controls. Attachment toggles affect newly queued files only; already stored or queued attachments retain their displayed ownership. Day-only extra shifts remain explicitly local.
+
 ## Migration rules
 
 1. Replace a local action-button class with `AppButton` before changing its visual layout.
@@ -90,6 +96,10 @@ Example:
 - Tools launcher, first pass: `FlipExit` uses `PageLayout`, shared upload/delete actions, inline result/error feedback, a guarded pending state and explicit deletion confirmation; its existing `/api/personal/flip/exit` payload remains unchanged. `FlipUserFix` uses shared filter/bulk controls and `ModalFrame` for confirmation, retaining batch-update semantics. The employee/site map uses shared mode, refresh, retry, search and site-selection controls while map results remain specialized native buttons. The Mailbox and OneDrive explorers use shared refresh/action controls, semantic error and focus states; OneDrive preview now uses `ModalFrame`, with its existing Graph endpoints and upload/download flow. Focused UI tests cover these five tools without contacting live services.
 
 Normal Auftrag creation lives in the calendar and list toolbar action slots, not in a separate row. Both use the existing create launcher; on mobile the shared toolbar exposes the action through its actions toggle.
+
+Auftrag start-date selection uses the shared custom `DatePicker`. Single-day selection closes after choosing a day. Multi-day selection toggles several dates in one calendar, preserves highlights across months, and stays open until "Fertig"; no separate add-date entries are needed. Calendar selections retain their displayed date as a date-only key, without converting the picker event through UTC.
+
+Day navigation in the Auftrag editor uses compact `AppTabs`, matching the Kontingent/Lohn information tabs. Creation tabs select staged calendar days; linked-order tabs select their independent Auftrag. Scroll controls handle long day lists, and switching preserves staged edits.
 
 ### Tools.vue page sequence
 

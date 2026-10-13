@@ -807,7 +807,7 @@ const deleteVerlosung = async (id) => {
 
 const formatDate = (date) => {
   if (!date) return "-";
-  return new Date(date).toLocaleDateString("de-DE");
+  return new Date(date).toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin' });
 };
 
 const formatGravurType = (type) => {

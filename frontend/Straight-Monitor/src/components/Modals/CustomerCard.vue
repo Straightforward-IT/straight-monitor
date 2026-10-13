@@ -1677,7 +1677,7 @@ function openNewPrice(entry) {
     : entry.current?.hourlyRateCents != null
       ? (entry.current.hourlyRateCents / 100).toFixed(2).replace('.', ',')
       : '';
-  newPriceValidFrom.value = new Date().toISOString().slice(0, 10);
+  newPriceValidFrom.value = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format();
   newPriceError.value = '';
 }
 
@@ -1732,7 +1732,7 @@ async function openAddQualifikationDialog() {
   qualifikationSearchQuery.value = '';
   showQualifikationResults.value = true;
   addPriceAmount.value = '';
-  addPriceValidFrom.value = new Date().toISOString().slice(0, 10);
+  addPriceValidFrom.value = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format();
 }
 
 function closeAddQualifikationDialog() {
@@ -1840,7 +1840,7 @@ function openAuftrag(einsatz) {
 
 function formatEinsatzDate(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // MS Graph contacts linked via kuerzel
@@ -2227,7 +2227,7 @@ function getGeschStText(gs) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('de-DE', {
+  return new Date(dateStr).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
 }

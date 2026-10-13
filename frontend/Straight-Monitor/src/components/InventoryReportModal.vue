@@ -217,7 +217,7 @@ function exportExcel() {
     worksheet['!cols'] = [{ wch: 18 }, { wch: 30 }, { wch: 18 }, { wch: 14 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 34 }];
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName(shop, usedNames));
   }
-  XLSX.writeFile(workbook, `Bestandsliste_${new Date().toLocaleDateString('de-DE').replace(/\./g, '-')}.xlsx`);
+  XLSX.writeFile(workbook, `Bestandsliste_${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }).replace(/\./g, '-')}.xlsx`);
 }
 async function submit() {
   message.value = '';

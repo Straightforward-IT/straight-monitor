@@ -312,7 +312,7 @@ const toggleExpand = (id) => {
 
 const formatDate = (val) => {
   if (!val) return '-';
-  return new Date(val).toLocaleDateString('de-DE', {
+  return new Date(val).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit', month: '2-digit', year: 'numeric'
   });
 };

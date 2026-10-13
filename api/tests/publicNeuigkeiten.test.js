@@ -175,7 +175,7 @@ describe('Public Neuigkeiten API', function () {
     assert.equal(einsatz.source, 'monitor');
     assert.equal(einsatz.bestaetigungErforderlich, true);
     assert.equal(einsatz.bestaetigt, false);
-    assert.equal(new Date(einsatz.datumVon).toDateString(), new Date(fixture.datum).toDateString());
+    assert.equal(new Date(einsatz.datumVon).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }), new Date(fixture.datum).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }));
 
     const deleted = await deleteTomorrowConfirmationFixture();
     assert.deepEqual(deleted, { deleted: true, auftragNr: fixture.auftragNr });

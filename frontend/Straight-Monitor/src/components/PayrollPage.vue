@@ -71,7 +71,7 @@ const selectedEmployee = computed(() => data.value?.employee && String(data.valu
 const workspaceEmployee = computed(() => data.value?.employee || { id: employeeId.value });
 const selectedDayEntries = computed(() => (data.value?.entries || []).filter(entry => entry.date === selectedDay.value));
 const selectedDayLabel = computed(() => selectedDay.value
-  ? new Date(`${selectedDay.value}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Tagesdetails');
+  ? new Date(`${selectedDay.value}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Tagesdetails');
 function openDayDetails(date) { if (!loading.value && !error.value) { selectedDay.value = date; detailsOpen.value = true; } }
 function focusSelectedDay() { nextTick(() => document.querySelector(`.payroll-page [data-day="${selectedDay.value}"] .tmx-date`)?.focus({ preventScroll: true })); }
 function replaceQuery(patch) {

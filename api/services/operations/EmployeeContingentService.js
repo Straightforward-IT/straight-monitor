@@ -84,7 +84,7 @@ async function calculate(employee, { year, month, now = new Date(), context, rec
     year, month, groupDate, group, activeImportId: snapshot.importId, basis: 'ASSIGNMENT_PLANNED_HOURS',
     selectionBasis: fallback ? 'EMPLOYMENT_TYPE' : 'TARIFF_GROUP',
     fallbackReason: fallback ? 'Keine gültige Tarifzuordnung. Kontingent anhand des Arbeitsverhältnisses.' : null,
-    eyebrow: new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${monthKey}-01T12:00:00Z`)),
+    eyebrow: new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' }).format(new Date(`${monthKey}-01T12:00:00Z`)),
     type: mode?.type || 'notice', title: mode?.title || 'Tarifkontingent', status: 'RESOLVED', issues: [] };
   const unresolved = (code, message) => ({ ...result, type: 'notice', status: 'UNRESOLVED', issues: [{ code, message }] });
   if (!group && !fallback) return unresolved(assignment.code || 'ASSIGNMENT_MISSING', assignment.message || 'Die Tarifmitarbeitergruppe ist nicht eindeutig zugeordnet.');

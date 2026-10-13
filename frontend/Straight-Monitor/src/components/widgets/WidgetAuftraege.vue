@@ -98,7 +98,7 @@ const isToday = computed(() => {
 
 const dateLabel = computed(() => {
   if (isToday.value) return "Heute";
-  return selectedDate.value.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  return selectedDate.value.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin', day: "2-digit", month: "2-digit" });
 });
 
 function shiftDay(delta) {

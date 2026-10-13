@@ -140,7 +140,7 @@ router.post(
             </tr>${optionalRows}
             <tr>
               <td style="padding: 8px; font-weight: bold;">Datum:</td>
-              <td style="padding: 8px;">${new Date().toLocaleString('de-DE')}</td>
+              <td style="padding: 8px;">${new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })}</td>
             </tr>
           </table>
         </div>

@@ -500,7 +500,7 @@ function placeholderToken(key) { return `{{${key}}}`; }
 function insertPlaceholder(key) { templateForm.htmlTemplate += ` ${placeholderToken(key)}`; }
 function fileType(contentType) { return contentType === 'application/pdf' ? 'PDF' : contentType.includes('officedocument') ? 'DOCX' : 'DOC'; }
 function formatFileSize(size) { return `${(Number(size || 0) / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB`; }
-function formatDate(value) { return value ? new Date(value).toLocaleDateString('de-DE') : '—'; }
+function formatDate(value) { return value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—'; }
 function scopeStyle(document) { return document.locationV2 ? { '--scope-color': document.locationV2.color || '#6b7280' } : {}; }
 </script>
 

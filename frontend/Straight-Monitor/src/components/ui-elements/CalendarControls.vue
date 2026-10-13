@@ -64,9 +64,9 @@ const nextLabel = computed(() => props.type === 'week' ? 'Nächste Kalenderwoche
 const label = computed(() => {
   const date = selectedDate.value;
   if (props.type === 'week') return `KW ${isoWeek(date)} ${isoWeekYear(date)}`;
-  if (props.type === 'month') return date.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  if (props.type === 'month') return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' });
   if (props.type === 'year') return String(date.getFullYear());
-  return date.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: 'long', year: 'numeric' });
 });
 
 function isoWeek(date) {

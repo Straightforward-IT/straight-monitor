@@ -45,14 +45,14 @@ function renderValue(label) {
   if (value === undefined || value === null || value === '') return '<span class="muted">—</span>';
   if (label.fieldType === 'checkbox') return value ? '✓' : '—';
   if (label.fieldType === 'currency') return Number(value).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-  if (label.fieldType === 'date') return new Date(value).toLocaleDateString('de-DE');
+  if (label.fieldType === 'date') return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
   if (label.fieldType === 'dropdown') return escapeHtml(label.options?.find((option) => option.value === value)?.label || value);
   if (label.fieldType === 'multiselect' && Array.isArray(value)) return value.map((entry) => `<span class="cell-pill">${escapeHtml(label.options?.find((option) => option.value === entry)?.label || entry)}</span>`).join(' ');
   if (label.fieldType === 'address' && typeof value === 'object') return escapeHtml([value.street, [value.zip, value.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—');
   return escapeHtml(typeof value === 'string' && /^https?:\/\//i.test(value) ? normalizeUrlDisplay(value) : value);
 }
 const customChips = computed(() => props.customLabels.map((label) => ({ key: label.key, name: label.name, html: renderValue(label) })));
-function formatCreated(value) { try { return value ? new Date(value).toLocaleDateString('de-DE') : '—'; } catch { return '—'; } }
+function formatCreated(value) { try { return value ? new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }) : '—'; } catch { return '—'; } }
 </script>
 
 <style scoped lang="scss">

@@ -114,7 +114,7 @@ export default {
     const auth = useAuth();
 
     const logoSrc = computed(() => (theme.isDark ? darkLogo : lightLogo));
-    const currentYear = computed(() => new Date().getFullYear());
+    const currentYear = computed(() => Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()));
     const userRoles = computed(() => {
       const roles = Array.isArray(auth.user?.roles) ? auth.user.roles : [];
       return [...new Set([...roles, auth.user?.role].filter(Boolean))];

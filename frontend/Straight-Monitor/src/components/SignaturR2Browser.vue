@@ -528,7 +528,7 @@ function formatSize(bytes) {
 
 function formatDate(value) {
   if (!value) return '';
-  return new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(value).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 watch(searchQuery, (query, previousQuery) => {

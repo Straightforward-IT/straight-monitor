@@ -4,11 +4,13 @@ import api from '@/utils/api';
 const sharedFields = ['bezeichnung', 'bedarf', 'berufSchl', 'qualSchl', 'uhrzeitVon', 'uhrzeitBis', 'endDayOffset', 'treffpunkt', 'treffpunktOrt', 'ansprechpartnerName', 'ansprechpartnerTelefon', 'ansprechpartnerEmail'];
 const shiftFields = [...sharedFields, 'datumVon', 'datumBis', 'garantiestundenLohn', 'endeOffen', 'einsatzinformationSourceHtml', 'einsatzinformationCustomized', 'applyLatestTemplate'];
 export const scopeField = field => field === 'datumBis' ? 'endDayOffset' : field;
-const orderFields = ['eventTitel', 'locationV2', 'kundenNr', 'einsatzort', 'einsatzortOverride', 'bestDatum', 'referenz', 'bestelltext', 'bestelltextOverride', 'day'];
+const sharedOrderFields = ['eventTitel', 'referenz', 'bestDatum', 'einsatzort', 'bestelltext'];
+const orderFields = ['eventTitel', 'eventTitelOverride', 'locationV2', 'kundenNr', 'einsatzort', 'einsatzortOverride', 'bestDatum', 'bestDatumOverride', 'referenz', 'referenzOverride', 'bestelltext', 'bestelltextOverride', 'day'];
 const labels = {
   eventTitel: 'Titel', locationV2: 'Standort', kundenNr: 'Kunde', einsatzort: 'Einsatzort',
   einsatzortOverride: 'Einsatzort nur für diesen Tag', bestDatum: 'Bestelldatum', referenz: 'Referenz',
   bestelltext: 'Bestellung', bestelltextOverride: 'Bestellung nur für diesen Tag', day: 'Startdatum',
+  eventTitelOverride: 'Titel nur für diesen Tag', referenzOverride: 'Referenz nur für diesen Tag', bestDatumOverride: 'Bestelldatum nur für diesen Tag',
   bezeichnung: 'Bezeichnung', bedarf: 'Bedarf', berufSchl: 'Beruf', qualSchl: 'Qualifikation',
   uhrzeitVon: 'Beginn', uhrzeitBis: 'Ende', datumVon: 'Startdatum', datumBis: 'Enddatum',
   treffpunkt: 'Treffpunktzeit', treffpunktOrt: 'Treffpunkt', ansprechpartnerName: 'Ansprechpartner',
@@ -103,7 +105,7 @@ export function useAuftragEditor({ auftragNr, locationV2 = '', onUpdated = () =>
   const clientSubmissionId = ref(newId());
   const sharedEdits = reactive({ order: {}, shifts: {} });
   const creationTemplates = reactive({});
-  drafts.new = { order: { eventTitel: '', locationV2, kundenNr: null, einsatzort: '', bestDatum: dates.value[0], referenz: '', bestelltext: '', day: dates.value[0], einsatzortOverride: false, bestelltextOverride: false }, shifts: [], assignments: [], planning: [], customer: null };
+  drafts.new = { order: { eventTitel: '', locationV2, kundenNr: null, einsatzort: '', bestDatum: dates.value[0], referenz: '', bestelltext: '', day: dates.value[0], eventTitelOverride: false, referenzOverride: false, bestDatumOverride: false, einsatzortOverride: false, bestelltextOverride: false }, shifts: [], assignments: [], planning: [], customer: null };
   baselines.new = clone(drafts.new);
   const draft = computed(() => drafts[activeKey.value]);
   const order = computed(() => draft.value.order);
@@ -158,7 +160,7 @@ export function useAuftragEditor({ auftragNr, locationV2 = '', onUpdated = () =>
         if (!drafts[key] || refresh) {
           const day = row.day || row.startingDay || editorDay(row.vonDatum);
           const value = {
-            order: { ...row, day, eventTitel: row.eventTitel || '', referenz: row.referenz || '', locationV2: identity(row.locationV2), einsatzort: identity(row.einsatzort), bestDatum: editorDay(row.bestDatum), bestelltext: row.bestelltext || '', einsatzortOverride: Boolean(row.einsatzortOverride), bestelltextOverride: Boolean(row.bestelltextOverride) },
+            order: { ...row, day, eventTitel: row.eventTitel || '', referenz: row.referenz || '', locationV2: identity(row.locationV2), einsatzort: identity(row.einsatzort), bestDatum: editorDay(row.bestDatum), bestelltext: row.bestelltext || '', eventTitelOverride: Boolean(row.eventTitelOverride), referenzOverride: Boolean(row.referenzOverride), bestDatumOverride: Boolean(row.bestDatumOverride), einsatzortOverride: Boolean(row.einsatzortOverride), bestelltextOverride: Boolean(row.bestelltextOverride) },
             shifts: (row.schichten || []).map(shift => normalizeShift(shift, day)), assignments: row.einsaetze || [], planning: [], customer: row.kundeData || null,
           };
           drafts[key] = value; baselines[key] = clone(value); applyShared(value);
@@ -195,10 +197,10 @@ export function useAuftragEditor({ auftragNr, locationV2 = '', onUpdated = () =>
     }
     order.value[field] = value;
     if (field === 'einsatzort' && value) { order.value.einsatzortIssue = null; order.value.einsatzortValid = true; }
-    if (creating.value && !['day', 'bestelltext', 'einsatzort'].includes(field)) {
+    if (creating.value && field !== 'day' && !sharedOrderFields.includes(field)) {
       Object.values(drafts).forEach(value => { value.order[field] = order.value[field]; });
     }
-    if (linked.value && ['einsatzort', 'bestelltext'].includes(field) && !order.value[`${field}Override`]) {
+    if (sharedOrderFields.includes(field) && !order.value[`${field}Override`]) {
       sharedEdits.order[field] = value;
       Object.values(drafts).forEach(applyShared);
     }
@@ -214,7 +216,7 @@ export function useAuftragEditor({ auftragNr, locationV2 = '', onUpdated = () =>
     } else {
       order.value[key] = false;
       const common = sharedEdits.order[field] ?? group.value?.[field];
-      if (common !== undefined) order.value[field] = field === 'einsatzort' ? identity(common) : common;
+      if (common !== undefined) order.value[field] = field === 'einsatzort' ? identity(common) : field === 'bestDatum' ? editorDay(common) : common;
     }
   }
   function setShift(shift, field, value) {
@@ -347,7 +349,7 @@ export function useAuftragEditor({ auftragNr, locationV2 = '', onUpdated = () =>
       ...primary, mode: creating.value ? 'create' : 'edit', groupRevision: group.value?.revision,
       clientSubmissionId: clientSubmissionId.value, dates: creating.value ? [...new Set(dates.value)].sort() : undefined,
       commonShifts: Object.values(creationTemplates).map(shiftDto),
-      commonOrder: creating.value ? { einsatzort: sharedEdits.order.einsatzort ?? drafts.new.order.einsatzort, bestelltext: sharedEdits.order.bestelltext ?? drafts.new.order.bestelltext } : undefined,
+      commonOrder: creating.value ? Object.fromEntries(sharedOrderFields.map(field => [field, sharedEdits.order[field] ?? drafts.new.order[field]])) : undefined,
       attachments: files.filter(file => file.status !== 'completed').map(file => ({ clientUploadId: file.id, relationTarget: file.target, day: file.day || drafts[file.dayKey]?.order.day, filename: file.file?.name || file.filename, size: file.file?.size ?? file.expectedSize })),
       dayOverrides: Object.keys(drafts).filter(key => key !== activeKey.value && (!creating.value || dates.value.includes(drafts[key].order.day)) && draftDifferences(drafts[key], baselines[key]).length).map(changedPayload),
     };

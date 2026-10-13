@@ -1302,7 +1302,7 @@ async function saveAsanaLink() {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 </script>
 

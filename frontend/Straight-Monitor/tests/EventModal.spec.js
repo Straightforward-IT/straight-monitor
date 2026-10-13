@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushPromises, mount } from '@vue/test-utils';
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils';
 import EventModal from '@/components/Modals/EventModal.vue';
 import AppTabs from '@/components/ui-elements/AppTabs.vue';
+import DatePicker from '@/components/ui-elements/DatePicker.vue';
+import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 import { defineComponent, h, nextTick } from 'vue';
 import { createModalDock, DockedModalHost, MinimizedModalDock, useDockedModals } from '@bleck-it/vue-modal-dock';
 import { useEventModals } from '@/composables/useEventModals';
@@ -21,7 +23,7 @@ const order = (number = 42, date = day) => ({
   schichten: [{ _id: `shift-${number}`, bezeichnung: 'Service', datumVon: date, datumBis: date, uhrzeitVon: '18:00', uhrzeitBis: '23:00', bedarf: 3, berufSchl: '', qualSchl: '', groupShiftKey: 'common', overrides: [], einsatzinformation: { sourceHtml: '<p>Service</p>', renderedHtml: '<p>Service</p>' } }],
   einsaetze: [],
 });
-const group = { _id: 'group', revision: 1, einsatzort: 'site', bestelltext: 'Bestellung', shifts: [{ groupShiftKey: 'common', bezeichnung: 'Service', bedarf: 3 }] };
+const group = { _id: 'group', revision: 1, eventTitel: 'Bankett', referenz: '', bestDatum: null, einsatzort: 'site', bestelltext: 'Bestellung', shifts: [{ groupShiftKey: 'common', bezeichnung: 'Service', bedarf: 3 }] };
 let wrappers = [];
 function setupApi(linked = false) {
   api.get.mockImplementation(url => {
@@ -66,7 +68,107 @@ describe('planning-first Auftrag modal', () => {
     expect(wrapper.text()).toContain('Ein Tag');
     expect(wrapper.text()).not.toContain('Labels');
     expect(wrapper.text()).not.toContain('Einmalige Auftragsadresse');
+    expect(wrapper.find('.section-heading').exists()).toBe(false);
+    expect(wrapper.findAll('.context-grid > .editor-card:first-child > .field').map(field => field.text().trim().split(/\s+/)[0])).toEqual(['Standort', 'Kunde', 'Titel']);
+    expect(wrapper.get('.bestellung .form-row').text()).toContain('Bestelldatum');
+    expect(wrapper.get('.bestellung .form-row').text()).toContain('Referenz');
     expect(api.post.mock.calls.every(([url]) => !url.includes('/submissions'))).toBe(true);
+  });
+  it('uses the custom calendar for single and nonconsecutive multi-day start dates', async () => {
+    const wrapper = render(); await flushPromises();
+    expect(wrapper.findAllComponents(DatePicker)).toHaveLength(1);
+    await wrapper.get('button[aria-label="Auftragstag wählen"]').trigger('click');
+    const singleCalendar = new DOMWrapper(document.body).get('.dp-popup');
+    await singleCalendar.findAll('.dp-cell').find(cell => cell.text() === '15' && !cell.classes().includes('dp-cell--other')).trigger('click');
+    expect(wrapper.get('button[aria-label="Auftragstag wählen"]').text()).toMatch(/^15\./);
+    expect(document.querySelector('.dp-popup')).toBeNull();
+    await wrapper.findAll('button').find(button => button.text() === 'Mehrere Tage').trigger('click');
+    await wrapper.get('button[aria-label="Auftragstage wählen"]').trigger('click');
+    const multiCalendar = new DOMWrapper(document.body).get('.dp-popup');
+    await multiCalendar.findAll('.dp-cell').find(cell => cell.text() === '20' && !cell.classes().includes('dp-cell--other')).trigger('click');
+    expect(document.querySelector('.dp-popup')).not.toBeNull();
+    await multiCalendar.findAll('.dp-cell').find(cell => cell.text() === '22' && !cell.classes().includes('dp-cell--other')).trigger('click');
+    await multiCalendar.findAll('.dp-cell').find(cell => cell.text() === '20' && !cell.classes().includes('dp-cell--other')).trigger('click');
+    expect(wrapper.get('button[aria-label="Auftragstage wählen"]').text()).toBe('2 Tage ausgewählt');
+    expect(wrapper.find('.selected-dates-summary').exists()).toBe(false);
+    expect(wrapper.findAll('button').some(button => button.text() === 'Tag hinzufügen')).toBe(false);
+    await multiCalendar.findAll('button').find(button => button.text() === 'Fertig').trigger('click');
+    expect(document.querySelector('.dp-popup')).toBeNull();
+    const dayTabs = wrapper.get('[role="tablist"][aria-label="Tag planen"]');
+    expect(dayTabs.classes()).toContain('app-tabs--compact');
+    expect(wrapper.find('.day-navigation select').exists()).toBe(false);
+    await dayTabs.findAll('[role="tab"]')[1].trigger('click');
+    expect(dayTabs.findAll('[role="tab"]')[1].attributes('aria-selected')).toBe('true');
+    await dayTabs.findAll('[role="tab"]')[1].trigger('keydown', { key: 'Home' });
+    expect(dayTabs.findAll('[role="tab"]')[0].attributes('aria-selected')).toBe('true');
+    expect(api.post.mock.calls.some(([url]) => url.includes('/submissions'))).toBe(false);
+  });
+  it('uses compact linked-day tabs and preserves edits when switching orders', async () => {
+    setupApi(true);
+    const wrapper = render({ auftragNr: 42 }); await flushPromises();
+    await wrapper.getComponent(AppTabs).findAll('[role="tab"]').find(tab => tab.text() === 'Auftragsdaten').trigger('click');
+    await wrapper.get('button[aria-label^="Titel:"]').trigger('click');
+    await wrapper.get('input[aria-label="Auftragstitel"]').setValue('Behalten');
+    const days = wrapper.get('[role="tablist"][aria-label="Verknüpfte Aufträge"]');
+    expect(days.classes()).toContain('app-tabs--compact');
+    expect(wrapper.find('.day-navigation select').exists()).toBe(false);
+    await days.findAll('[role="tab"]')[1].trigger('click'); await flushPromises();
+    expect(wrapper.get('input[aria-label="Auftragstitel"]').element.value).toBe('Bankett');
+    expect(days.findAll('[role="tab"]')[1].attributes('aria-selected')).toBe('true');
+    await days.findAll('[role="tab"]')[0].trigger('click'); await flushPromises();
+    expect(wrapper.get('input[aria-label="Auftragstitel"]').element.value).toBe('Behalten');
+    expect(days.findAll('[role="tab"]')[0].attributes('aria-selected')).toBe('true');
+    expect(api.post.mock.calls.some(([url]) => url.includes('/submissions'))).toBe(false);
+  });
+  it('uses the same on-by-default link toggle for fields, Bestellung and Einsatzort', async () => {
+    setupApi(true);
+    api.post.mockImplementation(async url => ({ data: url.endsWith('/review') ? { orders: [], totalAffected: 0, errors: [] } : { candidates: [] } }));
+    const wrapper = render({ auftragNr: 42 }); await flushPromises();
+    const demand = wrapper.get('button[aria-label^="Bedarf:"]');
+    expect(demand.attributes('aria-pressed')).toBe('true');
+    await demand.trigger('click');
+    expect(demand.attributes('aria-pressed')).toBe('false');
+    await wrapper.get('input[aria-label="Personalbedarf"]').setValue(0);
+    await wrapper.getComponent(AppTabs).findAll('[role="tab"]').find(tab => tab.text() === 'Auftragsdaten').trigger('click');
+    const note = wrapper.get('button[aria-label^="Bestellungstext:"]');
+    const site = wrapper.get('button[aria-label^="Einsatzort:"]');
+    const attachments = wrapper.get('button[aria-label^="Neue Bestellungsanlagen:"]');
+    expect([note, site, attachments].every(button => button.attributes('aria-pressed') === 'true')).toBe(true);
+    await note.trigger('click'); await site.trigger('click'); await attachments.trigger('click');
+    await wrapper.get('textarea').setValue('Nur für diesen Tag');
+    wrapper.getComponent(AppFileDropzone).vm.$emit('select', new File(['file'], 'bestellung.pdf'));
+    await wrapper.getComponent(AppTabs).findAll('[role="tab"]').find(tab => tab.text() === 'Prüfen').trigger('click');
+    await flushPromises();
+    const body = api.post.mock.calls.find(([url]) => url.endsWith('/review'))[1];
+    expect(body.order).toMatchObject({ bestelltextOverride: true, einsatzortOverride: true, bestelltext: 'Nur für diesen Tag' });
+    expect(body.shifts[0]).toMatchObject({ bedarf: 0, overrides: ['bedarf'] });
+    expect(body.attachments[0].relationTarget).toBe('order');
+    expect(api.post.mock.calls.some(([url]) => url.endsWith('/submissions'))).toBe(false);
+  });
+  it('places independent linked-scope controls inside title and Bestellung fields', async () => {
+    setupApi(true);
+    api.post.mockImplementation(async url => ({ data: url.endsWith('/review') ? { orders: [], totalAffected: 0, errors: [] } : { candidates: [] } }));
+    const wrapper = render({ auftragNr: 42 }); await flushPromises();
+    await wrapper.getComponent(AppTabs).findAll('[role="tab"]').find(tab => tab.text() === 'Auftragsdaten').trigger('click');
+    for (const label of ['Titel', 'Referenz', 'Bestelldatum', 'Bestellungstext']) {
+      const button = wrapper.get(`button[aria-label^="${label}:"]`);
+      expect(button.attributes('aria-pressed')).toBe('true');
+      expect(button.element.closest('.linked-field-control')).not.toBeNull();
+      await button.trigger('click');
+      expect(button.attributes('aria-pressed')).toBe('false');
+    }
+    expect(wrapper.get('.bestellung > .card-heading').find('.linked-scope-toggle').exists()).toBe(false);
+    await wrapper.get('input[aria-label="Auftragstitel"]').setValue('Titel nur heute');
+    await wrapper.get('input[placeholder="Bestellung / PO"]').setValue('PO nur heute');
+    await wrapper.get('.bestellung input[type="date"]').setValue('2026-10-16');
+    await wrapper.get('textarea').setValue('Text nur heute');
+    await wrapper.getComponent(AppTabs).findAll('[role="tab"]').find(tab => tab.text() === 'Prüfen').trigger('click');
+    await flushPromises();
+    const body = api.post.mock.calls.find(([url]) => url.endsWith('/review'))[1];
+    expect(body.order).toMatchObject({
+      eventTitel: 'Titel nur heute', eventTitelOverride: true, referenz: 'PO nur heute', referenzOverride: true,
+      bestDatum: '2026-10-16', bestDatumOverride: true, bestelltext: 'Text nur heute', bestelltextOverride: true,
+    });
   });
   it('guards frame close and allows explicit discard without any mutation', async () => {
     const wrapper = render({ auftragNr: 42 }); await flushPromises();
@@ -317,6 +419,23 @@ describe('staged editor state', () => {
     const extra = model.addShift({ bezeichnung: 'Nur heute', dayOnly: true });
     expect(extra.groupShiftKey).toBeUndefined();
     expect(model.submissionPayload().commonShifts.some(item => item.clientId === extra.clientId)).toBe(false);
+  });
+  it('shares order fields independently and restores common title, reference and date values', async () => {
+    setupApi(true);
+    const model = useAuftragEditor({ auftragNr: 42 }); await model.load(42);
+    model.setOrder('eventTitel', 'Gemeinsamer Titel');
+    model.setOrder('referenz', 'Gemeinsame Referenz');
+    model.setOrder('bestDatum', '2026-10-16');
+    await model.load(43);
+    expect(model.order.value).toMatchObject({ eventTitel: 'Gemeinsamer Titel', referenz: 'Gemeinsame Referenz', bestDatum: '2026-10-16' });
+    for (const field of ['eventTitel', 'referenz', 'bestDatum']) model.toggleOrderOverride(field);
+    model.setOrder('eventTitel', 'Nur dieser Tag'); model.setOrder('referenz', ''); model.setOrder('bestDatum', '');
+    await model.load(42);
+    expect(model.order.value).toMatchObject({ eventTitel: 'Gemeinsamer Titel', referenz: 'Gemeinsame Referenz', bestDatum: '2026-10-16' });
+    await model.load(43);
+    expect(model.order.value).toMatchObject({ eventTitel: 'Nur dieser Tag', referenz: '', bestDatum: '' });
+    for (const field of ['eventTitel', 'referenz', 'bestDatum']) model.toggleOrderOverride(field);
+    expect(model.order.value).toMatchObject({ eventTitel: 'Gemeinsamer Titel', referenz: 'Gemeinsame Referenz', bestDatum: '2026-10-16', eventTitelOverride: false, referenzOverride: false, bestDatumOverride: false });
   });
   it('rejects oversized files visibly without losing valid files', () => {
     const model = useAuftragEditor({});

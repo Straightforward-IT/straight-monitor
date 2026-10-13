@@ -617,7 +617,7 @@ function parseApplicantEmail({ subject = "", from = "", bodyHtml = "" }) {
   
   const asana_body = body_lines.join("\n");
 
-  const due_date = new Date().toISOString().slice(0, 10);
+  const due_date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format();
 
   return {
     quelle: provider,

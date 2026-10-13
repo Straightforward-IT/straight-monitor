@@ -812,7 +812,7 @@ export default {
     },
     formatDate(dateString) {
       if (!dateString) return '';
-      return new Date(dateString).toLocaleString('de-DE', {
+      return new Date(dateString).toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });

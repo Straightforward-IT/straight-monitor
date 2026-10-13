@@ -8,7 +8,7 @@ export function useEmployeeContingentModals() {
     const id = `employee-contingent-${employee._id}-${year}-${month}`;
     const name = data.employeeName || [employee.vorname, employee.nachname].filter(Boolean).join(' ');
     const title = `Kontingent · ${name}`;
-    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' });
     return dockedModals.open({
       id,
       title: `${title} · ${monthLabel}`,

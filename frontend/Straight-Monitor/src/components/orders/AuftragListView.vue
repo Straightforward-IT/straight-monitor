@@ -272,12 +272,12 @@ function compareValues(left, right) {
 
 function formatDate(value) {
   if (!value) return "–";
-  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
+  return new Intl.DateTimeFormat("de-DE", { timeZone: 'Europe/Berlin', day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
 
 function hasDateRange(order) {
   if (!order.vonDatum || !order.bisDatum) return false;
-  return new Date(order.vonDatum).toDateString() !== new Date(order.bisDatum).toDateString();
+  return new Date(order.vonDatum).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) !== new Date(order.bisDatum).toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
 }
 
 function isCurrentDateEntry(order) {

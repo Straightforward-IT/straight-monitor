@@ -873,8 +873,8 @@ function indexToMonthStr(idx) {
 // Convert index to readable label (e.g. "Jan 22")
 function formatSliderLabel(idx) {
   const d = new Date(startDate.getFullYear(), startDate.getMonth() + idx, 1);
-  const m = d.toLocaleDateString('de-DE', { month: 'short' });
-  const y = d.toLocaleDateString('de-DE', { year: '2-digit' });
+  const m = d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'short' });
+  const y = d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', year: '2-digit' });
   return `${m} '${y}`;
 }
 

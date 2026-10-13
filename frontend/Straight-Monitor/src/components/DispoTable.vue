@@ -540,7 +540,7 @@
                             :key="entry._id || entry.text"
                             class="aktivitaet-preview-entry"
                           >
-                            <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                            <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }) }}</span>
                             <span class="aktivitaet-preview-text">{{ entry.text }}</span>
                           </div>
                         </template>
@@ -558,7 +558,7 @@
                             class="aktivitaet-log-item"
                           >
                             <div class="aktivitaet-log-main">
-                              <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                              <span class="aktivitaet-log-time">{{ new Date(entry.createdAt).toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }) }}</span>
                               <span class="aktivitaet-log-text">{{ entry.text }}</span>
                             </div>
                             <button
@@ -2308,7 +2308,7 @@ const verfModal = reactive({
   globalError: '',
 });
 
-const verfCalMonth = reactive({ year: new Date().getFullYear(), month: new Date().getMonth() });
+const verfCalMonth = reactive({ year: Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()), month: Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', month: 'numeric' }).format()) - 1 });
 
 const isVerfAbsence = computed(() =>
   verfModal.typ === 'urlaub' || verfModal.typ === 'krank'
@@ -2326,7 +2326,7 @@ watch(isVerfAbsence, (isAbsence) => {
 
 const verfCalMonthName = computed(() =>
   new Date(verfCalMonth.year, verfCalMonth.month)
-    .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+    .toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', month: 'long', year: 'numeric' })
 );
 
 function prevVerfCalMonth() {
@@ -2896,7 +2896,7 @@ const days = computed(() => {
     result.push({
       date: new Date(d),
       iso: toIso(d),
-      weekday: d.toLocaleDateString('de-DE', { weekday: 'short' }),
+      weekday: d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short' }),
       label: `${d.getDate()}.${d.getMonth() + 1}.`,
       isToday: toIso(d) === todayIso,
       isWeekend: dow === 0 || dow === 6,
@@ -3259,8 +3259,8 @@ function cellAnfragart(maId, iso) {
 function formatEntryTs(ts) {
   if (!ts) return '';
   const d = new Date(ts);
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    + ' um ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' um ' + d.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatTimeShort(zeitVon, zeitBis) {
@@ -3338,9 +3338,9 @@ function formatDateTime(d) {
   if (!d) return '';
   const dt = new Date(d);
   return (
-    dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) +
+    dt.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit' }) +
     ' ' +
-    dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    dt.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' })
   );
 }
 
@@ -3395,13 +3395,13 @@ function entryLabel(entry) {
 function formatDate(d) {
   if (!d) return '';
   const dt = new Date(d);
-  return dt.toLocaleDateString('de-DE');
+  return dt.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
 }
 
 function formatIsoDate(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit' });
 }
 
 function toggleSort(field) {
@@ -3768,7 +3768,7 @@ function getAktivitaetsLogGrouped(maId) {
   for (const entry of logs) {
     const d = new Date(entry.createdAt);
     const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+    const dayLabel = d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
     if (dayKey !== currentDate) {
       groups.push({ dayKey, dayLabel, entries: [] });
       currentDate = dayKey;
@@ -3784,7 +3784,7 @@ function getAktivitaetsLogPreviewGrouped(maId) {
   const entry = logs[logs.length - 1];
   const d = new Date(entry.createdAt);
   const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  const dayLabel = d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+  const dayLabel = d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
   return [{ dayKey, dayLabel, entries: [entry] }];
 }
 

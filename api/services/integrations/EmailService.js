@@ -140,7 +140,7 @@ async function sendInventoryUpdateEmail(teamKey, recipients) {
     console.log(`[sendInventoryUpdate] teamKey=${teamKey} standort=${standort} rows=${content.rows.length}`);
     await sendMail(
       recipients,
-      `Bestands-Update vom ${new Date().toLocaleDateString('de-DE')} für Team ${content.location.nameFull}`,
+      `Bestands-Update vom ${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} für Team ${content.location.nameFull}`,
       content.html,
       teamKey,
       [content.attachment]

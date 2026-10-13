@@ -258,7 +258,7 @@ class Registry {
 
   // For routines
   getRoutineTargetsForToday(date = new Date()) {
-    const weekday = date.toLocaleString("en-US", { weekday: "long" }); // "Monday"
+    const weekday = date.toLocaleString("en-US", { weekday: "long", timeZone: "Europe/Berlin" }); // "Monday"
     return this.listTeams()
       .filter(t => t.routine?.enabled && (t.routine.weekdays || []).includes(weekday))
       .map(t => ({

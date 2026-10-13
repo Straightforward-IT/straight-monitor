@@ -105,6 +105,7 @@ describe('Lohnarten workbook adapters', () => {
     rejects([['Lohnart', 'Lohnart'], [100, 110]], 'AMBIGUOUS_HEADERS');
     rejects([['Lohnart', 'Code für Berechnung', 'Code für Berechnung', 'Code für Berechnung'], [100, 2, '', '']], 'AMBIGUOUS_HEADERS');
     rejects([['LOHNARTNR', 'LOHNARTNR'], [100, 110]], 'AMBIGUOUS_HEADERS');
+    rejects([['LOHNARTNR', 'Lohnart'], [100, 110]], 'AMBIGUOUS_HEADERS');
   });
 
   it('only accepts a headerless export with exactly 24 SQL columns and valid IDs', () => {

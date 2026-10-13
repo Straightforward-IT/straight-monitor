@@ -1,3 +1,5 @@
+require('./config/timezone');
+
 const path = require('path');
 const cors = require('cors');
 const compression = require('compression');

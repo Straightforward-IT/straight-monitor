@@ -1054,7 +1054,7 @@ export default {
       if (!val) return "—";
       const d = new Date(val);
       if (isNaN(d)) return "—";
-      return d.toLocaleDateString("de-DE", {
+      return d.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin',
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

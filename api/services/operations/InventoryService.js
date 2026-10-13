@@ -112,7 +112,7 @@ function percentageColor(percentage) {
 }
 
 function buildInventoryMailHtml(location, rows) {
-  const today = new Date().toLocaleDateString('de-DE');
+  const today = new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
   if (!rows.length) {
     return `<div style="font-family:Arial,sans-serif;color:#222"><h2>Bestandsupdate ${escapeHtml(location.nameFull)}</h2><p>Stand: ${today}</p><p><em>Keine Artikel gefunden.</em></p></div>`;
   }
@@ -194,7 +194,7 @@ function buildInventoryExcelAttachment(location, rows) {
   }
 
   return {
-    name: `Bestandsliste_${location.nameFull.replace(/[\\/?*\[\]:]/g, '-')}_${new Date().toLocaleDateString('de-DE').replace(/\./g, '-')}.xlsx`,
+    name: `Bestandsliste_${location.nameFull.replace(/[\\/?*\[\]:]/g, '-')}_${new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }).replace(/\./g, '-')}.xlsx`,
     content: XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' }),
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   };

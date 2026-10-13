@@ -368,7 +368,7 @@ function formatDate(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('de-DE', {
+  return date.toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
     dateStyle: 'medium',
     timeStyle: 'short',
   });

@@ -40,7 +40,7 @@ import lightLogo from '@/assets/SF_002.png';
 
 const theme = useTheme();
 const logoSrc = computed(() => theme.isDark ? darkLogo : lightLogo);
-const currentYear = computed(() => new Date().getFullYear());
+const currentYear = computed(() => Number(new Intl.DateTimeFormat('en', { timeZone: 'Europe/Berlin', year: 'numeric' }).format()));
 
 const showLegalModal = ref(false);
 const legalModalType = ref('privacy');

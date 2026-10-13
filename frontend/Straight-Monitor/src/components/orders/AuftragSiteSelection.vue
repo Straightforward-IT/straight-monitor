@@ -1,6 +1,6 @@
 <template>
   <article class="site-selection">
-    <header><h4>Einsatzort</h4><FilterChip v-if="linked" :active="order.einsatzortOverride" :disabled="disabled" @click="$emit('scope')">{{ order.einsatzortOverride ? 'Nur dieser Tag' : 'Gemeinsam' }}</FilterChip><AppButton variant="secondary" size="sm" :disabled="disabled || !order.kundenNr" @click="showForm = true">Einsatzort anlegen</AppButton></header>
+    <header><h4>Einsatzort</h4><LinkedScopeToggle v-if="linked" :model-value="!order.einsatzortOverride" label="Einsatzort" :disabled="disabled" @update:model-value="$emit('scope')" /><AppButton variant="secondary" size="sm" :disabled="disabled || !order.kundenNr" @click="showForm = true">Einsatzort anlegen</AppButton></header>
     <p v-if="!order.kundenNr">Zuerst einen Kunden auswählen.</p>
     <p v-if="order.einsatzortIssue" class="issue" role="alert">{{ order.einsatzortIssue.message }}</p>
     <p v-if="!order.einsatzort && (order.eventStrasse || order.eventOrt)" class="snapshot">Bisherige Adresse: {{ [order.eventLocation, order.eventStrasse, order.eventPlz, order.eventOrt].filter(Boolean).join(', ') }}. Bitte als Einsatzort speichern oder einen bestehenden wählen.</p>
@@ -12,7 +12,7 @@
 <script setup>
 import { ref } from 'vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
-import FilterChip from '@/components/ui-elements/FilterChip.vue';
+import LinkedScopeToggle from '@/components/ui-elements/LinkedScopeToggle.vue';
 import EinsatzortFormModal from '@/components/Modals/EinsatzortFormModal.vue';
 defineProps({ order: { type: Object, required: true }, sites: { type: Array, default: () => [] }, linked: { type: Boolean, default: false }, disabled: { type: Boolean, default: false } });
 const emit = defineEmits(['select', 'saved', 'scope']);

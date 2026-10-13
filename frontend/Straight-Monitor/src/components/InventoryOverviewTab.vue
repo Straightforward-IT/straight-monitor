@@ -601,7 +601,7 @@ function toggleItemDetails(item) {
 }
 
 function formatCreationDate(value) {
-  return new Date(value).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(value).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' });
 }
 
 function selectItemLocation(itemId, locationId) {

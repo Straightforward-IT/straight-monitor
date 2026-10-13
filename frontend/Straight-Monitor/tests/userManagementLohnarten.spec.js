@@ -64,10 +64,28 @@ it('searches all raw model fields, average SP1/SP2 meanings and unknown codes wi
   const row = { ...Object.fromEntries(legacyFields.map(field => [field, `${field}-Quellwert`])), ...fixture('raw', '200'), durchschnittsspeicherCode: '1', durchschnittsspeicher2Code: '7' };
   records = [row, { _id: 'unknown', lohnartNummer: '201', berechnungsartCode: '99' }]; await render();
   const input = wrapper.get('input[aria-label="Lohnart suchen"]');
-  for (const field of legacyFields.filter(field => row[field])) { await input.setValue(`  ${row[field].toUpperCase()}  `); expect(ids()).toEqual(['200']); }
+  // Single digit codes can also match a different wage number or an enum meaning.
+  for (const field of legacyFields.filter(field => row[field])) { await input.setValue(`  ${row[field].toUpperCase()}  `); expect(ids(), field).toContain('200'); }
   await input.setValue('Subtraktion im Durchschnitt'); expect(ids()).toEqual(['200']);
   await input.setValue('Unbekannter Code'); expect(ids()).toEqual(['200', '201']);
   await input.setValue('keine-lohnart'); expect(wrapper.get('.lohn tbody td').attributes('colspan')).toBe('8'); expect(row.durchschnittsspeicher2Code).toBe('7');
+});
+
+it('keeps the earlier wide source accessible after a narrow partial import', async () => {
+  details.set('lohnart-110', { ...fixture(), source: { filename: 'Teilimport.xlsx', sheet: 'Import', row: 2, columns: [{ index: 1, header: 'LOHNARTNR', occurrence: 1, value: 110 }] },
+    sourceHistory: [{ filename: 'Lohnarten.xlsx', sheet: 'Tabelle1', row: 8, columns: Array.from({ length: 129 }, (_, index) => ({ index: index + 1, header: `Spalte ${index + 1}`, occurrence: 1, value: index })) }] });
+  await render(); await select('110'); await wrapper.get('.wage-detail button[data-tab-id="source"]').trigger('click');
+  expect(activePanel().text()).toContain('Teilimport.xlsx');
+  expect(activePanel().get('.wage-detail__source-history summary').text()).toContain('Lohnarten.xlsx · Tabelle1 · Zeile 8 (129 Spalten)');
+  expect(activePanel().get('.wage-detail__source-history').findAll('tbody tr')).toHaveLength(129);
+  expect(activePanel().find('[data-raw-field="sourceHistory"]').exists()).toBe(false);
+});
+
+it('searches values and meanings without treating a common source citation as a record value', async () => {
+  const metadata = { verrechnungCode: { status: 'missing', source: ['Bestätigung: 110 → 602'] } };
+  records = [{ ...fixture(), codeMetadaten: metadata }, { ...fixture('other', '200'), lohnartKurzzeichen: 'NST', lohnartBezeichnung: 'Normalstunden', codeMetadaten: metadata }];
+  await render(); await wrapper.get('input[aria-label="Lohnart suchen"]').setValue('110');
+  expect(ids()).toEqual(['110']);
 });
 
 it('combines calculation, real zero provision, KB and unknown-code filters and resets them', async () => {

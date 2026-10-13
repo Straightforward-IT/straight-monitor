@@ -479,7 +479,7 @@
                 <div class="akt-datetime-row">
                   <label class="akt-date-label" @click.prevent="$event.currentTarget.querySelector('input[type=date]').showPicker()">
                     <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
-                    <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                    <span class="akt-date-text">{{ aktForm.date ? new Date(aktForm.date + 'T00:00').toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
                     <input v-model="aktForm.date" type="date" class="akt-date-hidden" />
                   </label>
                   <div class="akt-time-picker">
@@ -630,7 +630,7 @@
                     <div class="akt-datetime-row">
                       <label class="akt-date-label" @click.prevent="$event.currentTarget.querySelector('input[type=date]').showPicker()">
                         <font-awesome-icon :icon="['fas', 'calendar']" class="akt-date-icon" />
-                        <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
+                        <span class="akt-date-text">{{ editAktForm.date ? new Date(editAktForm.date + 'T00:00').toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: 'short', year: 'numeric' }) : 'Datum wählen' }}</span>
                         <input v-model="editAktForm.date" type="date" class="akt-date-hidden" />
                       </label>
                       <div class="akt-time-picker">
@@ -2317,7 +2317,7 @@ function renderCustomValue(lead, lbl) {
 
   if (lbl.fieldType === 'date') {
     const d = new Date(v);
-    if (!isNaN(d.getTime())) return d.toLocaleDateString('de-DE');
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
   }
 
   if (lbl.fieldType === 'dropdown') {
@@ -2790,7 +2790,7 @@ function openExpectedCloseDatePicker() {
 
 function formatDateTime(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleString('de-DE', {
+  return new Date(dt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -3043,7 +3043,7 @@ function formatAktDate(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
   const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
-  return d.toLocaleString('de-DE', {
+  return d.toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
     day: '2-digit', month: '2-digit', year: 'numeric',
     ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   });

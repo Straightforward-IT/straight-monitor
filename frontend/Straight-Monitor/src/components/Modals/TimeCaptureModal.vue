@@ -192,7 +192,7 @@ import AppSelect from '@/components/ui-elements/AppSelect.vue';
 const props = defineProps({ modelValue: { type: Boolean, default: true }, auftragNr: { type: [String, Number], default: null }, employeeId: { type: String, default: null }, employeeName: { type: String, default: '' }, preselectFirstOrder: { type: Boolean, default: true }, minimizeId: { type: String, required: true } });
 const emit = defineEmits(['update:modelValue']);
 const router = useRouter();
-const month = ref(new Date().toLocaleDateString('sv-SE').slice(0, 7));
+const month = ref(new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }).slice(0, 7));
 const selectedOrder = ref(props.auftragNr || '');
 const orders = ref([]), review = ref(null), generation = ref(0), loading = ref(false), busy = ref(false);
 const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref(null);
@@ -204,7 +204,7 @@ const modalDetails = computed(() => {
   const auftrag = review.value?.auftrag;
   const parts = [];
   if (auftrag?.vonDatum) {
-    parts.push(new Date(`${String(auftrag.vonDatum).slice(0, 10)}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }));
+    parts.push(new Date(`${String(auftrag.vonDatum).slice(0, 10)}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }));
   }
   if (auftrag?.eventTitel) parts.push(auftrag.eventTitel);
   if (review.value?.kunde?.kuerzel) parts.push(review.value.kunde.kuerzel);
@@ -213,7 +213,7 @@ const modalDetails = computed(() => {
 const modalTitle = computed(() => ['Stundenschnellerfassung', modalDetails.value].filter(Boolean).join(' · '));
 function orderOptionLabel(order) {
   const date = String(order.vonDatum || '').slice(0, 10);
-  const dateLabel = date ? new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Datum offen';
+  const dateLabel = date ? new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Datum offen';
   return `${dateLabel} · #${order.auftragNr} · ${order.eventTitel}`;
 }
 const assignments = computed(() => (review.value?.einsaetze || []).map(einsatz => {
@@ -226,7 +226,7 @@ const activeFilterLabels = computed(() => [
   submissionFilter.value === 'submitted' ? 'Eingereicht' : submissionFilter.value === 'not-submitted' ? 'Nicht eingereicht' : null,
 ].filter(Boolean));
 const history = computed(() => (review.value?.entries || []).flatMap(entry => (entry.history || []).map(item => ({ ...item, employee: assignments.value.find(value => value._id === entry._id)?.mitarbeiterData?.nachname || entry.personalNr }))).sort((a, b) => new Date(b.at) - new Date(a.at)));
-const dateTime = date => new Date(date).toLocaleString('de-DE');
+const dateTime = date => new Date(date).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });
 const messageOf = error => error?.response?.data?.message || 'Die Anfrage konnte nicht abgeschlossen werden. Eingaben bleiben erhalten.';
 function guard(action) { if (dirty.value) confirmAction.value = action; else action(); }
 function runConfirmed() { const action = confirmAction.value; confirmAction.value = null; dirty.value = false; action?.(); }

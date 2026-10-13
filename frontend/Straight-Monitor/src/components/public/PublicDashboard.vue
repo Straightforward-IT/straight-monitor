@@ -292,7 +292,7 @@ function formatShortDate(d) {
   if (!d) return '';
   const dt = new Date(d);
   const now = new Date();
-  if (dt.toDateString() === now.toDateString()) return 'Heute';
+  if (dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === now.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
   return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
 }
 

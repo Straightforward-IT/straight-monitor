@@ -241,7 +241,7 @@ const previewRows = computed(() => filteredMitarbeiterList.value.map(employee =>
 
 function formatDate(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString('de-DE');
+  return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
 }
 
 async function loadNationalitaeten() {
@@ -357,7 +357,7 @@ async function doExport() {
   }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Mitarbeiter');
-  const date = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
+  const date = new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }).replace(/\./g, '-');
   XLSX.writeFile(workbook, props.filename || `Mitarbeiter_Export_${date}.xlsx`);
 }
 </script>
