@@ -70,6 +70,20 @@ beforeEach(() => {
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('shared order document overview', () => {
+  it('refreshes hours independently and retains the card with a disabled busy control while loading', async () => {
+    const wrapper = panel({ hoursStatus: hoursStatus('open') });
+    await button(wrapper, 'Stundenliste aktualisieren').trigger('click');
+    expect(wrapper.emitted('refresh-hours')).toEqual([[]]);
+    expect(wrapper.emitted('open-signature')).toBeUndefined();
+    await wrapper.setProps({ hoursLoading: true });
+    expect(wrapper.find('.order-document--hours').exists()).toBe(true);
+    expect(wrapper.text()).toContain('1/2 unterschrieben');
+    expect(button(wrapper, 'Stundenliste aktualisieren').element.disabled).toBe(true);
+    expect(button(wrapper, 'Stundenliste aktualisieren').find('.order-document-refresh-icon--spinning').exists()).toBe(true);
+    await button(wrapper, 'Stundenliste aktualisieren').trigger('click');
+    expect(wrapper.emitted('refresh-hours')).toHaveLength(1);
+  });
+
   it('uses a dedicated keyboard-accessible hours action without nesting the other controls', async () => {
     const wrapper = panel({ hoursStatus: hoursStatus('draft'), canSign: true });
     const section = wrapper.get('section');
@@ -393,6 +407,38 @@ describe('document and hours workspace contracts', () => {
     expect(openDocumentPreview).toHaveBeenLastCalledWith(expect.objectContaining({
       id: 'order-42-hours-signed', url: '/signed.pdf', filename: wrapper.vm.stundenlistePdfFilename(true), mimeType: 'application/pdf',
     }), { minimizable: false });
+  });
+
+  it('refreshes the live signature before reloading the hours card and prevents duplicate requests', async () => {
+    let resolveRefresh;
+    api.get.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve; }))
+      .mockResolvedValueOnce({ data: hoursStatus('completed') });
+    const { wrapper } = workspace({ stundenlisteStatus: hoursStatus('open') }, {
+      loadStundenlisteStatus: AuftragCalendarWorkspace.methods.loadStundenlisteStatus,
+    });
+    await button(wrapper, 'Stundenliste aktualisieren').trigger('click');
+    expect(api.get).toHaveBeenCalledExactlyOnceWith('/api/signaturen/hours-1?refresh=true');
+    expect(button(wrapper, 'Stundenliste aktualisieren').element.disabled).toBe(true);
+    await wrapper.vm.loadStundenlisteStatus(42, { refresh: true });
+    expect(api.get).toHaveBeenCalledTimes(1);
+    resolveRefresh({ data: {} }); await flushPromises();
+    expect(api.get).toHaveBeenLastCalledWith('/api/auftraege/42/stundenliste-status');
+    expect(wrapper.get('.order-document-badge').text()).toBe('Unterschrieben');
+    expect(button(wrapper, 'Stundenliste aktualisieren').element.disabled).toBe(false);
+  });
+
+  it.each([0, 1])('keeps the existing card and reports a failure at refresh request %s', async failedRequest => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    if (failedRequest === 1) api.get.mockResolvedValueOnce({ data: {} });
+    api.get.mockRejectedValueOnce(new Error('Offline'));
+    const existingStatus = hoursStatus('open');
+    const { wrapper } = workspace({ stundenlisteStatus: existingStatus }, {
+      loadStundenlisteStatus: AuftragCalendarWorkspace.methods.loadStundenlisteStatus,
+    });
+    await button(wrapper, 'Stundenliste aktualisieren').trigger('click'); await flushPromises();
+    expect(wrapper.vm.stundenlisteStatus).toEqual(existingStatus);
+    expect(alert).toHaveBeenCalledWith('Stundenliste aktualisieren fehlgeschlagen.');
+    expect(button(wrapper, 'Stundenliste aktualisieren').element.disabled).toBe(false);
   });
 
   it('preserves confirmation before deleting a hours draft or travel expense', async () => {

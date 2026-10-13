@@ -41,7 +41,11 @@ gemeldet; sie werden nicht heimlich in einen benachbarten Monat übertragen.
 `FS` ist die interne Tageskennzeichnung und benötigt keine Lohnart.
 Andere KB-Kürzel werden gegen `Lohnart.kb` aufgelöst. Nur ein eindeutiger Treffer
 liefert eine Lohnart; fehlende und mehrdeutige Treffer bleiben sichtbar ungeklärt.
-Es gibt keine automatisch gewählte Normalstunden-Lohnart für produktive Stunden.
+Der aktuelle Import weist produktiven Stunden noch keine Normalstunden-Lohnart
+zu. Für die spätere Payroll-Ausweisung ist **Lohnart 100** als feste Basis
+vereinbart, ergänzt um gegebenenfalls separat ausgewiesene ÜTZ und passende
+lohnseitige Kundenkonditionen. Die Regel und ihre noch offenen Satz-/Einsatz-
+grundlagen stehen in [Berechnungsarten der Lohnarten](Berechnungsarten.md#festgelegte-zuordnung-produktiver-stunden-für-die-spätere-payroll).
 
 Stunden werden als Dezimalstrings verarbeitet, einschließlich der Präzision
 der Quelle. Leere Werte sind `null` und werden nicht als `0` gespeichert.
@@ -102,6 +106,11 @@ Unter der Monatsmatrix ist ein eigener Tab-Bereich für Lohnarten vorbereitet.
 Seine Register sind zunächst leer. Ausgewählter Monat und aktuelle Tagesauswahl
 werden als gemeinsamer Kontext bereitgestellt; die Zuordnung einzelner Register
 zu Tages- oder Monatsdaten und ihre fachlichen Inhalte folgen separat.
+
+Die Grundlage für diesen nächsten Schritt ist in
+[Berechnungsarten der Lohnarten](Berechnungsarten.md) festgehalten, einschließlich
+Durchschnittsspeicherung und der vier Codes zur Bereitstellung in lohn- und
+fakturseitigen Konditionstabellen (`ILOHNFAKTUR`).
 
 ## Grenze dieser Version
 

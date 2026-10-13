@@ -20,7 +20,7 @@
       </AppButton>
     </div>
     <div
-      v-if="hoursLoading"
+      v-if="hoursLoading && !hoursList"
       class="order-document-loading"
       role="status"
     >
@@ -31,15 +31,30 @@
       class="order-document order-document--hours"
       :class="`order-document--${hoursList.status}`"
     >
-      <AppButton
-        variant="ghost"
-        size="sm"
-        class="order-document-title-action"
-        aria-label="Stundenlisten-Vorgang öffnen"
-        @click="emit('open-signature', hoursList._id)"
-      >
-        Stundenliste
-      </AppButton>
+      <div class="order-document-hours-header">
+        <AppButton
+          variant="ghost"
+          size="sm"
+          class="order-document-title-action"
+          aria-label="Stundenlisten-Vorgang öffnen"
+          @click="emit('open-signature', hoursList._id)"
+        >
+          Stundenliste
+        </AppButton>
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          label="Stundenliste aktualisieren"
+          :disabled="hoursLoading"
+          :aria-busy="hoursLoading || undefined"
+          @click="emit('refresh-hours')"
+        >
+          <font-awesome-icon
+            icon="fa-solid fa-arrows-rotate"
+            :class="{ 'order-document-refresh-icon--spinning': hoursLoading }"
+          />
+        </AppIconButton>
+      </div>
       <div class="order-document-meta">
         <span class="order-document-filename">{{ hoursList.fileName || `${hoursList.name}.pdf` }}</span>
         <span>{{ completedSigners }}/{{ (hoursList.submitters || []).length }} unterschrieben</span>
@@ -275,10 +290,10 @@
 import { computed, getCurrentInstance, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
-library.add(faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload);
+library.add(faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate);
 const props = defineProps({
   hoursStatus: { type: Object, default: null }, hoursLoading: { type: Boolean, default: false },
   documents: { type: Array, default: () => [] }, documentsLoading: { type: Boolean, default: false },
@@ -286,7 +301,7 @@ const props = defineProps({
   canSign: { type: Boolean, default: false }, menuOpen: { type: Boolean, default: false },
   expenseName: { type: Function, required: true }, formatSize: { type: Function, required: true },
 });
-const emit = defineEmits(['toggle-menu', 'open-signature', 'preview-hours', 'download-hours', 'edit-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
+const emit = defineEmits(['toggle-menu', 'open-signature', 'refresh-hours', 'preview-hours', 'download-hours', 'edit-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
 const fileInput = ref(null);
 const titleId = `order-documents-${getCurrentInstance().uid}`;
 const hoursList = computed(() => props.hoursStatus?.vorgang);
@@ -305,6 +320,8 @@ const hoursStatusText = computed(() => ({ open: 'Ausstehend', completed: 'Unters
 .order-document--cancelled { border-left-color: var(--status-danger-text); }
 .order-document--upload { border-left-color: var(--primary); }
 .order-document--hours { display: grid; gap: 7px; padding: 10px 12px; }
+.order-document-hours-header { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.order-document-refresh-icon--spinning { animation: order-document-refresh-spin .8s linear infinite; }
 .order-document-title-action { justify-self: start; font-weight: 600; }
 .order-document-info { flex: 1; min-width: 0; }
 .order-document-icon { color: var(--action-accent-text); }
@@ -320,4 +337,8 @@ const hoursStatusText = computed(() => ({ open: 'Ausstehend', completed: 'Unters
 .order-document-delete { --action-ghost-text: var(--status-danger-text); --action-ghost-hover: color-mix(in srgb, var(--status-danger-text) 12%, transparent); }
 .order-document-upload { width: 100%; margin-top: 7px; }
 .order-document-loading { padding: 8px 0; color: var(--muted); font-size: .8rem; }
+@keyframes order-document-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .order-document-refresh-icon--spinning { animation: none; }
+}
 </style>

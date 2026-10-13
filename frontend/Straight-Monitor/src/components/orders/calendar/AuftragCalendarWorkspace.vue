@@ -1025,6 +1025,7 @@
           :format-size="formatFileSize"
           @toggle-menu="toggleNeuMenu"
           @open-signature="openSignaturVorgang"
+          @refresh-hours="loadStundenlisteStatus(selectedEvent.auftragNr, { refresh: true })"
           @preview-hours="previewStundenliste"
           @download-hours="downloadStundenliste"
           @edit-hours="openSignatureDialog"
@@ -3339,18 +3340,33 @@ export default {
       this.mitarbeiterExportData = null;
     },
     // ── Stundenliste-Signatur (DocuSeal) ─────────────────────────────────────
-    async loadStundenlisteStatus(auftragNr) {
+    async loadStundenlisteStatus(auftragNr, { refresh = false } = {}) {
+      if (refresh && this.stundenlisteStatusLoading) return;
+      const vorgangId = this.stundenlisteStatus?.vorgang?._id;
       this.stundenlisteStatusLoading = true;
       try {
+        if (refresh && vorgangId) {
+          await api.get(`/api/signaturen/${vorgangId}?refresh=true`);
+        }
         const { data } = await api.get(
           `/api/auftraege/${auftragNr}/stundenliste-status`,
         );
-        this.stundenlisteStatus = data;
+        if (this.selectedEvent?.auftragNr === auftragNr) {
+          this.stundenlisteStatus = data;
+        }
       } catch (e) {
         console.error("Stundenliste-Status laden fehlgeschlagen", e);
-        this.stundenlisteStatus = null;
+        if (this.selectedEvent?.auftragNr === auftragNr) {
+          if (refresh) {
+            alert(e?.response?.data?.message || "Stundenliste aktualisieren fehlgeschlagen.");
+          } else {
+            this.stundenlisteStatus = null;
+          }
+        }
       } finally {
-        this.stundenlisteStatusLoading = false;
+        if (this.selectedEvent?.auftragNr === auftragNr) {
+          this.stundenlisteStatusLoading = false;
+        }
       }
     },
     async downloadFile(url, filename) {

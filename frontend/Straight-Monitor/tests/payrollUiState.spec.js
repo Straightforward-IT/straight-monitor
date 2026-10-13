@@ -5,6 +5,7 @@ import PayrollPage from '@/components/PayrollPage.vue';
 import ZvooveTimeWorkspace from '@/components/payroll/ZvooveTimeWorkspace.vue';
 import PayrollWageTypesSection from '@/components/payroll/PayrollWageTypesSection.vue';
 import EmployeeTariffWage from '@/components/tariffs/EmployeeTariffWage.vue';
+import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 
 const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, route: null, replace: vi.fn() }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
@@ -74,15 +75,15 @@ describe('Payroll UI state across month requests', () => {
     await selectTabs();
     await wrapper.get('[data-day="2026-08-15"] .tmx-date').trigger('click');
     expect(workspace().props('selectedDate')).toBe('2026-08-15');
-    const workspaceInstance = workspace().vm;
-    const wageTypesInstance = wageTypes().vm;
+    const workspaceInstance = workspace().vm.$.uid;
+    const wageTypesInstance = wageTypes().vm.$.uid;
     const navigation = wrapper.get('nav[aria-label="Lohnartenbereiche"]').element;
     navigation.scrollLeft = 145;
     const september = deferred(); pendingMonths.set('2026-09', september);
 
     await changeMonth('2026-09');
-    expect(workspace().vm).toBe(workspaceInstance);
-    expect(wageTypes().vm).toBe(wageTypesInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
+    expect(wageTypes().vm.$.uid).toBe(wageTypesInstance);
     expectSelectedTabs();
     expect(workspace().props('month')).toBe('2026-09');
     expect(workspace().props('entries')).toEqual([]);
@@ -96,7 +97,7 @@ describe('Payroll UI state across month requests', () => {
     expect(navigation.scrollLeft).toBe(145);
 
     september.resolve({ data: monthData('2026-09', '9.5') }); await flushPromises();
-    expect(workspace().vm).toBe(workspaceInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
     expectSelectedTabs();
     expect(wrapper.get('[data-day="2026-09-15"] .tm-entry--imported strong').text()).toBe('9,50');
     expect(navigation.scrollLeft).toBe(145);
@@ -106,21 +107,22 @@ describe('Payroll UI state across month requests', () => {
     render(); await flushPromises();
     await wrapper.get('[title="Ringdiagramm"]').trigger('click');
     await wageTab('zusammenfassung').trigger('click');
-    const workspaceInstance = workspace().vm;
+    const workspaceInstance = workspace().vm.$.uid;
+    const chartInstance = wrapper.getComponent(HoverDataCard).vm.$.uid;
     const navigation = wrapper.get('nav[aria-label="Lohnartenbereiche"]').element;
     navigation.scrollLeft = 220;
 
     await changeMonth('2026-09');
-    expect(workspace().vm).toBe(workspaceInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
     expect(wrapper.find('.hover-data-card__chart--ring').exists()).toBe(true);
     expect(wageTab('zusammenfassung').attributes('aria-selected')).toBe('true');
     expect(navigation.scrollLeft).toBe(220);
 
     const reload = deferred(); pendingMonths.set('2026-09', reload);
     await wrapper.get('[aria-label="Stand neu laden"]').trigger('click'); await flushPromises();
-    expect(workspace().vm).toBe(workspaceInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
     expect(workspace().props('entries')).toEqual([]);
-    expect(wrapper.find('.hover-data-card__chart--ring').exists()).toBe(true);
+    expect(wrapper.getComponent(HoverDataCard).vm.$.uid).toBe(chartInstance);
     expect(wageTab('zusammenfassung').attributes('aria-selected')).toBe('true');
     reload.resolve({ data: monthData('2026-09', '8') }); await flushPromises();
     expect(wrapper.find('.hover-data-card__chart--ring').exists()).toBe(true);
@@ -130,19 +132,19 @@ describe('Payroll UI state across month requests', () => {
 
   it('keeps selections through a failed month request and retry without showing old entries', async () => {
     render(); await flushPromises(); await selectTabs();
-    const workspaceInstance = workspace().vm;
+    const workspaceInstance = workspace().vm.$.uid;
     const september = deferred(); pendingMonths.set('2026-09', september);
     await changeMonth('2026-09');
     september.reject({ response: { data: { message: 'Monatsstunden vorübergehend nicht erreichbar.' } } }); await flushPromises();
 
     expect(wrapper.get('[role="alert"]').text()).toBe('Monatsstunden vorübergehend nicht erreichbar.');
-    expect(workspace().vm).toBe(workspaceInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
     expect(workspace().isVisible()).toBe(false);
     expect(workspace().props('entries')).toEqual([]);
 
     const retry = deferred(); pendingMonths.set('2026-09', retry);
     await wrapper.get('[aria-label="Stand neu laden"]').trigger('click'); await flushPromises();
-    expect(workspace().vm).toBe(workspaceInstance);
+    expect(workspace().vm.$.uid).toBe(workspaceInstance);
     expect(workspace().isVisible()).toBe(true);
     expectSelectedTabs();
     expect(workspace().props('entries')).toEqual([]);

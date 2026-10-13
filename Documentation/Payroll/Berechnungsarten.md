@@ -53,6 +53,49 @@ Der jetzige Schritt liefert Enum, Eingabedefinitionen und die verständliche
 Anzeige/Suche in der Lohnartentabelle. Er verändert weder Stunden noch Beträge
 und baut noch kein neues Erfassungsformular oder Abrechnungssystem.
 
+## Festgelegte Zuordnung produktiver Stunden für die spätere Payroll
+
+Vom Benutzer am 12.10.2026 festgelegt: Produktive Stunden erhalten in unserer
+Payroll **immer die Basis-Lohnart 100 (Normalstunden)**. Bei den importierten
+Zvoove-Stunden sind das befüllte `T1`–`T7`-Werte mit leerem zugehörigem
+`KZ1`–`KZ7`, einschließlich eines ausdrücklich gelieferten Stundenwerts `0`.
+Die Nummer 100 ist eine feste fachliche Zuordnung; sie wird nicht aus einem
+mehrdeutigen Kürzel wie `NST` oder aus dem Namen einer Lohnart geraten.
+
+Die spätere Ausweisung besteht aus getrennten Positionen:
+
+- Lohnart 100: produktive Stunden mit dem für den Stichtag maßgeblichen
+  Grundstundenlohn. Bei tarifgebundenen Mitarbeitern ist dies der Tarifgrundwert,
+  ohne eine bereits eingerechnete ÜTZ. Die Satzquelle für eigene Verträge und
+  mögliche individuelle Abweichungen bleibt noch festzulegen.
+- ÜTZ: gegebenenfalls als zusätzliche Position mit ihrem eigenen Satz und der
+  dafür festzulegenden ÜTZ-Lohnart. Fehlende ÜTZ zählt als null; widersprüchliche
+  Zuordnungen bleiben ungeklärt.
+- Kundenbezogene Zuschläge: zusätzlich, wenn eine für den tatsächlichen
+  Kunden/Einsatz passende lohnseitige Kondition greift, beispielsweise Nacht-
+  oder Samstagszuschläge. Die bloße Verknüpfung einer Lohnart mit einem Kunden
+  löst noch keinen Zuschlag aus. Regelart, Zeitraum, Wochentage, Schwellen und
+  eine gegebenenfalls ausgeschlossene automatische Ausweisung sind zu prüfen.
+
+`getTariffHourlyWage` enthält bereits Tariflohn plus ÜTZ. Dieses Gesamtergebnis
+darf nicht gleichzeitig als Satz der Lohnart 100 und als Grundlage einer
+zusätzlichen ÜTZ-Position verwendet werden, sonst würde die ÜTZ doppelt zählen.
+Die Zuschlagsbasis bleibt wie oben beschrieben separat zu klären.
+
+Lohnart 100 ist im bereitgestellten Zvoove-Stamm für **Gesamtstunden** markiert.
+Dieses Kennzeichen regelt die Stundenanrechnung und ist unabhängig von der
+festgelegten Basis-Lohnart sowie von AZK-, Durchschnitts- und BG-Kennzeichen.
+Mehrere Lohnpositionen für dieselben produktiven Stunden dürfen die produktive
+Quellstundensumme nicht vervielfachen. Ihre weitere Stundenanrechnung folgt den
+jeweils belegten Kennzeichen; Zuschlags- und ÜTZ-Mengen werden nicht pauschal
+noch einmal als zusätzliche Arbeitsstunden gezählt.
+
+Der Monatsimport enthält keine Kunden-/Einsatzreferenz und keine Arbeitszeit-
+Zeitfenster. Für die spätere Zuschlagsberechnung werden diese Informationen
+zusätzlich benötigt; insbesondere Nachtstunden lassen sich aus einer
+Tagesstundensumme allein nicht bestimmen. Dieser Abschnitt hält die Zielregel
+fest. Die aktuelle Ansicht und der Import erzeugen noch keine Lohnpositionen.
+
 ## Durchschnittsspeicherung für das spätere Schnitt-Tool
 
 `durchschnittsspeicherCode` bestimmt, welche Mengen einer Lohnart zur
@@ -86,3 +129,50 @@ Tageszählung bei mehreren Lohnarten am selben Tag, FS-Tage, Satzquellen und
 Nenner sind Bestandteil des zukünftigen tarifkonformen Schnitt-Tools.
 Für Art 5 ist ein Lohndurchschnitt in EUR/Stunde erforderlich; die bloße
 Kennzeichnung einer Lohnart liefert diesen Wert noch nicht.
+
+## Bereitstellung in Konditionstabellen (Fakturierung)
+
+Die Zvoove-Quellspalte `ILOHNFAKTUR` wird unverändert als
+`Lohnart.fakturierungCode` gespeichert. Die folgenden Bedeutungen wurden vom
+Benutzer am 12.10.2026 für den nächsten Schritt zur Etablierung der Lohnarten
+bestätigt:
+
+| Code | Bedeutung | In lohnseitigen Konditionstabellen bereitstellen | In fakturseitigen Konditionstabellen bereitstellen |
+| --- | --- | --- | --- |
+| 0 | Lohn + Faktur | Ja | Ja |
+| 1 | Nur Lohn | Ja | Nein |
+| 2 | Nur Faktur | Nein | Ja |
+| 3 | Weder Lohn noch Faktur | Nein | Nein |
+
+Der Geltungsbereich ist die **Bereitstellung in Konditionstabellen**. Code 3
+ist kein genereller Ausschluss aus der Lohnabrechnung: Eine Lohnart kann über
+einen anderen fachlichen Weg, etwa eine Fehlzeitenzuordnung oder eine tarifliche
+Sonderzahlungsregel, weiterhin verwendet werden. Der Code allein bestimmt
+weder die Erzeugung einer Lohnbuchung noch deren Berechnung oder Auszahlung.
+
+Beispiele aus dem vom Benutzer benannten Lohnartenbestand:
+
+- Code 1: AZK (+), AZK (-), VMA steuerfrei, VMA steuerpflichtig,
+  Rückerstattung Hemden, HemdenRückzahlung, SneakerRückzahlung,
+  Übernachtung steuerfrei, Prämie und Tantieme Geschäftsführer-Gesellschafter.
+- Code 3: Urlaub, Krankengeld und Urlaubsgeld.
+
+Die Beispiele erklären die vorhandene Konfiguration; zukünftige Zuordnungen
+erfolgen über den gespeicherten Code, nicht über den Namen einer Lohnart.
+Die vier Optionsnamen und die Einstellung auf Seite 2 des Lohnartenstamms sind
+in der [Zvoove-Dokumentation zur Bereitstellung von Lohnarten](https://go.zvoove.com/knowledge/wo-kann-ich-festlegen-ob-eine-lohnart-nur-lohn-oder-fakturseitig-bzw.-f%C3%BCr-beides-gelten-und-ber%C3%BCcksichtigt-werden-soll)
+beschrieben. Die numerische Zuordnung stammt aus der Bestätigung des Benutzers.
+
+Für die nächste Implementierung:
+
+- Ein eigenes gemeinsames Enum für diese vier Codes vorsehen, unabhängig von
+  Berechnungsart, Durchschnittsspeicherung, Steuer-/SV- und AZK-Einstellungen.
+- Den ursprünglichen String-Code erhalten und verständliche Metadaten beim
+  Lesen ergänzen, wie bei den bestehenden Lohnart-Enums. Fehlende oder unbekannte
+  Codes bleiben ungeklärt und dürfen nicht als Code 0 oder Code 3 gelten.
+- Die Bereitstellung der lohn- und fakturseitigen Konditionen getrennt steuern.
+  Andere Wege zur Erzeugung von Lohnarten dürfen insbesondere bei Code 3
+  nicht durch einen globalen Filter unterdrückt werden.
+
+Dieser Abschnitt dokumentiert die vereinbarten Regeln. Das Enum und seine
+Anwendung in API, Oberfläche und Konditionsverarbeitung sind noch zu implementieren.
