@@ -24,6 +24,8 @@ const Einsatzort = require('../../models/Event/Einsatzort');
 const EinsatzinformationTemplate = require('../../models/Event/EinsatzinformationTemplate');
 const User = require('../../models/System/User');
 const logger = require('../../utils/logger');
+const { sheetToJsonWithFormattedTimes } = require('../../utils/excelTime');
+const { dayKey, addDays, atTime } = require('../../utils/orderDay');
 const { sendMail } = require('../../services/integrations/EmailService');
 const auth = require('../../middleware/auth');
 const asyncHandler = require('../../middleware/AsyncHandler');
@@ -119,24 +121,6 @@ router.get('/recent', auth, async (req, res) => {
     res.status(500).json({ success: false, message: 'Fehler beim Laden der Import-Historie.' });
   }
 });
-
-// Helper to parse Excel time (Date object or time string) to clean "HH:MM" string (always UTC-based)
-const parseExcelTime = (val) => {
-  if (!val) return null;
-  // Already a clean HH:MM or HH:MM:SS string
-  if (typeof val === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(val)) {
-    return val.substring(0, 5);
-  }
-  // Date object from xlsx cellDates: true — xlsx stores time-only values as UTC midnight + offset,
-  // so getUTCHours/Minutes gives the correct local time directly (no timezone conversion needed)
-  const d = (val instanceof Date) ? val : new Date(val);
-  if (!isNaN(d.getTime())) {
-    const h = String(d.getUTCHours()).padStart(2, '0');
-    const m = String(d.getUTCMinutes()).padStart(2, '0');
-    return `${h}:${m}`;
-  }
-  return String(val);
-};
 
 const formatBerlinTimestamp = (date = new Date()) => date.toLocaleString('de-DE', {
   timeZone: 'Europe/Berlin',
@@ -753,7 +737,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       return res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
     }
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    // Keep Excel serials: time-only cells must never pass through JS Date/TZ.
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
     // Validate the SQL export header before processing or reading any records.
@@ -770,7 +755,11 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
       return res.status(400).json({ success: false, message: 'Falsche Liste: Für den Einsatz-Import wird Prüffeld 7001 erwartet.' });
     }
 
-    const rawData = XLSX.utils.sheet_to_json(sheet);
+    const rawData = sheetToJsonWithFormattedTimes(sheet, ['UHRZEITVON', 'UHRZEITBIS', 'TREFFPUNKTUHRZEIT'], {
+      date1904: !!workbook.Workbook?.WBProps?.date1904,
+      dateHeaders: ['DATUMVON', 'DATUMBIS', 'DETAIL_DATUMVON', 'DETAIL_DATUMBIS', 'VONDATUM', 'BISDATUM', 'BESTDATUM', 'KUNDESEIT'],
+      timestampHeaders: ['DTPROTDATUM', 'LETZTEAUSSCHREIBUNG', 'DTANGELEGTAM'],
+    });
     const importedAuftragNrs = rawData
       .map(rawRow => Number(cleanKeys(rawRow)['AUFTRAGNR']))
       .filter(Number.isInteger);
@@ -952,8 +941,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
           letzteAusschreibung: row['LETZTEAUSSCHREIBUNG'],
           datumVon: rowDate,
           datumBis: row['DATUMBIS'] || row['DETAIL_DATUMBIS'],
-          uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
-          uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
+          uhrzeitVon: row['UHRZEITVON'],
+          uhrzeitBis: row['UHRZEITBIS'],
           typ: row['TYP'],
           bedarf,
           garantiestundenLohn: row['GARANTIESTD_LOHN'],
@@ -989,14 +978,21 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
 
           detailDatumVon: row['DETAIL_DATUMVON'],
           detailDatumBis: row['DETAIL_DATUMBIS'],
-          uhrzeitVon: parseExcelTime(row['UHRZEITVON']),
-          uhrzeitBis: parseExcelTime(row['UHRZEITBIS']),
+          uhrzeitVon: row['UHRZEITVON'],
+          uhrzeitBis: row['UHRZEITBIS'],
           typ: row['TYP'],
           bedarf: row['BEDARF'],
           garantiestundenLohn: row['GARANTIESTD_LOHN'],
           endeOffen: row['ENDEOFFEN']
         });
       }
+    }
+
+    // Cover both legacy Berlin-midnight dates and UTC calendar dates during
+    // replacement, including the first and last imported day across DST.
+    if (minDate && maxDate) {
+      minDate = atTime(dayKey(minDate));
+      maxDate = new Date(atTime(addDays(dayKey(maxDate), 1)).getTime() - 1);
     }
 
     // Execute Operations
@@ -1140,9 +1136,11 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
     try {
       const timestamp = formatBerlinTimestamp();
       await sendMail('it@straightforward.email', `❌ Zvoove Import Fehler - ${timestamp}`, `Fehler: ${error.message}\n${error.stack}`, 'it');
-    } catch (e) {}
+    } catch (emailError) {
+      logger.error('Failed to send import error notification:', emailError);
+    }
     
-    res.status(500).json({ success: false, message: 'Fehler beim Komplett-Import.', error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: 'Fehler beim Komplett-Import.', error: error.message });
   }
 });
 

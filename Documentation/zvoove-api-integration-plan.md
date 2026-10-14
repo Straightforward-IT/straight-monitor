@@ -36,6 +36,13 @@ _Created: 2026-07-02_
 
 ---
 
+## Excel 7001: Kalenderdaten und Uhrzeiten
+
+- Der Einsatz-Import liest Excel mit `cellDates: false`. Reine Excel-Uhrzeiten sind Serienbruchteile, keine Zeitpunkte; `uhrzeitVon`, `uhrzeitBis` und `treffpunkt` werden als Berliner Wall-Clock-Strings (`HH:MM`) gespeichert. Keine Umwandlung ueber das historische Excel-Bezugsdatum oder `getUTCHours()`.
+- Kalenderdaten werden explizit als UTC-Kalenderdatum gespeichert; separate Protokoll-Zeitstempel werden aus Berliner Ortszeit in UTC-Zeitpunkte umgerechnet. Das Excel-1904-Datumssystem wird beruecksichtigt.
+- Die Kalenderanzeige uebernimmt gespeicherte `HH:MM` unveraendert. Es gibt keinen pauschalen Stundenaufschlag fuer bestehende Daten.
+- Zur Korrektur bereits verschobener Uhrzeit-Strings den Originalexport erneut importieren (fuer den Oktober-2026-Vorfall ab September). Der Ersetzungsbereich umfasst ganze Berliner Kalendertage, damit sowohl alte Berliner-Mitternachtsdaten als auch UTC-Kalenderdaten erfasst werden. Monitor-Auftraege und Monitor-Einsaetze bleiben geschuetzt.
+
 ## Reference Patterns to Reuse
 
 - **`logImport()`** helper in `dataImportRoutes.js:33` + `ImportLog` model + `/api/import/last-uploads` aggregation. Live syncs write `ImportLog` (types: `personal`, `einsatz-komplett`, `verfuegbarkeit`, `rechnung`) with `details.source = 'api'`.
