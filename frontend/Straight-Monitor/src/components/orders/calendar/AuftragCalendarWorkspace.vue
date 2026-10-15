@@ -113,8 +113,12 @@
               </div>
             </template>
           </div>
-          <template #actions>
-            <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
+          <template v-if="isAdmin" #actions>
+            <AppButton
+              :aria-expanded="createMenuOpen"
+              aria-haspopup="menu"
+              @click="toggleCreateMenu"
+            >Anlegen</AppButton>
           </template>
           <template #bottom-actions>
             <RouterLink
@@ -661,12 +665,27 @@
           @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
           @reset-filters="resetListFilters"
         >
-          <template #actions>
-            <AppButton @click="openNewCustomerAuftrag">Auftrag anlegen</AppButton>
+          <template v-if="isAdmin" #actions>
+            <AppButton
+              :aria-expanded="createMenuOpen"
+              aria-haspopup="menu"
+              @click="toggleCreateMenu"
+            >Anlegen</AppButton>
           </template>
         </AuftragListView>
       </div>
       <!-- End main-content -->
+
+      <ContextMenu
+        v-if="createMenuOpen && isAdmin"
+        :x="createMenuPosition.x"
+        :y="createMenuPosition.y"
+        :anchor="createMenuAnchor"
+        :follow-anchor="Boolean(createMenuAnchor)"
+        :options="createMenuItems"
+        @close="closeCreateMenu"
+        @select="handleCreateMenuAction"
+      />
 
       <ContextMenu
         v-if="contextMenu.open"
@@ -1165,6 +1184,10 @@ import {
   faEyeSlash,
   faBuilding,
   faFileExcel,
+  faPenClip,
+  faClipboardList,
+  faFileLines,
+  faStarHalfStroke,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
@@ -1207,6 +1230,10 @@ library.add(
   faEyeSlash,
   faBuilding,
   faFileExcel,
+  faPenClip,
+  faClipboardList,
+  faFileLines,
+  faStarHalfStroke,
 );
 
 import api from "@/utils/api";
@@ -1394,6 +1421,9 @@ export default {
       },
       quickActionsPosition: { x: 0, y: 0 },
       neuMenuPosition: { x: 0, y: 0 },
+      createMenuOpen: false,
+      createMenuPosition: { x: 0, y: 0 },
+      createMenuAnchor: null,
       loadedMonths: new Set(), // Track which months we've loaded
       debounceTimer: null,
 
@@ -1735,6 +1765,27 @@ export default {
           action: "plan-pseudo",
           icon: "fa-solid fa-user-plus",
         },
+        ...(this.selectedEvent?.auftragNr ? [{
+          label: "Report nachpflegen",
+          icon: "fa-solid fa-pen-clip",
+          children: [
+            {
+              label: "EventReport",
+              action: "nachpflegen:eventreport",
+              icon: "fa-solid fa-clipboard-list",
+            },
+            {
+              label: "Laufzettel",
+              action: "nachpflegen:laufzettel",
+              icon: "fa-solid fa-file-lines",
+            },
+            {
+              label: "Evaluierung",
+              action: "nachpflegen:evaluierung",
+              icon: "fa-solid fa-star-half-stroke",
+            },
+          ],
+        }] : []),
       ];
       if (this.isAdmin) {
         items.push({
@@ -1752,6 +1803,27 @@ export default {
         });
       }
       return items;
+    },
+    createMenuItems() {
+      return [
+        {
+          label: "Auftrag",
+          action: "auftrag",
+          special: true,
+        },
+        // TODO: Implement Schulung creation
+        {
+          label: "Schulung",
+          action: "schulung",
+          disabled: true,
+        },
+        // TODO: Implement Meeting creation
+        {
+          label: "Meeting",
+          action: "meeting",
+          disabled: true,
+        },
+      ];
     },
     documentMenuItems() {
       return [
@@ -1824,6 +1896,7 @@ export default {
   },
   watch: {
     viewMode(value) {
+      this.closeCreateMenu();
       if (value === "list") this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
     },
     currentWeekStart() {
@@ -2225,6 +2298,15 @@ export default {
     },
     async handleHeaderActionMenuAction(action) {
       this.showQuickActions = false;
+      if (typeof action === "string" && action.startsWith("nachpflegen:") && this.selectedEvent?.auftragNr) {
+        const tab = action.slice("nachpflegen:".length);
+        const query = {
+          ...(tab !== "laufzettel" ? { tab } : {}),
+          auftragNr: String(this.selectedEvent.auftragNr),
+        };
+        await this.$router.push({ path: "/dokumente-nachpflegen", query });
+        return;
+      }
       if (action === "open-time-entry" && this.isAdmin && this.selectedEvent?.auftragNr) {
         this.openTimeCapture({ auftragNr: String(this.selectedEvent.auftragNr) });
       }
@@ -2821,6 +2903,31 @@ export default {
       this.openEvent(this.selectedEvent, {
         onUpdated: this.applyEditorOrder,
       });
+    },
+    toggleCreateMenu(event) {
+      if (this.createMenuOpen) {
+        this.closeCreateMenu();
+        return;
+      }
+      const anchor = event?.currentTarget || null;
+      const rect = anchor?.getBoundingClientRect();
+      this.createMenuAnchor = anchor;
+      this.createMenuPosition = {
+        x: rect ? rect.right - 164 : (event?.clientX || 0),
+        y: rect ? rect.bottom + 4 : (event?.clientY || 0),
+      };
+      this.createMenuOpen = true;
+    },
+    closeCreateMenu() {
+      this.createMenuOpen = false;
+      this.createMenuAnchor = null;
+    },
+    handleCreateMenuAction(action) {
+      this.closeCreateMenu();
+      if (action === "auftrag") {
+        this.openNewCustomerAuftrag();
+      }
+      // TODO: Handle "schulung" and "meeting" creation once implemented
     },
     openNewCustomerAuftrag() {
       this.openCreateEvent({
@@ -3814,7 +3921,9 @@ export default {
       ) return;
 
       // Close modals in order of priority (topmost = last opened)
-      if (this.showNeuMenu) {
+      if (this.createMenuOpen) {
+        this.closeCreateMenu();
+      } else if (this.showNeuMenu) {
         this.showNeuMenu = false;
       } else if (this.showMitarbeiterExportModal) {
         this.closeMitarbeiterExport();

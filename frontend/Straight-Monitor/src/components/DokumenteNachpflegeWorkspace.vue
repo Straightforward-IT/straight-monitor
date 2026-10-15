@@ -351,6 +351,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h, getCurrentInstance } from 'vue';
+import { useRoute } from 'vue-router';
 import api from '@/utils/api';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useTheme } from '@/stores/theme';
@@ -591,6 +592,7 @@ const props = defineProps({
   },
 });
 
+const route = useRoute();
 const theme = useTheme();
 const isDark = computed(() => theme.isDark);
 const iconLaufzettel  = computed(() => isDark.value ? laufzettelDarkImg  : laufzettelImg);
@@ -620,6 +622,9 @@ async function fetchLocations() {
   try {
     const { data } = await api.get('/api/locations');
     locations.value = data || [];
+    ['laufzettel', 'evaluierung', 'eventreport'].forEach((type) => {
+      if (auftragData.value[type]) applyAuftragAutoFill(type, auftragData.value[type]);
+    });
   } catch (error) {
     console.error('Standorte konnten nicht geladen werden:', error);
     locations.value = [];
@@ -819,9 +824,29 @@ function auftragDisplayMeta(formType) {
   return parts.join(' · ');
 }
 
+function applyRouteAuftragNr() {
+  const rawNr = route.query.auftragNr ?? route.query.auftragnr;
+  const nr = Array.isArray(rawNr) ? rawNr[0] : rawNr;
+  if (!nr) return;
+  const normalized = String(nr).trim();
+  if (!normalized) return;
+
+  if (success.value[props.tab]) {
+    resetForm(props.tab);
+  }
+  if (props.tab === 'laufzettel' && String(lz.value.auftragNr) !== normalized) {
+    lz.value.auftragNr = normalized;
+  } else if (props.tab === 'evaluierung' && String(ev.value.auftragNr) !== normalized) {
+    ev.value.auftragNr = normalized;
+  } else if (props.tab === 'eventreport' && String(er.value.auftragNr) !== normalized) {
+    er.value.auftragNr = normalized;
+  }
+}
+
 watch(() => lz.value.auftragNr, (v) => debouncedAuftragFetch('laufzettel', v));
 watch(() => ev.value.auftragNr, (v) => debouncedAuftragFetch('evaluierung', v));
 watch(() => er.value.auftragNr, (v) => debouncedAuftragFetch('eventreport', v));
+watch([() => route.query.auftragNr, () => route.query.auftragnr], () => applyRouteAuftragNr(), { immediate: true });
 
 onMounted(fetchLocations);
 onBeforeUnmount(() => {
