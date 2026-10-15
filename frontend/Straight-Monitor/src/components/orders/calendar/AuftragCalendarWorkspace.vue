@@ -114,11 +114,11 @@
             </template>
           </div>
           <template v-if="isAdmin" #actions>
-            <AppButton
+            <ToolbarButton
               :aria-expanded="createMenuOpen"
               aria-haspopup="menu"
               @click="toggleCreateMenu"
-            >Anlegen</AppButton>
+            >Anlegen</ToolbarButton>
           </template>
           <template #bottom-actions>
             <RouterLink
@@ -666,11 +666,11 @@
           @reset-filters="resetListFilters"
         >
           <template v-if="isAdmin" #actions>
-            <AppButton
+            <ToolbarButton
               :aria-expanded="createMenuOpen"
               aria-haspopup="menu"
               @click="toggleCreateMenu"
-            >Anlegen</AppButton>
+            >Anlegen</ToolbarButton>
           </template>
         </AuftragListView>
       </div>
@@ -1266,6 +1266,7 @@ import AuftragListView from "@/components/orders/AuftragListView.vue";
 import AuftragDetailsSidePanel from "@/components/orders/AuftragDetailsSidePanel.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
+import ToolbarButton from "@/components/ui-elements/ToolbarButton.vue";
 import ToolbarFilter from "@/components/ui-elements/ToolbarFilter.vue";
 import CalendarControls from "@/components/ui-elements/CalendarControls.vue";
 import AuftragMobileDateNavigation from "@/components/orders/calendar/AuftragMobileDateNavigation.vue";
@@ -1314,6 +1315,7 @@ export default {
     EmployeeCardModal,
     SearchBar,
     Toolbar,
+    ToolbarButton,
     ToolbarFilter,
     CalendarControls,
     AuftragMobileDateNavigation,
