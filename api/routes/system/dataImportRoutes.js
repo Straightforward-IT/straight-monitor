@@ -1523,6 +1523,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           unresolvedEntries: [],
         };
         const locationUpdatedList = [];
+        const deactivatedList = [];
 
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
@@ -1571,6 +1572,14 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               }
             }
             deactivated++;
+            if (deactivatedList.length < 30) {
+              deactivatedList.push({
+                personalnr: op.personalnr || ma.personalnr || '(keine)',
+                name: [op.setFields.vorname || ma.vorname, op.setFields.nachname || ma.nachname].filter(Boolean).join(' ') || ma.email || op.personalnr,
+                email: ma.email || op.setFields.email || null,
+                reason: `Persstatus ${op.persstatus}`,
+              });
+            }
           }
 
 
@@ -1700,7 +1709,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               .map((op) => String(op.personalnr))
           );
           const activeMitarbeiter = await Mitarbeiter.find({ isActive: true })
-            .select('_id personalnr flip_id')
+            .select('_id vorname nachname personalnr email flip_id')
             .lean();
           const missingMitarbeiter = activeMitarbeiter.filter((ma) => {
             if (isProtectedFlipUserId(ma.flip_id)) return false;
@@ -1718,9 +1727,9 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             }
           }
 
-          const idsToDeactivate = missingMitarbeiter
-            .filter((ma) => !ma.flip_id || flipDeletionSucceeded)
-            .map((ma) => ma._id);
+          const toDeactivateMissing = missingMitarbeiter
+            .filter((ma) => !ma.flip_id || flipDeletionSucceeded);
+          const idsToDeactivate = toDeactivateMissing.map((ma) => ma._id);
           if (idsToDeactivate.length > 0) {
             const result = await Mitarbeiter.updateMany(
               { _id: { $in: idsToDeactivate }, isActive: true },
@@ -1728,6 +1737,15 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             );
             deactivatedMissing = result.modifiedCount;
             deactivated += deactivatedMissing;
+            for (const ma of toDeactivateMissing) {
+              if (deactivatedList.length >= 30) break;
+              deactivatedList.push({
+                personalnr: ma.personalnr || '(keine)',
+                name: [ma.vorname, ma.nachname].filter(Boolean).join(' ') || ma.email || String(ma._id),
+                email: ma.email || null,
+                reason: 'nicht mehr im Import',
+              });
+            }
           }
         }
 
@@ -1745,6 +1763,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           locationUpdatedList: locationUpdatedList.length > 0 ? locationUpdatedList : undefined,
           deactivated,
           deactivatedMissing,
+          deactivatedList: deactivatedList.length > 0 ? deactivatedList : undefined,
           locationResolution,
         };
 
@@ -1772,6 +1791,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
               <li>Standorte: <strong>${locationResolution.resolved}</strong> aufgelöst, <strong>${locationResolution.updated}</strong> geändert, <strong>${locationResolution.unresolved}</strong> offen</li>
             </ul>
             ${notFoundHtml}
+            ${deactivatedList.length > 0 ? `<h3>🚫 Deaktiviert (${deactivated}):</h3><ul>${deactivatedList.map(d => `<li>${d.name} (<code>${d.personalnr}</code>${d.email ? `, ${d.email}` : ''}) – <em>${d.reason}</em></li>`).join('')}${deactivated > deactivatedList.length ? `<li>…und ${deactivated - deactivatedList.length} weitere</li>` : ''}</ul>` : ''}
             ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
             ${pnrAddedList.length > 0 ? `<h3>➕ Zusätzliche Personalnr (${pnrAdded}):</h3><ul>${pnrAddedList.map(p => `<li>${p.email}: primär <code>${p.primaer}</code> + zusätzlich <code>${p.zusatz}</code></li>`).join('')}${pnrAdded > pnrAddedList.length ? `<li>…und ${pnrAdded - pnrAddedList.length} weitere</li>` : ''}</ul>` : ''}
             ${locationUpdatedList.length > 0 ? `<h3>📍 Standort geändert (${locationResolution.updated}):</h3><ul>${locationUpdatedList.map(l => `<li>${l.name} (<code>${l.personalnr}</code>${l.email ? `, ${l.email}` : ''}): <code>${l.von}</code> → <code>${l.zu}</code></li>`).join('')}${locationResolution.updated > locationUpdatedList.length ? `<li>…und ${locationResolution.updated - locationUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
