@@ -98,7 +98,7 @@
                     <tr><td>AK – Land</td><td>AL – Telefon (TEL)</td><td>AM – E-Mail (EMAIL)</td></tr>
                     <tr><td>AN – Strasse2</td><td>AO – PLZ2</td><td>AP – Ort2</td></tr>
                     <tr><td>AQ – Land2</td><td>AR – Telefon2 (TEL2)</td><td>AS – E-Mail2 (EMAIL2)</td></tr>
-                    <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td>AU – Steuerklasse (STKLASSE)</td><td>Abgleich mit Nationalitäten-Import</td></tr>
+                    <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td>AU – Steuerklasse (STKLASSE)</td><td>AV – Geschäftsstelle (GESCHST)</td></tr>
                   </tbody></table>
                 </div>
               </details>

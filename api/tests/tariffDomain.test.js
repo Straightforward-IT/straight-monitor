@@ -344,3 +344,208 @@ describe('Independent employee ÜTZ lookup', () => {
     assert.equal(domain.resolveAboveTariff(data, 'employee-1', '2026-02-30').code, 'INVALID_DATE');
   });
 });
+
+describe('Employee tariff re-import identity and ineffective history', () => {
+  const assignment = overrides => ({ ID: 901, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2026-01-01', DTBIS: null, ...overrides });
+  const allowance = overrides => ({ ID: 601, IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: null, DPREIS: '2.4', ...overrides });
+  function parsedRows(table, rows) {
+    const fixtures = validRows(); fixtures[table] = rows;
+    return datasetFrom(fixtures)[table === 'aboveTariff' ? 'allowances' : 'assignments'];
+  }
+  const mergeAllowances = (previous, rows) => domain.mergeAllowanceHistory(previous, parsedRows('aboveTariff', rows));
+  const mergeAssignments = (previous, rows) => domain.mergeAssignmentHistory(previous, parsedRows('employeeAssignments', rows));
+
+  it('accepts eleven valid/ineffective ÜTZ pairs at identical keys without making them conflicts', () => {
+    const rows = Array.from({ length: 11 }, (_, index) => {
+      const date = `2026-${String(index + 1).padStart(2, '0')}-01`;
+      return [allowance({ ID: 1000 + index * 2, DTVON: date }), allowance({ ID: 1001 + index * 2, DTVON: date, DTBIS: '2025-12-31', DPREIS: '9.99' })];
+    }).flat();
+    const initial = mergeAllowances([], rows);
+    assert.deepEqual(errors(initial), []);
+    assert.equal(initial.allowances.length, 22);
+    assert.equal(initial.allowances.filter(row => row.intervalStatus === 'INEFFECTIVE').length, 11);
+    const repeated = mergeAllowances(initial.allowances, [...rows].reverse());
+    assert.deepEqual(errors(repeated), []);
+    assert.equal(repeated.allowances.length, 22);
+    assert.deepEqual(repeated.history, { mode: 'MERGE', received: 22, retained: 0, updated: 22, added: 0 });
+  });
+
+  it('updates the valid natural key after an ID change while retaining ineffective and pre-2026 source rows', () => {
+    const old = allowance({ ID: 600, DTVON: '2025-01-01', DTBIS: '2025-12-31', DPREIS: '1.2', CUSTOM_FLAG: 'before-2026' });
+    const valid = allowance({ CUSTOM_FLAG: 'valid' });
+    const ineffective = allowance({ ID: 602, DTBIS: '2025-12-31', DPREIS: '8', CUSTOM_FLAG: 'ineffective' });
+    const previous = parsedRows('aboveTariff', [old, valid, ineffective]);
+    const snapshot = JSON.stringify(previous);
+    const result = mergeAllowances(previous, [allowance({ ID: 603, IPERSONALNR: '01000001', DTVON: '01.01.2026', DPREIS: '3.125' })]);
+    assert.deepEqual(errors(result), []);
+    assert.equal(result.allowances.length, 3);
+    assert.deepEqual(result.history, { mode: 'MERGE', received: 1, retained: 2, updated: 1, added: 0 });
+    assert.deepEqual(result.allowances.find(row => row.legacyId === '600').source, previous[0].source);
+    assert.deepEqual(result.allowances.find(row => row.legacyId === '602').source, previous[2].source);
+    const resolved = domain.resolveAboveTariff({ allowances: result.allowances }, 'employee-1', '2026-10-15');
+    assert.equal(resolved.status, 'RESOLVED'); assert.equal(resolved.values.DPREIS, '3.125');
+    assert.equal(JSON.stringify(previous), snapshot);
+  });
+
+  it('reuses no-ID ineffective rows exactly and preserves duplicate multiplicity on repeated, reordered uploads', () => {
+    const historical = allowance({ ID: undefined, DTBIS: '2025-12-31', CUSTOM_FLAG: 'same-history' });
+    const valid = allowance();
+    const initial = mergeAllowances([], [historical, valid, { ...historical }]);
+    assert.deepEqual(errors(initial), []); assert.equal(initial.allowances.length, 3);
+    for (const rows of [[valid, historical, { ...historical }], [historical], [historical, { ...historical }, valid]]) {
+      const again = mergeAllowances(initial.allowances, rows);
+      assert.deepEqual(errors(again), []); assert.equal(again.allowances.length, 3);
+      assert.equal(again.allowances.filter(row => row.intervalStatus === 'INEFFECTIVE').length, 2);
+      assert.equal(again.history.added, 0);
+    }
+  });
+
+  it('preserves a known ineffective source ID through an exact ID-less reimport and its later identified reimport', () => {
+    const original = allowance({ DTBIS: '2025-12-31', CUSTOM_FLAG: 'known-history' });
+    const previous = parsedRows('aboveTariff', [original]);
+    const withoutId = mergeAllowances(previous, [{ ...original, ID: undefined }]);
+    assert.deepEqual(errors(withoutId), []); assert.equal(withoutId.allowances.length, 1);
+    assert.equal(withoutId.allowances[0].legacyId, '601');
+    assert.deepEqual(withoutId.allowances[0].source, previous[0].source);
+    const identifiedAgain = mergeAllowances(withoutId.allowances, [original]);
+    assert.deepEqual(errors(identifiedAgain), []); assert.equal(identifiedAgain.allowances.length, 1);
+    assert.equal(identifiedAgain.history.added, 0); assert.equal(identifiedAgain.allowances[0].legacyId, '601');
+    assert.deepEqual(identifiedAgain.allowances[0].source, previous[0].source);
+  });
+
+  it('blocks an ambiguous no-ID correction of distinct ineffective rows instead of guessing or accumulating history', () => {
+    const previous = parsedRows('aboveTariff', [allowance({ ID: undefined, DTBIS: '2025-12-31', DPREIS: '2' }), allowance({ ID: undefined, DTBIS: '2025-12-30', DPREIS: '3' })]);
+    const result = mergeAllowances(previous, [allowance({ ID: undefined, DTBIS: '2025-12-29', DPREIS: '4' })]);
+    assert.ok(errors(result).some(issue => issue.code === 'AMBIGUOUS_ALLOWANCE_UPDATE'));
+    assert.equal(previous.length, 2);
+  });
+
+  it('adds newly identified ineffective rows even with identical content and reimports their IDs without accumulating history', () => {
+    const historical = allowance({ ID: 602, DTBIS: '2025-12-31', DPREIS: '9' });
+    const previous = parsedRows('aboveTariff', [allowance(), historical]);
+    const incoming = [{ ...historical, ID: 603 }, { ...historical, ID: 604, DPREIS: '8' }];
+    const first = mergeAllowances(previous, incoming);
+    assert.deepEqual(errors(first), []); assert.equal(first.allowances.length, 4);
+    assert.deepEqual(first.history, { mode: 'MERGE', received: 2, retained: 2, updated: 0, added: 2 });
+    assert.deepEqual(first.allowances.find(row => row.legacyId === '602').source, previous[1].source);
+    const repeated = mergeAllowances(first.allowances, [...incoming].reverse());
+    assert.deepEqual(errors(repeated), []); assert.equal(repeated.allowances.length, 4);
+    assert.deepEqual(repeated.history, { mode: 'MERGE', received: 2, retained: 2, updated: 2, added: 0 });
+    assert.equal(repeated.allowances.find(row => row.legacyId === '603').values.DPREIS, '9');
+    assert.equal(repeated.allowances.find(row => row.legacyId === '604').values.DPREIS, '8');
+    assert.equal(domain.resolveAboveTariff({ allowances: repeated.allowances }, 'employee-1', '2026-10-15').values.DPREIS, '2.4');
+  });
+
+  it('uses an explicit source ID to correct an ineffective row into a valid row while preserving separate history', () => {
+    const previous = parsedRows('aboveTariff', [allowance({ ID: 601, DTBIS: '2025-12-31' }), allowance({ ID: 602, DTBIS: '2025-12-30', DPREIS: '8' })]);
+    const result = mergeAllowances(previous, [allowance({ ID: 601, DPREIS: '3' })]);
+    assert.deepEqual(errors(result), []); assert.equal(result.allowances.length, 2);
+    assert.deepEqual(result.allowances.find(row => row.legacyId === '602').source, previous[1].source);
+    assert.equal(result.allowances.find(row => row.legacyId === '601').intervalStatus, 'VALID');
+    assert.equal(domain.resolveAboveTariff({ allowances: result.allowances }, 'employee-1', '2026-10-15').values.DPREIS, '3');
+  });
+
+  it('does not infer cancellation of a valid row from newly supplied ineffective history at its key', () => {
+    const previous = parsedRows('aboveTariff', [allowance()]);
+    const result = mergeAllowances(previous, [allowance({ ID: 602, DTBIS: '2025-12-31' })]);
+    assert.deepEqual(errors(result), []); assert.equal(result.allowances.length, 2);
+    assert.deepEqual(result.history, { mode: 'MERGE', received: 1, retained: 1, updated: 0, added: 1 });
+    assert.deepEqual(result.allowances.find(row => row.legacyId === '601').source, previous[0].source);
+    assert.equal(domain.resolveAboveTariff({ allowances: result.allowances }, 'employee-1', '2026-10-15').values.DPREIS, '2.4');
+  });
+
+  it('replaces and explicitly cancels separate ÜTZ source rows independently of incoming row order', () => {
+    const previous = parsedRows('aboveTariff', [allowance(), allowance({ ID: 602, DTBIS: '2025-12-30', CUSTOM_FLAG: 'older-ineffective' })]);
+    const replacement = allowance({ ID: 603, DPREIS: '3' });
+    const cancellation = allowance({ DTBIS: '2025-12-31' });
+    for (const incoming of [[replacement, cancellation], [cancellation, replacement]]) {
+      const result = mergeAllowances(previous, incoming);
+      assert.deepEqual(errors(result), []); assert.equal(result.allowances.length, 3);
+      assert.equal(result.allowances.find(row => row.legacyId === '601').intervalStatus, 'INEFFECTIVE');
+      assert.deepEqual(result.allowances.find(row => row.legacyId === '602').source, previous[1].source);
+      assert.equal(result.allowances.find(row => row.legacyId === '603').intervalStatus, 'VALID');
+      assert.equal(domain.resolveAboveTariff({ allowances: result.allowances }, 'employee-1', '2026-10-15').values.DPREIS, '3');
+    }
+  });
+
+  it('updates a unique valid assignment by natural key when its source ID changes, without replacing ineffective history', () => {
+    const previous = parsedRows('employeeAssignments', [assignment(), assignment({ ID: 902, DTBIS: '2025-12-31', ID_LCS_TARIFGRUPPEN: 24932 })]);
+    const result = mergeAssignments(previous, [assignment({ ID: 903, IPERSONALNR: '01000001', DTVON: '01.01.2026', ID_LCS_TARIFGRUPPEN: 24932 })]);
+    assert.deepEqual(errors(result), []); assert.equal(result.assignments.length, 2);
+    assert.deepEqual(result.history, { mode: 'MERGE', received: 1, retained: 1, updated: 1, added: 0 });
+    assert.deepEqual(result.assignments.find(row => row.legacyId === '902').source, previous[1].source);
+    const rate = domain.resolveBaseRate({ ...datasetFrom(), assignments: result.assignments }, 'employee-1', '2026-09-30');
+    assert.equal(rate.status, 'RESOLVED'); assert.equal(rate.value, '16.08');
+  });
+
+  it('preserves separately identified ineffective assignments with equal content instead of merging their IDs', () => {
+    const historical = assignment({ ID: 902, DTBIS: '2025-12-31' });
+    const previous = parsedRows('employeeAssignments', [assignment(), historical]);
+    const incoming = [{ ...historical, ID: 903 }, { ...historical, ID: 904, ID_LCS_TARIFGRUPPEN: 24932 }];
+    const first = mergeAssignments(previous, incoming);
+    assert.deepEqual(errors(first), []); assert.equal(first.assignments.length, 4);
+    assert.deepEqual(first.history, { mode: 'MERGE', received: 2, retained: 2, updated: 0, added: 2 });
+    assert.deepEqual(first.assignments.find(row => row.legacyId === '902').source, previous[1].source);
+    const repeated = mergeAssignments(first.assignments, [...incoming].reverse());
+    assert.deepEqual(errors(repeated), []); assert.equal(repeated.assignments.length, 4);
+    assert.deepEqual(repeated.history, { mode: 'MERGE', received: 2, retained: 2, updated: 2, added: 0 });
+    const rate = domain.resolveBaseRate({ ...datasetFrom(), assignments: repeated.assignments }, 'employee-1', '2026-09-30');
+    assert.equal(rate.status, 'RESOLVED'); assert.equal(rate.assignment.legacyId, '901');
+  });
+
+  it('gives an explicit assignment source ID precedence when correcting its start date', () => {
+    const previous = parsedRows('employeeAssignments', [assignment({ DTBIS: '2026-08-31' }), assignment({ ID: 902, DTVON: '2026-09-01' })]);
+    const result = mergeAssignments(previous, [assignment({ DTVON: '2026-02-01', DTBIS: '2026-08-31' })]);
+    assert.deepEqual(errors(result), []); assert.equal(result.assignments.length, 2);
+    assert.equal(result.assignments.find(row => row.legacyId === '901').validFrom, '2026-02-01');
+    assert.deepEqual(result.assignments.find(row => row.legacyId === '902').source, previous[1].source);
+  });
+
+  it('does not choose between multiple assignment candidates but accepts their exact repeat in a different order', () => {
+    const originals = [assignment({ ID: 901 }), assignment({ ID: 902, ID_LCS_TARIFGRUPPEN: 24932 })];
+    const previous = parsedRows('employeeAssignments', originals);
+    const changed = mergeAssignments(previous, [assignment({ ID: 903, CUSTOM_FLAG: 'ambiguous-correction' })]);
+    assert.ok(errors(changed).some(issue => issue.code === 'AMBIGUOUS_ASSIGNMENT_UPDATE'));
+    const repeated = mergeAssignments(previous, [...originals].reverse());
+    assert.deepEqual(errors(repeated), []); assert.equal(repeated.assignments.length, 2); assert.equal(repeated.history.added, 0);
+  });
+
+  it('reserves exact assignment matches before applying changed-ID corrections regardless of incoming order', () => {
+    const previous = parsedRows('employeeAssignments', [assignment({ CUSTOM_FLAG: 'A' }), assignment({ ID: 902, ID_LCS_TARIFGRUPPEN: 24932, CUSTOM_FLAG: 'B' })]);
+    const repeated = assignment({ ID: 903, CUSTOM_FLAG: 'A' });
+    const corrected = assignment({ ID: 904, ID_LCS_TARIFGRUPPEN: 24932, CUSTOM_FLAG: 'Changed' });
+    for (const incoming of [[repeated, corrected], [corrected, repeated]]) {
+      const result = mergeAssignments(previous, incoming);
+      assert.deepEqual(errors(result), []); assert.equal(result.assignments.length, 2);
+      assert.deepEqual(result.history, { mode: 'MERGE', received: 2, retained: 0, updated: 2, added: 0 });
+      assert.deepEqual(result.assignments.map(row => [row.legacyId, row.payGroupId, row.source.raw.CUSTOM_FLAG]).sort(), [
+        ['903', '21016', 'A'], ['904', '24932', 'Changed'],
+      ]);
+    }
+  });
+
+  it('preserves repeated no-ID assignment history multiplicity and matches exact rows before an ambiguous fallback', () => {
+    const first = assignment({ ID: undefined, DTBIS: '2025-12-31' });
+    const second = assignment({ ID: undefined, DTBIS: '2025-12-30', ID_LCS_TARIFGRUPPEN: 24932 });
+    const previous = parsedRows('employeeAssignments', [first, second, { ...first }]);
+    const repeated = mergeAssignments(previous, [second, first, { ...first }]);
+    assert.deepEqual(errors(repeated), []); assert.equal(repeated.assignments.length, 3);
+    assert.deepEqual(repeated.history, { mode: 'MERGE', received: 3, retained: 0, updated: 3, added: 0 });
+    const ambiguous = mergeAssignments(previous, [assignment({ ID: undefined, DTBIS: '2025-12-29', CUSTOM_FLAG: 'changed' })]);
+    assert.ok(errors(ambiguous).some(issue => issue.code === 'AMBIGUOUS_ASSIGNMENT_UPDATE'));
+  });
+
+  it('continues blocking multiple valid ÜTZ rows at one key, even with different source IDs', () => {
+    const result = mergeAllowances([], [allowance(), allowance({ ID: 602, DPREIS: '3' })]);
+    assert.ok(errors(result).some(issue => issue.code === 'DUPLICATE_ALLOWANCE_KEY'));
+  });
+
+  it('keeps genuine overlaps at different starts as warnings and unresolved employee values', () => {
+    const previous = parsedRows('aboveTariff', [allowance({ DTVON: '2025-01-01' })]);
+    const result = mergeAllowances(previous, [allowance({ ID: 602, DPREIS: '3' })]);
+    assert.deepEqual(errors(result), []);
+    assert.ok(result.issues.some(issue => issue.severity === 'WARNING' && issue.code === 'OVERLAPPING_INTERVALS'));
+    assert.equal(result.allowances.find(row => row.legacyId === '601').validUntil, null);
+    assert.equal(domain.resolveAboveTariff({ allowances: result.allowances }, 'employee-1', '2026-10-15').code, 'ABOVE_TARIFF_AMBIGUOUS');
+  });
+});

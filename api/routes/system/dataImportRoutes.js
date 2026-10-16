@@ -1144,8 +1144,8 @@ router.post('/einsatz', auth, extendTimeout, upload.single('file'), async (req, 
   }
 });
 
-// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Führerschein, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon) ---
-// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AG=Arbeitszeit, AH=Strasse, AI=PLZ, AJ=Ort, AK=Land, AL=Telefon, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2, AQ=Land2, AR=Telefon2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel, AU=Steuerklasse(STKLASSE)
+// --- Personal Import (kombiniert: Personalnr, Persstatus, Stammdaten, IBAN, Führerschein, Beruf/Quali, Persgruppe, Arbeitsverhältnis, Arbeitszeit, Adresse(n), Email, Telefon, Geschäftsstelle) ---
+// Spalten (mit Prüffeld, neu 7002): A=Prüffeld(7002), B=Personalnr, C=Persstatus(6=Ausgetreten), D=Geburtsdatum(GEBDATUM), E=Nachname, F=Vorname, G=Geburtsname(GEBNAME), H=Geburtsort(GEBORT), I=Eintritt1, J=Austritt1, K=IBAN, L=Führerschein, M=Führerschein gültig von, N=Führerschein gültig bis, O=Berufsschlüssel(komma), P=Qualischlüssel(komma), Q=Persgruppe, R=Arbeitsverhältnis-von, S=Arbeitsverhältnis-Typ, T=Durchschnitt bei Fortführen, U=Arbeitszeit-von, V=Arbeitszeit-bis, W-AG=Arbeitszeit, AH=Strasse, AI=PLZ, AJ=Ort, AK=Land, AL=Telefon, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2, AQ=Land2, AR=Telefon2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel, AU=Steuerklasse(STKLASSE), AV=Geschäftsstelle(GESCHST)
 // Spalten (ohne Prüffeld, Legacy): A=Personalnr, B=ignoriert, C=Austrittsdatum, D=Berufsschlüssel(komma), E=Qualischlüssel(komma), F=Persgruppe, G=Email, H=Telefon
 const PERSONAL_7002_HEADERS = [
   'CODE', 'PERSONALNR', 'PERSSTATUS', 'GEBDATUM', 'NACHNAME', 'VORNAME', 'GEBNAME', 'GEBORT', 'EINTRITT1', 'AUSTRITT1',
@@ -1154,6 +1154,7 @@ const PERSONAL_7002_HEADERS = [
   'ARBEITSZEIT_VON', 'ARBEITSZEIT_BIS', 'ARBZEITMO', 'ARBZEITDI', 'ARBZEITMI', 'ARBZEITDO', 'ARBZEITFR', 'ARBZEITSA', 'ARBZEITSO',
   'ARBZEITWCH', 'ARBZEITMON', 'DZEITKONTOPLUS', 'DZEITKONTOMINUS',
   'STRASSE', 'PLZ', 'ORT', 'LAND', 'TEL', 'EMAIL', 'STRASSE2', 'PLZ2', 'ORT2', 'LAND2', 'TEL2', 'EMAIL2', 'STAATANGEH', 'STKLASSE',
+  'GESCHST',
 ];
 
 const validatePersonal7002Header = (header) => {
@@ -1243,11 +1244,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       //   AF=Zeitkonto-Plus-Limit, AG=Zeitkonto-Minus-Limit, AH=Strasse, AI=PLZ,
       //   AJ=Ort, AK=Land, AL=Tel, AM=Email, AN=Strasse2, AO=PLZ2, AP=Ort2,
       //   AQ=Land2, AR=Tel2, AS=Email2, AT=Staatsangehörigkeits-Schlüssel,
-      //   AU=Steuerklasse (STKLASSE)
+      //   AU=Steuerklasse (STKLASSE), AV=Geschäftsstelle (GESCHST)
       // Legacy (colOffset=0): A=Personalnr, B=ignoriert, C=Austritt, D=Berufsschl,
       //   E=Qualschl, F=Persgruppe, G=Email, H=Telefon
       let personalnr, persstatus, geburtsdatum, nachname, vorname, geburtsname, geburtsort, eintrittsdatum, austrittsdatum;
-      let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon, nationalitaet;
+      let iban, berufKeys, qualiKeys, persgruppRaw, email, telefon, nationalitaet, geschSt;
       let adresse = null, adresse2 = null, lohnStammdaten = null, arbeitsverhaeltnis = null, fuehrerschein = null;
 
       if (hasNewFormat) {
@@ -1342,6 +1343,8 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         nationalitaet = parseStr(row[addressStart + 12]);
         // AU = Steuerklasse (LGELENA.STKLASSE) — roman numerals or 1–6 are accepted.
         lohnStammdaten.steuer.klasse = parseSteuerklasse(row[addressStart + 13]);
+        // AV = Geschäftsstelle (PERSONAL.GESCHST) — entspricht Location.externalId
+        geschSt = parseStr(row[addressStart + 14]);
         const hasWorkingTime = Object.values(workingTime).some((value) => value != null);
         const hasValidity = lohnStammdaten.von != null || lohnStammdaten.bis != null;
         if (!hasWorkingTime && !hasValidity && lohnStammdaten.steuer.klasse == null) {
@@ -1367,6 +1370,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
         email = parseStr(row[6]) ? String(row[6]).trim().toLowerCase() : null;
         telefon = parseStr(row[7]);
         nationalitaet = null;
+        geschSt = null;
       }
 
       const berufIds = berufKeys.map(k => berufMap.get(k)).filter(Boolean);
@@ -1407,7 +1411,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       // Persstatus 1 = Bewerber (noch kein vollständiger MA), 2 = Mitarbeiter
       if (persstatus != null) setFields.isBewerberstatus = persstatus === 1;
 
-      operations.push({ personalnr, persstatus, setFields, lohnStammdatenSnapshot: lohnStammdaten });
+      operations.push({ personalnr, persstatus, geschSt, setFields, lohnStammdatenSnapshot: lohnStammdaten });
     }
 
     if (operations.length === 0) {
@@ -1469,9 +1473,11 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       });
     }
 
-    const activeLocations = await Location.find({ isActive: true })
-      .select('_id externalId')
+    const allLocations = await Location.find({})
+      .select('_id nameFull shortName externalId isActive')
       .lean();
+    const locationsById = new Map(allLocations.map((location) => [String(location._id), location]));
+    const activeLocations = allLocations.filter((location) => location.isActive);
     const locationsByExternalId = new Map();
     const duplicateExternalIds = new Set();
     for (const location of activeLocations) {
@@ -1487,7 +1493,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
       });
     }
     for (const operation of filteredOperations) {
-      const externalId = String(operation.personalnr || '').trim().match(/^\d/)?.[0] || null;
+      const externalId = operation.geschSt ? String(operation.geschSt).trim() : null;
       operation.locationResolution = {
         externalId,
         location: externalId ? locationsByExternalId.get(externalId) || null : null,
@@ -1516,11 +1522,12 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           unresolved: 0,
           unresolvedEntries: [],
         };
+        const locationUpdatedList = [];
 
         // Execute bulk updates (find by Personalnr, Fallback per E-Mail)
         for (const op of filteredOperations) {
           let ma = await Mitarbeiter.findOne({ personalnr: op.personalnr })
-            .select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
+            .select('_id vorname nachname personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
           let pnrChanged = false;
 
           if (!ma) {
@@ -1529,7 +1536,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             if (fallbackEmail) {
               ma = await Mitarbeiter.findOne({
                 $or: [{ email: fallbackEmail }, { additionalEmails: fallbackEmail }]
-              }).select('_id personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
+              }).select('_id vorname nachname personalnr personalnrHistory persgruppe_set_explicitly email additionalEmails flip_id asana_id isActive locationV2 arbeitszeit lohnStammdaten').lean();
               if (ma && ma.personalnr !== op.personalnr) {
                 pnrChanged = true;
               }
@@ -1593,8 +1600,22 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           if (resolvedLocation) {
             locationResolution.resolved++;
             if (String(ma.locationV2 || '') !== String(resolvedLocation._id)) {
+              const previousLocation = ma.locationV2 ? locationsById.get(String(ma.locationV2)) : null;
+              const fromLabel = previousLocation
+                ? (previousLocation.nameFull || previousLocation.shortName || previousLocation.externalId || String(ma.locationV2))
+                : (ma.locationV2 ? String(ma.locationV2) : '(kein Standort)');
+              const toLabel = resolvedLocation.nameFull || resolvedLocation.shortName || resolvedLocation.externalId || String(resolvedLocation._id);
               op.setFields.locationV2 = resolvedLocation._id;
               locationResolution.updated++;
+              if (locationUpdatedList.length < 30) {
+                locationUpdatedList.push({
+                  personalnr: op.personalnr,
+                  name: [op.setFields.vorname || ma.vorname, op.setFields.nachname || ma.nachname].filter(Boolean).join(' ') || ma.email || op.personalnr,
+                  email: ma.email || op.setFields.email || null,
+                  von: fromLabel,
+                  zu: toLabel,
+                });
+              }
             } else {
               locationResolution.unchanged++;
             }
@@ -1605,7 +1626,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
                 mitarbeiterId: String(ma._id),
                 personalnr: op.personalnr,
                 externalId: op.locationResolution.externalId,
-                reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-prefix',
+                reason: op.locationResolution.externalId ? 'unknown-external-id' : 'missing-geschst',
               });
             }
           }
@@ -1721,6 +1742,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
           pnrUpdatedList: pnrUpdatedList.length > 0 ? pnrUpdatedList : undefined,
           pnrAdded,
           pnrAddedList: pnrAddedList.length > 0 ? pnrAddedList : undefined,
+          locationUpdatedList: locationUpdatedList.length > 0 ? locationUpdatedList : undefined,
           deactivated,
           deactivatedMissing,
           locationResolution,
@@ -1752,6 +1774,7 @@ router.post('/personal', auth, extendTimeout, upload.single('file'), async (req,
             ${notFoundHtml}
             ${pnrUpdatedList.length > 0 ? `<h3>🔄 Personalnr korrigiert (${pnrUpdated}):</h3><ul>${pnrUpdatedList.map(p => `<li>${p.email}: <code>${p.alt}</code> → <code>${p.neu}</code></li>`).join('')}${pnrUpdated > pnrUpdatedList.length ? `<li>…und ${pnrUpdated - pnrUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
             ${pnrAddedList.length > 0 ? `<h3>➕ Zusätzliche Personalnr (${pnrAdded}):</h3><ul>${pnrAddedList.map(p => `<li>${p.email}: primär <code>${p.primaer}</code> + zusätzlich <code>${p.zusatz}</code></li>`).join('')}${pnrAdded > pnrAddedList.length ? `<li>…und ${pnrAdded - pnrAddedList.length} weitere</li>` : ''}</ul>` : ''}
+            ${locationUpdatedList.length > 0 ? `<h3>📍 Standort geändert (${locationResolution.updated}):</h3><ul>${locationUpdatedList.map(l => `<li>${l.name} (<code>${l.personalnr}</code>${l.email ? `, ${l.email}` : ''}): <code>${l.von}</code> → <code>${l.zu}</code></li>`).join('')}${locationResolution.updated > locationUpdatedList.length ? `<li>…und ${locationResolution.updated - locationUpdatedList.length} weitere</li>` : ''}</ul>` : ''}
           </div>`;
         await sendMail('it@straightforward.email', `Personal Import – ${timestamp}`, emailContent, 'it');
       } catch (bgError) {

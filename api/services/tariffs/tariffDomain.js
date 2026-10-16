@@ -30,7 +30,11 @@ const get = (row, name) => {
 const personalNumber = row => get(row, 'IPERSONALNR') ?? get(row, 'PERSONALNR');
 
 function issue(issues, severity, code, message, table, row) {
-  issues.push({ severity, code, message, ...(table ? { table } : {}), ...(row?.source ? { filename: row.source.filename, row: row.source.row } : {}) });
+  const personalNr = row?.personalNr || personalNumber(row);
+  issues.push({ severity, code, message, ...(table ? { table } : {}),
+    ...(personalNr != null ? { personalNr: String(personalNr) } : {}),
+    ...(row?.validFrom ? { validFrom: row.validFrom } : {}),
+    ...(row?.source ? { filename: row.source.filename, row: row.source.row } : {}) });
 }
 
 /** Parse the explicitly assigned workbooks; filenames never determine their role. */
@@ -213,7 +217,7 @@ const optionalColumns = {
   referenceWages: ['IOPTHOECHERWERT'], noticePeriods: [], vacationRules: [],
 };
 
-function buildDataset(parsed, employees = []) {
+function buildDataset(parsed, employees = [], { retainedAssignments = [] } = {}) {
   const issues = [...(parsed.issues || [])];
   const all = Object.fromEntries(TABLES.map(table => [table.key, parsed.tables?.[table.key] || []]));
   const scoped = Object.fromEntries(TABLES.map(table => [table.key, []]));
@@ -387,6 +391,7 @@ function buildDataset(parsed, employees = []) {
     return { legacyId: id(row, 'ID', 'employeeAssignments', false), ...matchEmployee(row, 'employeeAssignments'), employeeGroupId, payGroupId, stageId, ...interval(row, 'employeeAssignments'), source: row.source };
   });
   const scopedNumbers = new Set(scoped.employeeAssignments.map(row => idString(personalNumber(row))).filter(Boolean));
+  for (const row of retainedAssignments) if (idString(row.personalNr)) scopedNumbers.add(idString(row.personalNr));
   scoped.aboveTariff = all.aboveTariff.filter(row => scopedNumbers.has(idString(personalNumber(row))));
   const allowances = scoped.aboveTariff.map(row => ({ legacyId: id(row, 'ID', 'aboveTariff', false), ...matchEmployee(row, 'aboveTariff'), ...interval(row, 'aboveTariff'), values: Object.fromEntries(decimalFields.aboveTariff.map(field => [field, decimal(row, field, 'aboveTariff')])), source: row.source }));
   for (const table of TABLES) {
@@ -407,6 +412,25 @@ function buildDataset(parsed, employees = []) {
 function mergeEmployeeHistory(previous = [], incoming = [], issues = [], { table, errorCode, label, naturalIdentity = false }) {
   const sourceId = row => idString(get(row, 'ID'));
   const naturalKey = row => JSON.stringify([idString(row.personalNr), row.validFrom]);
+  const ineffective = row => row.intervalStatus === 'INEFFECTIVE' || Boolean(row.validFrom && row.validUntil && row.validUntil < row.validFrom);
+  const partitionKey = row => JSON.stringify([naturalKey(row), ineffective(row)]);
+  // Compare source content without transport IDs, file positions or employee
+  // lookup results. Date/number formatting changes do not create new history.
+  const contentKey = row => {
+    const raw = Object.fromEntries(Object.entries(rawOf(row)).map(([key, value]) => [normalizeHeader(key), value]));
+    delete raw.ID; delete raw.IPERSONALNR; delete raw.PERSONALNR;
+    raw.PERSONALNR = idString(row.personalNr); raw.DTVON = row.validFrom; raw.DTBIS = row.validUntil;
+    for (const key of ['ID_LCS_TARIF', 'ID_LCS_TARIFMAGRUPPE', 'ID_LCS_TARIFGRUPPEN', 'ID_LCS_TARIFSTUFEN']) {
+      if (Object.hasOwn(raw, key)) raw[key] = idString(raw[key]);
+    }
+    for (const [key, value] of Object.entries(row.values || {})) if (Object.hasOwn(raw, key)) raw[key] = value;
+    return JSON.stringify(Object.fromEntries(Object.entries(raw).sort(([a], [b]) => a.localeCompare(b))));
+  };
+  const sourceContext = row => ({ personalNr: row.personalNr, validFrom: row.validFrom, filename: row.source?.filename, row: row.source?.row });
+  const problem = (code, message, row, related = []) => {
+    issue(issues, 'ERROR', code, message, table, row);
+    issues[issues.length - 1].relatedSources = related.map(sourceContext);
+  };
   // Database IDs and generated import-local keys do not belong to the source.
   const clean = row => {
     const { _id, importId, __v, ...value } = row;
@@ -415,51 +439,93 @@ function mergeEmployeeHistory(previous = [], incoming = [], issues = [], { table
   const retained = previous.map(clean);
   const ids = new Map(), keys = new Map();
   for (const [index, row] of retained.entries()) {
-    for (const [map, key] of [[ids, sourceId(row)], [keys, naturalKey(row)]]) {
+    for (const [map, key] of [[ids, sourceId(row)], [keys, partitionKey(row)]]) {
       if (!key) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(index);
     }
   }
+  // Reserve explicit ID corrections before fallback matching. In a single
+  // export an old valid row can become ineffective while a new valid row starts
+  // at the same date; their processing order must not change the result.
+  const idMatches = incoming.map(row => sourceId(row) ? ids.get(sourceId(row)) || [] : []);
+  const reserved = new Set(idMatches.flat());
+  const contentKeys = retained.map(contentKey);
+  const incomingContentKeys = incoming.map(contentKey);
+  // Reserve exact content globally too. A changed-ID correction must see the
+  // same remaining candidates whether an unchanged sibling precedes or follows
+  // it in the spreadsheet. Each copy consumes only one prior occurrence.
+  const exactMatches = incoming.map((row, index) => {
+    if (idMatches[index].length || (ineffective(row) && sourceId(row))) return [];
+    const exact = (keys.get(partitionKey(row)) || []).find(candidate => !reserved.has(candidate) && contentKeys[candidate] === incomingContentKeys[index]);
+    if (exact === undefined) return [];
+    reserved.add(exact);
+    return [exact];
+  });
   const replaced = new Set();
-  const incomingKeys = new Set();
+  const incomingKeys = new Map();
+  const incomingRows = incoming.map(clean);
   let updated = 0, added = 0;
-  for (const row of incoming) {
+  for (const [incomingIndex, row] of incoming.entries()) {
     const id = sourceId(row);
     const natural = naturalKey(row);
-    if (naturalIdentity && incomingKeys.has(natural)) {
-      issue(issues, 'ERROR', 'DUPLICATE_ALLOWANCE_KEY', 'Für dieselbe Personalnummer und dasselbe DTVON enthält die ÜTZ-Datei mehrere Zeilen. Der Export muss je Beginn genau einen ÜTZ-Eintrag enthalten.', table, row);
+    const isIneffective = ineffective(row);
+    if (naturalIdentity && !isIneffective && incomingKeys.has(natural)) {
+      problem('DUPLICATE_ALLOWANCE_KEY', 'Für dieselbe Personalnummer und dasselbe DTVON enthält die ÜTZ-Datei mehrere gültige Zeilen. Der Export muss je Beginn genau einen gültigen ÜTZ-Eintrag enthalten; unwirksame Historie bleibt separat erhalten.', row, [incomingKeys.get(natural)]);
       continue;
     }
-    incomingKeys.add(natural);
+    if (!isIneffective) incomingKeys.set(natural, row);
     if (naturalIdentity && id && (ids.get(id) || []).some(index => naturalKey(retained[index]) !== natural)) {
-      issue(issues, 'ERROR', 'ALLOWANCE_IDENTITY_CONFLICT', 'Die ÜTZ-Quell-ID gehört im bisherigen Stand zu einer anderen Personalnummer oder einem anderen Beginn. Der Eintrag kann nicht sicher aktualisiert werden.', table, row);
+      problem('ALLOWANCE_IDENTITY_CONFLICT', 'Die ÜTZ-Quell-ID gehört im bisherigen Stand zu einer anderen Personalnummer oder einem anderen Beginn. Der Eintrag kann nicht sicher aktualisiert werden.', row, (ids.get(id) || []).map(index => retained[index]));
       continue;
     }
-    let matches = naturalIdentity ? keys.get(natural) || [] : id ? ids.get(id) || [] : [];
-    if (!matches.length) {
-      matches = (keys.get(naturalKey(row)) || []).filter(index => !id || !sourceId(retained[index]));
+    let matches = idMatches[incomingIndex].length ? idMatches[incomingIndex] : exactMatches[incomingIndex];
+    const candidates = (keys.get(partitionKey(row)) || []).filter(index => !reserved.has(index));
+    if (matches.length > 1 || matches.some(index => replaced.has(index))) {
+      problem(errorCode, `Die ${label}-Quell-ID kann nicht eindeutig aktualisiert werden.`, row, matches.map(index => retained[index]));
+      continue;
     }
-    if (!naturalIdentity && matches.length > 1) {
-      // Identical repeated exports may contain multiple historical rows with
-      // the same natural key. Preserve their multiplicity without guessing
-      // which of them a changed value is intended to correct.
-      const exact = matches.find(index => !replaced.has(index) && stableRaw(retained[index]) === stableRaw(row));
+    if (naturalIdentity && !isIneffective) {
+      // Natural-key updates repair older active duplicates, but never consume
+      // unrelated ineffective rows at that same start date.
+      matches = [...new Set([...matches, ...candidates.filter(index => !replaced.has(index))])];
+    } else if (!matches.length && !(isIneffective && id)) {
+      const exact = candidates.find(index => !replaced.has(index) && contentKeys[index] === contentKey(row));
       if (exact !== undefined) matches = [exact];
+      else if (isIneffective) {
+        // ID-less ineffective history is a multiset. Extra identical copies
+        // may be delivered, but changing an unidentified old row is ambiguous.
+        const sameContent = candidates.some(index => contentKeys[index] === contentKey(row));
+        if (candidates.length && !sameContent) {
+          problem(errorCode, `Die unwirksame ${label}-Historie kann ohne eindeutige Quell-ID nicht korrigiert werden.`, row, candidates.map(index => retained[index]));
+          continue;
+        }
+      } else {
+        const available = candidates.filter(index => !replaced.has(index));
+        if (available.length > 1) {
+          problem(errorCode, `Die ${label}-Zeile kann nicht eindeutig aktualisiert werden. Personalnummer und DTVON sind mehrfach vorhanden; eine eindeutige Quell-ID wird benötigt.`, row, available.map(index => retained[index]));
+          continue;
+        }
+        matches = available;
+      }
     }
-    if ((!naturalIdentity && matches.length > 1) || matches.some(index => replaced.has(index))) {
-      issue(issues, 'ERROR', errorCode, `Die ${label}-Zeile kann nicht eindeutig aktualisiert werden. Personalnummer und DTVON sind mehrfach vorhanden; eine eindeutige Quell-ID wird benötigt.`, table, row);
-      continue;
+    if (matches.length) {
+      matches.forEach(index => replaced.add(index)); updated++;
+      // Reusing an exact unidentified historical copy must not erase an
+      // already known source ID; switching export formats would duplicate it.
+      if (isIneffective && !id && matches.length === 1 && sourceId(retained[matches[0]]) && contentKeys[matches[0]] === incomingContentKeys[incomingIndex]) {
+        incomingRows[incomingIndex] = retained[matches[0]];
+      }
     }
-    if (matches.length) { matches.forEach(index => replaced.add(index)); updated++; }
     else added++;
   }
   const kept = retained.filter((_, index) => !replaced.has(index));
-  const entries = [...kept, ...incoming.map(clean)];
+  const entries = [...kept, ...incomingRows];
   // Check the complete resulting history, including rows absent from the file.
   const combinedIssues = issues.filter(entry => entry.table !== table || entry.code !== 'OVERLAPPING_INTERVALS');
   warnOverlaps(entries, row => row.employeeId || `nr:${idString(row.personalNr)}`, table, combinedIssues);
-  return { entries, issues: combinedIssues, history: { mode: 'MERGE', received: incoming.length, retained: kept.length, updated, added } };
+  const rejected = incoming.length - updated - added;
+  return { entries, issues: combinedIssues, history: { mode: 'MERGE', received: incoming.length, retained: kept.length, updated, added, ...(rejected ? { rejected } : {}) } };
 }
 
 function mergeAllowanceHistory(previous = [], incoming = [], issues = []) {
@@ -596,10 +662,43 @@ const compareKeyFields = {
 };
 const stableRaw = row => JSON.stringify(Object.fromEntries(Object.entries(rawOf(row)).map(([key, value]) => [normalizeHeader(key), value instanceof Date ? value.toISOString() : value]).sort(([a], [b]) => a.localeCompare(b))));
 
+function compareEmployeeHistory(before, after) {
+  const oldRows = new Set(before.map((_, index) => index));
+  const newRows = new Set(after.map((_, index) => index));
+  const counts = { added: 0, removed: 0, changed: 0, unchanged: 0 };
+  const match = (keyFor, result) => {
+    const oldByKey = new Map();
+    for (const index of oldRows) {
+      const key = keyFor(before[index]);
+      if (key == null) continue;
+      if (!oldByKey.has(key)) oldByKey.set(key, []);
+      oldByKey.get(key).push(index);
+    }
+    for (const index of newRows) {
+      const key = keyFor(after[index]);
+      const candidates = key == null ? null : oldByKey.get(key);
+      if (!candidates?.length) continue;
+      oldRows.delete(candidates.pop()); newRows.delete(index); counts[result]++;
+    }
+  };
+  match(stableRaw, 'unchanged');
+  match(row => idString(get(row, 'ID')), 'changed');
+  // A regenerated source ID at the same history key is an update, not a
+  // deletion plus insertion. Keep ineffective history in its own partition.
+  match(row => JSON.stringify([idString(row.personalNr), row.validFrom,
+    row.intervalStatus === 'INEFFECTIVE' || Boolean(row.validUntil && row.validUntil < row.validFrom)]), 'changed');
+  counts.removed = oldRows.size; counts.added = newRows.size;
+  return counts;
+}
+
 function compareDatasets(previous, next) {
   const before = rowsByRole(previous), after = rowsByRole(next);
   const changes = {};
   for (const { key } of TABLES) {
+    if (['employeeAssignments', 'aboveTariff'].includes(key)) {
+      changes[key] = compareEmployeeHistory(before[key], after[key]);
+      continue;
+    }
     const buckets = rows => {
       const map = new Map();
       for (const row of rows) {

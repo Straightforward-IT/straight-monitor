@@ -1758,7 +1758,7 @@ export default {
     headerActionMenuItems() {
       const items = [
         ...(!this.selectedEvent?.isPseudo ? [{
-          label: "Schichten & Personal bearbeiten",
+          label: "Event-Editor",
           action: "open-editor",
           icon: "fa-solid fa-pencil",
         }] : []),

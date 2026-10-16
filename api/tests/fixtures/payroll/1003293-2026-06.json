@@ -1,0 +1,355 @@
+{
+  "description": "Independent June 2026 hours and tariff inputs for 1003293. Names and unrelated employee fields omitted; Mongo employee ID replaced. Expected gross is reference output only.",
+  "capturedOn": "2026-10-16",
+  "snapshots": {
+    "hoursImportId": "6acb628e6cf75fd6825933f1",
+    "hoursRevision": 1,
+    "tariffImportId": "6ad0d0d738272750c3d3fa19"
+  },
+  "employee": {
+    "_id": "000000000000000000000001",
+    "personalnr": "1003293",
+    "personalnrHistory": []
+  },
+  "hoursSource": {
+    "path": "/Users/cedricbleck/Windows Server/Stunden/2026/Juni.xlsx",
+    "filename": "Juni.xlsx",
+    "sheet": "Tabelle1",
+    "columns": [
+      "PERSONALNR",
+      "JAHR",
+      "MONAT",
+      "WOCHE",
+      "KW",
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7",
+      "KZ1",
+      "KZ2",
+      "KZ3",
+      "KZ4",
+      "KZ5",
+      "KZ6",
+      "KZ7",
+      "ERSTELLTAM",
+      "GEAENDERAM"
+    ],
+    "rows": [
+      {
+        "row": 302,
+        "values": [
+          1003293,
+          2026,
+          6,
+          1,
+          23,
+          null,
+          5.5,
+          6.5,
+          null,
+          null,
+          null,
+          null,
+          "FS",
+          null,
+          null,
+          "FS",
+          "FS",
+          "FS",
+          "FS",
+          46178.625497685185,
+          46206.715949074074
+        ]
+      },
+      {
+        "row": 810,
+        "values": [
+          1003293,
+          2026,
+          6,
+          2,
+          24,
+          null,
+          null,
+          8,
+          4,
+          7.5,
+          null,
+          null,
+          "FS",
+          "FS",
+          null,
+          null,
+          null,
+          "FS",
+          "FS",
+          46181.60265046296,
+          46206.6766087963
+        ]
+      },
+      {
+        "row": 1818,
+        "values": [
+          1003293,
+          2026,
+          6,
+          3,
+          25,
+          null,
+          5.75,
+          6,
+          5.5,
+          9.25,
+          null,
+          null,
+          "FS",
+          null,
+          null,
+          null,
+          null,
+          "FS",
+          "FS",
+          46181.60265046296,
+          46206.6766087963
+        ]
+      },
+      {
+        "row": 1970,
+        "values": [
+          1003293,
+          2026,
+          6,
+          4,
+          26,
+          null,
+          8.5,
+          null,
+          null,
+          4,
+          5.5,
+          null,
+          "FS",
+          null,
+          "FS",
+          "FS",
+          null,
+          null,
+          "FS",
+          46181.60265046296,
+          46206.6766087963
+        ]
+      },
+      {
+        "row": 3052,
+        "values": [
+          1003293,
+          2026,
+          6,
+          5,
+          27,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "FS",
+          "FS",
+          null,
+          null,
+          null,
+          null,
+          null,
+          46181.60265046296,
+          46206.6766087963
+        ]
+      },
+      {
+        "row": 3344,
+        "values": [
+          1003293,
+          2026,
+          6,
+          6,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          46181.60265046296,
+          null
+        ]
+      }
+    ]
+  },
+  "tariffContext": {
+    "employeeId": "000000000000000000000001",
+    "importId": "6ad0d0d738272750c3d3fa19",
+    "data": {
+      "currentPersonalNr": "1003293",
+      "assignments": [
+        {
+          "legacyId": "1107852",
+          "personalNr": "1003293",
+          "matchStatus": "MATCHED",
+          "intervalStatus": "VALID",
+          "validFrom": "2026-05-07",
+          "validUntil": null,
+          "employeeGroupId": "21015",
+          "payGroupId": "21017",
+          "stageId": "21025",
+          "employeeId": "000000000000000000000001",
+          "source": {
+            "filename": "709.xlsx",
+            "sheet": "Tabelle1",
+            "row": 3836
+          }
+        }
+      ],
+      "allowances": [],
+      "groups": [
+        {
+          "legacyId": "21015",
+          "name": "Lohn Ost KZF",
+          "source": {
+            "filename": "701.xlsx",
+            "sheet": "Tabelle1",
+            "row": 3
+          },
+          "payGroups": [
+            {
+              "legacyId": "21017",
+              "position": 2,
+              "name": "2. Entgeltgruppe a",
+              "source": {
+                "filename": "702.xlsx",
+                "sheet": "Tabelle1",
+                "row": 12
+              }
+            }
+          ],
+          "stages": [
+            {
+              "legacyId": "21025",
+              "position": 1,
+              "name": "Eingangsstufe",
+              "source": {
+                "filename": "703.xlsx",
+                "sheet": "Tabelle1",
+                "row": 3
+              }
+            }
+          ]
+        }
+      ],
+      "periods": [
+        {
+          "legacyId": "1107092",
+          "employeeGroupId": "21015",
+          "validFrom": "2026-01-01",
+          "validUntil": "2026-08-31",
+          "source": {
+            "filename": "704.xlsx",
+            "sheet": "Tabelle1",
+            "row": 138
+          },
+          "rates": [
+            {
+              "stagePosition": 1,
+              "groupPosition": 2,
+              "value": "15.29",
+              "source": {
+                "filename": "705.xlsx",
+                "sheet": "Tabelle1",
+                "row": 1394
+              }
+            }
+          ]
+        },
+        {
+          "legacyId": "1108622",
+          "employeeGroupId": "21015",
+          "validFrom": "2026-09-01",
+          "validUntil": null,
+          "source": {
+            "filename": "704.xlsx",
+            "sheet": "Tabelle1",
+            "row": 137
+          },
+          "rates": [
+            {
+              "stagePosition": 1,
+              "groupPosition": 2,
+              "value": "15.67",
+              "source": {
+                "filename": "705.xlsx",
+                "sheet": "Tabelle1",
+                "row": 1414
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "wageTypes": [
+    {
+      "lohnartNummer": "100",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "0",
+      "fuerGesamtstunden": "Ja",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": "",
+      "verrechnungsPrioritaet": "",
+      "source": {
+        "filename": "Lohnarten.xlsx",
+        "sheet": "Tabelle1",
+        "row": 2
+      }
+    },
+    {
+      "lohnartNummer": "110",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "3",
+      "fuerGesamtstunden": "Nein",
+      "verrechnungCode": "3",
+      "verrechnungslohnartNummer": "602",
+      "verrechnungsPrioritaet": "1",
+      "source": {
+        "filename": "Lohnarten.xlsx",
+        "sheet": "Tabelle1",
+        "row": 8
+      }
+    }
+  ],
+  "reference": {
+    "source": {
+      "path": "/Users/cedricbleck/Windows Server/Lohn Monat Ich.xlsx",
+      "filename": "Lohn Monat Ich.xlsx",
+      "sheet": "Tabelle1",
+      "yearCell": "B2",
+      "monthCell": "C2",
+      "personalNrCell": "D2",
+      "grossCell": "N2"
+    },
+    "year": 2026,
+    "month": 6,
+    "personalNr": "1003293",
+    "gross": "1162.04"
+  }
+}

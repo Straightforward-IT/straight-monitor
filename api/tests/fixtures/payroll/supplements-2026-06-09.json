@@ -1,0 +1,2118 @@
+{
+  "description": "Independent source inputs and observed gaps; no inferred night hours, AZK quantities or payroll positions.",
+  "capturedOn": "2026-10-16",
+  "referenceSource": {
+    "path": "/Users/cedricbleck/Windows Server/lohn test.xlsx",
+    "filename": "lohn test.xlsx",
+    "sheet": "Tabelle1",
+    "personalNrColumn": "D",
+    "currentTaxableColumn": "J",
+    "otherTaxableColumn": "K",
+    "grossColumn": "N"
+  },
+  "hoursColumns": ["PERSONALNR","JAHR","MONAT","WOCHE","KW","T1","T2","T3","T4","T5","T6","T7","KZ1","KZ2","KZ3","KZ4","KZ5","KZ6","KZ7","ERSTELLTAM","GEAENDERAM"],
+  "hoursSources": {
+    "2026-06": "Juni.xlsx",
+    "2026-07": "Juli.xlsx",
+    "2026-08": "August.xlsx",
+    "2026-09": "September.xlsx"
+  },
+  "snapshots": [
+    {
+      "month": "2026-06",
+      "revision": 1,
+      "importId": "6acb628e6cf75fd6825933f1",
+      "snapshotId": "6acb628e716089555cbed665"
+    },
+    {
+      "month": "2026-07",
+      "revision": 1,
+      "importId": "6acb62aa6cf75fd68259340d",
+      "snapshotId": "6acb62aa716089555cbedf7d"
+    },
+    {
+      "month": "2026-08",
+      "revision": 1,
+      "importId": "6acb62bb6cf75fd682593429",
+      "snapshotId": "6acb62bb716089555cbee9c5"
+    },
+    {
+      "month": "2026-09",
+      "revision": 1,
+      "importId": "6acb62cd6cf75fd682593445",
+      "snapshotId": "6acb62cd716089555cbef6c5"
+    }
+  ],
+  "employees": [
+    {
+      "employee": {
+        "_id": "000000000000000000000002",
+        "personalnr": "2001090",
+        "personalnrHistory": []
+      },
+      "context": {
+        "employeeId": "000000000000000000000002",
+        "importId": "6ad0d0d738272750c3d3fa19",
+        "data": {
+          "currentPersonalNr": "2001090",
+          "assignments": [
+            {
+              "legacyId": "1108099",
+              "personalNr": "2001090",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-06-18",
+              "validUntil": null,
+              "employeeGroupId": "21015",
+              "payGroupId": "21017",
+              "stageId": "21025",
+              "employeeId": "000000000000000000000002",
+              "source": {
+                "filename": "709.xlsx",
+                "sheet": "Tabelle1",
+                "row": 4009
+              }
+            }
+          ],
+          "allowances": [],
+          "groups": [
+            {
+              "legacyId": "21015",
+              "name": "Lohn Ost KZF",
+              "payGroups": [
+                {
+                  "legacyId": "21017",
+                  "position": 2,
+                  "name": "2. Entgeltgruppe a"
+                }
+              ],
+              "stages": [
+                {
+                  "legacyId": "21025",
+                  "position": 1,
+                  "name": "Eingangsstufe"
+                }
+              ]
+            }
+          ],
+          "periods": [
+            {
+              "legacyId": "1107092",
+              "employeeGroupId": "21015",
+              "validFrom": "2026-01-01",
+              "validUntil": "2026-08-31",
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 138
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.29",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1394
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1107396",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1203
+                  }
+                },
+                {
+                  "legacyId": "1107397",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1204
+                  }
+                },
+                {
+                  "legacyId": "1107398",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1205
+                  }
+                },
+                {
+                  "legacyId": "1107399",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1206
+                  }
+                },
+                {
+                  "legacyId": "1107400",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1207
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1108622",
+              "employeeGroupId": "21015",
+              "validFrom": "2026-09-01",
+              "validUntil": null,
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 137
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.67",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1414
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1108721",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1220
+                  }
+                },
+                {
+                  "legacyId": "1108722",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1221
+                  }
+                },
+                {
+                  "legacyId": "1108723",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1222
+                  }
+                },
+                {
+                  "legacyId": "1108724",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1223
+                  }
+                },
+                {
+                  "legacyId": "1108725",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1224
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "employee": {
+        "_id": "000000000000000000000003",
+        "personalnr": "2001120",
+        "personalnrHistory": []
+      },
+      "context": {
+        "employeeId": "000000000000000000000003",
+        "importId": "6ad0d0d738272750c3d3fa19",
+        "data": {
+          "currentPersonalNr": "2001120",
+          "assignments": [
+            {
+              "legacyId": "1108117",
+              "personalNr": "2001120",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-06-20",
+              "validUntil": "2026-09-30",
+              "employeeGroupId": "21015",
+              "payGroupId": "21017",
+              "stageId": "21025",
+              "employeeId": "000000000000000000000003",
+              "source": {
+                "filename": "709.xlsx",
+                "sheet": "Tabelle1",
+                "row": 4084
+              }
+            },
+            {
+              "legacyId": "1109316",
+              "personalNr": "2001120",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-10-01",
+              "validUntil": null,
+              "employeeGroupId": "23437",
+              "payGroupId": "23439",
+              "stageId": "23447",
+              "employeeId": "000000000000000000000003",
+              "source": {
+                "filename": "709.xlsx",
+                "sheet": "Tabelle1",
+                "row": 4481
+              }
+            }
+          ],
+          "allowances": [
+            {
+              "legacyId": "1109111",
+              "personalNr": "2001120",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-09-01",
+              "validUntil": "2026-09-30",
+              "values": {
+                "DPREIS": "0.33",
+                "DPREISPROD": "0",
+                "DEINSATZZULAGE": "0",
+                "DPREISGEHALT": "0"
+              },
+              "employeeId": "000000000000000000000003",
+              "source": {
+                "filename": "710.xlsx",
+                "sheet": "Tabelle1",
+                "row": 1017
+              }
+            },
+            {
+              "legacyId": "1109317",
+              "personalNr": "2001120",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-10-01",
+              "validUntil": null,
+              "values": {
+                "DPREIS": "0.33",
+                "DPREISPROD": "0",
+                "DEINSATZZULAGE": "0",
+                "DPREISGEHALT": "0"
+              },
+              "employeeId": "000000000000000000000003",
+              "source": {
+                "filename": "710.xlsx",
+                "sheet": "Tabelle1",
+                "row": 1045
+              }
+            }
+          ],
+          "groups": [
+            {
+              "legacyId": "21015",
+              "name": "Lohn Ost KZF",
+              "payGroups": [
+                {
+                  "legacyId": "21017",
+                  "position": 2,
+                  "name": "2. Entgeltgruppe a"
+                }
+              ],
+              "stages": [
+                {
+                  "legacyId": "21025",
+                  "position": 1,
+                  "name": "Eingangsstufe"
+                }
+              ]
+            },
+            {
+              "legacyId": "23437",
+              "name": "Lohn Ost KZF 603 u. geringf. ohne AZK",
+              "payGroups": [
+                {
+                  "legacyId": "23439",
+                  "position": 2,
+                  "name": "2. Entgeltgruppe a"
+                }
+              ],
+              "stages": [
+                {
+                  "legacyId": "23447",
+                  "position": 1,
+                  "name": "Eingangsstufe"
+                }
+              ]
+            }
+          ],
+          "periods": [
+            {
+              "legacyId": "1107092",
+              "employeeGroupId": "21015",
+              "validFrom": "2026-01-01",
+              "validUntil": "2026-08-31",
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 138
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.29",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1394
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1107396",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1203
+                  }
+                },
+                {
+                  "legacyId": "1107397",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1204
+                  }
+                },
+                {
+                  "legacyId": "1107398",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1205
+                  }
+                },
+                {
+                  "legacyId": "1107399",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1206
+                  }
+                },
+                {
+                  "legacyId": "1107400",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1207
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1108622",
+              "employeeGroupId": "21015",
+              "validFrom": "2026-09-01",
+              "validUntil": null,
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 137
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.67",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1414
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1108721",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1220
+                  }
+                },
+                {
+                  "legacyId": "1108722",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1221
+                  }
+                },
+                {
+                  "legacyId": "1108723",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1222
+                  }
+                },
+                {
+                  "legacyId": "1108724",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1223
+                  }
+                },
+                {
+                  "legacyId": "1108725",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1224
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1106702",
+              "employeeGroupId": "23437",
+              "validFrom": "2026-01-01",
+              "validUntil": "2026-08-31",
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 144
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.29",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1324
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1106763",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1149
+                  }
+                },
+                {
+                  "legacyId": "1106764",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1150
+                  }
+                },
+                {
+                  "legacyId": "1106765",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1151
+                  }
+                },
+                {
+                  "legacyId": "1106766",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1152
+                  }
+                },
+                {
+                  "legacyId": "1106767",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1153
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1108840",
+              "employeeGroupId": "23437",
+              "validFrom": "2026-09-01",
+              "validUntil": null,
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 143
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.67",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1444
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1108862",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1238
+                  }
+                },
+                {
+                  "legacyId": "1108863",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1239
+                  }
+                },
+                {
+                  "legacyId": "1108864",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1240
+                  }
+                },
+                {
+                  "legacyId": "1108865",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1241
+                  }
+                },
+                {
+                  "legacyId": "1108866",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1242
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "employee": {
+        "_id": "000000000000000000000004",
+        "personalnr": "2001170",
+        "personalnrHistory": []
+      },
+      "context": {
+        "employeeId": "000000000000000000000004",
+        "importId": "6ad0d0d738272750c3d3fa19",
+        "data": {
+          "currentPersonalNr": "2001170",
+          "assignments": [
+            {
+              "legacyId": "1108588",
+              "personalNr": "2001170",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-09-05",
+              "validUntil": null,
+              "employeeGroupId": "27356",
+              "payGroupId": "27359",
+              "stageId": "27367",
+              "employeeId": "000000000000000000000004",
+              "source": {
+                "filename": "709.xlsx",
+                "sheet": "Tabelle1",
+                "row": 4331
+              }
+            }
+          ],
+          "allowances": [],
+          "groups": [
+            {
+              "legacyId": "27356",
+              "name": "Lohn Ost KZF 603 u. geringf. mit AZK",
+              "payGroups": [
+                {
+                  "legacyId": "27359",
+                  "position": 2,
+                  "name": "2. Entgeltgruppe a"
+                }
+              ],
+              "stages": [
+                {
+                  "legacyId": "27367",
+                  "position": 1,
+                  "name": "Eingangsstufe"
+                }
+              ]
+            }
+          ],
+          "periods": [
+            {
+              "legacyId": "1106840",
+              "employeeGroupId": "27356",
+              "validFrom": "2026-01-01",
+              "validUntil": "2026-08-31",
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 146
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.29",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1354
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1106907",
+                  "values": {
+                    "ILOHNARTNR": 195,
+                    "DAB": "9013",
+                    "DBIS": "766",
+                    "IPREISNR": 2,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1171
+                  }
+                },
+                {
+                  "legacyId": "1106908",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "9013",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1172
+                  }
+                },
+                {
+                  "legacyId": "1106909",
+                  "values": {
+                    "ILOHNARTNR": 192,
+                    "DAB": "9013",
+                    "DBIS": "766",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1173
+                  }
+                },
+                {
+                  "legacyId": "1106910",
+                  "values": {
+                    "ILOHNARTNR": 194,
+                    "DAB": "0",
+                    "DBIS": "9013",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1174
+                  }
+                },
+                {
+                  "legacyId": "1106911",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1175
+                  }
+                },
+                {
+                  "legacyId": "1106912",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1176
+                  }
+                },
+                {
+                  "legacyId": "1106913",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1177
+                  }
+                },
+                {
+                  "legacyId": "1106914",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1178
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1108877",
+              "employeeGroupId": "27356",
+              "validFrom": "2026-09-01",
+              "validUntil": null,
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 145
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.67",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1454
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1108899",
+                  "values": {
+                    "ILOHNARTNR": 195,
+                    "DAB": "9013",
+                    "DBIS": "766",
+                    "IPREISNR": 2,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1243
+                  }
+                },
+                {
+                  "legacyId": "1108900",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "9013",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1244
+                  }
+                },
+                {
+                  "legacyId": "1108901",
+                  "values": {
+                    "ILOHNARTNR": 192,
+                    "DAB": "9013",
+                    "DBIS": "766",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1245
+                  }
+                },
+                {
+                  "legacyId": "1108902",
+                  "values": {
+                    "ILOHNARTNR": 194,
+                    "DAB": "0",
+                    "DBIS": "9013",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1246
+                  }
+                },
+                {
+                  "legacyId": "1108903",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1247
+                  }
+                },
+                {
+                  "legacyId": "1108904",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1248
+                  }
+                },
+                {
+                  "legacyId": "1108905",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1249
+                  }
+                },
+                {
+                  "legacyId": "1108906",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1250
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "employee": {
+        "_id": "000000000000000000000005",
+        "personalnr": "2001193",
+        "personalnrHistory": []
+      },
+      "context": {
+        "employeeId": "000000000000000000000005",
+        "importId": "6ad0d0d738272750c3d3fa19",
+        "data": {
+          "currentPersonalNr": "2001193",
+          "assignments": [
+            {
+              "legacyId": "1109257",
+              "personalNr": "2001193",
+              "matchStatus": "MATCHED",
+              "intervalStatus": "VALID",
+              "validFrom": "2026-09-29",
+              "validUntil": null,
+              "employeeGroupId": "23437",
+              "payGroupId": "23439",
+              "stageId": "23447",
+              "employeeId": "000000000000000000000005",
+              "source": {
+                "filename": "709.xlsx",
+                "sheet": "Tabelle1",
+                "row": 4444
+              }
+            }
+          ],
+          "allowances": [],
+          "groups": [
+            {
+              "legacyId": "23437",
+              "name": "Lohn Ost KZF 603 u. geringf. ohne AZK",
+              "payGroups": [
+                {
+                  "legacyId": "23439",
+                  "position": 2,
+                  "name": "2. Entgeltgruppe a"
+                }
+              ],
+              "stages": [
+                {
+                  "legacyId": "23447",
+                  "position": 1,
+                  "name": "Eingangsstufe"
+                }
+              ]
+            }
+          ],
+          "periods": [
+            {
+              "legacyId": "1106702",
+              "employeeGroupId": "23437",
+              "validFrom": "2026-01-01",
+              "validUntil": "2026-08-31",
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 144
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.29",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1324
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1106763",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1149
+                  }
+                },
+                {
+                  "legacyId": "1106764",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1150
+                  }
+                },
+                {
+                  "legacyId": "1106765",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1151
+                  }
+                },
+                {
+                  "legacyId": "1106766",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1152
+                  }
+                },
+                {
+                  "legacyId": "1106767",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1153
+                  }
+                }
+              ]
+            },
+            {
+              "legacyId": "1108840",
+              "employeeGroupId": "23437",
+              "validFrom": "2026-09-01",
+              "validUntil": null,
+              "source": {
+                "filename": "704.xlsx",
+                "sheet": "Tabelle1",
+                "row": 143
+              },
+              "rates": [
+                {
+                  "stagePosition": 1,
+                  "groupPosition": 2,
+                  "value": "15.67",
+                  "source": {
+                    "filename": "705.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1444
+                  }
+                }
+              ],
+              "wageRules": [
+                {
+                  "legacyId": "1108862",
+                  "values": {
+                    "ILOHNARTNR": 100,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 31,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1238
+                  }
+                },
+                {
+                  "legacyId": "1108863",
+                  "values": {
+                    "ILOHNARTNR": 111,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 3,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1239
+                  }
+                },
+                {
+                  "legacyId": "1108864",
+                  "values": {
+                    "ILOHNARTNR": 110,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 6,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1240
+                  }
+                },
+                {
+                  "legacyId": "1108865",
+                  "values": {
+                    "ILOHNARTNR": 115,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 36,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1241
+                  }
+                },
+                {
+                  "legacyId": "1108866",
+                  "values": {
+                    "ILOHNARTNR": 116,
+                    "DAB": "0",
+                    "DBIS": "24",
+                    "IPREISNR": 34,
+                    "DPROZENT": "0"
+                  },
+                  "source": {
+                    "filename": "706.xlsx",
+                    "sheet": "Tabelle1",
+                    "row": 1242
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "personalNr": "2001090",
+      "month": "2026-06",
+      "rows": [
+        [553,2001090,2026,6,1,23,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46192.54238425926,46206.61895833333],
+        [646,2001090,2026,6,2,24,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46192.54238425926,null],
+        [1823,2001090,2026,6,3,25,null,null,null,7,10,6,10,null,null,null,null,null,null,null,46192.54238425926,46204.58909722222],
+        [2245,2001090,2026,6,4,26,2,null,null,7.5,6,null,null,null,"FS","FS",null,null,"FS","FS",46192.54238425926,46206.608402777776],
+        [2946,2001090,2026,6,5,27,null,null,null,null,null,null,null,"FS","FS",null,null,null,null,null,46192.54238425926,46206.608402777776],
+        [3277,2001090,2026,6,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46192.54238425926,null]
+      ],
+      "reference": {
+        "row": 2,
+        "gross": "825.67",
+        "taxableCurrent": "741.57",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001090",
+      "month": "2026-07",
+      "rows": [
+        [139,2001090,2026,7,1,27,null,null,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS",46216.489074074074,46237.50892361111],
+        [685,2001090,2026,7,2,28,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46216.489074074074,46237.50368055556],
+        [1127,2001090,2026,7,3,29,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46216.489074074074,46237.50368055556],
+        [1271,2001090,2026,7,4,30,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46216.489074074074,46237.50368055556],
+        [1558,2001090,2026,7,5,31,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS",null,null,46216.489074074074,46237.50368055556],
+        [2122,2001090,2026,7,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46216.489074074074,null]
+      ],
+      "reference": {
+        "row": 3,
+        "gross": "0",
+        "taxableCurrent": "0",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001090",
+      "month": "2026-08",
+      "rows": [
+        [71,2001090,2026,8,1,31,null,null,null,null,null,null,null,null,null,null,null,null,"FS","FS",46251.59034722222,46269.76912037037],
+        [680,2001090,2026,8,2,32,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46251.59034722222,46269.76912037037],
+        [1240,2001090,2026,8,3,33,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46251.59034722222,46269.76912037037],
+        [1639,2001090,2026,8,4,34,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46251.59034722222,46269.76912037037],
+        [2076,2001090,2026,8,5,35,null,null,null,null,null,5,null,"FS","FS","FS","FS","FS",null,"FS",46251.59034722222,46269.76912037037],
+        [2311,2001090,2026,8,6,36,null,null,null,null,null,null,null,"FS",null,null,null,null,null,null,46251.59034722222,46269.76912037037]
+      ],
+      "reference": {
+        "row": 4,
+        "gross": "89.83",
+        "taxableCurrent": "76.45",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001090",
+      "month": "2026-09",
+      "rows": [
+        [291,2001090,2026,9,1,36,null,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS",46272.512604166666,46300.576053240744],
+        [712,2001090,2026,9,2,37,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46272.512604166666,46300.568402777775],
+        [1336,2001090,2026,9,3,38,null,null,null,6.5,null,null,null,"FS","FS","FS",null,"FS","FS","FS",46272.512604166666,46300.568402777775],
+        [2100,2001090,2026,9,4,39,10,4,null,null,7,null,null,null,null,"FS","FS",null,"FS","FS",46272.512604166666,46300.568402777775],
+        [2646,2001090,2026,9,5,40,5.25,6,null,null,null,null,null,null,null,"FS",null,null,null,null,46272.512604166666,46300.568402777775],
+        [3160,2001090,2026,9,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46272.512604166666,null]
+      ],
+      "reference": {
+        "row": 5,
+        "gross": "607.21",
+        "taxableCurrent": "607.21",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001120",
+      "month": "2026-06",
+      "rows": [
+        [595,2001120,2026,6,1,23,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46195.929143518515,46202.417766203704],
+        [761,2001120,2026,6,2,24,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46195.929143518515,null],
+        [1874,2001120,2026,6,3,25,null,null,null,null,null,6.75,null,null,null,null,null,null,null,"FS",46195.929143518515,46206.60907407408],
+        [2222,2001120,2026,6,4,26,null,null,null,null,null,5.25,null,"FS","FS","FS","FS","FS",null,"FS",46195.929143518515,46206.60907407408],
+        [3131,2001120,2026,6,5,27,null,null,null,null,null,null,null,"FS","FS",null,null,null,null,null,46195.929143518515,46206.60907407408],
+        [3295,2001120,2026,6,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46195.929143518515,null]
+      ],
+      "reference": {
+        "row": 6,
+        "gross": "183.48",
+        "taxableCurrent": "183.48",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001120",
+      "month": "2026-07",
+      "rows": [
+        [353,2001120,2026,7,1,27,null,null,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS",46216.48923611111,46237.50984953704],
+        [502,2001120,2026,7,2,28,null,4,null,null,null,null,null,"FS",null,"FS","FS","FS","FS","FS",46216.48923611111,46237.50417824074],
+        [911,2001120,2026,7,3,29,null,null,null,null,null,5,5,"FS","FS","FS","FS","FS",null,null,46216.48923611111,46237.50417824074],
+        [1420,2001120,2026,7,4,30,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46216.48923611111,46237.50417824074],
+        [1571,2001120,2026,7,5,31,null,null,null,4,6.5,null,null,"FS","FS","FS",null,null,null,null,46216.48923611111,46237.50417824074],
+        [2290,2001120,2026,7,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46216.48923611111,null]
+      ],
+      "reference": {
+        "row": 7,
+        "gross": "393.72",
+        "taxableCurrent": "374.61",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001120",
+      "month": "2026-08",
+      "rows": [
+        [54,2001120,2026,8,1,31,null,null,null,null,null,null,6,null,null,null,null,null,"FS",null,46251.590532407405,46269.786724537036],
+        [661,2001120,2026,8,2,32,4.25,4,null,null,null,4,null,null,null,"FS","FS","FS",null,"FS",46251.590532407405,46269.769780092596],
+        [1251,2001120,2026,8,3,33,null,null,null,null,null,null,null,"FS","FS","FS","FS","FS","FS","FS",46251.590532407405,46269.769780092596],
+        [1647,2001120,2026,8,4,34,null,null,null,null,null,5.5,null,"FS","FS","FS","FS","FS",null,"FS",46251.590532407405,46269.769780092596],
+        [2107,2001120,2026,8,5,35,null,null,null,null,4,5,null,"FS","FS","FS","FS",null,null,"FS",46251.590532407405,46269.769780092596],
+        [2322,2001120,2026,8,6,36,8.5,null,null,null,null,null,null,null,null,null,null,null,null,null,46251.590532407405,46268.467627314814]
+      ],
+      "reference": {
+        "row": 8,
+        "gross": "644.09",
+        "taxableCurrent": "630.71",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001120",
+      "month": "2026-09",
+      "rows": [
+        [99,2001120,2026,9,1,36,null,null,null,null,null,6,null,null,"FS","FS","FS","FS",null,"FS",46272.512777777774,46300.57842592592],
+        [666,2001120,2026,9,2,37,null,6,null,8,4.75,null,null,"FS",null,"FS",null,null,"FS","FS",46272.512777777774,46300.56925925926],
+        [1397,2001120,2026,9,3,38,null,null,8,null,null,null,null,"FS","FS",null,"FS","FS","FS","FS",46272.512777777774,46300.56925925926],
+        [2012,2001120,2026,9,4,39,5.25,null,7.75,null,null,null,null,null,"FS",null,"FS","FS","FS","FS",46272.512777777774,46300.56925925926],
+        [2636,2001120,2026,9,5,40,null,null,8,null,null,null,null,"FS","FS",null,null,null,null,null,46272.512777777774,46300.56925925926],
+        [2927,2001120,2026,9,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46272.512777777774,null]
+      ],
+      "reference": {
+        "row": 9,
+        "gross": "860",
+        "taxableCurrent": "860",
+        "taxableOther": "0"
+      }
+    },
+    {
+      "personalNr": "2001170",
+      "month": "2026-09",
+      "rows": [
+        [82,2001170,2026,9,1,36,null,null,null,null,null,4,7.5,null,null,null,null,null,null,null,46273.67972222222,46300.58390046296],
+        [773,2001170,2026,9,2,37,null,null,null,7,null,null,null,"FS","FS","FS",null,"FS","FS","FS",46273.67972222222,46300.571493055555],
+        [1452,2001170,2026,9,3,38,null,null,null,4,null,null,null,"FS","FS","FS",null,"FS","FS","FS",46273.67972222222,46300.571493055555],
+        [1961,2001170,2026,9,4,39,null,4,6,null,9,7.25,null,"FS",null,null,"FS",null,null,"FS",46273.67972222222,46300.571493055555],
+        [2673,2001170,2026,9,5,40,null,null,null,null,null,null,null,"FS","FS","FS",null,null,null,null,46273.67972222222,46300.571493055555],
+        [3102,2001170,2026,9,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46273.67972222222,null]
+      ],
+      "reference": {
+        "row": 10,
+        "gross": "602.67",
+        "taxableCurrent": "485.14",
+        "taxableOther": "117.53"
+      }
+    },
+    {
+      "personalNr": "2001193",
+      "month": "2026-09",
+      "rows": [
+        [278,2001193,2026,9,1,36,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46294.50572916667,46300.584872685184],
+        [1095,2001193,2026,9,2,37,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46294.50572916667,null],
+        [1465,2001193,2026,9,3,38,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46294.50572916667,null],
+        [1889,2001193,2026,9,4,39,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46294.50572916667,null],
+        [2468,2001193,2026,9,5,40,null,8,null,null,null,null,null,null,null,"FS",null,null,null,null,46294.50572916667,46300.57189814815],
+        [3035,2001193,2026,9,6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,46294.50572916667,null]
+      ],
+      "reference": {
+        "row": 11,
+        "gross": "125.36",
+        "taxableCurrent": "125.36",
+        "taxableOther": "0"
+      }
+    }
+  ],
+  "wageTypes": [
+    {
+      "lohnartNummer": "100",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "0",
+      "lohnartBezeichnung": "Normalstunden",
+      "steuerartCode": "0",
+      "zuschlagsProzent": "0",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": ""
+    },
+    {
+      "lohnartNummer": "110",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "3",
+      "lohnartBezeichnung": "übertarifliche Zulage",
+      "steuerartCode": "0",
+      "zuschlagsProzent": "0",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "3",
+      "verrechnungslohnartNummer": "602"
+    },
+    {
+      "lohnartNummer": "166",
+      "berechnungsartCode": "4",
+      "fakturierungCode": "0",
+      "lohnartBezeichnung": "Nachtzuschlag 25 %",
+      "steuerartCode": "1",
+      "zuschlagsProzent": "25",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": ""
+    },
+    {
+      "lohnartNummer": "192",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "1",
+      "lohnartBezeichnung": "AZK (+)",
+      "steuerartCode": "0",
+      "zuschlagsProzent": "0",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": ""
+    },
+    {
+      "lohnartNummer": "194",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "1",
+      "lohnartBezeichnung": "AZK (-)",
+      "steuerartCode": "0",
+      "zuschlagsProzent": "0",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": ""
+    },
+    {
+      "lohnartNummer": "195",
+      "berechnungsartCode": "2",
+      "fakturierungCode": "3",
+      "lohnartBezeichnung": "Auffüllung Durchschnittsstunden",
+      "steuerartCode": "0",
+      "zuschlagsProzent": "0",
+      "kb": "",
+      "nichtImGesamtbrutto": "Nein",
+      "verrechnungCode": "",
+      "verrechnungslohnartNummer": ""
+    }
+  ],
+  "coverage": {
+    "releasedActualIntervals": [],
+    "candidateCustomerConditions": [
+      {
+        "kundenNrSnapshot": 2100003,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": true,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100006,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100025,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100026,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100026,
+        "lohnartNummer": "166",
+        "regelArt": "uhrzeit",
+        "jeEinheit": "tag",
+        "abWert": "23",
+        "bisWert": "6",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 25,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "4"
+      },
+      {
+        "kundenNrSnapshot": 2100028,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100030,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100030,
+        "lohnartNummer": "166",
+        "regelArt": "uhrzeit",
+        "jeEinheit": "tag",
+        "abWert": "23",
+        "bisWert": "6",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": false,
+          "feiertag": false
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 25,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "4"
+      },
+      {
+        "kundenNrSnapshot": 2100030,
+        "lohnartNummer": "146",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": false,
+          "dienstag": false,
+          "mittwoch": false,
+          "donnerstag": false,
+          "freitag": false,
+          "samstag": false,
+          "sonntag": true,
+          "feiertag": false
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 50,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "5"
+      },
+      {
+        "kundenNrSnapshot": 2100030,
+        "lohnartNummer": "154",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": false,
+          "dienstag": false,
+          "mittwoch": false,
+          "donnerstag": false,
+          "freitag": false,
+          "samstag": false,
+          "sonntag": false,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 50,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "6"
+      },
+      {
+        "kundenNrSnapshot": 2100032,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100043,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100050,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100067,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100070,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100076,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      },
+      {
+        "kundenNrSnapshot": 2100090,
+        "lohnartNummer": "100",
+        "regelArt": "stunden",
+        "jeEinheit": "tag",
+        "abWert": "0",
+        "bisWert": "24",
+        "tage": {
+          "montag": true,
+          "dienstag": true,
+          "mittwoch": true,
+          "donnerstag": true,
+          "freitag": true,
+          "samstag": true,
+          "sonntag": true,
+          "feiertag": true
+        },
+        "preisNr": "1",
+        "zuschlagsProzent": 0,
+        "verwendung": "F",
+        "nichtAutomatisch": false,
+        "tabellenNr": "1",
+        "laufendeNummer": "1"
+      }
+    ],
+    "plannedNightExample": [
+      {
+        "personalNr": "2001090",
+        "date": "2026-08-29",
+        "auftragNr": 2510050,
+        "kundenNr": 2100026,
+        "start": "21:30",
+        "end": "03:30",
+        "kind": "planned"
+      }
+    ]
+  }
+}

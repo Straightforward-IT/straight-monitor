@@ -1,16 +1,73 @@
 # Tarifmodul 17055
 
-Das eigenständige Modul unter `/tarife` übernimmt alle 14 Tabellen aus dem Zvoove-Tarifexport. Seite und API sind ausschließlich für Admins zugänglich. Die aktuelle Rolle wird bei jedem API-Aufruf aus der Benutzerdatenbank gelesen. Tarifdaten werden ausschließlich durch vollständige Imports gepflegt; das Modul ist unabhängig von der bestehenden Payroll.
+Das eigenständige Modul unter `/tarife` übernimmt alle 14 Tabellen aus dem Zvoove-Tarifexport. Seite und API sind ausschließlich für Admins zugänglich. Die aktuelle Rolle wird bei jedem API-Aufruf aus der Benutzerdatenbank gelesen. Tarifdaten werden durch geprüfte Imports gepflegt; jeder aktivierte Stand enthält einen vollständigen Snapshot, auch wenn nur einzelne Tabellen aktualisiert wurden.
 
 ## Importieren
 
-Im Tab **Import** jede der 14 Dateien ihrer ausdrücklich benannten Rolle zuordnen. Dateinamen bestimmen die Rolle nicht. Insbesondere enthält `Tarif Mitarbeiter Gruppe.xlsx` die Varianten und `Tarifgruppe.xlsx` die Entgeltgruppen. Office-Sperrdateien (`~$…`) und zusätzliche Branchenexporte gehören nicht zu diesem Importpaket.
+Im Tab **Import** die Dateien ihrer ausdrücklich benannten Rolle zuordnen. Der Erstimport benötigt alle 14 Tabellen. Danach können eine bis 14 Tabellen geliefert werden; nicht ausgewählte Rollen werden aus dem aktiven Stand übernommen. Dateinamen bestimmen die Rolle nicht. Insbesondere enthält `Tarif Mitarbeiter Gruppe.xlsx` die Varianten und `Tarifgruppe.xlsx` die Entgeltgruppen. Office-Sperrdateien (`~$…`) und zusätzliche Branchenexporte gehören nicht zu diesem Importpaket.
 
 **Importvorschau erstellen** liest die Tabellen, filtert Tarifvertrag 17055 mitsamt seinen abhängigen Daten und zeigt Anzahlen, Änderungen, Fehler und Hinweise. Inaktive Varianten, historische Tarifperioden und vollständige ÜTZ-Historien der vorkommenden Personalnummern bleiben erhalten. Leere Nebentabellen sind mit vollständigen Spaltenüberschriften erlaubt.
 
 Fehlerhafte Pflichtfelder, Beziehungen, Matrixzellen oder unlesbare Kalenderdaten verhindern die Aktivierung. Umgekehrte Tarifperioden bleiben ebenfalls blockierend. Mitarbeiterzuordnungen und ÜTZ mit einem Enddatum vor ihrem Beginn werden dagegen vollständig als `intervalStatus: INEFFECTIVE` erhalten: Sie gelten an keinem Stichtag, erscheinen als Hinweis und verhindern die Aktivierung nicht. Ungeklärte Mitarbeiter und undokumentierte Regelbedeutungen sind ebenfalls Hinweise. Quelldaten werden mit allen Spalten sowie Datei, Tabellenblatt und Zeile erhalten; Codes werden nicht eigenmächtig interpretiert. Dezimalwerte müssen ohne Rundung in Decimal128 darstellbar sein.
 
 **Geprüften Datenstand aktivieren** veröffentlicht den vollständig gespeicherten Importlauf über einen gemeinsamen Zeiger. Alle Lesezugriffe verwenden genau einen Importstand. Eine zwischenzeitliche Aktivierung eines anderen Admins führt zu HTTP 409; die Importdetails müssen erneut geprüft werden. Identische Datenstände werden wiederverwendet. Vorherige Stände bleiben gespeichert; die Oberfläche zeigt die letzten 50 Importläufe. Nach einem Prozessabbruch kann eine seit 15 Minuten verwaiste Vorbereitung durch erneute Vorschau ersetzt werden.
+
+### Wiederholte Importe von 709 und 710
+
+Tarif Personal (709) und ÜTZ (710) werden mit der bisherigen Historie zusammengeführt.
+Ein Export darf bestehende Zeilen erneut enthalten. Ausgelassene Mitarbeiter und
+Zeiträume bleiben erhalten, insbesondere ältere Zeilen vor dem 01.01.2026. Es gibt
+keinen fest eingebauten Jahresfilter. Die Regeln gelten für einzelne, kombinierte
+und vollständige Imports. Auch ein ÜTZ-Update für einen Mitarbeiter, der in der
+gleichzeitig gelieferten 709-Datei fehlt, wird über die erhaltene Tarifzuordnung
+berücksichtigt.
+
+- Gültige ÜTZ-Zeilen aktualisieren den fachlichen Schlüssel aus normalisierter
+  Personalnummer und Beginn (`DTVON`), auch bei geänderter Quell-ID. Eine gültige
+  Zeile ersetzt keine separate unwirksame Historie desselben Beginns.
+- Unwirksame Zeilen mit Quell-ID werden ausschließlich über diese ID aktualisiert;
+  eine neue ID fügt einen eigenen historischen Eintrag hinzu. Ohne Quell-ID wird
+  identischer Inhalt nach normalisierten Datums-/Zahlenwerten wiedererkannt, wobei
+  jede gelieferte Kopie nur eine bisherige Kopie verbraucht. Ihre Anzahl wächst bei
+  Wiederholung nicht. Wird eine bereits identifizierte unwirksame Zeile exakt ohne
+  ID geliefert, bleiben ihre bekannte Quell-ID und Herkunft erhalten. Änderungen
+  ohne eindeutig zuordenbare Quelle bleiben blockiert.
+- Bei Tarif Personal hat die Quell-ID Vorrang. Fehlt ein ID-Treffer, werden zuerst
+  identische Inhalte zugeordnet und anschließend nur noch eindeutige fachliche
+  Treffer derselben Wirksamkeitsklasse aktualisiert. Die Zuordnung identischer
+  Zeilen wird vorab reserviert, sodass die Reihenfolge im Export keinen Einfluss hat.
+- Eine ausdrücklich über dieselbe Quell-ID gelieferte Korrektur darf einen
+  unwirksamen Eintrag gültig machen oder umgekehrt. Ein zusätzlicher unwirksamer
+  Eintrag mit anderer ID wird dagegen nicht als Storno einer gültigen Zeile gedeutet.
+- Mehrere gültige ÜTZ-Zeilen mit demselben fachlichen Schlüssel bleiben blockierend
+  (`DUPLICATE_ALLOWANCE_KEY`). Überlappende Zeiträume mit verschiedenen Beginndaten
+  bleiben Hinweise; sie werden nicht automatisch gekürzt und liefern am betroffenen
+  Stichtag weiterhin einen Klärungsbedarf.
+
+Die Vorschau zeigt blockierende Fehler vor den zunächst eingeklappten Hinweisen,
+einschließlich Personalnummer, Beginn und betroffenen Quelldateien/-zeilen. Die
+Historienstatistik unterscheidet empfangene, erhaltene, aktualisierte und neue
+Zeilen; ein identisch zugeordneter Eintrag zählt hier als aktualisiert, während der
+Änderungsvergleich ihn als unverändert ausweist. Abgewiesene Zuordnungen werden
+zusätzlich als `rejected` gezählt, falls vorhanden. Änderungen einer Quell-ID am
+gleichen fachlichen Schlüssel erscheinen im Vergleich als Änderung statt als
+Entfall plus Neuanlage. Originalquellen und frühere Snapshots bleiben erhalten.
+
+Nach einer Importkorrektur müssen die Dateien erneut zur **Importvorschau**
+hochgeladen werden. Ein alter fehlerhafter Importlauf wird nicht nachträglich
+aktivierbar gemacht. Noch nicht hochgeladene Rollen zählen bei Teilimporten mit
+null empfangenen Zeilen; ihre Historie wird vollständig erhalten.
+
+Prüfung am 15.10.2026: 83 Domain-/API-Tests gegen isolierte MongoDB, 49
+Frontendtests und Vite-Produktionsbuild erfolgreich. Die Testfälle enthalten die
+elf gültigen/unwirksamen Paare des Fehlerbilds sowie den Wechsel identifizierter
+Historie zu einem ID-losen Export und zurück. Eine zusätzliche reine Dateiprüfung
+mit dem vorhandenen Originalpaket erhält bei einem Auszug `DTVON >= 01.01.2026`
+alle 4.461 Tarifzuordnungen und 8.394 ÜTZ-Zeilen ohne Fehler oder zusätzliche Zeilen
+bei Wiederholung. Der alte vollständige ÜTZ-Export enthält außerdem sieben echte
+Konfliktpaare mit gleichem Beginn vor 2026 und unterschiedlichen Werten/Enddaten;
+wenn diese erneut geliefert werden, bleiben sie gemäß Konfliktregel blockierend.
+Die Prüfung hat keinen aktiven Datenstand verändert oder aktiviert.
 
 ## Tarifübersicht und Mitarbeiter
 
@@ -69,7 +126,7 @@ Alle Endpunkte liegen unter `/api/tariffs`, benötigen `x-auth-token` und die ak
 | `GET /employees/:id/wage-info?date=YYYY-MM-DD` | Kompakte Lohnanzeige: `baseRate`, `aboveTariff`, Stichtag und ein gemeinsamer `activeImportId` |
 | `GET /imports` | Letzte 50 Importläufe und aktiver Import |
 | `GET /imports/:id` | Vorschau einschließlich aktualisiertem Vergleich zum aktiven Stand und `basedOnImportId` |
-| `POST /imports/preview` | Multipart mit 14 Dateien; speichert Vorschau, veröffentlicht nichts |
+| `POST /imports/preview` | Multipart mit einer bis 14 Dateien (Erstimport: 14); speichert Vorschau, veröffentlicht nichts |
 | `POST /imports/:id/activate` | JSON `{ "expectedActiveImportId": "…" }`, beim Erstimport `null` |
 
 Die Multipart-Felder heißen `contract`, `employeeGroups`, `payGroups`, `stages`, `periods`, `rates`, `wageRules`, `specialPayments`, `assignmentAllowances`, `employeeAssignments`, `aboveTariff`, `referenceWages`, `noticePeriods`, `vacationRules`. Pro Feld ist genau eine `.xls`- oder `.xlsx`-Datei mit höchstens 20 MiB erlaubt. Es werden bis zu 2 Millionen Zellen je Blatt eingelesen.

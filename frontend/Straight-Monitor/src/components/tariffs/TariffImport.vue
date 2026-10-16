@@ -21,18 +21,21 @@
       <p v-if="selected.duplicate" class="tariff-notice">Dieser Datenstand wurde bereits importiert. Der vorhandene Importlauf wird wiederverwendet.</p>
       <p v-if="isActive" class="tariff-notice" role="status">Dieser Datenstand ist bereits aktiv.</p>
       <p v-if="selected.partialImportRoles?.length" class="tariff-notice">Teilimport: {{ selected.partialImportRoles.map(roleLabel).join(', ') }}. Alle anderen Tarifdaten wurden aus dem aktuell aktiven Stand übernommen.</p>
-      <p v-if="selected.assignmentHistory" class="tariff-notice">Tarif Personal: {{ selected.assignmentHistory.received }} Zeilen aus der Datei, {{ selected.assignmentHistory.retained }} bisherige Zeilen zusätzlich erhalten. Die Datensatzanzahl enthält beide.</p>
-      <p v-if="selected.allowanceHistory" class="tariff-notice">ÜTZ: {{ selected.allowanceHistory.received }} Zeilen aus der Datei, {{ selected.allowanceHistory.retained }} bisherige Zeilen zusätzlich erhalten. Die Datensatzanzahl enthält beide.</p>
+      <p v-for="history in historySummaries" :key="history.label" class="tariff-notice">{{ history.label }}: {{ history.received ?? '—' }} Zeilen aus der Datei, {{ history.retained ?? '—' }} bisherige Zeilen zusätzlich erhalten · {{ history.updated ?? '—' }} aktualisiert · {{ history.added ?? '—' }} neu. Die Datensatzanzahl enthält importierte und erhaltene Zeilen.</p>
       <div class="tariff-scroll"><table aria-label="Importanzahlen und Änderungen"><thead><tr><th>Tabelle</th><th>Datei</th><th>Datensätze 17055</th><th>Neu</th><th>Geändert</th><th>Entfallen</th><th>Unverändert</th></tr></thead><tbody>
         <tr v-for="role in tariffFileRoles" :key="role.key"><th scope="row">{{ roleLabel(role.key) }}</th><td>{{ fileFor(selected, role.key)?.filename || '—' }}</td><td>{{ selected.counts?.[role.key] ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.added ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.changed ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.removed ?? '—' }}</td><td>{{ selected.changes?.[role.key]?.unchanged ?? '—' }}</td></tr>
       </tbody></table></div>
-      <div v-if="selected.issues?.length" class="tariff-stack">
-        <h3>Fehler und Hinweise</h3>
-        <ul class="tariff-issues"><li v-for="(issue, index) in selected.issues" :key="index"><strong>{{ issueLabel(issue) }}</strong>: {{ issue.message }}<span class="tariff-muted"><template v-if="issue.table"> · {{ roleLabel(issue.table) }}</template><template v-if="issue.filename"> · {{ issue.filename }}</template><template v-if="issue.row"> · Zeile {{ issue.row }}</template><template v-if="issue.code"> · {{ issue.code }}</template></span></li></ul>
+      <div v-if="blockingIssues.length" class="tariff-stack" aria-label="Blockierende Importfehler">
+        <h3>Fehler ({{ blockingIssues.length }})</h3>
+        <ul class="tariff-issues"><li v-for="(issue, index) in blockingIssues" :key="index"><strong>Fehler</strong>: {{ issue.message }}<span class="tariff-muted">{{ issueContext(issue) }}</span><p v-if="issue.relatedSources?.length" class="tariff-muted">Weitere Quellzeilen: {{ issue.relatedSources.map(sourceContext).join('; ') }}</p></li></ul>
       </div>
       <p v-if="selected.errorCount || selected.status === 'INVALID'" class="tariff-alert" role="alert">Dieser Import kann wegen der angezeigten Fehler nicht aktiviert werden. Korrigiere die Exportdateien und erstelle eine neue Vorschau.</p>
       <p v-else-if="selected.requiresNewPreview" class="tariff-alert" role="alert">Die Tarif-Personal- oder ÜTZ-Historie hat sich seit dieser Vorschau geändert. Prüfe die Dateien erneut, damit alle bisherigen Zeilen erhalten bleiben.</p>
       <p v-else-if="!isActive" class="tariff-muted">Die Aktivierung schaltet vollständig auf diesen geprüften Datenstand um. Der bisherige Import bleibt in der Historie erhalten. Ungeklärte Mitarbeiter bleiben gekennzeichnet.</p>
+      <details v-if="warningIssues.length" :key="selected._id" ref="warningsDetails" class="tariff-import-warnings" @toggle="toggleWarnings">
+        <summary>Hinweise ({{ warningIssues.length }})</summary>
+        <ul v-if="warningsExpanded" class="tariff-issues"><li v-for="(issue, index) in warningIssues" :key="index"><strong>Hinweis</strong>: {{ issue.message }}<span class="tariff-muted">{{ issueContext(issue) }}</span><p v-if="issue.relatedSources?.length" class="tariff-muted">Weitere Quellzeilen: {{ issue.relatedSources.map(sourceContext).join('; ') }}</p></li></ul>
+      </details>
       <div class="tariff-actions"><AppButton :disabled="!canActivate" :loading="activationLoading" @click="activate">Geprüften Datenstand aktivieren</AppButton><AppButton size="sm" variant="ghost" :disabled="busy" @click="selected = null">Vorschau schließen</AppButton></div>
       <p v-if="activationError" class="tariff-alert" role="alert">{{ activationError }}</p>
       <p v-if="activationNotice" class="tariff-notice" role="status">{{ activationNotice }}</p>
@@ -66,6 +69,8 @@ const selected = shallowRef(null);
 const activeImportId = ref(null);
 const expectedActiveImportId = ref(null);
 const activationNotice = ref('');
+const warningsExpanded = ref(false);
+const warningsDetails = ref(null);
 const { data: imports, loading: importsLoading, error: importsError, run: readImports } = useTariffRequest();
 const { loading: previewLoading, error: previewError, run: readPreview, clear: clearPreview } = useTariffRequest();
 const { loading: detailLoading, error: detailError, run: readDetails, clear: clearDetails } = useTariffRequest();
@@ -74,16 +79,37 @@ const busy = computed(() => previewLoading.value || detailLoading.value || activ
 const selectedFileCount = computed(() => tariffFileRoles.filter(({ key }) => !!files.value[key]).length);
 const isActive = computed(() => !!selected.value && selected.value._id === activeImportId.value);
 const canActivate = computed(() => !!selected.value && !busy.value && !isActive.value && !selected.value.errorCount && !selected.value.requiresNewPreview && selected.value.status !== 'INVALID');
+const isBlockingIssue = (issue) => String(issue.severity).toUpperCase() === 'ERROR';
+const blockingIssues = computed(() => (selected.value?.issues || []).filter(isBlockingIssue));
+const warningIssues = computed(() => (selected.value?.issues || []).filter((issue) => !isBlockingIssue(issue)));
+const historySummaries = computed(() => [
+  { label: 'Tarif Personal', history: selected.value?.assignmentHistory },
+  { label: 'ÜTZ', history: selected.value?.allowanceHistory },
+].filter(({ history }) => history).map(({ label, history }) => ({ ...history, label })));
 const roleLabel = (key) => {
   const role = tariffFileRoles.find((entry) => entry.key === key);
   return role ? `${role.importNumber} · ${role.label}` : key;
 };
-const issueLabel = (issue) => ['ERROR', 'error'].includes(issue.severity) ? 'Fehler' : 'Hinweis';
+const dateLabel = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value.split('-').reverse().join('.') : value;
+const sourceContext = (source) => [
+  source.filename,
+  source.row != null && `Zeile ${source.row}`,
+  source.personalNr != null && `Personalnummer ${source.personalNr}`,
+  source.validFrom && `Beginn ${dateLabel(source.validFrom)}`,
+].filter((value) => value !== false && value != null && value !== '').join(' · ');
+const issueContext = (issue) => {
+  const context = [issue.table && roleLabel(issue.table), sourceContext(issue), issue.code].filter(Boolean).join(' · ');
+  return context ? ` · ${context}` : '';
+};
 const fileFor = (record, key) => Array.isArray(record.files) ? record.files.find((file) => file.key === key) : record.files?.[key];
 const timestamp = (value) => value ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' }).format(new Date(value)) : '—';
 
+function toggleWarnings(event) {
+  if (event.target === warningsDetails.value) warningsExpanded.value = event.target.open;
+}
 function invalidatePreview() {
   selected.value = null;
+  warningsExpanded.value = false;
   activationNotice.value = '';
   clearPreview(); clearDetails(); clearActivation();
 }
@@ -95,6 +121,7 @@ async function loadImports() {
 }
 function selectPreview(result, fallbackActiveId) {
   if (!result) return;
+  warningsExpanded.value = false;
   selected.value = result;
   expectedActiveImportId.value = Object.prototype.hasOwnProperty.call(result, 'basedOnImportId') ? result.basedOnImportId : fallbackActiveId;
 }

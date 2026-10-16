@@ -236,6 +236,7 @@ describe('TariffImport', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('2 Zeilen aus der Datei, 5 bisherige Zeilen zusätzlich erhalten');
     expect(wrapper.text()).toContain('3 Zeilen aus der Datei, 4 bisherige Zeilen zusätzlich erhalten');
+    expect(wrapper.text()).toContain('— aktualisiert · — neu');
     expect(wrapper.text()).toContain('Prüfe die Dateien erneut');
     expect(button('Geprüften Datenstand aktivieren').attributes('disabled')).toBeDefined();
     expect(mocks.api.post).toHaveBeenCalledTimes(1);
@@ -249,9 +250,77 @@ describe('TariffImport', () => {
     await button('Importvorschau erstellen').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('16 Hinweise');
+    const warnings = wrapper.find('details.tariff-import-warnings');
+    expect(warnings.attributes('open')).toBeUndefined();
+    expect(wrapper.text()).not.toContain('Unwirksamer Zeitraum wird vollständig aufbewahrt.');
+    warnings.element.open = true;
+    await warnings.trigger('toggle');
     expect(wrapper.text()).toContain('Unwirksamer Zeitraum wird vollständig aufbewahrt.');
     expect(button('Geprüften Datenstand aktivieren').attributes('disabled')).toBeUndefined();
     expect(wrapper.text()).not.toContain('wegen der angezeigten Fehler nicht aktiviert');
+  });
+
+  it('keeps blocking errors and source context before a collapsed list of thousands of warnings', async () => {
+    const warnings = Array.from({ length: 3000 }, (_, index) => ({ severity: 'WARNING', code: 'OVERLAPPING_INTERVALS', message: `Überschneidung ${index}`, table: 'employeeAllowances', filename: '710.xlsx', row: index + 2 }));
+    const conflict = {
+      severity: 'error', code: 'DUPLICATE_ALLOWANCE_KEY', message: 'Zwei gültige ÜTZ-Werte für denselben Beginn.',
+      table: 'employeeAllowances', filename: '710.xlsx', row: 556, personalNr: '2001113', validFrom: '2026-01-01',
+      relatedSources: [{ filename: '710.xlsx', row: 1003, personalNr: '2001113', validFrom: '2026-01-01' }],
+    };
+    mocks.api.post.mockResolvedValueOnce(response(preview({ status: 'INVALID', errorCount: 1, warningCount: 3000, issues: [...warnings, conflict] })));
+    wrapper = mount(TariffImport);
+    await flushPromises();
+    await selectFourteenFiles();
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    const previewPanel = wrapper.find('[aria-label="Importvorschau"]');
+    const errors = previewPanel.find('[aria-label="Blockierende Importfehler"]');
+    expect(errors.text()).toContain('DUPLICATE_ALLOWANCE_KEY');
+    expect(errors.text()).toContain('Personalnummer 2001113');
+    expect(errors.text()).toContain('Beginn 01.01.2026');
+    expect(errors.text()).toContain('710.xlsx · Zeile 556');
+    expect(errors.text()).toContain('Weitere Quellzeilen: 710.xlsx · Zeile 1003');
+    expect(previewPanel.findAll('li')).toHaveLength(1);
+    expect(previewPanel.text()).not.toContain('Überschneidung 0');
+    const warningDetails = previewPanel.find('details');
+    expect(warningDetails.find('summary').text()).toBe('Hinweise (3000)');
+    expect(warningDetails.attributes('open')).toBeUndefined();
+    expect(previewPanel.html().indexOf('Blockierende Importfehler')).toBeLessThan(previewPanel.html().indexOf('tariff-import-warnings'));
+    expect(previewPanel.html().indexOf('wegen der angezeigten Fehler')).toBeLessThan(previewPanel.html().indexOf('tariff-import-warnings'));
+    expect(button('Geprüften Datenstand aktivieren').attributes('disabled')).toBeDefined();
+  });
+
+  it('shows received, retained, updated, and added totals consistently for both employee tables', async () => {
+    mocks.api.post.mockResolvedValueOnce(response(preview({
+      assignmentHistory: { mode: 'MERGE', received: 3, retained: 4, updated: 2, added: 1 },
+      allowanceHistory: { mode: 'MERGE', received: 0, retained: 7, updated: 0, added: 0 },
+    })));
+    wrapper = mount(TariffImport);
+    await flushPromises();
+    await selectFourteenFiles();
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Tarif Personal: 3 Zeilen aus der Datei, 4 bisherige Zeilen zusätzlich erhalten · 2 aktualisiert · 1 neu');
+    expect(wrapper.text()).toContain('ÜTZ: 0 Zeilen aus der Datei, 7 bisherige Zeilen zusätzlich erhalten · 0 aktualisiert · 0 neu');
+  });
+
+  it('collapses warnings again after creating another preview', async () => {
+    mocks.api.post.mockResolvedValueOnce(response(preview({ issues: [{ severity: 'WARNING', message: 'Erster Hinweis' }] })))
+      .mockResolvedValueOnce(response(preview({ _id: 'new-draft', issues: [{ severity: 'warning', message: 'Nächster Hinweis' }] })));
+    wrapper = mount(TariffImport);
+    await flushPromises();
+    await selectFourteenFiles();
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    const warnings = wrapper.find('details');
+    warnings.element.open = true;
+    await warnings.trigger('toggle');
+    expect(wrapper.text()).toContain('Erster Hinweis');
+    await button('Importvorschau erstellen').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('details').attributes('open')).toBeUndefined();
+    expect(wrapper.find('details ul').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Nächster Hinweis');
   });
 
   it('submits all fourteen explicit roles and preserves the reviewed active pointer during activation', async () => {

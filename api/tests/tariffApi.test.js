@@ -414,6 +414,166 @@ describe('Eigenständige Tarif-API', function () {
     }
     assert.equal((await preview({ employeeAssignments: assignments, aboveTariff: allowances })).body.duplicate, true);
   });
+  it('aktiviert und reimportiert elf gültige/unwirksame ÜTZ-Paare ohne die ursprünglichen elf Schlüsselkonflikte', async () => {
+    const allowances = Array.from({ length: 11 }, (_, index) => {
+      const from = `2026-${String(index + 1).padStart(2, '0')}-01`;
+      const until = new Date(Date.UTC(2026, index + 1, 0)).toISOString().slice(0, 10);
+      const ineffectiveUntil = new Date(Date.UTC(2026, index, 0)).toISOString().slice(0, 10);
+      return [
+        { ID: 1000 + index * 2, IPERSONALNR: 1000001, DTVON: from, DTBIS: until, DPREIS: '2.4', CUSTOM_FLAG: `valid-${index}` },
+        { ID: 1001 + index * 2, IPERSONALNR: 1000001, DTVON: from, DTBIS: ineffectiveUntil, DPREIS: '9.99', CUSTOM_FLAG: `ineffective-${index}` },
+      ];
+    }).flat();
+    const initial = await preview({ aboveTariff: allowances });
+    assert.equal(initial.body.status, 'READY'); assert.equal(initial.body.errorCount, 0);
+    assert.equal(initial.body.counts.aboveTariff, 22);
+    assert.ok(!initial.body.issues.some(issue => issue.code === 'DUPLICATE_ALLOWANCE_KEY'));
+    assert.equal((await activate(initial.body)).status, 200);
+    assert.equal(await models.Allowance.countDocuments({ importId: initial.body._id, intervalStatus: 'INEFFECTIVE' }), 11);
+    const resolved = (await request(`/employees/${first._id}/wage-info?date=2026-10-15`)).body.aboveTariff;
+    assert.equal(resolved.status, 'RESOLVED'); assert.equal(resolved.values.DPREIS, '2.4');
+    const repeated = await preview({ aboveTariff: [...allowances].reverse() });
+    assert.equal(repeated.body.duplicate, true); assert.equal(repeated.body._id, initial.body._id);
+    assert.deepEqual(repeated.body.changes.aboveTariff, { added: 0, changed: 0, removed: 0, unchanged: 22 });
+    const partial = await partialPreview('aboveTariff', { aboveTariff: [...allowances].reverse() });
+    assert.equal(partial.body.status, 'READY'); assert.equal(partial.body.counts.aboveTariff, 22);
+    assert.deepEqual(partial.body.allowanceHistory, { ...partial.body.allowanceHistory, mode: 'MERGE', received: 22, retained: 0, updated: 22, added: 0 });
+    assert.equal((await activate(partial.body, initial.body._id)).status, 200);
+    assert.equal((await partialPreview('aboveTariff', { aboveTariff: allowances })).body.duplicate, true);
+    assert.equal(await models.Allowance.countDocuments({ importId: initial.body._id }), 22);
+  });
+  it('aktualisiert 709 und 710 gemeinsam mit neuen IDs und erhält ausgelassene unwirksame, ältere und fremde Mitarbeiterzeilen', async () => {
+    const assignment = { ID: 501, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2026-01-01', DTBIS: null };
+    const allowance = { ID: 601, IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: null, DPREIS: '2.4' };
+    const assignments = [
+      assignment,
+      { ...assignment, ID: 502, DTBIS: '2025-12-31', CUSTOM_FLAG: 'ineffective-original' },
+      { ...assignment, ID: 503, DTVON: '2025-01-01', DTBIS: '2025-12-31', CUSTOM_FLAG: 'pre-2026' },
+      { ...assignment, ID: 504, IPERSONALNR: 1001507 },
+    ];
+    const allowances = [
+      allowance,
+      { ...allowance, ID: 602, DTBIS: '2025-12-31', DPREIS: '9', CUSTOM_FLAG: 'ineffective-original' },
+      { ...allowance, ID: 603, DTVON: '2025-01-01', DTBIS: '2025-12-31', CUSTOM_FLAG: 'pre-2026' },
+      { ...allowance, ID: 604, IPERSONALNR: 1001507 },
+    ];
+    const initial = await preview({ employeeAssignments: assignments, aboveTariff: allowances });
+    assert.equal(initial.body.status, 'READY'); assert.equal((await activate(initial.body)).status, 200);
+    const before = (await request(`/employee-history?key=${first._id}`)).body;
+    const upload = {
+      employeeAssignments: [{ ...assignment, ID: 505, IPERSONALNR: '01000001', DTVON: '01.01.2026', ID_LCS_TARIFGRUPPEN: 24932 }],
+      aboveTariff: [{ ...allowance, ID: 605, IPERSONALNR: '01000001', DTVON: '01.01.2026', DPREIS: '3.25' }],
+    };
+    const next = await request('/imports/preview', { method: 'POST', files: workbooks(upload).filter(file => ['employeeAssignments', 'aboveTariff'].includes(file.fieldname)) });
+    assert.equal(next.body.status, 'READY'); assert.equal(next.body.errorCount, 0);
+    for (const [table, history] of [['employeeAssignments', 'assignmentHistory'], ['aboveTariff', 'allowanceHistory']]) {
+      assert.equal(next.body.counts[table], 4);
+      assert.equal(next.body[history].received, 1); assert.equal(next.body[history].retained, 3);
+      assert.equal(next.body[history].updated, 1); assert.equal(next.body[history].added, 0);
+      assert.deepEqual(next.body.changes[table], { added: 0, changed: 1, removed: 0, unchanged: 3 });
+    }
+    assert.equal((await activate(next.body, initial.body._id)).status, 200);
+    const wage = (await request(`/employees/${first._id}/wage-info?date=2026-10-15`)).body;
+    assert.equal(wage.baseRate.value, '16.08'); assert.equal(wage.aboveTariff.values.DPREIS, '3.25');
+    const after = (await request(`/employee-history?key=${first._id}`)).body;
+    for (const table of ['assignments', 'allowances']) {
+      for (const marker of ['ineffective-original', 'pre-2026']) {
+        assert.deepEqual(after[table].find(row => row.source.raw.CUSTOM_FLAG === marker).source, before[table].find(row => row.source.raw.CUSTOM_FLAG === marker).source);
+      }
+    }
+    assert.equal((await request(`/employee-history?key=${second._id}`)).body.allowances.length, 1);
+    assert.equal((await request(`/employee-history?key=${second._id}`)).body.assignments.length, 1);
+    const fullAgain = await preview(upload);
+    assert.equal(fullAgain.body.status, 'READY'); assert.equal(fullAgain.body.counts.aboveTariff, 4); assert.equal(fullAgain.body.counts.employeeAssignments, 4);
+    assert.equal(fullAgain.body.changes.aboveTariff.removed, 0); assert.equal(fullAgain.body.changes.employeeAssignments.removed, 0);
+    assert.equal(await models.Allowance.countDocuments({ importId: initial.body._id }), 4);
+    assert.equal(await models.Assignment.countDocuments({ importId: initial.body._id }), 4);
+  });
+  it('erhält mehrfache identische unwirksame ÜTZ-Zeilen ohne Quell-ID bei wiederholten und umgeordneten Teilimporten', async () => {
+    const active = { ID: 601, IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: null, DPREIS: '2.4' };
+    const historical = { IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: '2025-12-31', DPREIS: '9', CUSTOM_FLAG: 'no-id-history' };
+    const initial = await preview({ aboveTariff: [historical, active, { ...historical }] });
+    assert.equal(initial.body.status, 'READY'); assert.equal(initial.body.counts.aboveTariff, 3);
+    assert.equal((await activate(initial.body)).status, 200);
+    const next = await partialPreview('aboveTariff', { aboveTariff: [active, historical, { ...historical }] });
+    assert.equal(next.body.status, 'READY'); assert.equal(next.body.counts.aboveTariff, 3); assert.equal(next.body.allowanceHistory.added, 0);
+    assert.equal((await activate(next.body, initial.body._id)).status, 200);
+    const repeated = await partialPreview('aboveTariff', { aboveTariff: [historical, { ...historical }, active] });
+    assert.equal(repeated.body.duplicate, true); assert.equal(repeated.body._id, next.body._id);
+    assert.equal(await models.Allowance.countDocuments({ importId: next.body._id, intervalStatus: 'INEFFECTIVE' }), 2);
+    const omittedOne = await partialPreview('aboveTariff', { aboveTariff: [historical] });
+    assert.equal(omittedOne.body.status, 'READY'); assert.equal(omittedOne.body.counts.aboveTariff, 3);
+    assert.equal(omittedOne.body.allowanceHistory.received, 1); assert.equal(omittedOne.body.allowanceHistory.retained, 2);
+    assert.equal((await request(`/employees/${first._id}/wage-info?date=2026-10-15`)).body.aboveTariff.values.DPREIS, '2.4');
+  });
+  it('erhält eine bekannte unwirksame ÜTZ-Quell-ID bei einem identischen Export ohne ID und importiert die bekannte ID danach ohne Doppelung', async () => {
+    const original = { ID: 601, IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: '2025-12-31', DPREIS: '2.4', CUSTOM_FLAG: 'known-history' };
+    const initial = await preview({ aboveTariff: [original] });
+    assert.equal(initial.body.status, 'READY'); await activate(initial.body);
+    const before = service.serialize(await models.Allowance.findOne({ importId: initial.body._id }).lean());
+    const { ID, ...unidentified } = original;
+    const next = await partialPreview('aboveTariff', { aboveTariff: [unidentified] });
+    assert.equal(next.body.status, 'READY'); assert.equal(next.body.counts.aboveTariff, 1);
+    assert.equal(next.body.allowanceHistory.added, 0);
+    assert.equal((await activate(next.body, initial.body._id)).status, 200);
+    const stored = service.serialize(await models.Allowance.findOne({ importId: next.body._id }).lean());
+    assert.equal(stored.legacyId, '601'); assert.deepEqual(stored.source, before.source);
+    const repeated = await partialPreview('aboveTariff', { aboveTariff: [original] });
+    assert.equal(repeated.body.status, 'ACTIVE'); assert.equal(repeated.body.counts.aboveTariff, 1);
+    assert.equal(repeated.body.allowanceHistory.added, 0); assert.equal(repeated.body.duplicate, true);
+    assert.equal(repeated.body._id, next.body._id);
+    assert.equal(await models.Allowance.countDocuments({ importId: next.body._id }), 1);
+    assert.equal((await models.Allowance.findOne({ importId: next.body._id }).lean()).source.raw.ID, 601);
+  });
+  it('verarbeitet 710 für einen in der gelieferten 709 ausgelassenen Mitarbeiter bei kombinierten und vollständigen Importen', async () => {
+    const initial = await preview(); await activate(initial.body);
+    const retained = service.serialize(await models.Assignment.findOne({ importId: initial.body._id, employeeId: first._id }).lean());
+    let active = initial.body._id;
+    for (const [index, full] of [false, true].entries()) {
+      const upload = {
+        employeeAssignments: [{ ID: 502, IPERSONALNR: 1001507, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 24932, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2022-01-01', DTBIS: null }],
+        aboveTariff: [{ ID: 601, IPERSONALNR: 1000001, DTVON: '2022-04-01', DTBIS: null, DPREIS: String(3 + index) }],
+      };
+      const files = workbooks(upload).filter(file => full || ['employeeAssignments', 'aboveTariff'].includes(file.fieldname));
+      const result = await request('/imports/preview', { method: 'POST', files });
+      assert.equal(result.body.status, 'READY'); assert.equal(result.body.counts.employeeAssignments, 2);
+      assert.equal(result.body.counts.aboveTariff, 1); assert.equal(result.body.allowanceHistory.received, 1);
+      assert.equal(result.body.allowanceHistory.updated, 1); assert.equal(result.body.allowanceHistory.added, 0);
+      assert.equal((await activate(result.body, active)).status, 200); active = result.body._id;
+      const wage = (await request(`/employees/${first._id}/wage-info?date=2026-10-15`)).body;
+      assert.equal(wage.baseRate.status, 'RESOLVED'); assert.equal(wage.aboveTariff.values.DPREIS, String(3 + index));
+      const kept = service.serialize(await models.Assignment.findOne({ importId: active, employeeId: first._id }).lean());
+      assert.deepEqual(kept.source, retained.source);
+    }
+  });
+  it('blockiert eine mehrdeutige Tarif-Personal-Korrektur mit neuer ID und lässt den aktiven Stand unverändert', async () => {
+    const original = { ID: 501, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2026-01-01', DTBIS: null };
+    const assignments = [original, { ...original, ID: 502, ID_LCS_TARIFGRUPPEN: 24932 }];
+    const initial = await preview({ employeeAssignments: assignments });
+    assert.equal(initial.body.status, 'READY'); await activate(initial.body);
+    const invalid = await partialPreview('employeeAssignments', { employeeAssignments: [{ ...original, ID: 503, CUSTOM_FLAG: 'which-row' }] });
+    assert.equal(invalid.body.status, 'INVALID');
+    assert.ok(invalid.body.issues.some(issue => issue.severity === 'ERROR' && issue.code === 'AMBIGUOUS_ASSIGNMENT_UPDATE'));
+    assert.equal((await activate(invalid.body, initial.body._id)).status, 409);
+    assert.equal((await request('/catalog')).body.activeImportId, initial.body._id);
+    assert.equal((await preview({ employeeAssignments: [...assignments].reverse() })).body.duplicate, true);
+  });
+  it('korrigiert eine explizit identifizierte unwirksame ÜTZ-Zeile zu gültig und erhält die andere unwirksame Quellzeile', async () => {
+    const original = { ID: 601, IPERSONALNR: 1000001, DTVON: '2026-01-01', DTBIS: '2025-12-31', DPREIS: '2.4' };
+    const historical = { ...original, ID: 602, DTBIS: '2025-12-30', CUSTOM_FLAG: 'separate-history' };
+    const initial = await preview({ aboveTariff: [original, historical] });
+    assert.equal(initial.body.status, 'READY'); await activate(initial.body);
+    const next = await partialPreview('aboveTariff', { aboveTariff: [{ ...original, DTBIS: null, DPREIS: '3' }] });
+    assert.equal(next.body.status, 'READY'); assert.equal(next.body.counts.aboveTariff, 2);
+    assert.equal(next.body.allowanceHistory.retained, 1); assert.equal(next.body.allowanceHistory.updated, 1);
+    assert.equal((await activate(next.body, initial.body._id)).status, 200);
+    const rows = (await request(`/employee-history?key=${first._id}`)).body.allowances;
+    assert.equal(rows.find(row => row.legacyId === '601').intervalStatus, 'VALID');
+    assert.equal(rows.find(row => row.legacyId === '602').intervalStatus, 'INEFFECTIVE');
+    assert.equal(rows.find(row => row.legacyId === '602').source.raw.CUSTOM_FLAG, 'separate-history');
+    assert.equal((await request(`/employees/${first._id}/wage-info?date=2026-10-15`)).body.aboveTariff.values.DPREIS, '3');
+    assert.equal((await models.Allowance.findOne({ importId: initial.body._id, legacyId: '601' }).lean()).intervalStatus, 'INEFFECTIVE');
+  });
   it('blockiert weiterhin ungültige Kalenderdaten und umgekehrte Tarifperioden', async () => {
     const cases = [
       { employeeAssignments: [{ ID: 501, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2026-02-30', DTBIS: null }] },
