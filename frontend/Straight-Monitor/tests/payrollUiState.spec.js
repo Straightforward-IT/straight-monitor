@@ -9,7 +9,7 @@ import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 
 const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, route: null, replace: vi.fn(), auth: null }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
-vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: mocks.replace }) }));
+vi.mock('vue-router', async importOriginal => ({ ...await importOriginal(), useRoute: () => mocks.route, useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 
 let wrapper;

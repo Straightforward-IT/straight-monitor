@@ -112,6 +112,24 @@ werden gemäß der ausdrücklich gewählten `ruleTimeUnit` interpretiert.
 
 ## Eigene Ausweisung
 
+### Tages-Sidepanel in `/payroll`
+
+Bei produktiven Buchungen zeigt das bestehende Tages-Sidepanel den zugehörigen
+Auftrag mit Kunde und Einsatzort sowie Schicht und Mitarbeitereinsatz. Die
+Auftragsnummer öffnet den Auftragskalender mit `auftragnr` und dem Buchungstag
+als `focusDate`. Mehrere Buchungen eines Tages behalten eigene Abschnitte.
+
+`PayrollOrderContextService` ergänzt den Monatsabruf um Anzeigedaten. Verknüpfte
+Einsätze werden gegen Auftrag, ursprüngliche Personalnummer, Tag und vorhandene
+Schicht-ID geprüft. Ohne direkte Verknüpfung wird nur eine eindeutige Kombination
+dieser Schlüssel verwendet. Fehlende oder mehrdeutige Zuordnungen bleiben
+sichtbar; reine Monatsmengen erhalten keinen geschätzten Auftrag. Die aktuelle
+Auftrags-Standortberechtigung begrenzt die zurückgegebenen Details.
+
+Gebuchte Zeiten und Pausen werden getrennt von geplanten Schicht-/Einsatzzeiten
+angezeigt. Originalwerte und Importquelle bleiben aufklappbar erhalten. Diese
+Anreicherung verändert weder Zeitbuchungen noch Berechnungseingaben.
+
 ### Berechnungspositionen in `/payroll`
 
 Die unteren Tabs zeigen eine eigene, schreibgeschützte Berechnungsvorschau.

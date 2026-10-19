@@ -3,6 +3,7 @@ const Auftrag = require('../../models/Event/Auftrag');
 const Einsatz = require('../../models/Event/Einsatz');
 const Schicht = require('../../models/Event/Schicht');
 const Kunde = require('../../models/Customer/Kunde');
+require('../../models/Event/Einsatzort');
 const { canAccess } = require('../TimeCaptureService');
 
 function day(value) {
@@ -52,6 +53,7 @@ async function contexts(user, bookings) {
     const directShift = assignment?.schicht ? shifts.find(shift => String(shift._id) === String(assignment.schicht) && shiftFits(shift)) : null;
     const shiftCandidates = directShift ? [directShift] : booking.shiftId ? shifts.filter(shiftFits) : [];
     const shift = shiftCandidates.length === 1 ? shiftCandidates[0] : null;
+    const fallback = !shift && !shiftCandidates.length ? assignment : null;
     result.set(key, {
       status: 'AVAILABLE',
       order: { number: order.auftragNr, title: order.eventTitel || null, customerNumber: order.kundenNr || null,
@@ -59,14 +61,14 @@ async function contexts(user, bookings) {
         site: order.einsatzort?.bezeichnung || order.eventLocation || null, town: order.eventOrt || null,
         from: day(order.vonDatum), until: day(order.bisDatum) },
       shift: { status: shift ? 'MATCHED' : shiftCandidates.length > 1 ? 'AMBIGUOUS' : assignment ? 'FROM_ASSIGNMENT' : 'MISSING',
-        id: shift ? String(shift._id) : null, externalId: booking.shiftId || null,
-        label: shift?.bezeichnung || assignment?.schichtBezeichnung || null,
-        from: shiftDay(shift || {}) || day(assignment?.detailDatumVon || assignment?.datumVon),
-        until: day(shift?.datumBis || assignment?.detailDatumBis || assignment?.datumBis),
-        start: shift?.uhrzeitVon || assignment?.uhrzeitVon || null, end: shift?.uhrzeitBis || assignment?.uhrzeitBis || null,
-        meetingTime: shift?.treffpunkt || assignment?.treffpunkt || null, meetingPoint: shift?.treffpunktOrt || assignment?.treffpunktOrt || null,
-        contactName: shift?.ansprechpartnerName || assignment?.ansprechpartnerName || null,
-        contactPhone: shift?.ansprechpartnerTelefon || assignment?.ansprechpartnerTelefon || null },
+        id: shift ? String(shift._id) : null, externalId: booking.shiftId || shift?.idAuftragArbeitsschichten || fallback?.idAuftragArbeitsschichten || null,
+        label: shift?.bezeichnung || fallback?.schichtBezeichnung || null,
+        from: shiftDay(shift || {}) || day(fallback?.detailDatumVon || fallback?.datumVon),
+        until: day(shift?.datumBis || fallback?.detailDatumBis || fallback?.datumBis),
+        start: shift?.uhrzeitVon || fallback?.uhrzeitVon || null, end: shift?.uhrzeitBis || fallback?.uhrzeitBis || null,
+        meetingTime: shift?.treffpunkt || fallback?.treffpunkt || null, meetingPoint: shift?.treffpunktOrt || fallback?.treffpunktOrt || null,
+        contactName: shift?.ansprechpartnerName || fallback?.ansprechpartnerName || null,
+        contactPhone: shift?.ansprechpartnerTelefon || fallback?.ansprechpartnerTelefon || null },
       assignment: { status: assignment ? 'MATCHED' : candidates.length > 1 ? 'AMBIGUOUS' : 'MISSING',
         id: assignment ? String(assignment._id) : null, externalNumber: assignment?.zvooveEinspersNr || null,
         title: assignment?.bezeichnung || null, personalNr: assignment?.personalNr ?? null,

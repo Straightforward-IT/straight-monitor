@@ -129,6 +129,8 @@ describe('year import storage, editable projections and payroll', function () {
     const month = await require('../services/payroll/ZvooveHoursService').month(staff, String(employee._id), '2026-10');
     assert.equal(month.sourceMode, 'TIME_BOOKINGS'); assert.equal(month.totals.hours, '7.5'); assert.equal(month.entries.length, 1);
     assert.equal(month.entries[0].booking.breakMinutes, 30); assert.equal((await Stundenzeit.findById(assignment._id)).status, 'RELEASED');
+    assert.equal(month.entries[0].orderContext.order.number, 2510476);
+    assert.equal(month.entries[0].orderContext.assignment.id, String(assignment._id));
     const again = await service.preview(files([draft({ ISTUEBETRAGEN: 1 })]), 2026, admin);
     assert.equal(again.snapshotId, run.snapshotId); await service.activate(again.id, again.baseRevision, admin);
     assert.equal(await sourceModels.Row.countDocuments(), 3); assert.equal(await accounting.Booking.countDocuments(), 1);
