@@ -55,6 +55,9 @@ const EinsatzSchema = new mongoose.Schema({
     type: Number, // PERSONALNR
     required: false
   },
+  // Explicit external assignment key; never infer it from a shift or Mongo ID.
+  zvooveEinspersNr: { type: String, default: null },
+  einsortNr: { type: String, default: null },
   berufSchl: {
     type: String, // BERUFSCHL
     required: false

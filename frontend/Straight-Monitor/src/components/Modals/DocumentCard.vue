@@ -295,6 +295,34 @@
         </div>
       </section>
 
+      <!-- Anhänge (nur für Event-Berichte mit Anhängen) -->
+      <section v-if="doc.docType === 'Event-Bericht' && attachmentEntries.length" class="feedback-section">
+        <h4 class="section-title">
+          <font-awesome-icon icon="fa-solid fa-paperclip" class="section-icon" />
+          Anhänge ({{ attachmentEntries.length }})
+        </h4>
+        <div class="feedback-list">
+          <div
+            v-for="att in attachmentEntries"
+            :key="att._id || att.key"
+            class="feedback-item"
+            style="display:flex;align-items:center;justify-content:space-between;gap:12px;"
+          >
+            <span style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {{ att.filename || 'Anhang' }}
+            </span>
+            <AppButton
+              size="sm"
+              variant="ghost"
+              :loading="openingAttachmentId === String(att._id || att.key)"
+              @click="openReportAttachment(att)"
+            >
+              Öffnen
+            </AppButton>
+          </div>
+        </div>
+      </section>
+
       <!-- Kommentare (nur für Event-Berichte) -->
       <section v-if="doc.docType === 'Event-Bericht'" class="comments-section">
         <h4 class="section-title">
@@ -461,10 +489,11 @@ import {
   faMagnifyingGlass,
   faUserSlash,
   faChevronRight,
+  faPaperclip,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf, faMagnifyingGlass, faUserSlash, faChevronRight);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf, faMagnifyingGlass, faUserSlash, faChevronRight, faPaperclip);
 
 // EmployeeCard also embeds DocumentCard. Load its modal lazily to avoid a
 // DocumentCard -> EmployeeCardModal -> EmployeeCard -> DocumentCard cycle.
@@ -511,6 +540,7 @@ export default {
       employees: [],
       loadingEmployees: false,
       assigningEmployee: false,
+      openingAttachmentId: null,
     };
   },
 
@@ -632,7 +662,7 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'location', 'locationV2', 'mitarbeiter_feedback', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'location', 'locationV2', 'mitarbeiter_feedback', 'attachments', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
@@ -640,6 +670,10 @@ export default {
         }
       }
       return filtered;
+    },
+    attachmentEntries() {
+      const att = this.doc.details?.attachments;
+      return Array.isArray(att) ? att : [];
     },
     feedbackEntries() {
       const fb = this.doc.details?.mitarbeiter_feedback;
@@ -911,6 +945,26 @@ export default {
         }
       } catch (err) {
         console.error('DocumentCard: could not fetch full report', err);
+      }
+    },
+
+    async openReportAttachment(att) {
+      const attId = String(att?._id || att?.key || '');
+      if (!attId || this.openingAttachmentId) return;
+      this.openingAttachmentId = attId;
+      try {
+        const res = await api.get(
+          `/api/reports/eventreport/${this.doc._id}/attachments/${encodeURIComponent(attId)}/download`
+        );
+        const url = res.data?.url;
+        if (url) {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      } catch (err) {
+        console.error('Anhang konnte nicht geöffnet werden:', err);
+        alert('Anhang konnte nicht geöffnet werden.');
+      } finally {
+        this.openingAttachmentId = null;
       }
     },
 

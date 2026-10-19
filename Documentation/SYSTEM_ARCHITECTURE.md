@@ -4,6 +4,13 @@
 **Project Type**: MEVN Stack (MongoDB, Express, Vue 3, Node.js)  
 **Purpose**: Central orchestration platform for employee management, applicant tracking, work orders, and document signing across multiple teams (Berlin, Hamburg, Cologne)
 
+**Payroll architecture update, October 19, 2026:** The backend now separates
+operational time capture, immutable time bookings, versioned L/F conditions,
+own calculation previews and independent Zvoove reference results. Zvoove is
+initially the source of both test inputs and independently imported expected
+outputs. See [Time, payroll and invoicing](Payroll/Zeit-Lohn-Faktur.md) for models,
+import scopes, API contracts, calculation limits and reconciliation behavior.
+
 ---
 
 ## Table of Contents

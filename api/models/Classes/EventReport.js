@@ -47,6 +47,15 @@ const EventReportSchema = new mongoose.Schema(
         asana_story_gid: { type: String, required: false, default: null },
       },
     ],
+    attachments: [
+      {
+        key: { type: String, required: true },
+        filename: { type: String, required: true },
+        contentType: { type: String, default: "application/octet-stream" },
+        size: { type: Number, default: 0 },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
     teamleiter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Mitarbeiter",

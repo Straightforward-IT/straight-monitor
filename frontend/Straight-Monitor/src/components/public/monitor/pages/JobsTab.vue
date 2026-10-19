@@ -6,7 +6,7 @@
     <div v-else-if="jobsError && !jobs.length" class="empty-state"><strong>Keine Jobs verfügbar</strong><p>{{ jobsError }}</p></div>
     <button v-for="job in filteredJobs" :key="job.id" class="job-card" type="button" @click="$emit('open-job', job)">
       <div class="job-card-date"><strong>{{ weekday(job.dateFrom) }}</strong><span>{{ shortDate(job.dateFrom) }}</span></div>
-      <div class="job-card-body"><div class="job-card-title"><h3>{{ job.title }}</h3><span v-if="applicationStatus(job.id)" class="mini-status">{{ applicationLabel(applicationStatus(job.id)) }}</span></div><p>{{ job.role || 'Tätigkeit noch offen' }}</p><div class="job-meta"><span><font-awesome-icon icon="fa-solid fa-clock" /> {{ jobTime(job) }}</span><span><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ job.city || job.locationName || 'Ort offen' }}</span></div><div class="job-card-footer"><span>{{ job.hourlyWage || 'Vergütung folgt' }}</span><strong>Noch {{ job.openPlaces }} Plätze</strong></div></div>
+      <div class="job-card-body"><div class="job-card-title"><h3>{{ job.title }}</h3><span v-if="applicationStatus(job.id)" class="mini-status">{{ applicationLabel(applicationStatus(job.id)) }}</span></div><p>{{ job.role || 'Tätigkeit noch offen' }}</p><div class="job-meta"><span><font-awesome-icon icon="fa-solid fa-clock" /> {{ jobTime(job) }}</span><span><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ job.city || job.locationName || 'Ort offen' }}</span></div><div class="job-card-footer"><strong>Noch {{ job.openPlaces }} {{ Number(job.openPlaces) === 1 ? 'Platz' : 'Plätze' }}</strong></div></div>
       <font-awesome-icon icon="fa-solid fa-chevron-right" />
     </button>
   </section>

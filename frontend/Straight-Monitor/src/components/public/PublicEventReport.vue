@@ -108,6 +108,36 @@
           <span class="detail-field-label">Sonstiges</span>
           <p class="detail-field-text">{{ detailReport.sonstiges }}</p>
         </div>
+        <div class="detail-field" v-if="detailReport.attachments?.length">
+          <span class="detail-field-label">Anhänge ({{ detailReport.attachments.length }})</span>
+          <div class="er-file-list" style="margin-top: 0.5rem;">
+            <button
+              v-for="att in detailReport.attachments"
+              :key="att._id || att.key"
+              type="button"
+              class="er-file-item er-file-item--clickable"
+              :disabled="openingAttachmentKey === (att._id || att.key)"
+              @click="openSavedAttachment(detailReport._id, att)"
+            >
+              <span class="er-file-icon">
+                <font-awesome-icon
+                  v-if="openingAttachmentKey === (att._id || att.key)"
+                  icon="fa-solid fa-spinner"
+                  spin
+                />
+                <font-awesome-icon
+                  v-else
+                  :icon="isImageMime(att.contentType) ? 'fa-solid fa-image' : 'fa-solid fa-file'"
+                />
+              </span>
+              <span class="er-file-info">
+                <span class="er-file-name">{{ att.filename }}</span>
+                <span v-if="att.size" class="er-file-size">{{ formatFileSize(att.size) }}</span>
+              </span>
+              <font-awesome-icon icon="fa-solid fa-download" class="er-file-action-icon" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Comments -->
@@ -293,6 +323,37 @@
         <textarea v-model="form.sonstiges" v-auto-grow rows="5" placeholder="Weitere Anmerkungen..."></textarea>
       </div>
 
+      <div class="form-group">
+        <label>Dateien / Fotos anhängen</label>
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+          class="er-file-input-hidden"
+          @change="onFilesSelected"
+        />
+        <button type="button" class="er-upload-trigger" @click="triggerFileSelect">
+          <span>Datei oder Foto vom Gerät auswählen</span>
+        </button>
+
+        <div v-if="selectedFiles.length" class="er-file-list">
+          <div v-for="(item, idx) in selectedFiles" :key="item.id" class="er-file-item">
+            <img v-if="item.previewUrl" :src="item.previewUrl" class="er-file-thumb" alt="" />
+            <span v-else class="er-file-icon">
+              <font-awesome-icon :icon="isImageMime(item.file.type) ? 'fa-solid fa-image' : 'fa-solid fa-file'" />
+            </span>
+            <span class="er-file-info">
+              <span class="er-file-name">{{ item.file.name }}</span>
+              <span class="er-file-size">{{ formatFileSize(item.file.size) }}</span>
+            </span>
+            <button type="button" class="er-file-remove" aria-label="Datei entfernen" @click="removeSelectedFile(idx)">
+              <font-awesome-icon icon="fa-solid fa-times" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       
       <button type="submit" class="submit-btn" :disabled="submitting">
         <span v-if="submitting">
@@ -329,12 +390,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faPaperclip, faImage, faFile, faDownload } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import { usePublicDraftAutosave } from '@/composables/usePublicDraftAutosave';
 import PublicBottomSheet from '@/components/public/PublicBottomSheet.vue';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+
+library.add(faPaperclip, faImage, faFile, faDownload);
 
 // Auto-grow directive for textareas
 const vAutoGrow = {
@@ -480,6 +545,78 @@ const selectedEinsatzLabel = computed(() => {
 
 const showNotizModal = ref(false);
 const showEquipmentModal = ref(false);
+const fileInputRef = ref(null);
+const selectedFiles = ref([]); // [{ id, file, previewUrl }]
+const openingAttachmentKey = ref(null);
+
+function isImageMime(mime) {
+  return typeof mime === 'string' && mime.startsWith('image/');
+}
+
+function formatFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function triggerFileSelect() {
+  fileInputRef.value?.click();
+}
+
+function onFilesSelected(event) {
+  const files = Array.from(event.target?.files || []);
+  for (const file of files) {
+    if (selectedFiles.value.length >= 10) break;
+    const previewUrl = isImageMime(file.type) ? URL.createObjectURL(file) : null;
+    selectedFiles.value.push({
+      id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
+      file,
+      previewUrl,
+    });
+  }
+  if (event.target) event.target.value = '';
+}
+
+function removeSelectedFile(index) {
+  const removed = selectedFiles.value.splice(index, 1)[0];
+  if (removed?.previewUrl) {
+    URL.revokeObjectURL(removed.previewUrl);
+  }
+}
+
+function clearSelectedFiles() {
+  for (const item of selectedFiles.value) {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  }
+  selectedFiles.value = [];
+  if (fileInputRef.value) fileInputRef.value.value = '';
+}
+
+async function openSavedAttachment(reportId, att) {
+  const attId = att._id || att.key;
+  if (!reportId || !attId || openingAttachmentKey.value) return;
+  openingAttachmentKey.value = attId;
+  try {
+    const { data } = await props.api.get(
+      `/api/public/eventreport/${reportId}/attachments/${encodeURIComponent(attId)}/download`,
+      { params: { email: props.email } }
+    );
+    const url = data?.data?.url || data?.url;
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  } catch (err) {
+    console.error('Attachment open error:', err);
+    alert('Anhang konnte nicht geöffnet werden.');
+  } finally {
+    openingAttachmentKey.value = null;
+  }
+}
+
+onBeforeUnmount(() => {
+  clearSelectedFiles();
+});
 
 const form = reactive({
   location: '',
@@ -537,6 +674,7 @@ function resetFormFields() {
   Object.keys(form).forEach(k => { form[k] = ''; });
   mitarbeiterRows.value = [];
   einsatzMitarbeiter.value = [];
+  clearSelectedFiles();
 }
 
 // Rebuild the form (switch Einsatz / open / reset) without triggering autosave.
@@ -732,27 +870,55 @@ function resetForm() {
 async function submitReport() {
   submitting.value = true;
   try {
-    await props.api.post('/api/public/eventreport', {
-      location: form.location,
-      locationV2: form.locationV2,
-      kunde: form.kunde,
-      auftragnummer: form.auftragnummer,
-      name_teamleiter: teamleiterName.value,
-      mitarbeiter_anzahl: form.mitarbeiter_anzahl,
-      datum: form.datum,
-      puenktlichkeit: form.puenktlichkeit,
-      erscheinungsbild: form.erscheinungsbild,
-      team: form.team,
-      mitarbeiter_job: !mitarbeiterRows.value.length ? form.mitarbeiter_job : '',
-      mitarbeiter_feedback: mitarbeiterRows.value
-        .filter(r => r.text.trim())
-        .map(r => ({ personalNr: r.personalNr, name: r.name, text: r.text.trim() })),
-      feedback_auftraggeber: form.feedback_auftraggeber,
-      sonstiges: form.sonstiges,
-      notizen: form.notizen,
-      ausruestung_fehlt: form.ausruestung_fehlt,
-      teamleiter_email: props.email
-    });
+    const feedbackPayload = mitarbeiterRows.value
+      .filter(r => r.text.trim())
+      .map(r => ({ personalNr: r.personalNr, name: r.name, text: r.text.trim() }));
+
+    if (selectedFiles.value.length > 0) {
+      const fd = new FormData();
+      fd.append('location', form.location || '');
+      fd.append('locationV2', form.locationV2 || '');
+      fd.append('kunde', form.kunde || '');
+      fd.append('auftragnummer', form.auftragnummer || '');
+      fd.append('name_teamleiter', teamleiterName.value || '');
+      fd.append('mitarbeiter_anzahl', form.mitarbeiter_anzahl || '');
+      fd.append('datum', form.datum || '');
+      fd.append('puenktlichkeit', form.puenktlichkeit || '');
+      fd.append('erscheinungsbild', form.erscheinungsbild || '');
+      fd.append('team', form.team || '');
+      fd.append('mitarbeiter_job', !mitarbeiterRows.value.length ? (form.mitarbeiter_job || '') : '');
+      fd.append('mitarbeiter_feedback', JSON.stringify(feedbackPayload));
+      fd.append('feedback_auftraggeber', form.feedback_auftraggeber || '');
+      fd.append('sonstiges', form.sonstiges || '');
+      fd.append('notizen', form.notizen || '');
+      fd.append('ausruestung_fehlt', form.ausruestung_fehlt || '');
+      fd.append('teamleiter_email', props.email || '');
+      for (const item of selectedFiles.value) {
+        fd.append('files', item.file);
+      }
+      await props.api.post('/api/public/eventreport', fd);
+    } else {
+      await props.api.post('/api/public/eventreport', {
+        location: form.location,
+        locationV2: form.locationV2,
+        kunde: form.kunde,
+        auftragnummer: form.auftragnummer,
+        name_teamleiter: teamleiterName.value,
+        mitarbeiter_anzahl: form.mitarbeiter_anzahl,
+        datum: form.datum,
+        puenktlichkeit: form.puenktlichkeit,
+        erscheinungsbild: form.erscheinungsbild,
+        team: form.team,
+        mitarbeiter_job: !mitarbeiterRows.value.length ? form.mitarbeiter_job : '',
+        mitarbeiter_feedback: feedbackPayload,
+        feedback_auftraggeber: form.feedback_auftraggeber,
+        sonstiges: form.sonstiges,
+        notizen: form.notizen,
+        ausruestung_fehlt: form.ausruestung_fehlt,
+        teamleiter_email: props.email
+      });
+    }
+    clearSelectedFiles();
     submitSuccess.value = true;
     storageRemove(draftKey());
     resetStatus();
@@ -1560,4 +1726,138 @@ async function submitReport() {
 .er-notiz-enter-active .er-modal-sheet { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
 .er-notiz-leave-active .er-modal-sheet { transition: transform 0.2s ease-in; }
 .er-notiz-enter-from .er-modal-sheet, .er-notiz-leave-to .er-modal-sheet { transform: translateY(100%); }
+
+/* File upload field */
+.er-file-input-hidden {
+  display: none;
+}
+
+.er-upload-trigger {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  background: var(--tile-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.er-upload-trigger:hover,
+.er-upload-trigger:active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(255, 117, 24, 0.06);
+}
+
+.er-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.er-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.er-file-item--clickable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.er-file-item--clickable:hover,
+.er-file-item--clickable:active {
+  border-color: var(--primary);
+  background: var(--hover);
+}
+
+.er-file-item--clickable:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.er-file-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.er-file-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: rgba(255, 117, 24, 0.12);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.er-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.er-file-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.er-file-size {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.er-file-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.35rem;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.er-file-remove:hover {
+  color: #e74c3c;
+}
+
+.er-file-action-icon {
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
 </style>

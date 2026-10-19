@@ -1,5 +1,10 @@
 # Zvoove-Stunden als Payroll-Datenquelle
 
+Ergänzung vom 19.10.2026: Die neue Backendgrundlage für detaillierte
+Zeitbuchungen, eigene Lohn-/Fakturausweisung und unabhängige Referenzvergleiche
+ist in [Zeit, Lohn und Faktur](Zeit-Lohn-Faktur.md) beschrieben. Der hier
+dokumentierte Tages-/Wochenimport bleibt eine getrennte Summenquelle.
+
 Die Stundenerfassung zeigt importierte Zvoove-Daten schreibgeschützt. Die
 bisherigen Stunden aus der Schnellerfassung und alten Monatsvorbereitungen
 werden in dieser Ansicht nicht geladen oder migriert. Die operative

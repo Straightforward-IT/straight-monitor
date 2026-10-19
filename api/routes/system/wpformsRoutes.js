@@ -19,6 +19,7 @@ const {
 } = require("../../models/Classes/FlipDocs");
 
 const { sendMail } = require("../../services/integrations/EmailService"); // Ensure sendMail is properly imported
+const R2Service = require("../../services/integrations/R2Service");
 
 const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
 const Auftrag = require("../../models/Event/Auftrag");
@@ -2011,6 +2012,30 @@ router.get(
     const report = await EventReport.findById(req.params.id).lean();
     if (!report) return res.status(404).json({ success: false, msg: "EventReport nicht gefunden" });
     res.json({ success: true, data: report });
+  })
+);
+
+// ── GET /api/reports/eventreport/:id/attachments/:attachmentId/download ──
+// Returns a signed R2 URL for an EventReport attachment
+router.get(
+  "/eventreport/:id/attachments/:attachmentId/download",
+  auth,
+  asyncHandler(async (req, res) => {
+    const report = await EventReport.findById(req.params.id).select("attachments").lean();
+    if (!report) return res.status(404).json({ success: false, msg: "EventReport nicht gefunden" });
+
+    const attachment = (report.attachments || []).find(
+      (a) => String(a._id) === String(req.params.attachmentId) || a.key === req.params.attachmentId
+    );
+    if (!attachment || !attachment.key) {
+      return res.status(404).json({ success: false, msg: "Anhang nicht gefunden" });
+    }
+
+    const url = await R2Service.getSignedDownloadUrl(attachment.key, 900, {
+      inline: req.query.download !== "true",
+      filename: attachment.filename,
+    });
+    res.json({ success: true, url, filename: attachment.filename, contentType: attachment.contentType });
   })
 );
 

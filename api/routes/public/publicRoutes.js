@@ -1,6 +1,12 @@
 const express = require("express");
 const crypto = require("crypto");
+const multer = require("multer");
 const router = express.Router();
+
+const uploadEventReportFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 10 },
+});
 const asyncHandler = require("../../middleware/AsyncHandler");
 const publicAuth = require("../../middleware/publicAuth");
 const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
@@ -469,7 +475,7 @@ router.get(
 
     // Query EventReports directly by teamleiter reference (no array dependency)
     const allReports = await EventReport.find({ teamleiter: mitarbeiter._id })
-      .select("auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges ausruestung_fehlt assigned comments version")
+      .select("auftragnummer datum kunde location name_teamleiter mitarbeiter_anzahl puenktlichkeit erscheinungsbild team mitarbeiter_job mitarbeiter_feedback feedback_auftraggeber sonstiges ausruestung_fehlt attachments assigned comments version")
       .populate({ path: "mitarbeiter_feedback.mitarbeiter", select: "vorname nachname" })
       .sort({ datum: -1 })
       .lean();
@@ -1005,9 +1011,11 @@ router.get(
 // ──────────────────────────────────────────────
 // POST /api/public/eventreport
 // Submit an EventReport from the public Flip page
+// Supports both application/json and multipart/form-data (with files)
 // ──────────────────────────────────────────────
 router.post(
   "/eventreport",
+  uploadEventReportFiles.array("files", 10),
   asyncHandler(async (req, res) => {
     const {
       location,
@@ -1020,13 +1028,21 @@ router.post(
       erscheinungsbild,
       team,
       mitarbeiter_job,
-      mitarbeiter_feedback,
       feedback_auftraggeber,
       sonstiges,
       ausruestung_fehlt,
       teamleiter_email,
       locationV2,
     } = req.body;
+
+    let mitarbeiter_feedback = req.body.mitarbeiter_feedback;
+    if (typeof mitarbeiter_feedback === "string") {
+      try {
+        mitarbeiter_feedback = JSON.parse(mitarbeiter_feedback);
+      } catch {
+        mitarbeiter_feedback = [];
+      }
+    }
 
     if (!datum || !name_teamleiter || !kunde || !auftragnummer) {
       return res.status(400).json({ msg: "Pflichtfelder fehlen (datum, name_teamleiter, kunde, auftragnummer)" });
@@ -1083,20 +1099,59 @@ router.post(
       feedback_auftraggeber: feedback_auftraggeber || "",
       sonstiges: sonstiges || "",
       ausruestung_fehlt: ausruestung_fehlt || "",
+      attachments: [],
       teamleiter: teamleiter?._id,
       assigned: !!teamleiter,
     });
 
-    await eventReport.save();
-    logger.info(`✅ Public EventReport created: ${eventReport._id} by ${name_teamleiter}`);
+    // Upload files to Cloudflare R2 and store keys on the EventReport
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+    const emailAttachmentsData = [];
+    for (let idx = 0; idx < uploadedFiles.length; idx++) {
+      const f = uploadedFiles[idx];
+      const origName = Buffer.from(f.originalname || "datei", "latin1").toString("utf8");
+      const safeName = origName.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-.]/g, "_");
+      const key = `Auftraege/${auftragnummer}/eventreports/${eventReport._id}/${Date.now()}-${idx}-${safeName}`;
+      const contentType = f.mimetype || "application/octet-stream";
 
-    res.status(201).json({ msg: "EventReport erfolgreich gespeichert", id: eventReport._id });
+      await R2Service.uploadFile(key, f.buffer, contentType);
+      eventReport.attachments.push({
+        key,
+        filename: origName,
+        contentType,
+        size: f.size || f.buffer?.length || 0,
+        uploadedAt: new Date(),
+      });
+      emailAttachmentsData.push({
+        key,
+        filename: origName,
+        contentType,
+        size: f.size || f.buffer?.length || 0,
+        buffer: f.buffer,
+        isImage: /^image\//i.test(contentType),
+        contentId: `er-img-${eventReport._id}-${idx}`,
+      });
+    }
+
+    await eventReport.save();
+    logger.info(`✅ Public EventReport created: ${eventReport._id} by ${name_teamleiter} (${eventReport.attachments.length} attachment(s))`);
+
+    res.status(201).json({
+      msg: "EventReport erfolgreich gespeichert",
+      id: eventReport._id,
+      attachments: eventReport.attachments,
+    });
 
     // ── E-Mail: Event Report Benachrichtigung (fire-and-forget) ──
     (async () => {
       try {
         const BASE_URL = 'https://straightmonitor.com';
         const recipients = registry.getEventReportRecipients(resolvedDocumentLocation.location);
+        const escHtml = (v) => String(v || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
         const fmtField = (v) => v && String(v).trim() ? String(v).trim() : '<span style="color:#999;">—</span>';
         const fmtText = (v) => v && String(v).trim() ? String(v).trim().replace(/\n/g, '<br>') : '<span style="color:#999;">—</span>';
         const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -1131,6 +1186,51 @@ router.post(
         }
         if (!maFeedbackHtml && mitarbeiter_job) maFeedbackHtml = fmtText(mitarbeiter_job);
         if (!maFeedbackHtml) maFeedbackHtml = '<span style="color:#999;">—</span>';
+
+        // Prepare email attachments & inline image HTML
+        const mailAttachments = [];
+        let attachmentsHtml = '';
+        if (emailAttachmentsData.length > 0) {
+          const inlineImages = emailAttachmentsData.filter(a => a.isImage);
+          const fileListHtml = emailAttachmentsData
+            .map(a => `<li style="margin:2px 0;font-size:0.85rem;color:#333;">${escHtml(a.filename)}</li>`)
+            .join('');
+
+          const inlineImagesHtml = inlineImages
+            .map(img => `
+              <div style="margin:10px 0;">
+                <p style="margin:0 0 4px;font-size:0.8rem;color:#666;font-weight:600;">${escHtml(img.filename)}</p>
+                <img src="cid:${img.contentId}" alt="${escHtml(img.filename)}" style="max-width:100%;height:auto;border-radius:6px;border:1px solid #e5e7eb;display:block;" />
+              </div>`)
+            .join('');
+
+          attachmentsHtml = `
+            <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
+            <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Anhänge (${emailAttachmentsData.length})</h3>
+            <ul style="margin:0 0 8px;padding-left:18px;">${fileListHtml}</ul>
+            ${inlineImagesHtml}
+          `;
+
+          for (const att of emailAttachmentsData) {
+            const base64Content = att.buffer.toString("base64");
+            // Always attach as regular downloadable attachment
+            mailAttachments.push({
+              name: att.filename,
+              content: base64Content,
+              contentType: att.contentType,
+            });
+            // For images, also add inline CID attachment so <img src="cid:..."> renders inline across all mail clients
+            if (att.isImage) {
+              mailAttachments.push({
+                name: att.filename,
+                content: base64Content,
+                contentType: att.contentType,
+                isInline: true,
+                contentId: att.contentId,
+              });
+            }
+          }
+        }
 
         const html = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#111;">
@@ -1169,6 +1269,7 @@ router.post(
               <hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>
               <h3 style="font-size:0.9rem;margin:0 0 10px;color:#ff7518;">Ausrüstung fehlt</h3>
               <p style="margin:0;font-size:0.9rem;">${fmtText(ausruestung_fehlt)}</p>
+              ${attachmentsHtml}
             </div>
           </div>`;
 
@@ -1177,7 +1278,7 @@ router.post(
           `Event Report: ${kunde} – ${fmtDate(datum)} (${location})`,
           html,
           'it',
-          [],
+          mailAttachments,
           teamleiter_email || null
         );
         logger.info(`📧 EventReport email sent to ${recipients.join(', ')} for ${name_teamleiter}`);
@@ -1276,6 +1377,31 @@ router.post(
         }
       })();
     }
+  })
+);
+
+// ──────────────────────────────────────────────
+// GET /api/public/eventreport/:id/attachments/:attachmentId/download
+// Returns a pre-signed R2 URL for an EventReport attachment
+// ──────────────────────────────────────────────
+router.get(
+  "/eventreport/:id/attachments/:attachmentId/download",
+  asyncHandler(async (req, res) => {
+    const report = await EventReport.findById(req.params.id).select("attachments").lean();
+    if (!report) return res.status(404).json({ msg: "EventReport nicht gefunden" });
+
+    const attachment = (report.attachments || []).find(
+      (a) => String(a._id) === String(req.params.attachmentId) || a.key === req.params.attachmentId
+    );
+    if (!attachment || !attachment.key) {
+      return res.status(404).json({ msg: "Anhang nicht gefunden" });
+    }
+
+    const url = await R2Service.getSignedDownloadUrl(attachment.key, 900, {
+      inline: true,
+      filename: attachment.filename,
+    });
+    res.json({ data: { url, filename: attachment.filename, contentType: attachment.contentType } });
   })
 );
 

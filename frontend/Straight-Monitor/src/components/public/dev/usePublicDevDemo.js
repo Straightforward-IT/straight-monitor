@@ -10,6 +10,7 @@ function isoDay(offset) {
 function createInitialState() {
   return {
     applications: {},
+    applicationSteps: {},
     availability: Array.from({ length: 7 }, (_, index) => ({
       date: isoDay(index),
       type: index === 2 ? 'unavailable' : index === 3 ? 'partial' : 'available',
@@ -46,13 +47,13 @@ export function createDemoJobs() {
       id: 'demo-hamburg-messe', title: 'Hamburg Messe', role: 'Service', dateFrom: isoDay(3), dateTo: isoDay(4),
       timeFrom: '17:00', timeTo: '02:00', locationName: 'Hamburg Messe', city: 'Hamburg',
       address: 'Messeplatz 1, 20357 Hamburg', meetingTime: '16:30', meetingPlace: 'Eingang Ost', openPlaces: 6,
-      hourlyWage: '15,50 €', surcharges: 'Mögliche Nachtzuschläge', dressCode: 'Schwarze Hose · schwarze Schuhe', isFixture: true,
+      surcharges: 'Mögliche Nachtzuschläge', isFixture: true,
     },
     {
       id: 'demo-hotel-atlantic', title: 'Hotel Atlantic', role: 'Service', dateFrom: isoDay(6), dateTo: isoDay(7),
       timeFrom: '18:00', timeTo: '01:00', locationName: 'Hotel Atlantic', city: 'Hamburg',
       address: 'An der Alster 72, 20099 Hamburg', meetingTime: '17:30', meetingPlace: 'Personaleingang', openPlaces: 3,
-      hourlyWage: '15,50 €', surcharges: null, dressCode: 'Schwarze Hose · weißes Hemd', isFixture: true,
+      surcharges: null, isFixture: true,
     },
   ];
 }
@@ -78,6 +79,7 @@ export function usePublicDevDemo(email) {
     availability: Array.isArray(stored?.availability) ? stored.availability : fallback.availability,
     documents: Array.isArray(stored?.documents) ? stored.documents : fallback.documents,
     applications: stored?.applications || {},
+    applicationSteps: stored?.applicationSteps || {},
   });
 
   watch(state, (value) => {
@@ -87,6 +89,7 @@ export function usePublicDevDemo(email) {
   function reset() {
     const initial = createInitialState();
     state.applications = initial.applications;
+    state.applicationSteps = initial.applicationSteps;
     state.availability = initial.availability;
     state.timeEntry = initial.timeEntry;
     state.documents = initial.documents;

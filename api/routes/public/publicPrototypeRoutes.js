@@ -137,9 +137,7 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
       occupiedPlaces,
       openPlaces,
       einsatzinformationHtml: schicht.einsatzinformation?.renderedHtml || '',
-      hourlyWage: null,
       surcharges: null,
-      dressCode: null,
     }];
   });
 
