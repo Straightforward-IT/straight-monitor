@@ -18,19 +18,18 @@
           <span class="news-card__type">Du wurdest eingeplant für den folgenden Job</span>
           <span class="news-card__progress">{{ item.confirmation.currentStep.position }}/{{ item.confirmation.totalSteps }}</span>
         </div>
-        <p class="news-card__intro"></p>
         <h4 class="news-card__title">{{ item.einsatz.title }}</h4>
         <p>{{ formatDate(item.einsatz.dateFrom) }} · {{ formatTime(item.einsatz) }}</p>
         <p class="news-card__location"><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ item.einsatz.location }}</p>
-        <p class="news-card__statement">{{ item.confirmation.currentStep.text }}</p>
         <button
-          class="primary-button wide"
+          class="primary-button wide news-card__action"
           type="button"
           :disabled="confirmingId === item.id"
           @click="$emit('confirm', item)"
         >
           <font-awesome-icon v-if="confirmingId === item.id" icon="fa-solid fa-spinner" spin />
-          {{ confirmingId === item.id ? 'Wird bestätigt …' : 'Bestätigen' }}
+          <font-awesome-icon v-else icon="fa-solid fa-circle-check" />
+          {{ confirmingId === item.id ? 'Wird bestätigt …' : 'Jetzt bestätigen' }}
         </button>
       </article>
     </template>
@@ -76,7 +75,7 @@ function formatTime(einsatz) {
 .news-card p { margin:0; color:var(--muted); font-size:.76rem; }
 .news-card h4 + p, .news-card__location, .news-card__title, .news-card__statement { text-align:center; }
 .news-card__location svg { margin-right:.2rem; }
-.news-card__statement { margin:.65rem 0 .75rem !important; color:var(--text) !important; font-size:.96rem !important; font-weight:800; line-height:1.5; }
+.news-card__action { margin-top:.45rem; }
 .news-card .primary-button { border-color:var(--text); background:var(--text); color:var(--panel); }
 .news-card .primary-button:hover:not(:disabled) { background:var(--primary); border-color:var(--primary); color:var(--text); }
 .primary-button:disabled { cursor:wait; opacity:.65; }

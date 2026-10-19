@@ -1,6 +1,8 @@
 const express = require("express");
 const crypto = require("crypto");
+const path = require("path");
 const multer = require("multer");
+const sharp = require("sharp");
 const router = express.Router();
 
 const uploadEventReportFiles = multer({
@@ -1105,29 +1107,49 @@ router.post(
     });
 
     // Upload files to Cloudflare R2 and store keys on the EventReport
+    // Raster images are automatically converted to WebP via sharp to save storage and email bandwidth
     const uploadedFiles = Array.isArray(req.files) ? req.files : [];
     const emailAttachmentsData = [];
     for (let idx = 0; idx < uploadedFiles.length; idx++) {
       const f = uploadedFiles[idx];
-      const origName = Buffer.from(f.originalname || "datei", "latin1").toString("utf8");
+      let origName = Buffer.from(f.originalname || "datei", "latin1").toString("utf8");
+      let contentType = f.mimetype || "application/octet-stream";
+      let fileBuffer = f.buffer;
+      const isConvertibleImage = /^image\/(jpeg|jpg|png|webp|gif|tiff|avif|heic|heif)$/i.test(contentType);
+
+      if (isConvertibleImage) {
+        try {
+          fileBuffer = await sharp(f.buffer)
+            .rotate()
+            .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+            .webp({ quality: 82 })
+            .toBuffer();
+          contentType = "image/webp";
+          const ext = path.extname(origName);
+          origName = `${ext ? origName.slice(0, -ext.length) : origName}.webp`;
+        } catch (imgErr) {
+          logger.warn(`⚠️ WebP conversion skipped for ${origName}: ${imgErr.message}`);
+        }
+      }
+
       const safeName = origName.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-.]/g, "_");
       const key = `Auftraege/${auftragnummer}/eventreports/${eventReport._id}/${Date.now()}-${idx}-${safeName}`;
-      const contentType = f.mimetype || "application/octet-stream";
+      const size = fileBuffer?.length || f.size || 0;
 
-      await R2Service.uploadFile(key, f.buffer, contentType);
+      await R2Service.uploadFile(key, fileBuffer, contentType);
       eventReport.attachments.push({
         key,
         filename: origName,
         contentType,
-        size: f.size || f.buffer?.length || 0,
+        size,
         uploadedAt: new Date(),
       });
       emailAttachmentsData.push({
         key,
         filename: origName,
         contentType,
-        size: f.size || f.buffer?.length || 0,
-        buffer: f.buffer,
+        size,
+        buffer: fileBuffer,
         isImage: /^image\//i.test(contentType),
         contentId: `er-img-${eventReport._id}-${idx}`,
       });

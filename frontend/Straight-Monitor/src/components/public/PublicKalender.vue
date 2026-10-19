@@ -62,6 +62,7 @@
           'other-month': !day.isCurrentMonth,
           'today': day.isToday,
           'has-einsatz': day.einsaetze.length > 0,
+          'has-unconfirmed': day.einsaetze.some(isUnconfirmedEinsatz),
           [`availability-${day.availability?.verfuegbarkeit}`]: day.availability
         }"
         @click="onDayClick(day)"
@@ -82,9 +83,10 @@
         </div>
         <div v-if="day.einsaetze.length > 0" class="day-dots">
           <span
-            v-for="(_, i) in Math.min(day.einsaetze.length, 3)"
+            v-for="(einsatzItem, i) in day.einsaetze.slice(0, 3)"
             :key="i"
             class="dot"
+            :class="{ 'dot--unconfirmed': isUnconfirmedEinsatz(einsatzItem) }"
           ></span>
         </div>
       </div>
@@ -157,15 +159,21 @@
         v-for="einsatz in selectedDay.einsaetze"
         :key="einsatz._id"
         class="day-einsatz-card"
+        :class="{ 'day-einsatz-card--unconfirmed': isUnconfirmedEinsatz(einsatz) }"
         @click="$emit('open-job', einsatz)"
       >
         <div class="einsatz-time" v-if="einsatz.uhrzeitVon">
           {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ' – ' + formatTime(einsatz.uhrzeitBis) : '' }}
         </div>
         <div class="einsatz-info">
-          <span class="einsatz-title">
-            {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `#${einsatz.auftragNr}` }}
-          </span>
+          <div class="einsatz-title-row">
+            <span class="einsatz-title">
+              {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `#${einsatz.auftragNr}` }}
+            </span>
+            <span v-if="isUnconfirmedEinsatz(einsatz)" class="einsatz-unconfirmed-badge">
+              Unbestätigt
+            </span>
+          </div>
           <span class="einsatz-location" v-if="einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt">
             <font-awesome-icon icon="fa-solid fa-location-dot" />
             {{ einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt }}
@@ -247,6 +255,13 @@ function formatTime(val) {
     if (m) return m[1];
   }
   return '';
+}
+
+function isUnconfirmedEinsatz(einsatz) {
+  return Boolean(
+    einsatz?.isUnconfirmed
+    || (einsatz?.bestaetigungErforderlich && !einsatz?.bestaetigt)
+  );
 }
 
 function isEinsatzOnDay(einsatz, day) {
@@ -521,6 +536,13 @@ const calendarDays = computed(() => {
   return days;
 });
 
+watch(calendarDays, (days) => {
+  if (!selectedDay.value) return;
+  const targetIso = toIsoDate(selectedDay.value.date);
+  const updated = days.find((d) => d.isCurrentMonth && toIsoDate(d.date) === targetIso);
+  if (updated) selectedDay.value = updated;
+});
+
 function previousMonth() {
   selectedDay.value = null;
   if (currentMonth.value === 0) { currentMonth.value = 11; currentYear.value--; }
@@ -774,6 +796,21 @@ watch([currentMonth, currentYear], () => {
   height: 5px;
   border-radius: 50%;
   background: var(--primary);
+  box-sizing: border-box;
+}
+
+.dot--unconfirmed {
+  background: transparent !important;
+  border: 1.5px solid var(--primary);
+}
+
+.calendar-day.today .dot--unconfirmed {
+  border-color: white;
+}
+
+.calendar-day.has-unconfirmed:not(.today) {
+  outline: 1px dashed var(--primary);
+  outline-offset: -2px;
 }
 
 .availability-control { display: flex; align-items: center; gap: 0.45rem; }
@@ -896,6 +933,12 @@ watch([currentMonth, currentYear], () => {
   transition: all 0.15s;
 }
 
+.day-einsatz-card--unconfirmed {
+  border-style: dashed;
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--tile-bg));
+}
+
 .day-einsatz-card:active {
   transform: scale(0.98);
   background: var(--hover);
@@ -917,6 +960,13 @@ watch([currentMonth, currentYear], () => {
   gap: 0.15rem;
 }
 
+.einsatz-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
 .einsatz-title {
   font-weight: 600;
   font-size: 0.9rem;
@@ -924,6 +974,17 @@ watch([currentMonth, currentYear], () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.einsatz-unconfirmed-badge {
+  flex-shrink: 0;
+  padding: 0.12rem 0.42rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  color: var(--primary);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .einsatz-location {

@@ -90,7 +90,7 @@
               v-else-if="applicationStatus(selectedJob.id) === 'scheduled'"
               class="primary-button wide confirm-assignment-button"
               type="button"
-              @click="setApplication(selectedJob.id, 'confirmed')"
+              @click="openJobConfirmationModal(selectedJob)"
             >
               <font-awesome-icon icon="fa-solid fa-circle-check" />
               Bestätigung
@@ -106,7 +106,7 @@
             <div class="scenario-actions">
               <span>Status simulieren</span>
               <button type="button" @click="setApplication(selectedJob.id, 'scheduled')">Bestätigt</button>
-              <button type="button" @click="setApplication(selectedJob.id, 'rejected')">Abgelehnt</button>
+              <button type="button" @click="setApplication(selectedJob.id, 'rejected')">Abgesagt</button>
               <button type="button" @click="setApplication(selectedJob.id, null)">Zurücksetzen</button>
             </div>
           </template>
@@ -269,7 +269,7 @@
         :recent-jobs-without-time-entry="recentJobsWithoutTimeEntry"
         :upcoming-einsaetze="upcomingEinsaetze"
         :vorname="vorname"
-        @confirm-news="confirmNewsItem"
+        @confirm-news="openConfirmationModal"
         @open-calendar-job="openCalendarJob"
         @open-job="openJob"
         @select-tab="selectTab"
@@ -296,7 +296,7 @@
       <CalendarTab
         v-else-if="activeTab === 'calendar'"
         :api="api"
-        :einsaetze="einsaetze"
+        :einsaetze="calendarEinsaetze"
         :email="email"
         @open-job="openCalendarJob"
       />
@@ -371,6 +371,15 @@
       :profile-image-url="profileImageUrl"
       @select="selectTab"
     />
+
+    <PublicConfirmationModal
+      :model-value="Boolean(activeConfirmationItem)"
+      :item="activeConfirmationItem"
+      :confirming="Boolean(activeConfirmationItem && confirmingNewsId === activeConfirmationItem.id)"
+      :error="newsError"
+      @update:model-value="!$event && closeConfirmationModal()"
+      @confirm="confirmNewsItem"
+    />
   </div>
 </template>
 
@@ -415,6 +424,7 @@ import PublicFooter from '../PublicFooter.vue';
 import PublicJobDetail from '../PublicJobDetail.vue';
 import PublicMonitorContentFrame from '../monitor/components/PublicMonitorContentFrame.vue';
 import PublicMonitorTabNavigation from '../monitor/components/PublicMonitorTabNavigation.vue';
+import PublicConfirmationModal from '../monitor/components/PublicConfirmationModal.vue';
 import PublicListItem from '../PublicListItem.vue';
 import HomeTab from '../monitor/pages/HomeTab.vue';
 import JobsTab from '../monitor/pages/JobsTab.vue';
@@ -461,6 +471,7 @@ const newsItems = ref([]);
 const newsLoading = ref(true);
 const newsError = ref('');
 const confirmingNewsId = ref('');
+const activeConfirmationItemId = ref(null);
 const nowTick = ref(Date.now());
 const showCorrection = ref(false);
 const correctionTime = ref('');
@@ -608,6 +619,42 @@ const scheduledJobNewsItems = computed(() =>
     })
 );
 const combinedNewsItems = computed(() => [...scheduledJobNewsItems.value, ...newsItems.value]);
+const activeConfirmationItem = computed(() =>
+  combinedNewsItems.value.find((item) => item.id === activeConfirmationItemId.value) || null
+);
+const calendarEinsaetze = computed(() => {
+  const existingIds = new Set(props.einsaetze.map((e) => String(e._id)));
+  const jobEntries = jobs.value
+    .filter((job) => ['scheduled', 'confirmed'].includes(demoState.applications[job.id]) && !existingIds.has(String(job.id)))
+    .map((job) => {
+      const status = demoState.applications[job.id];
+      return {
+        _id: `job-einsatz-${job.id}`,
+        jobId: job.id,
+        sourceJob: job,
+        auftragNr: job.auftragNr,
+        bezeichnung: job.role || job.title,
+        schichtBezeichnung: job.role || null,
+        datumVon: job.dateFrom,
+        datumBis: job.dateTo || job.dateFrom,
+        uhrzeitVon: job.timeFrom || null,
+        uhrzeitBis: job.timeTo || null,
+        treffpunkt: job.meetingTime || null,
+        treffpunktOrt: job.meetingPlace || null,
+        einsatzinformationHtml: job.einsatzinformationHtml || '',
+        bestaetigungErforderlich: true,
+        bestaetigt: status === 'confirmed',
+        isUnconfirmed: status === 'scheduled',
+        auftrag: {
+          auftragNr: job.auftragNr,
+          eventTitel: job.title,
+          eventLocation: job.locationName || job.city || null,
+          eventOrt: job.city || null,
+        },
+      };
+    });
+  return [...props.einsaetze, ...jobEntries];
+});
 const openLaufzettelCount = computed(() =>
   (props.mitarbeiter?.laufzettel_received || []).filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
 );
@@ -624,7 +671,38 @@ const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', runnin
 function selectTab(tab) { activeTab.value = tab; detailView.value = null; window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function closeDetail() { const returnView = returnDetailView.value; returnDetailView.value = null; detailView.value = returnView; selectedJob.value = null; selectedCalendarJob.value = null; selectedDocument.value = null; selectedPayroll.value = null; previewMessage.value = ''; showCorrection.value = false; }
 function openJob(job) { selectedJob.value = job; detailView.value = 'job'; window.scrollTo(0, 0); }
-function openCalendarJob(einsatz) { selectedCalendarJob.value = einsatz; detailView.value = 'calendar-job'; window.scrollTo(0, 0); }
+function openCalendarJob(einsatz) {
+  if (einsatz?.sourceJob) {
+    openJob(einsatz.sourceJob);
+    if (demoState.applications[einsatz.sourceJob.id] === 'scheduled') {
+      openJobConfirmationModal(einsatz.sourceJob);
+    }
+    return;
+  }
+  const backendNewsItem = newsItems.value.find(
+    (item) => String(item.einsatz?.id) === String(einsatz?._id)
+  );
+  if (backendNewsItem) {
+    openConfirmationModal(backendNewsItem);
+    return;
+  }
+  selectedCalendarJob.value = einsatz;
+  detailView.value = 'calendar-job';
+  window.scrollTo(0, 0);
+}
+function openConfirmationModal(item) {
+  if (!item) return;
+  newsError.value = '';
+  activeConfirmationItemId.value = item.id;
+}
+function openJobConfirmationModal(job) {
+  if (!job) return;
+  const item = scheduledJobNewsItems.value.find((entry) => entry.jobId === job.id);
+  if (item) openConfirmationModal(item);
+}
+function closeConfirmationModal() {
+  activeConfirmationItemId.value = null;
+}
 function openTime() { detailView.value = 'time'; window.scrollTo(0, 0); }
 function openAppearance() { returnDetailView.value = 'profile'; detailView.value = 'appearance'; window.scrollTo(0, 0); }
 function openPersonalData() {
@@ -681,7 +759,7 @@ function setApplication(id, status) {
     delete demoState.applicationSteps[id];
   }
 }
-function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', scheduled: 'Bestätigung ausstehend', confirmed: 'Eingeplant & bestätigt', rejected: 'Abgelehnt' }[status] || status); }
+function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', scheduled: 'Bestätigung ausstehend', confirmed: 'Eingeplant & bestätigt', rejected: 'Abgesagt' }[status] || status); }
 function applicationDetailMessage(status) {
   if (status === 'scheduled') return 'Du wurdest in diesen Job eingeplant, bestätige bitte jetzt dass du dabei bist.';
   if (status === 'rejected') return 'Deine Bewerbung konnte leider nicht angenommen werden.';
@@ -838,6 +916,7 @@ async function confirmNewsItem(item) {
     if (nextIdx >= CONFIRMATION_STEPS.length) {
       demoState.applications[item.jobId] = 'confirmed';
       delete demoState.applicationSteps[item.jobId];
+      closeConfirmationModal();
     } else {
       demoState.applicationSteps[item.jobId] = nextIdx;
     }
@@ -849,8 +928,11 @@ async function confirmNewsItem(item) {
   confirmingNewsId.value = item.id;
   newsError.value = '';
   try {
-    await props.api.post(`/api/public/neuigkeiten/einsatzbestaetigungen/${einsatzId}/${stepKey}`, null, { params: { email: props.email } });
+    const res = await props.api.post(`/api/public/neuigkeiten/einsatzbestaetigungen/${einsatzId}/${stepKey}`, null, { params: { email: props.email } });
     await loadNews();
+    if (res.data?.completed) {
+      closeConfirmationModal();
+    }
   } catch (error) {
     newsError.value = error.response?.data?.msg || 'Die Bestätigung konnte nicht gespeichert werden.';
   } finally {

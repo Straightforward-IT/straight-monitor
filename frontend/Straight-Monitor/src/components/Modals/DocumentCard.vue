@@ -301,24 +301,53 @@
           <font-awesome-icon icon="fa-solid fa-paperclip" class="section-icon" />
           Anhänge ({{ attachmentEntries.length }})
         </h4>
-        <div class="feedback-list">
+        <div class="attachments-grid">
           <div
             v-for="att in attachmentEntries"
             :key="att._id || att.key"
-            class="feedback-item"
-            style="display:flex;align-items:center;justify-content:space-between;gap:12px;"
+            class="attachment-card"
+            :class="{ 'attachment-card--image': isImageAttachment(att) && attachmentUrls[attIdKey(att)] }"
           >
-            <span style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              {{ att.filename || 'Anhang' }}
-            </span>
-            <AppButton
-              size="sm"
-              variant="ghost"
-              :loading="openingAttachmentId === String(att._id || att.key)"
-              @click="openReportAttachment(att)"
+            <button
+              v-if="isImageAttachment(att) && attachmentUrls[attIdKey(att)]"
+              type="button"
+              class="attachment-image-preview"
+              :title="`${att.filename || 'Bild'} in Vorschau öffnen`"
+              @click="previewReportAttachment(att)"
             >
-              Öffnen
-            </AppButton>
+              <img :src="attachmentUrls[attIdKey(att)]" :alt="att.filename || 'Anhang'" loading="lazy" />
+            </button>
+            <div class="attachment-card__footer">
+              <div class="attachment-card__meta">
+                <font-awesome-icon
+                  :icon="isImageAttachment(att) ? 'fa-solid fa-image' : 'fa-solid fa-file-lines'"
+                  class="attachment-card__icon"
+                />
+                <div class="attachment-card__text">
+                  <span class="attachment-card__name">{{ att.filename || 'Anhang' }}</span>
+                  <span v-if="att.size" class="attachment-card__size">{{ formatAttachmentSize(att.size) }}</span>
+                </div>
+              </div>
+              <div class="attachment-card__actions">
+                <AppButton
+                  size="sm"
+                  variant="secondary"
+                  :loading="openingAttachmentId === attIdKey(att)"
+                  @click="previewReportAttachment(att)"
+                >
+                  <font-awesome-icon v-if="openingAttachmentId !== attIdKey(att)" icon="fa-solid fa-up-right-from-square" />
+                  Öffnen
+                </AppButton>
+                <AppIconButton
+                  size="sm"
+                  variant="secondary"
+                  :label="`${att.filename || 'Anhang'} herunterladen`"
+                  @click="downloadReportAttachment(att)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-download" />
+                </AppIconButton>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -458,6 +487,7 @@ import { useTheme } from "@/stores/theme";
 import { useAuth } from "@/stores/auth";
 import { useDataCache } from "@/stores/dataCache";
 import { useCustomerModals } from "@/composables/useCustomerModals";
+import { useDocumentPreviewModals } from "@/composables/useDocumentPreviewModals";
 import api from "@/utils/api";
 import logger from "@/utils/logger";
 import asanaLogo from "@/assets/asana.png";
@@ -490,10 +520,13 @@ import {
   faUserSlash,
   faChevronRight,
   faPaperclip,
+  faImage,
+  faUpRightFromSquare,
+  faDownload,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
-library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf, faMagnifyingGlass, faUserSlash, faChevronRight, faPaperclip);
+library.add(faLink, faCircleExclamation, faList, faFilter, faFileLines, faClipboardCheck, faComments, faPaperPlane, faSpinner, faFloppyDisk, faEnvelope, faBriefcase, faBuilding, faCheck, faPen, faTrash, faEllipsisVertical, faFilePdf, faMagnifyingGlass, faUserSlash, faChevronRight, faPaperclip, faImage, faUpRightFromSquare, faDownload);
 
 // EmployeeCard also embeds DocumentCard. Load its modal lazily to avoid a
 // DocumentCard -> EmployeeCardModal -> EmployeeCard -> DocumentCard cycle.
@@ -541,6 +574,8 @@ export default {
       loadingEmployees: false,
       assigningEmployee: false,
       openingAttachmentId: null,
+      localAttachments: null,
+      attachmentUrls: {},
     };
   },
 
@@ -550,6 +585,7 @@ export default {
     const dataCache = useDataCache();
     const dockedModal = useCurrentDockedModal();
     const { openCustomer } = useCustomerModals();
+    const { openDocumentPreview } = useDocumentPreviewModals();
     const isMinimized = dockedModal?.minimized ?? computed(() => false);
     const isTopmost = dockedModal?.topmost ?? computed(() => true);
 
@@ -602,15 +638,17 @@ export default {
       isMinimized,
       isTopmost,
       openCustomer,
+      openDocumentPreview,
     };
   },
 
   mounted() {
     document.addEventListener('click', this.closeMenu);
     document.addEventListener('keydown', this.handleEscape);
-    // If opened with partial data (e.g. from feedback list), lazy-fetch the full EventReport
-    if (this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
+    // Always fetch latest EventReport details (comments, attachments, feedback)
+    if (this.doc.docType === 'Event-Bericht') {
       this.fetchFullReport();
+      this.preloadImageAttachmentUrls();
     }
   },
 
@@ -630,8 +668,10 @@ export default {
       },
     },
     'doc._id'(newId, oldId) {
-      if (newId !== oldId && this.doc.docType === 'Event-Bericht' && !Array.isArray(this.doc.details?.comments)) {
+      if (newId !== oldId && this.doc.docType === 'Event-Bericht') {
         this.localComments = null;
+        this.localAttachments = null;
+        this.attachmentUrls = {};
         this.fetchFullReport();
       }
     }
@@ -672,6 +712,7 @@ export default {
       return filtered;
     },
     attachmentEntries() {
+      if (this.localAttachments !== null) return this.localAttachments;
       const att = this.doc.details?.attachments;
       return Array.isArray(att) ? att : [];
     },
@@ -937,26 +978,85 @@ export default {
         if (res.data?.success && res.data.data) {
           const full = res.data.data;
           // Merge fetched fields into doc.details reactively
-          Object.assign(this.doc.details, full);
-          // Seed localComments so they display immediately
+          if (this.doc.details) Object.assign(this.doc.details, full);
           if (Array.isArray(full.comments)) {
             this.localComments = [...full.comments];
           }
+          if (Array.isArray(full.attachments)) {
+            this.localAttachments = [...full.attachments];
+          }
+          await this.preloadImageAttachmentUrls();
         }
       } catch (err) {
         console.error('DocumentCard: could not fetch full report', err);
       }
     },
 
-    async openReportAttachment(att) {
-      const attId = String(att?._id || att?.key || '');
+    attIdKey(att) {
+      return String(att?._id || att?.key || '');
+    },
+
+    isImageAttachment(att) {
+      const mime = String(att?.contentType || '').toLowerCase();
+      const name = String(att?.filename || '').toLowerCase();
+      return mime.startsWith('image/') || /\.(webp|png|jpe?g|gif|avif|bmp|svg)$/.test(name);
+    },
+
+    formatAttachmentSize(bytes) {
+      const n = Number(bytes) || 0;
+      if (!n) return '';
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    },
+
+    async resolveAttachmentUrl(att, { download = false, signal } = {}) {
+      const attId = this.attIdKey(att);
+      if (!attId) return '';
+      const res = await api.get(
+        `/api/reports/eventreport/${this.doc._id}/attachments/${encodeURIComponent(attId)}/download`,
+        { params: download ? { download: 'true' } : undefined, signal }
+      );
+      return res.data?.url || '';
+    },
+
+    async preloadImageAttachmentUrls() {
+      const entries = this.attachmentEntries || [];
+      await Promise.all(
+        entries
+          .filter(att => this.isImageAttachment(att) && !this.attachmentUrls[this.attIdKey(att)])
+          .map(async (att) => {
+            const key = this.attIdKey(att);
+            try {
+              const url = await this.resolveAttachmentUrl(att);
+              if (url) {
+                this.attachmentUrls = { ...this.attachmentUrls, [key]: url };
+              }
+            } catch {
+              // ignore preview preload failure
+            }
+          })
+      );
+    },
+
+    async previewReportAttachment(att) {
+      const attId = this.attIdKey(att);
+      if (!attId) return;
+      this.openDocumentPreview({
+        id: `${this.doc._id}-${attId}`,
+        filename: att.filename || 'Anhang',
+        mimeType: att.contentType || '',
+        url: this.attachmentUrls[attId] || '',
+        resolveUrl: ({ download, signal } = {}) => this.resolveAttachmentUrl(att, { download, signal }),
+      });
+    },
+
+    async downloadReportAttachment(att) {
+      const attId = this.attIdKey(att);
       if (!attId || this.openingAttachmentId) return;
       this.openingAttachmentId = attId;
       try {
-        const res = await api.get(
-          `/api/reports/eventreport/${this.doc._id}/attachments/${encodeURIComponent(attId)}/download`
-        );
-        const url = res.data?.url;
+        const url = await this.resolveAttachmentUrl(att, { download: true });
         if (url) {
           window.open(url, '_blank', 'noopener,noreferrer');
         }
@@ -1501,6 +1601,90 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.attachments-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.attachment-card {
+  background: var(--surface, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.attachment-image-preview {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  overflow: hidden;
+
+  img {
+    display: block;
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+  }
+}
+
+.attachment-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.attachment-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.attachment-card__icon {
+  color: var(--primary);
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.attachment-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attachment-card__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card__size {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.attachment-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .feedback-item {

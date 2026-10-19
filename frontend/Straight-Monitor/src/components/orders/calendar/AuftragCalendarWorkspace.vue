@@ -928,33 +928,37 @@
                         class="bew-tag"
                         >Bew.</span
                       >
-                      <AppIconButton
-                        variant="ghost"
-                        size="sm"
+                      <CustomTooltip
                         v-for="doc in getDocsForMitarbeiter(
                           einsatz.mitarbeiterData._id,
                         )"
                         :key="doc._id"
-                        class="doc-icon-btn"
-                        :label="`${doc.docType} für ${formatEmployeeName(einsatz.mitarbeiterData)} öffnen`"
-                        :title="
+                        :text="
                           doc.docType +
                           (doc.datum
                             ? ' — ' + formatDayDateFull(doc.datum)
                             : '')
                         "
-                        @click.stop="openDocCard(doc)"
                       >
-                        <img
-                          :src="
-                            doc.docType === 'Event-Bericht'
-                              ? eventreportImg
-                              : laufzettelImg
-                          "
-                          class="doc-icon-img"
-                          alt=""
-                        />
-                      </AppIconButton>
+                        <AppIconButton
+                          variant="secondary"
+                          size="sm"
+                          class="doc-icon-btn"
+                          :label="`${doc.docType} für ${formatEmployeeName(einsatz.mitarbeiterData)} öffnen`"
+                          title=""
+                          @click.stop="openDocCard(doc)"
+                        >
+                          <img
+                            :src="
+                              doc.docType === 'Event-Bericht'
+                                ? eventreportImg
+                                : laufzettelImg
+                            "
+                            class="doc-icon-img"
+                            alt=""
+                          />
+                        </AppIconButton>
+                      </CustomTooltip>
                       <span
                         v-if="einsatz.isPseudo"
                         class="pseudo-tag"
