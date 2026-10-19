@@ -68,8 +68,48 @@
       referrerpolicy="no-referrer"
       @error="previewFailed"
     />
-    <div v-else-if="format.kind === 'image'" ref="printContent" class="document-preview-image">
-      <img :key="previewUrl" :src="previewUrl" :alt="displayName" referrerpolicy="no-referrer" @load="renderReady = true" @error="previewFailed" />
+    <div v-else-if="format.kind === 'image'" class="document-preview-image-view">
+      <div class="document-preview-toolbar" aria-label="Bild-Navigation">
+        <span>{{ imageDimensionsLabel || format.label }}</span>
+        <span class="document-preview-toolbar-spacer" />
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          label="Verkleinern"
+          :disabled="imageZoom <= 1"
+          @click="changeImageZoom(-0.25)"
+        >−</AppIconButton>
+        <AppButton
+          variant="ghost"
+          size="sm"
+          aria-label="Zoom zurücksetzen"
+          :disabled="imageZoom === 1"
+          @click="resetImageZoom"
+        >{{ Math.round(imageZoom * 100) }} %</AppButton>
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          label="Vergrößern"
+          :disabled="imageZoom >= 4"
+          @click="changeImageZoom(0.25)"
+        >+</AppIconButton>
+      </div>
+      <div
+        ref="printContent"
+        class="document-preview-image"
+        :class="{ 'document-preview-image--zoomed': imageZoom > 1 }"
+      >
+        <img
+          ref="imageElement"
+          :key="previewUrl"
+          :src="previewUrl"
+          :alt="displayName"
+          :style="zoomedImageStyle"
+          referrerpolicy="no-referrer"
+          @load="onImageLoad"
+          @error="previewFailed"
+        />
+      </div>
     </div>
     <div v-else-if="format.kind === 'video' || format.kind === 'audio'" class="document-preview-media">
       <video v-if="format.kind === 'video'" :key="previewUrl" :src="previewUrl" controls playsinline preload="metadata" @error="previewFailed" />
@@ -178,8 +218,55 @@ const sheetUid = useId();
 const sheetPanelId = `${sheetUid}-sheet-panel`;
 const sheetTabId = index => `${sheetUid}-sheet-tab-${index}`;
 const currentSheet = computed(() => sheets.value[sheetIndex.value]);
+const imageElement = ref(null);
+const imageZoom = ref(1);
+const imageBaseSize = ref({ width: 0, height: 0 });
+const imageDimensionsLabel = ref('');
 const retry = ref(0);
 let actionController;
+
+const zoomedImageStyle = computed(() => {
+  if (imageZoom.value <= 1 || !imageBaseSize.value.width || !imageBaseSize.value.height) {
+    return undefined;
+  }
+  return {
+    width: `${Math.round(imageBaseSize.value.width * imageZoom.value)}px`,
+    height: `${Math.round(imageBaseSize.value.height * imageZoom.value)}px`,
+    maxWidth: 'none',
+    maxHeight: 'none',
+    flexShrink: '0',
+  };
+});
+
+function captureImageBaseSize() {
+  const img = imageElement.value;
+  if (!img) return;
+  const rect = img.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) {
+    imageBaseSize.value = { width: rect.width, height: rect.height };
+  }
+}
+
+function changeImageZoom(delta) {
+  if (imageZoom.value === 1 && delta > 0) {
+    captureImageBaseSize();
+  }
+  const next = Math.min(4, Math.max(1, Number((imageZoom.value + delta).toFixed(2))));
+  imageZoom.value = next;
+}
+
+function resetImageZoom() {
+  imageZoom.value = 1;
+}
+
+function onImageLoad(event) {
+  renderReady.value = true;
+  const img = event?.target;
+  if (img?.naturalWidth && img?.naturalHeight) {
+    imageDimensionsLabel.value = `${img.naturalWidth} × ${img.naturalHeight} px`;
+  }
+  captureImageBaseSize();
+}
 
 const canOpenTab = computed(() => Boolean(sourceUrl.value || blob.value));
 const canPrint = computed(() => !loading.value && !error.value && (
@@ -229,6 +316,9 @@ watch(
     sourceUrl.value = previewUrl.value = textContent.value = '';
     sheets.value = [];
     sheetIndex.value = 0;
+    imageZoom.value = 1;
+    imageBaseSize.value = { width: 0, height: 0 };
+    imageDimensionsLabel.value = '';
     renderReady.value = menuOpen.value = false;
     format.value = documentFormat(props.filename || documentFilename(props.url), props.mimeType);
     if (!props.modelValue) return;
@@ -375,6 +465,12 @@ onBeforeUnmount(() => actionController?.abort());
 .document-preview-notice { flex-shrink: 0; margin: 0; padding: 10px 16px; font-size: 0.85rem; background: var(--tile-bg); border-bottom: 1px solid var(--border); }
 .document-preview-notice--error { color: var(--status-danger-text); }
 .document-preview-pdf { flex: 1; width: 100%; min-height: 0; border: 0; background: #525659; }
+.document-preview-image-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.document-preview-toolbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-shrink: 0;
+  button { min-width: 30px; padding: 4px 8px; }
+}
+.document-preview-toolbar-spacer { flex: 1; }
 .document-preview-image, .document-preview-media {
   display: flex;
   flex: 1;
@@ -386,6 +482,10 @@ onBeforeUnmount(() => actionController?.abort());
   background: color-mix(in srgb, var(--text) 6%, var(--tile-bg));
   img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
   audio { width: min(600px, 100%); }
+}
+.document-preview-image--zoomed {
+  align-items: flex-start;
+  justify-content: safe center;
 }
 .document-preview-text { flex: 1; padding: 20px; overflow: auto; background: var(--tile-bg); }
 .document-preview-text pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.9rem/1.6 ui-monospace, monospace; }
