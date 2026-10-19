@@ -16,8 +16,9 @@ Neuberechnung der Zvoove-Ausweisung.
   Faktur erhalten getrennte Mengen und Beträge; ihre Stunden werden nicht zu
   einer vermeintlich doppelten produktiven Arbeitszeit addiert.
 - Urlaub und weitere entsprechend konfigurierte Lohnarten benötigen das
-  Durchschnittsverfahren. SP1 ist als Lohnarteneinstellung vorhanden; die
-  Berechnung bleibt ausdrücklich ein offenes TODO.
+  Durchschnittsverfahren. Die [historische Schnittberechnung](Schnittberechnung.md)
+  nutzt jetzt die AUSWEISLOHN-Testdatei; deren automatische Anwendung auf neu
+  erzeugte Fehlzeitenpositionen bleibt ein offenes TODO.
 
 ## Geprüfte Quelldaten
 

@@ -36,6 +36,7 @@ function render() {
     MitarbeiterSearch: true,
     EmployeeTariffWage: { props: ['employeeId', 'date'], template: '<div class="tariff-wage" :data-date="date" />' },
     PayrollHelpModal: true,
+    PayrollAverageModal: true,
     SidePanelFrame: { props: ['modelValue'], template: '<aside v-if="modelValue"><slot /></aside>' },
     CustomTooltip: { template: '<span><slot /></span>' },
     'font-awesome-icon': true,
@@ -72,6 +73,15 @@ afterEach(() => {
 });
 
 describe('Payroll UI state across month requests', () => {
+  it('opens Schnitt from the toolbar and removes it together with its modal when payroll access is lost', async () => {
+    render(); await flushPromises();
+    const button = wrapper.get('[aria-label="Schnittberechnung öffnen"]');
+    expect(button.text()).toBe('Schnitt'); await button.trigger('click');
+    expect(wrapper.getComponent({ name: 'PayrollAverageModal' }).props('modelValue')).toBe(true);
+    mocks.auth.user.roles = ['USER']; await flushPromises();
+    expect(wrapper.find('[aria-label="Schnittberechnung öffnen"]').exists()).toBe(false);
+    expect(wrapper.findComponent({ name: 'PayrollAverageModal' }).exists()).toBe(false);
+  });
   it('retains both selected tabs while replacing month facts and clearing the selected day', async () => {
     render(); await flushPromises();
     await selectTabs();

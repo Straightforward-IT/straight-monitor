@@ -31,6 +31,7 @@ router.post('/imports/preview', upload.single('file'), wrap(async (req, res) => 
 router.get('/imports/:id', wrap(async (req, res) => res.json(await service.getImport(req.params.id))));
 router.post('/imports/:id/activate', wrap(async (req, res) => res.json(await service.activate(req.params.id, req.body?.expectedRevision, req.payrollUser._id))));
 router.get('/employees/:employeeId/month', wrap(async (req, res) => res.json(await service.month(req.payrollUser, req.params.employeeId, req.query.month))));
+router.get('/employees/:employeeId/average', wrap(async (req, res) => res.json(await require('../../services/payroll/PayrollAverageService').calculate(req.payrollUser, req.params.employeeId, req.query))));
 router.get('/employees/:employeeId/positions', wrap(async (req, res) => {
   if (Object.keys(req.query).some(key => key !== 'month')) return res.status(400).json({ message: 'Nur month ist als Auswahl zulässig.' });
   res.json(await require('../../services/payroll/PayrollPositionsService').month(req.payrollUser, req.params.employeeId, req.query.month));

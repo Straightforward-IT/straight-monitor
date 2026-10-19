@@ -1,7 +1,7 @@
 const registry = require('../../shared/payroll/averageStorageTypes.json');
 
-// Contribution metadata only. The future average tool must resolve the
-// reference period, quantities and denominator before calculating a rate.
+// Contribution metadata only. averageCalculation owns period, quantities,
+// calendar-day counting and the final ratios.
 const definitions = new Map(registry.types.map(type => {
   Object.freeze(type.contributions);
   Object.freeze(type);

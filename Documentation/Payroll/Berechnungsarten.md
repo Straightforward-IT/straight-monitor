@@ -97,7 +97,7 @@ zusätzlich benötigt; insbesondere Nachtstunden lassen sich aus einer
 Tagesstundensumme allein nicht bestimmen. Dieser Abschnitt hält die Zielregel
 fest. Die aktuelle Ansicht und der Import erzeugen noch keine Lohnpositionen.
 
-## Durchschnittsspeicherung für das spätere Schnitt-Tool
+## Durchschnittsspeicherung für das Schnitt-Tool
 
 `durchschnittsspeicherCode` bestimmt, welche Mengen einer Lohnart zur
 Durchschnittsbildung beitragen. Diese Codes gehören zu einem eigenen Enum,
@@ -125,16 +125,18 @@ bis dahin bleibt der Tagesbeitrag ungeklärt (`null`).
 TODO: Die separate Einstellung zur Tageszählung für Fehlzeiten-Lohnarten
 modellieren und nachpflegen. Code 0 allein darf deren Tage nicht ausschließen.
 
-Die Definitionen berechnen noch keinen Durchschnitt. Bezugszeitraum,
-Tageszählung bei mehreren Lohnarten am selben Tag, FS-Tage, Satzquellen und
-Nenner sind Bestandteil des zukünftigen tarifkonformen Schnitt-Tools.
+Die Definitionen selbst liefern nur Beitragsregeln. Das
+[Schnitt-Tool](Schnittberechnung.md) verwendet historische AUSWEISLOHN-Lohnpositionen
+und kalendarische Werktage. Es zählt für dieses Verfahren alle Montag–Freitag
+des Monats unabhängig von Buchungen und SP1-Tagesbeiträgen. Die drei Kennzahlen werden direkt
+aus den ungerundeten Summen berechnet.
 Für Art 5 ist ein Lohndurchschnitt in EUR/Stunde erforderlich; die bloße
 Kennzeichnung einer Lohnart liefert diesen Wert noch nicht.
 
 Bestätigung vom 19.10.2026: Urlaub und weitere entsprechend konfigurierte
 Lohnarten verwenden das noch nicht implementierte Durchschnittsverfahren.
-SP1 (`durchschnittsspeicherCode`) ist bereits vorhanden; die eigentliche
-Durchschnittsberechnung bleibt ausdrücklich ein offenes TODO. Der erste
+SP1 (`durchschnittsspeicherCode`) ist bereits vorhanden; die automatische Anwendung
+des Schnitts auf neue Fehlzeitenpositionen bleibt ein offenes TODO. Der erste
 [AUSWEISLOHN-Testabgleich](Ausweislohn-Testabgleich.md) erhält deren Sollpositionen,
 weist ihre eigene Berechnung aber als noch nicht implementiert aus. Fehlende
 Durchschnittswerte werden weder durch null noch durch den aktuellen Tariflohn

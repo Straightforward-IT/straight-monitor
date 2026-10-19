@@ -112,6 +112,15 @@ werden gemäß der ausdrücklich gewählten `ruleTimeUnit` interpretiert.
 
 ## Eigene Ausweisung
 
+### Historischer Schnitt in `/payroll`
+
+Der Toolbar-Button **Schnitt** öffnet die
+[Schnittberechnung aus historischen AUSWEISLOHN-Lohnpositionen](Schnittberechnung.md).
+SP1 steuert Stunden und Beträge. Der Nenner enthält alle kalendarischen
+Montag–Freitag des Monats, unabhängig von Buchungen oder SP1-Tagesbeiträgen.
+Der monatliche STUNDEN-/KB-Stand liefert nur die FS-Aufschlüsselung.
+Dieser historische Satz wird noch nicht automatisch auf neue Fehlzeiten angewendet.
+
 ### Tages-Sidepanel in `/payroll`
 
 Bei produktiven Buchungen zeigt das bestehende Tages-Sidepanel den zugehörigen

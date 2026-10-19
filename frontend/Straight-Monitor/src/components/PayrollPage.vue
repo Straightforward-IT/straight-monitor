@@ -7,6 +7,7 @@
             <MitarbeiterSearch v-model="selectedEmployeeId" include-inactive require-personalnr prefer-active simple :selected-item="selectedEmployee" placeholder="Name oder Personalnummer suchen …" />
           </label>
           <ToolbarGroup class="payroll-page__controls">
+            <ToolbarButton v-if="canViewPositions" variant="secondary" :disabled="!employeeId" aria-label="Schnittberechnung öffnen" aria-haspopup="dialog" @click="showAverage = true">Schnitt</ToolbarButton>
             <ToolbarButton variant="secondary" aria-label="Hilfe zur Stundenerfassung" aria-haspopup="dialog" @click="showHelp = true"><FontAwesomeIcon :icon="faCircleQuestion" /> Hilfe</ToolbarButton>
             <CustomTooltip text="Stand neu laden"><ToolbarButton variant="secondary" class="payroll-page__refresh" :disabled="loading || !employeeId" aria-label="Stand neu laden" @click="loadMonth"><FontAwesomeIcon :icon="faRotateRight" :spin="loading" /></ToolbarButton></CustomTooltip>
           </ToolbarGroup>
@@ -29,6 +30,7 @@
       </SidePanelFrame>
     </div>
     <PayrollHelpModal v-model="showHelp" />
+    <PayrollAverageModal v-if="canViewPositions" v-model="showAverage" :employee-id="employeeId" :employee-name="data?.employee?.name || ''" :personal-nr="String(data?.employee?.personalNr || '')" :month="month" :access-key="positionsAccessKey" />
   </RouterPageLayout>
 </template>
 
@@ -39,6 +41,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { faCircleQuestion, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import PayrollHelpModal from '@/components/Modals/PayrollHelpModal.vue';
+import PayrollAverageModal from '@/components/Modals/PayrollAverageModal.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import RouterPageLayout from '@/components/layout/RouterPageLayout.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -63,7 +66,7 @@ const positionsAccessKey = computed(() => [auth.user?.role, ...(auth.user?.roles
 const canViewPositions = computed(() => [auth.user?.role, ...(auth.user?.roles || [])].some(role => ['ADMIN', 'PAYROLL'].includes(String(role).toUpperCase())));
 const positionsState = usePayrollPositions(canViewPositions);
 const { data: positionData, loading: positionsLoading, error: positionsError } = positionsState;
-const detailsOpen = ref(false), showHelp = ref(false), selectedDay = ref('');
+const detailsOpen = ref(false), showHelp = ref(false), showAverage = ref(false), selectedDay = ref('');
 let request = 0;
 const employeeId = computed(() => String(route.query.employeeId ?? sessionStorage.getItem(storageKey) ?? ''));
 const month = computed(() => {
@@ -113,6 +116,7 @@ async function loadMonth() {
   } finally { if (current === request) loading.value = false; }
 }
 watch([employeeId, month, positionsAccessKey], loadMonth, { immediate: true });
+watch(canViewPositions, allowed => { if (!allowed) showAverage.value = false; });
 onBeforeUnmount(() => { request++; });
 </script>
 
