@@ -139,6 +139,7 @@ app.use('/api/public/prototype', publicPrototypeRoutes);
 app.use('/api/public/working-times', require('./routes/public/publicTimeCaptureRoutes'));
 const abrechnungRoutes = require('./routes/payroll/abrechnungRoutes');
 app.use('/api/payroll/detail-imports', abrechnungRoutes.imports);
+app.use('/api/payroll/time-imports', require('./routes/payroll/zvooveTimeImportRoutes'));
 app.use('/api/working-times/bookings', abrechnungRoutes.bookings);
 app.use('/api/abrechnung/ausweisungen', abrechnungRoutes.runs);
 app.use('/api/working-times', require('./routes/employee/timeCaptureRoutes'));

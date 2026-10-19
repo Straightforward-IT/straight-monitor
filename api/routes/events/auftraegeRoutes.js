@@ -49,11 +49,24 @@ const uploadMem = multer({
 const EINSATZ_DOK_PREFIX = (auftragNr) => `Auftraege/${auftragNr}/docs/`;
 const EINSATZ_DOK_SCOPES = new Set(['monitor', 'public']);
 const EINSATZ_DOK_TYPES = new Set(['bestellung', 'einsatznachweis', 'einsatzinformation', 'ablauf', 'wegbeschreibung', 'sicherheit', 'kunde', 'sonstiges']);
+const PUBLIC_RECIPIENT_RULES = new Set(['all', 'teamleiter', 'individual']);
 
 function normalizeDocumentScope(value) {
   const scope = String(value || 'monitor').trim().toLowerCase();
   if (!EINSATZ_DOK_SCOPES.has(scope)) throw validationError('Ungültiger Dokumentbereich');
   return scope;
+}
+
+function normalizePublicRecipientRule(value, fallbackFilter = false) {
+  if (!value) return fallbackFilter ? 'individual' : 'all';
+  const rule = String(value).trim().toLowerCase();
+  if (!PUBLIC_RECIPIENT_RULES.has(rule)) throw validationError('Ungültige Empfängerregel');
+  return rule;
+}
+
+function normalizeStringList(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',');
+  return [...new Set(values.map(entry => String(entry).trim()).filter(Boolean))];
 }
 
 function normalizeObjectIdList(value) {
@@ -64,6 +77,11 @@ function normalizeObjectIdList(value) {
 }
 
 function serializeEinsatzDokument(document) {
+  const effectiveScope = document.scope || (['job', 'teamleiter'].includes(document.audience) ? 'public' : 'monitor');
+  const effectiveRule = effectiveScope === 'public'
+    ? (document.publicRecipientRule
+      || (document.audience === 'teamleiter' ? 'teamleiter' : (document.publicRecipientFilter ? 'individual' : 'all')))
+    : 'all';
   return {
     _id: document._id,
     key: document.key,
@@ -71,10 +89,12 @@ function serializeEinsatzDokument(document) {
     title: document.title || '',
     size: document.size,
     mimeType: document.mimeType,
-    scope: document.scope || (['job', 'teamleiter'].includes(document.audience) ? 'public' : 'monitor'),
+    scope: effectiveScope,
     type: document.type || null,
     publicEinsatzIds: document.publicEinsatzIds || [],
+    publicSchichtIds: document.publicSchichtIds || [],
     publicRecipientFilter: !!document.publicRecipientFilter,
+    publicRecipientRule: effectiveRule,
     audience: document.audience || 'office',
     berufKeys: document.berufKeys || [],
     allowedRoles: document.allowedRoles || [],
@@ -2242,7 +2262,12 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   if (title.length > 200) return res.status(400).json({ success: false, message: 'Die Bezeichnung ist zu lang' });
   const scope = normalizeDocumentScope(req.body.scope);
   const publicEinsatzIds = normalizeObjectIdList(req.body.publicEinsatzIds);
-  const publicRecipientFilter = scope === 'public' && String(req.body.publicRecipientFilter) === 'true';
+  const publicSchichtIds = normalizeStringList(req.body.publicSchichtIds);
+  const rawRecipientFilter = scope === 'public' && String(req.body.publicRecipientFilter) === 'true';
+  const publicRecipientRule = scope === 'public'
+    ? normalizePublicRecipientRule(req.body.publicRecipientRule, rawRecipientFilter)
+    : 'all';
+  const publicRecipientFilter = scope === 'public' && (rawRecipientFilter || publicRecipientRule !== 'all');
   const type = scope === 'monitor' ? String(req.body.type || 'einsatznachweis').trim().toLowerCase() : null;
   if (scope === 'monitor' && !EINSATZ_DOK_TYPES.has(type)) {
     return res.status(400).json({ success: false, message: 'Ungültiger Dokumenttyp' });
@@ -2265,7 +2290,7 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
   if (previous?.uploadStatus === 'ready') return res.json({ success: true, data: serializeEinsatzDokument(previous) });
   const documentId = previous?._id || new mongoose.Types.ObjectId();
   const key = previous?.key || `${prefix}${documentId}-${safeName}`;
-  if (scope !== 'public' && (publicEinsatzIds.length || publicRecipientFilter)) {
+  if (scope !== 'public' && (publicEinsatzIds.length || publicSchichtIds.length || rawRecipientFilter || req.body.publicRecipientRule)) {
     return res.status(400).json({ success: false, message: 'Empfänger können nur für Public-Monitor-Dokumente gewählt werden' });
   }
   if (publicRecipientFilter && publicEinsatzIds.length) {
@@ -2287,9 +2312,11 @@ router.post('/:auftragNr/einsatzdokumente', auth, uploadMem.single('file'), asyn
     mimeType: req.file.mimetype,
     scope,
     type,
-    publicEinsatzIds: scope === 'public' ? publicEinsatzIds : [],
+    publicEinsatzIds: scope === 'public' && publicRecipientRule === 'individual' ? publicEinsatzIds : [],
+    publicSchichtIds: scope === 'public' && publicRecipientRule === 'individual' ? publicSchichtIds : [],
     publicRecipientFilter,
-    audience: scope === 'public' ? 'job' : 'office',
+    publicRecipientRule,
+    audience: scope === 'public' ? (publicRecipientRule === 'teamleiter' ? 'teamleiter' : 'job') : 'office',
     berufKeys: [],
     allowedRoles: [],
     uploadedBy: req.user?._id || req.user?.id || null,

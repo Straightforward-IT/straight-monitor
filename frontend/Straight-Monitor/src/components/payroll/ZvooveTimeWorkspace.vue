@@ -12,7 +12,7 @@
           </div>
           <div v-if="loading" class="zvoove-workspace__loading" role="status">Monatsstunden werden geladen …</div>
         </div>
-        <PayrollWageTypesSection :month="month" :selected-date="selectedDate" />
+        <PayrollWageTypesSection :month="month" :selected-date="selectedDate" :positions="positions" :loading="positionsLoading || loading" :error="positionsError" :has-access="positionsAccess" @clear-day="$emit('clearDay')" />
       </div>
       <aside v-if="!informationHidden" class="zvoove-information" aria-label="Importierte Stunden und Tariflohn">
         <header class="zvoove-information__heading">
@@ -42,8 +42,8 @@ import EmployeeTariffWage from '@/components/tariffs/EmployeeTariffWage.vue';
 import PayrollWageTypesSection from '@/components/payroll/PayrollWageTypesSection.vue';
 import { buildPayrollHoursOverview } from '@/utils/payrollHoursOverview';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, entries: { type: Array, default: () => [] }, totals: { type: Object, default: () => ({ hours: '0', byCode: [] }) }, selectedDate: { type: String, default: '' }, contingentData: { type: Object, default: null }, contingentLoading: Boolean, loading: Boolean });
-defineEmits(['selectDay']);
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, entries: { type: Array, default: () => [] }, totals: { type: Object, default: () => ({ hours: '0', byCode: [] }) }, selectedDate: { type: String, default: '' }, contingentData: { type: Object, default: null }, contingentLoading: Boolean, loading: Boolean, positions: { type: Object, default: null }, positionsLoading: Boolean, positionsError: { type: String, default: '' }, positionsAccess: Boolean });
+defineEmits(['selectDay', 'clearDay']);
 const hoursOverview = computed(() => buildPayrollHoursOverview(props));
 const informationTabs = [{ id: 'contingent', label: 'Kontingent' }, { id: 'wage', label: 'Lohn' }];
 const informationTab = ref('contingent');

@@ -80,24 +80,35 @@
       
         <div class="order-recipient-filter">
           <FilterChip
-            :active="!publicRecipientFilter"
+            :active="effectiveRule === 'all'"
             @click="setAllRecipients"
           >
             Alle Mitarbeiter
           </FilterChip>
           <FilterChip
-            :active="publicRecipientFilter && !onlyTeamleadersSelected"
+            :active="effectiveRule === 'individual'"
             @click="enableIndividualSelection"
           >
             Individuelle Auswahl
           </FilterChip>
           <FilterChip
-            :active="onlyTeamleadersSelected"
+            :active="effectiveRule === 'teamleiter'"
             @click="selectTeamleaders"
           >
             Nur Teamleiter
           </FilterChip>
         </div>
+        <p class="order-dialog-hint">
+          <template v-if="effectiveRule === 'all'">
+            Gilt auch für zukünftig eingeplante Mitarbeiter dieses Auftrags.
+          </template>
+          <template v-else-if="effectiveRule === 'teamleiter'">
+            Gilt auch für zukünftig eingeplante Teamleiter dieses Auftrags.
+          </template>
+          <template v-else>
+            Zukünftig geplante Mitarbeiter bleiben ausgeschlossen.
+          </template>
+        </p>
         <div class="order-recipient-groups">
           <section
             v-for="group in recipientGroups"
@@ -141,7 +152,7 @@
               >
                 <input
                   type="checkbox"
-                  :checked="isAssignmentSelected(assignment.id)"
+                  :checked="isAssignmentSelected(assignment)"
                   :disabled="uploading"
                   @change="toggleAssignment(assignment.id, $event.target.checked)"
                 >
@@ -158,7 +169,7 @@
           </section>
         </div>
         <p class="order-recipient-summary">
-          {{ publicEinsatzIds.length ? `${publicEinsatzIds.length} Mitarbeiter ausgewählt` : `${recipientCount} Mitarbeiter eingeschlossen` }}
+          {{ recipientSummaryText }}
         </p>
       </div>
       <p
@@ -198,13 +209,24 @@ const props = defineProps({
   title: { type: String, default: '' }, scope: { type: String, default: 'public' },
   type: { type: String, default: 'einsatznachweis' },
   publicEinsatzIds: { type: Array, default: () => [] },
+  publicSchichtIds: { type: Array, default: () => [] },
   publicRecipientFilter: { type: Boolean, default: false },
+  publicRecipientRule: { type: String, default: 'all' },
   assignments: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['close', 'submit', 'update:title', 'update:scope', 'update:type', 'update:publicEinsatzIds', 'update:publicRecipientFilter']);
+const emit = defineEmits(['close', 'submit', 'update:title', 'update:scope', 'update:type', 'update:publicEinsatzIds', 'update:publicSchichtIds', 'update:publicRecipientFilter', 'update:publicRecipientRule']);
 const model = key => computed({ get: () => props[key], set: value => emit(`update:${key}`, value) });
 const titleModel = model('title');
 const typeModel = model('type');
+const localRule = ref(null);
+
+const effectiveRule = computed(() => {
+  if (props.publicRecipientRule && props.publicRecipientRule !== 'all') {
+    return props.publicRecipientRule;
+  }
+  if (!props.publicRecipientFilter) return 'all';
+  return localRule.value || 'individual';
+});
 
 const recipientGroups = computed(() => {
   const groups = new Map();
@@ -237,56 +259,93 @@ const allRecipientIds = computed(() => recipientGroups.value.flatMap(group => gr
 const teamleaderIds = computed(() => recipientGroups.value.flatMap(group => (
   group.assignments.filter(assignment => assignment.isTeamleiter).map(assignment => assignment.id)
 )));
-const onlyTeamleadersSelected = computed(() => props.publicRecipientFilter
-  && teamleaderIds.value.length > 0
-  && props.publicEinsatzIds.length === teamleaderIds.value.length
-  && teamleaderIds.value.every(id => props.publicEinsatzIds.includes(id)));
-const hasRecipientFilter = computed(() => props.publicRecipientFilter);
-const isAssignmentSelected = id => !hasRecipientFilter.value || props.publicEinsatzIds.includes(id);
-const selectedCount = group => group.assignments.filter(assignment => isAssignmentSelected(assignment.id)).length;
+const isAssignmentSelected = (assignmentOrId) => {
+  const id = typeof assignmentOrId === 'object' ? assignmentOrId.id : assignmentOrId;
+  const isTl = typeof assignmentOrId === 'object' ? assignmentOrId.isTeamleiter : teamleaderIds.value.includes(id);
+  if (effectiveRule.value === 'all') return true;
+  if (effectiveRule.value === 'teamleiter') return Boolean(isTl);
+  return props.publicEinsatzIds.includes(id);
+};
+const selectedCount = group => group.assignments.filter(assignment => isAssignmentSelected(assignment)).length;
 const isGroupSelected = group => group.assignments.length > 0 && selectedCount(group) === group.assignments.length;
 const isGroupPartiallySelected = group => selectedCount(group) > 0 && selectedCount(group) < group.assignments.length;
+
+const recipientSummaryText = computed(() => {
+  if (effectiveRule.value === 'all') {
+    return `${recipientCount.value} Mitarbeiter eingeschlossen (inkl. zukünftiger Einplanungen)`;
+  }
+  if (effectiveRule.value === 'teamleiter') {
+    return `${teamleaderIds.value.length} Teamleiter aktuell (gilt auch für zukünftige Teamleiter)`;
+  }
+  return `${props.publicEinsatzIds.length} Mitarbeiter ausgewählt`;
+});
+
+function setRule(rule) {
+  localRule.value = rule;
+  emit('update:publicRecipientRule', rule);
+}
 
 function setRecipients(ids) {
   emit('update:publicEinsatzIds', [...new Set(ids)]);
 }
 
 function setAllRecipients() {
+  setRule('all');
   emit('update:publicRecipientFilter', false);
+  emit('update:publicSchichtIds', []);
   setRecipients([]);
 }
 
 function enableIndividualSelection() {
+  setRule('individual');
   emit('update:publicRecipientFilter', true);
+  emit('update:publicSchichtIds', []);
   setRecipients([]);
 }
 
 function selectTeamleaders() {
+  setRule('teamleiter');
   emit('update:publicRecipientFilter', true);
+  emit('update:publicSchichtIds', []);
   setRecipients(teamleaderIds.value);
 }
 
 function updateScope(scope) {
   emit('update:scope', scope);
   if (scope !== 'public') {
+    setRule('all');
     emit('update:publicRecipientFilter', false);
+    emit('update:publicSchichtIds', []);
     setRecipients([]);
   }
 }
 
+function currentSelectedIdsForIndividualTransition() {
+  if (effectiveRule.value === 'all') return allRecipientIds.value;
+  if (effectiveRule.value === 'teamleiter') return teamleaderIds.value;
+  return props.publicEinsatzIds;
+}
+
 function toggleAssignment(id, selected) {
-  if (!hasRecipientFilter.value) emit('update:publicRecipientFilter', true);
-  const selectedIds = hasRecipientFilter.value ? props.publicEinsatzIds : allRecipientIds.value;
-  setRecipients(selected ? [...selectedIds, id] : selectedIds.filter(value => value !== id));
+  const baseIds = currentSelectedIdsForIndividualTransition();
+  setRule('individual');
+  emit('update:publicRecipientFilter', true);
+  const nextIds = selected ? [...baseIds, id] : baseIds.filter(value => value !== id);
+  setRecipients(nextIds);
 }
 
 function toggleGroup(group, selected) {
   const groupIds = group.assignments.map(assignment => assignment.id);
-  if (!hasRecipientFilter.value) emit('update:publicRecipientFilter', true);
-  const selectedIds = hasRecipientFilter.value ? props.publicEinsatzIds : allRecipientIds.value;
+  const baseIds = currentSelectedIdsForIndividualTransition();
+  setRule('individual');
+  emit('update:publicRecipientFilter', true);
+  const nextSchichtIds = selected
+    ? [...new Set([...props.publicSchichtIds, group.id])]
+    : props.publicSchichtIds.filter(id => id !== group.id);
+  emit('update:publicSchichtIds', nextSchichtIds);
   setRecipients(selected
-    ? [...selectedIds, ...groupIds]
-    : selectedIds.filter(id => !groupIds.includes(id)));
+    ? [...baseIds, ...groupIds]
+    : baseIds.filter(id => !groupIds.includes(id)));
 }
 </script>
 

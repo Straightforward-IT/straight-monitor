@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 const options = { timestamps: true, strict: 'throw', minimize: false };
 const child = fields => new Schema(fields, { _id: false, strict: 'throw' });
 const issue = child({ code: String, message: String, source: String });
-const source = child({ role: String, filename: String, sheet: String, row: Number, recordId: { type: String, default: null } });
+const source = child({ role: String, filename: String, sheet: String, row: Number, recordId: { type: String, default: null }, sourceKey: String });
 const interval = child({ start: Date, end: Date, paid: { type: Boolean, default: null } });
 const booking = new Schema({
   snapshotId: { type: Schema.Types.ObjectId, required: true, index: true }, ordinal: { type: Number, required: true },
@@ -15,6 +15,7 @@ const booking = new Schema({
   reportedPaidBreak: { type: String, default: null }, breakMinutes: { type: Number, default: null },
   paidBreakMinutes: { type: Number, default: null }, productiveMinutes: { type: Number, default: null },
   breaks: [interval], sources: [source], issues: [issue],
+  sourceSystem: String, sourceKey: String, breakLocationKnown: { type: Boolean, default: true }, hints: [issue],
 }, options);
 booking.index({ snapshotId: 1, ordinal: 1 }, { unique: true });
 booking.index({ employeeId: 1, date: 1 });
@@ -45,6 +46,8 @@ const snapshot = new Schema({
   auftragNr: { type: Number, default: null }, contentHash: { type: String, required: true },
   rows: [row], references: [reference], issues: [issue], pauseUnit: { type: String, enum: ['HOURS', 'MINUTES', null], default: null },
   ruleTimeUnit: { type: String, enum: ['CLOCK', 'DECIMAL_HOURS'], default: 'CLOCK' },
+  sourceRowIds: [{ type: Schema.Types.ObjectId }],
+  timeRoles: [String],
 }, options);
 snapshot.index({ kind: 1, scope: 1, contentHash: 1 }, { unique: true });
 const imports = new Schema({

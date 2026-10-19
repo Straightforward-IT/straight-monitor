@@ -149,7 +149,13 @@ const AuftragSchema = new mongoose.Schema({
       default: null,
     },
     publicEinsatzIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Einsatz' }],
+    publicSchichtIds: [{ type: String, trim: true }],
     publicRecipientFilter: { type: Boolean, default: false },
+    publicRecipientRule: {
+      type: String,
+      enum: ['all', 'teamleiter', 'individual'],
+      default: 'all',
+    },
     audience: {
       type: String,
       enum: ['job', 'teamleiter', 'office', 'office_roles'],

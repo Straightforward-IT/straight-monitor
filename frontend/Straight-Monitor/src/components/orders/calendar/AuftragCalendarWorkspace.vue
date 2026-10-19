@@ -1078,7 +1078,9 @@
         v-model:scope="einsatzDokScope"
         v-model:type="einsatzDokType"
         v-model:public-einsatz-ids="einsatzDokPublicEinsatzIds"
+        v-model:public-schicht-ids="einsatzDokPublicSchichtIds"
         v-model:public-recipient-filter="einsatzDokPublicRecipientFilter"
+        v-model:public-recipient-rule="einsatzDokPublicRecipientRule"
         :assignments="selectedEventEinsaetze"
         :file="pendingEinsatzDokFile"
         :uploading="einsatzDokUploading"
@@ -1508,7 +1510,9 @@ export default {
       einsatzDokScope: "public",
       einsatzDokType: "einsatznachweis",
       einsatzDokPublicEinsatzIds: [],
+      einsatzDokPublicSchichtIds: [],
       einsatzDokPublicRecipientFilter: false,
+      einsatzDokPublicRecipientRule: "all",
       showEinsatzDokPreview: false,
       previewEinsatzDokument: null,
       // ── Reisekostenabrechnungen (Einsatzdokumente) ───────────────────────
@@ -3542,7 +3546,9 @@ export default {
       this.einsatzDokScope = "public";
       this.einsatzDokType = "einsatznachweis";
       this.einsatzDokPublicEinsatzIds = [];
+      this.einsatzDokPublicSchichtIds = [];
       this.einsatzDokPublicRecipientFilter = false;
+      this.einsatzDokPublicRecipientRule = "all";
       this.einsatzDokUploadError = "";
       this.showEinsatzDokDialog = true;
     },
@@ -3565,6 +3571,12 @@ export default {
         if (this.einsatzDokScope === "monitor") form.append("type", this.einsatzDokType);
         form.append("publicEinsatzIds", this.einsatzDokPublicEinsatzIds.join(","));
         form.append("publicRecipientFilter", String(this.einsatzDokPublicRecipientFilter));
+        if (this.einsatzDokScope === "public" && this.einsatzDokPublicRecipientRule === "teamleiter") {
+          form.append("publicRecipientRule", "teamleiter");
+        }
+        if (this.einsatzDokScope === "public" && this.einsatzDokPublicSchichtIds?.length) {
+          form.append("publicSchichtIds", this.einsatzDokPublicSchichtIds.join(","));
+        }
         const { data } = await api.post(
           `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
           form,

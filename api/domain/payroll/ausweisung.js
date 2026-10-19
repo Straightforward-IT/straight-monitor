@@ -2,7 +2,7 @@
 const exact = require('../../services/tariffs/tariffMoney');
 const { decimal, sumDecimals } = require('./zvooveHours');
 const { problem, fail, date } = require('./detailImport');
-const VERSION = 'operational-time-1';
+const VERSION = 'operational-time-2';
 const berlin = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const POLICY_VALUES = { rounding: ['HALF_UP_PER_POSITION'], dayBasis: ['SEGMENT_DATE', 'SHIFT_DATE'], supplementBasis: ['RULE_PRICE', 'BASE_RATE'], overlap: ['STACK', 'HIGHEST_ONLY'], precedence: ['EMPLOYEE_OVER_ORDER'] };
 function policies(input = {}) {
@@ -94,6 +94,39 @@ function calculate({ bookings, rules, wageTypes, rates, side, month, policies: p
     if (overlaps.has(String(booking._id))) { issues.push(problem('BOOKING_OVERLAP', 'Weitere ausgewählte Buchung überschneidet sich mit dieser Arbeitszeit.', String(booking._id))); continue; }
     if (booking.issues.length || !booking.start || !booking.end || booking.productiveMinutes == null) continue;
     const segments = workSegments(booking, month);
+    if (booking.paidBreakMinutes > 0 || booking.hints?.some(hint => hint.code === 'PAID_BREAK_STATUS_UNKNOWN')) issues.push(problem('PAID_BREAK_POLICY_UNRESOLVED', 'Bezahlte Pausenmenge oder ihre Bewertung ist noch ungeklärt.', String(booking._id)));
+    if (booking.breakLocationKnown === false) {
+      if (month && !booking.date.startsWith(month)) continue;
+      productiveMinutes += booking.productiveMinutes;
+      const active = candidates(rules, booking, side, p, issues);
+      const net = [{ start: booking.start, end: booking.end, date: booking.date, minutes: booking.productiveMinutes, kind: 'NET_QUANTITY' }];
+      if (berlin.format(new Date(+new Date(booking.end) - 1)).slice(0, 10) !== booking.date) issues.push(problem('BREAK_ALLOCATION_ACROSS_DAYS', 'Tages-/Monatsaufteilung der Pause ist ohne Pausenlage ungeklärt.', String(booking._id)));
+      if (side === 'L') {
+        const tariff = rates.find(rate => rate.employeeId === String(booking.employeeId) && rate.date === booking.date);
+        addPosition(booking, booking.date, '100', net, tariff?.baseRate, `tariff:${tariff?.importId}`, null);
+        if (tariff?.allowance == null) issues.push(problem('ALLOWANCE_UNRESOLVED', 'ÜTZ ist nicht eindeutig aufgelöst.'));
+        else if (Number(tariff.allowance)) {
+          addPosition(booking, booking.date, '110', net, tariff.allowance, `allowance:${tariff.importId}`, null);
+          if (wageMap.get('110')?.verrechnungCode && wageMap.get('110').verrechnungCode !== '0') issues.push(problem('ALLOWANCE_OFFSET_UNRESOLVED', 'ÜTZ-Verrechnung ist noch ungeklärt.'));
+        }
+        if (tariff?.pendingTariffRules) issues.push(problem('TARIFF_RULES_PENDING', 'Weitere Tarifregeln sind noch nicht ausgewiesen.'));
+      } else {
+        let base = active.filter(rule => rule.wageType === '100' && segments.every(segment => {
+          for (let t = +new Date(segment.start); t < +new Date(segment.end); t += 60000) if (!matches(rule, t, booking, p)) return false;
+          return true;
+        }));
+        const individual = base.filter(rule => rule.personalNr != null);
+        if (individual.length && base.length > individual.length && p.precedence === 'EMPLOYEE_OVER_ORDER') base = individual;
+        if (base.length === 1) addPosition(booking, booking.date, '100', net, base[0].rate, `rule:${base[0]._id}`, base[0]);
+        else issues.push(problem('BASE_RULE_UNRESOLVED', 'Grundstunden benötigen eine über die gesamte Buchung eindeutige Regel.'));
+      }
+      if (active.some(rule => rule.wageType !== '100' && segments.some(segment => {
+        for (let t = +new Date(segment.start); t < +new Date(segment.end); t += 60000) if (matches(rule, t, booking, p)) return true;
+        return false;
+      }))) issues.push(problem('BREAK_LOCATION_REQUIRED', 'Zutreffende Zuschlagsfenster benötigen die genaue Pausenlage.', String(booking._id)));
+      if (booking.guaranteedMinutes > 0) issues.push(problem('GUARANTEE_UNRESOLVED', 'Garantieleistung ist noch nicht bewertet.'));
+      continue;
+    }
     if (segments.some(segment => segment.kind === 'PAID_BREAK')) issues.push(problem('PAID_BREAK_POLICY_UNRESOLVED', 'Produktive Zeit bleibt erhalten; Bewertung bezahlter Pausen ist ungeklärt.', String(booking._id)));
     productiveMinutes += segments.filter(segment => segment.kind === 'WORK').reduce((sum, segment) => sum + segment.minutes, 0);
     const days = [...new Set(segments.map(segment => segment.date))];
@@ -213,4 +246,12 @@ function compare(run, references, kind) {
   }
   return { granularity, status: run.status === 'INCOMPLETE' || !selectedReferences.length || mixedOrderScope || differences.some(difference => difference.code === 'AMOUNT_UNRESOLVED') ? 'INCOMPLETE' : differences.length ? 'DIFFERENT' : 'MATCH', differences };
 }
-module.exports = { VERSION, policies, workSegments, calculate, compare };
+function rulesNeedingBreakLocation(booking, rules, side, p) {
+  if (booking.breakLocationKnown !== false) return [];
+  const active = candidates(rules, booking, side, p, []), segments = workSegments(booking);
+  return active.filter(rule => rule.wageType !== '100' && segments.some(segment => {
+    for (let t = +new Date(segment.start); t < +new Date(segment.end); t += 60000) if (matches(rule, t, booking, p)) return true;
+    return false;
+  }));
+}
+module.exports = { VERSION, policies, workSegments, calculate, compare, rulesNeedingBreakLocation };

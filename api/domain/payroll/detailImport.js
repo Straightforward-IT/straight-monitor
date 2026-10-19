@@ -80,6 +80,7 @@ function readFiles(files, kind) {
               : ['PERSONALNR', 'LOHNART', 'MENGE', 'EINHEIT', 'BETRAG', ...(role === 'LOHNARTENSUMMEN' ? ['MONAT'] : ['DATUM']), ...(role === 'FAKTURPOSITIONEN' ? ['AUFTRAGNR'] : [])];
       const missing = required.filter(header => !headers.includes(header));
       if (missing.length) fail(`${role}: Pflichtspalten fehlen: ${missing.join(', ')}.`);
+      if (role === 'STUNDUHR' && ['JAHR', 'MONAT', 'TAG', 'LFDNR', 'DBIDARBEITSSCHICHT', 'REPL_DATABASE'].every(header => headers.includes(header))) fail('Original-STUNDUHR mit Arbeits-/Pausenzeilen über /api/payroll/time-imports/preview als Jahresstand importieren.');
       const offset = workbook.Sheets[sheet]['!ref'] ? XLSX.utils.decode_range(workbook.Sheets[sheet]['!ref']).s.r : 0;
       for (let index = first + 1; index < data.length; index++) {
         if (data[index].every(empty)) continue;

@@ -112,9 +112,24 @@ async function month(user, employeeId, requestedMonth) {
   const refs = snapshot?.rows || [];
   const weeks = refs.length ? await Week.find({ _id: { $in: refs.map(ref => ref.versionId) }, employeeId: employee._id }).lean() : [];
   const sources = new Map(refs.map(ref => [String(ref.versionId), ref.source]));
-  const entries = weeks.flatMap(row => row.days.map(day => ({ ...day, id: `${row._id}:${day.daySlot}`, personalNr: row.personalNr, week: row.week, kw: row.kw,
+  let entries = weeks.flatMap(row => row.days.map(day => ({ ...day, id: `${row._id}:${day.daySlot}`, personalNr: row.personalNr, week: row.week, kw: row.kw,
     source: { ...sources.get(String(row._id)), daySlot: day.daySlot, raw: row.raw }, employeeResolution: row.matchStatus }))).sort((a, b) => a.date.localeCompare(b.date) || a.personalNr.localeCompare(b.personalNr));
+  const monthlyReference = entries;
+  const accounting = require('../../models/Payroll/Abrechnung');
+  const timeState = await accounting.State.findById(`INPUT:year:${period.slice(0, 4)}`).lean();
+  const timeSnapshot = timeState?.snapshotId ? await accounting.Snapshot.findById(timeState.snapshotId).select('timeRoles').lean() : null;
+  const usesTimeBookings = !!timeSnapshot?.timeRoles?.includes('STUNDUHR');
+  if (usesTimeBookings) {
+    const detail = await require('./AbrechnungService').bookings(user, { employeeId, month: period });
+    const selectedBookings = detail.bookings.filter(row => row.date?.startsWith(period));
+    const contexts = await require('./PayrollOrderContextService').contexts(user, selectedBookings);
+    const booked = selectedBookings.map(row => ({ id: row._id, date: row.date, hours: row.reportedHours, kb: '', kind: 'productive', label: 'Gebuchte Arbeitsstunden', personalNr: row.personalNr, source: row.sources[0], booking: row, orderContext: contexts.get(String(row._id)) || null }));
+    entries = [...entries.filter(entry => entry.kind !== 'productive'), ...booked].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  }
   const issues = [], byDate = new Map(), byCode = new Map();
+  for (const entry of entries.filter(entry => entry.booking)) for (const item of [...entry.booking.issues, ...(entry.booking.hints || [])]) {
+    if (!issues.some(issue => issue.code === item.code)) issues.push(d.issue('WARNING', item.code, item.message));
+  }
   for (const entry of entries) {
     if (!byDate.has(entry.date)) byDate.set(entry.date, []);
     byDate.get(entry.date).push(entry);
@@ -122,11 +137,11 @@ async function month(user, employeeId, requestedMonth) {
     const group = byCode.get(entry.kb); group.hours.push(entry.hours); group.dates.add(entry.date);
     if (entry.kind === 'unresolved' && !issues.some(issue => issue.kb === entry.kb)) issues.push({ ...d.issue('WARNING', `KB_${entry.resolution}`, `KB ${entry.kb}: Lohnartzuordnung ist ungeklärt.`), kb: entry.kb });
   }
-  for (const [date, rows] of byDate) if (rows.length > 1) issues.push(d.issue('WARNING', 'MULTIPLE_PERSONNEL_ENTRIES', `Am ${date} liegen ${rows.length} Quelleneinträge vor (Personalnummern: ${[...new Set(rows.map(row => row.personalNr))].join(', ')}). Alle Quellwerte bleiben sichtbar; bitte prüfen.`));
+  for (const [date, rows] of byDate) if (new Set(rows.map(row => row.personalNr)).size > 1) issues.push(d.issue('WARNING', 'MULTIPLE_PERSONNEL_ENTRIES', `Am ${date} liegen mehrere Personalnummern vor. Alle Quellwerte bleiben sichtbar; bitte prüfen.`));
   const employmentLabel = ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || '';
   const employeeDoc = new Mitarbeiter(employee);
   const monthlyHours = employeeDoc.getMonthlyWorkingHours ? employeeDoc.getMonthlyWorkingHours(period.slice(0, 4), period.slice(5, 7)) : null;
   return serialize({ employee: { id: String(employee._id), personalNr: employee.personalnr || '', name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: Number.isFinite(Number(monthlyHours)) ? Number(monthlyHours) : null, employmentLabel },
-    month: period, entries, totals: { hours: d.sumDecimals(entries.map(entry => entry.hours)), byCode: [...byCode.values()].map(group => ({ kb: group.kb, label: group.label, hours: d.sumDecimals(group.hours), days: group.dates.size })) }, datasetRevision: state?.revision || 0, issues });
+    month: period, entries, sourceMode: usesTimeBookings ? 'TIME_BOOKINGS' : 'MONTHLY_IMPORT', monthlyReference: { entries: monthlyReference, hours: d.sumDecimals(monthlyReference.map(entry => entry.hours)) }, totals: { hours: d.sumDecimals(entries.map(entry => entry.hours)), byCode: [...byCode.values()].map(group => ({ kb: group.kb, label: group.label, hours: d.sumDecimals(group.hours), days: group.dates.size })) }, datasetRevision: usesTimeBookings ? timeState.revision : state?.revision || 0, issues });
 }
 module.exports = { preview, imports, getImport, activate, month };

@@ -5,6 +5,15 @@ Zeitbuchungen, eigene Lohn-/Fakturausweisung und unabhängige Referenzvergleiche
 ist in [Zeit, Lohn und Faktur](Zeit-Lohn-Faktur.md) beschrieben. Der hier
 dokumentierte Tages-/Wochenimport bleibt eine getrennte Summenquelle.
 
+Seit dem [Jahresimport von Stundenvortrag und Stunduhr](Zvoove-Zeitimport.md)
+liefert ein aktiver STUNDUHR-Jahresstand die produktiven Stunden in `/payroll`.
+Die produktiven Mengen aus STUNDEN werden dann nicht zusätzlich gezählt;
+Kennzeichnungen und Abwesenheiten bleiben erhalten. Die ursprünglichen
+STUNDEN-Tagesdaten stehen im Monatsendpunkt als `monthlyReference` zur
+unabhängigen Kontrolle bereit. `sourceMode` benennt die aktive Quelle
+(`TIME_BOOKINGS` oder ohne Jahresstand `MONTHLY_IMPORT`). Die nachfolgenden
+Importregeln beziehen sich ausschließlich auf die STUNDEN-Monatsdatei.
+
 Die Stundenerfassung zeigt importierte Zvoove-Daten schreibgeschützt. Die
 bisherigen Stunden aus der Schnellerfassung und alten Monatsvorbereitungen
 werden in dieser Ansicht nicht geladen oder migriert. Die operative

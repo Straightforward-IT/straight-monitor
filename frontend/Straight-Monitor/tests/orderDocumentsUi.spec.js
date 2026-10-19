@@ -191,7 +191,7 @@ describe('order document upload integration', () => {
   it('preserves the public recipient filter and title payload and appends the uploaded record', async () => {
     const selectedEvent = { ...order(), einsaetze: [assignment('einsatz-1', 'Anna', 'A'), assignment('einsatz-2', 'Tom', 'B')] };
     const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
-    await dialog().get('input[placeholder="z. B. Ablauf Oktoberfest"]').setValue('Ablauf Oktoberfest');
+    await dialog().get('input[type="text"]').setValue('Ablauf Oktoberfest');
     await dialog().get('.filter-chip:nth-child(2)').trigger('click');
     await dialog().find('.order-recipient-assignment input').setValue(true);
     await submit();
@@ -291,10 +291,12 @@ describe('order document upload integration', () => {
     const { wrapper } = workspace({ selectedEvent, showEinsatzDokDialog: true, pendingEinsatzDokFile: file() });
     await dialog().get('.filter-chip:nth-child(3)').trigger('click');
     expect(wrapper.vm.einsatzDokPublicRecipientFilter).toBe(true);
+    expect(wrapper.vm.einsatzDokPublicRecipientRule).toBe('teamleiter');
     expect(wrapper.vm.einsatzDokPublicEinsatzIds).toEqual([]);
     expect(dialog().get('.order-recipient-assignment input').element.checked).toBe(false);
     await submit();
     expect(api.post.mock.calls[0][1].get('publicRecipientFilter')).toBe('true');
+    expect(api.post.mock.calls[0][1].get('publicRecipientRule')).toBe('teamleiter');
     expect(api.post.mock.calls[0][1].get('publicEinsatzIds')).toBe('');
   });
 

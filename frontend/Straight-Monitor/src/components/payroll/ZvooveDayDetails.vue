@@ -10,7 +10,14 @@
         <div><dt>Ursprüngliche Personalnummer</dt><dd>{{ entry.personalNr }}</dd></div>
         <div><dt>Datei</dt><dd>{{ entry.source?.filename || '—' }}</dd></div>
         <div><dt>Tabellenblatt / Zeile</dt><dd>{{ entry.source?.sheet || '—' }} / {{ entry.source?.row || '—' }}</dd></div>
-        <div><dt>Quellspalten</dt><dd>T{{ entry.source?.daySlot }} / KZ{{ entry.source?.daySlot }}</dd></div>
+        <template v-if="entry.booking">
+          <div><dt>Auftrag</dt><dd>{{ entry.booking.auftragNr }}</dd></div>
+          <div><dt>Arbeitszeit</dt><dd>{{ clock(entry.booking.start) }}–{{ clock(entry.booking.end) }}</dd></div>
+          <div><dt>Pausendauer</dt><dd>{{ entry.booking.breakMinutes ?? 'Ungeklärt' }} Min.</dd></div>
+          <div><dt>Pausenlage</dt><dd>{{ entry.booking.breakLocationKnown ? 'Intervalle vorhanden / keine Pause' : 'Nur Dauer bekannt' }}</dd></div>
+          <div v-for="(pause, index) in entry.booking.breaks" :key="index"><dt>Pause {{ index + 1 }}</dt><dd>{{ clock(pause.start) }}–{{ clock(pause.end) }}</dd></div>
+        </template>
+        <div v-else><dt>Quellspalten</dt><dd>T{{ entry.source?.daySlot }} / KZ{{ entry.source?.daySlot }}</dd></div>
       </dl>
       <p v-if="entry.kind === 'unresolved'" role="status">Das Kennzeichen bleibt erhalten. Eine eindeutige Lohnartzuordnung fehlt.</p>
     </article>
@@ -19,6 +26,7 @@
 
 <script setup>
 import { formatImportedHours, importedEntryCode } from '@/utils/importedHours';
+const clock = value => value ? new Date(value).toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }) : 'Ungeklärt';
 defineProps({ entries: { type: Array, default: () => [] } });
 </script>
 

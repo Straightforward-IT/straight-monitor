@@ -31,6 +31,10 @@ router.post('/imports/preview', upload.single('file'), wrap(async (req, res) => 
 router.get('/imports/:id', wrap(async (req, res) => res.json(await service.getImport(req.params.id))));
 router.post('/imports/:id/activate', wrap(async (req, res) => res.json(await service.activate(req.params.id, req.body?.expectedRevision, req.payrollUser._id))));
 router.get('/employees/:employeeId/month', wrap(async (req, res) => res.json(await service.month(req.payrollUser, req.params.employeeId, req.query.month))));
+router.get('/employees/:employeeId/positions', wrap(async (req, res) => {
+  if (Object.keys(req.query).some(key => key !== 'month')) return res.status(400).json({ message: 'Nur month ist als Auswahl zulässig.' });
+  res.json(await require('../../services/payroll/PayrollPositionsService').month(req.payrollUser, req.params.employeeId, req.query.month));
+}));
 router.use((error, _req, res, _next) => {
   const status = error instanceof multer.MulterError ? 400 : error.statusCode || (error.name === 'CastError' || error.name === 'ValidationError' ? 400 : 500);
   res.status(status).json({ code: status < 500 ? error.code || 'PAYROLL_IMPORT_INVALID' : 'PAYROLL_IMPORT_ERROR', message: status < 500 ? error.message : 'Die Zvoove-Stunden konnten nicht verarbeitet werden.' });

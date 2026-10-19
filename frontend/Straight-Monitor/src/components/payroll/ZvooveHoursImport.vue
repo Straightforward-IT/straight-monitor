@@ -1,14 +1,14 @@
 <template>
   <section class="hours-import" aria-labelledby="zvoove-hours-import-title">
     <header class="hours-import__heading">
-      <h2 id="zvoove-hours-import-title">Zvoove-Stunden</h2>
-      <p>Importiere eine Monatsdatei aus STUNDEN. Prüfe zuerst die Vorschau und aktiviere anschließend die geprüften Stunden.</p>
+      <h2 id="zvoove-hours-import-title">STUNDEN – Monatsübersicht</h2>
+      <p>Hier den Export der Zvoove-Tabelle STUNDEN für einen Monat hochladen. Er enthält die Tageswerte T1 bis T7 und Kennzeichen KZ1 bis KZ7.</p>
     </header>
 
     <p v-if="!hasAccess" role="alert">{{ accessError || 'Der Stundenimport ist ausschließlich für Admins zugänglich.' }}</p>
     <template v-else>
       <div class="hours-import__upload">
-        <AppFileDropzone label="Zvoove-Stunden" prompt="Monatsdatei hier ablegen oder auswählen" hint="Eine Excel-Datei pro Monat (.xlsx oder .xls)" :file="file" accept=".xlsx,.xls" :disabled="loading.activate" @select="selectFile" />
+        <AppFileDropzone label="Tabelle STUNDEN – Monatsdatei" prompt="STUNDEN-Export hier ablegen oder auswählen" hint="Monatsauszug der Tabelle STUNDEN (.xlsx oder .xls)" :file="file" accept=".xlsx,.xls" :disabled="loading.activate" @select="selectFile" />
         <div class="hours-import__actions">
           <AppButton :disabled="!file || busy" :loading="loading.preview" @click="createPreview">Stundenimport prüfen</AppButton>
           <AppButton v-if="file" variant="ghost" :disabled="loading.activate" @click="selectFile(null)">Datei entfernen</AppButton>
@@ -62,7 +62,7 @@
 
       <div class="hours-import__history">
         <div class="hours-import__actions">
-          <h3>Stundenimport-Historie</h3>
+          <h3>STUNDEN-Importhistorie</h3>
           <AppButton size="sm" variant="secondary" :loading="loading.history" :disabled="busy" @click="loadHistory">Historie neu laden</AppButton>
         </div>
         <p v-if="errors.history" role="alert" class="hours-import__error">{{ errors.history }}</p>

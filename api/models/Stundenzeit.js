@@ -20,6 +20,10 @@ const schema = new mongoose.Schema({
   auftragNr: { type: Number, required: true, immutable: true },
   schicht: { type: mongoose.Schema.Types.ObjectId, ref: 'Schicht', default: null, immutable: true },
   revision: { type: Number, required: true, default: 1 },
+  importSource: {
+    key: String, rowId: mongoose.Schema.Types.ObjectId, contentHash: String,
+    importId: mongoose.Schema.Types.ObjectId, editedLocally: { type: Boolean, default: false },
+  },
   status: { type: String, enum: ['SUBMITTED', 'DRAFT', 'RELEASED'], required: true },
   employeeSubmission: { type: values, immutable: true, default: null },
   employeeSubmittedAt: { type: Date, immutable: true, default: null },
@@ -31,7 +35,7 @@ const schema = new mongoose.Schema({
   history: [{
     _id: false,
     revision: Number,
-    action: { type: String, enum: ['SUBMITTED', 'DRAFT', 'RELEASED', 'WITHDRAWN'] },
+    action: { type: String, enum: ['SUBMITTED', 'DRAFT', 'RELEASED', 'WITHDRAWN', 'IMPORTED'] },
     at: Date,
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     reason: String,

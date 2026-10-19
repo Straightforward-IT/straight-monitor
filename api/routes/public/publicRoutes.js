@@ -238,24 +238,42 @@ async function canAccessPublicEinsatzDokument(req, auftragNr, document) {
 
   const personalNumbers = resolvePersonalNumbers(mitarbeiter);
   const einsaetze = await Einsatz.find({ auftragNr: Number(auftragNr), personalNr: { $in: personalNumbers } })
-    .select('berufSchl')
+    .select('berufSchl schicht idAuftragArbeitsschichten')
     .lean();
   if (!einsaetze.length) return false;
 
-  if (document.scope === 'public') {
-    if (!document.publicRecipientFilter) return true;
-    const recipientIds = (document.publicEinsatzIds || []).map(String);
-    return einsaetze.some(einsatz => recipientIds.includes(String(einsatz._id)));
+  const rule = document.publicRecipientRule
+    || (document.audience === 'teamleiter' ? 'teamleiter' : (document.publicRecipientFilter ? 'individual' : 'all'));
+
+  if (rule === 'all') {
+    return !(document.berufKeys || []).length || einsaetze.some(einsatz => document.berufKeys.includes(Number(einsatz.berufSchl)));
   }
 
-  if (document.audience === 'teamleiter') {
+  if (rule === 'teamleiter') {
     const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
-    const isTeamleiter = teamleiterQual
-      && (mitarbeiter.qualifikationen || []).some(item => String(item._id || item) === String(teamleiterQual._id));
-    if (!isTeamleiter) return false;
+    const isTeamleiter = Boolean(
+      teamleiterQual
+      && (mitarbeiter.qualifikationen || []).some(item => String(item._id || item) === String(teamleiterQual._id))
+    );
+    return isTeamleiter;
   }
 
-  return !(document.berufKeys || []).length || einsaetze.some(einsatz => document.berufKeys.includes(Number(einsatz.berufSchl)));
+  // rule === 'individual': check dynamic shift selection (publicSchichtIds) or explicit Einsatz IDs
+  const schichtIds = new Set((document.publicSchichtIds || []).map(String).filter(Boolean));
+  if (schichtIds.size > 0) {
+    const inSelectedShift = einsaetze.some((einsatz) => {
+      const canonical = einsatz.schicht ? String(einsatz.schicht) : '';
+      const legacy = einsatz.idAuftragArbeitsschichten != null ? String(einsatz.idAuftragArbeitsschichten) : '';
+      const fallback = !canonical && !legacy ? 'ohne-schicht' : '';
+      return (canonical && schichtIds.has(canonical))
+        || (legacy && schichtIds.has(legacy))
+        || (fallback && schichtIds.has(fallback));
+    });
+    if (inSelectedShift) return true;
+  }
+
+  const recipientIds = (document.publicEinsatzIds || []).map(String);
+  return einsaetze.some(einsatz => recipientIds.includes(String(einsatz._id)));
 }
 
 function serializePublicEinsatzDokument(document) {

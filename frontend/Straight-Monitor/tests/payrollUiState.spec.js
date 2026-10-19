@@ -7,9 +7,10 @@ import PayrollWageTypesSection from '@/components/payroll/PayrollWageTypesSectio
 import EmployeeTariffWage from '@/components/tariffs/EmployeeTariffWage.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 
-const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, route: null, replace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, route: null, replace: vi.fn(), auth: null }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: mocks.replace }) }));
+vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 
 let wrapper;
 const pendingMonths = new Map();
@@ -61,7 +62,8 @@ async function changeMonth(month) {
 beforeEach(() => {
   vi.clearAllMocks(); pendingMonths.clear(); sessionStorage.clear(); localStorage.clear();
   mocks.route = reactive({ query: { employeeId: 'employee-1', month: '2026-08' } });
-  mocks.api.get.mockImplementation((url, config) => url.includes('/analytics/contingent')
+  mocks.auth = reactive({ user: { roles: ['ADMIN'] } });
+  mocks.api.get.mockImplementation((url, config) => url.endsWith('/positions') ? Promise.resolve({ data: { rows: [], issues: [], conditions: [], allowedSides: ['L', 'F'] } }) : url.includes('/analytics/contingent')
     ? Promise.resolve({ data: contingent })
     : pendingMonths.get(config.params.month)?.promise || Promise.resolve({ data: monthData(config.params.month) }));
 });
@@ -152,5 +154,18 @@ describe('Payroll UI state across month requests', () => {
     expectSelectedTabs();
     expect(wrapper.get('[data-day="2026-09-15"] .tm-entry--imported strong').text()).toBe('7,50');
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
+  it('clears old F positions and reloads after ADMIN changes to PAYROLL', async () => {
+    const old = deferred(); let positionRequests = 0;
+    const row = { id: 'f', date: '2026-08-15', side: 'F', kind: 'productive', wageType: '100', label: 'Private Faktur', days: 1, hours: '8', rate: '33', amount: '264', countForTotalHours: true, status: 'CALCULATED', issues: [] };
+    mocks.api.get.mockImplementation((url, config) => {
+      if (url.endsWith('/positions')) { positionRequests++; return positionRequests === 1 ? old.promise : Promise.resolve({ data: { rows: [{ ...row, id: 'l', side: 'L', label: 'Eigener Lohn' }], allowedSides: ['L'], issues: [], conditions: [] } }); }
+      return Promise.resolve({ data: url.includes('/analytics/contingent') ? contingent : monthData(config.params.month) });
+    });
+    render(); await flushPromises();
+    mocks.auth.user.roles = ['PAYROLL']; await flushPromises();
+    expect(positionRequests).toBe(2);
+    old.resolve({ data: { rows: [row], allowedSides: ['L', 'F'], issues: [], conditions: [] } }); await flushPromises();
+    expect(wageTypes().text()).not.toContain('Private Faktur'); expect(wageTypes().text()).toContain('Eigener Lohn');
   });
 });

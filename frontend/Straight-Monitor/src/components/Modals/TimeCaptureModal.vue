@@ -199,7 +199,7 @@ const dirty = ref(false), error = ref(''), notice = ref(''), confirmAction = ref
 const filterExpanded = ref(false);
 const employeeSearch = ref(props.employeeName);
 const submissionFilter = ref('all');
-const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen' }[status] || 'Offen');
+const statusLabel = status => ({ SUBMITTED: 'Vom Mitarbeiter eingereicht', DRAFT: 'Entwurf', RELEASED: 'An Zeitverwaltung übergeben', WITHDRAWN: 'Aus Zeitverwaltung zurückgenommen', IMPORTED: 'Aus Zvoove importiert' }[status] || 'Offen');
 const modalDetails = computed(() => {
   const auftrag = review.value?.auftrag;
   const parts = [];
@@ -218,7 +218,7 @@ function orderOptionLabel(order) {
 }
 const assignments = computed(() => (review.value?.einsaetze || []).map(einsatz => {
   const entry = review.value.entries.find(row => row._id === einsatz._id);
-  return { ...einsatz, timeStatus: statusLabel(entry?.status), timeSubmission: entry?.employeeSubmission, timeReleased: !!entry?.released, timeSubmitted: entry?.status === 'SUBMITTED' || !!entry?.employeeSubmission };
+  return { ...einsatz, timeStatus: entry?.importSource?.key && entry.status === 'SUBMITTED' ? 'Zvoove-Stundenvortrag' : statusLabel(entry?.status), timeSubmission: entry?.employeeSubmission, timeReleased: !!entry?.released, timeSubmitted: entry?.status === 'SUBMITTED' || !!entry?.employeeSubmission || !!entry?.importSource?.key };
 }));
 const times = computed(() => (review.value?.entries || []).map(entry => ({ einsatzId: entry._id, ...entry.current })));
 const activeFilterCount = computed(() => Number(submissionFilter.value !== 'all'));

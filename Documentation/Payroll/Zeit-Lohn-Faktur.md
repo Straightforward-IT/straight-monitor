@@ -36,6 +36,15 @@ keine tatsächlich geleisteten Stunden.
 
 ## Excel-Eingaben importieren
 
+Für die vollständigen Originaltabellen mit separaten Arbeits-/Pausenzeilen gilt
+der [Jahresimport von Stundenvortrag und Stunduhr](Zvoove-Zeitimport.md).
+Er verwendet alle 40 bzw. 34 Quellspalten, stabile REPL-Identitäten und liefert
+die aktiven Zeitbuchungen. Der Jahresstand hat für seine Zeitdaten Vorrang vor
+einem älteren Auftragszeitimport. Auftragsregeln und Referenzen verwenden
+weiterhin die folgenden Detail-Endpunkte.
+
+### Bisheriger Adapter für aufbereitete Auftragsdateien
+
 `POST /api/payroll/detail-imports/preview` erwartet Multipart:
 
 - `kind=INPUT`, `auftragNr`, optional `pauseUnit=HOURS|MINUTES`.
@@ -69,6 +78,13 @@ liefert die Historie, `GET /api/payroll/detail-imports/:id` auch Quellen und Sta
 
 ### Zeiten, Pausen und Regeln
 
+Die folgende Pausensummen-Konfiguration beschreibt den bisherigen Adapter für
+aufbereitete Dateien. Sie ist **nicht** die Semantik von `STUNDUHR.PAUSE` in
+den Originaljahresdateien: Dort ist PAUSE ein Zeilentyp und STUNDEN die jeweilige
+Arbeits- oder Pausenmenge. Solche Originaldateien werden im alten Adapter
+abgelehnt. Im Jahresimport bleiben Nettostunden ohne genaue Pausenlage nutzbar;
+betroffene Zuschläge benötigen eine Klärung.
+
 `STUNDUHR` benötigt `PERSONALNR`, `AUFTRAGSNR`, `DATUM`, `VON`, `BIS`, `STUNDEN`,
 `PAUSE`. `IDARBEITSSCHICHT`, `EINSORT`, `BEZAHLTE_PAUSE` und weitere Spalten bleiben
 erhalten. Ein explizites `EINSPERSNR` kann die Einsatzregelzuordnung belegen.
@@ -95,6 +111,59 @@ bleiben erhalten und werden als unbestätigte Semantik markiert. Uhrzeitwerte
 werden gemäß der ausdrücklich gewählten `ruleTimeUnit` interpretiert.
 
 ## Eigene Ausweisung
+
+### Berechnungspositionen in `/payroll`
+
+Die unteren Tabs zeigen eine eigene, schreibgeschützte Berechnungsvorschau.
+`GET /api/payroll/employees/:employeeId/positions?month=YYYY-MM` benötigt die
+aktuelle ADMIN-/PAYROLL-Rolle und die Mitarbeiter-Standortberechtigung.
+Fakturpositionen sind weiterhin ADMIN vorbehalten; PAYROLL erhält ausschließlich
+lohnseitige Daten. Ein Rollenwechsel leert auch bereits geladene Positionen.
+
+Die Ansicht verwendet die bestehende Rechenlogik für aktive Zeitbuchungen,
+Tarifgrundlohn, separate ÜTZ und auftragsbezogene Zuschlagsregeln. Es werden keine
+Sollmengen oder Sollpreise aus AUSWEISLOHN als Berechnungseingaben verwendet.
+Die Vorschau legt keine Ausweisung oder Rechnung in der Datenbank an.
+
+Ein eindeutiger, am Buchungstag gültiger Kundenpreis zur Einsatzqualifikation
+kann fehlende fakturseitige Grundstundenregeln für diese Vorschau ergänzen.
+Diese Grundstunden bleiben ausdrücklich eine Teilbewertung, bis die konkreten
+Auftragskonditionen geprüft sind. Es gibt keinen Vorrang vor vorhandenen
+Auftragsregeln und keinen daraus abgeleiteten Zuschlagssatz. Mehrdeutige Preise
+werden nicht ausgewählt. Kundenkonditionsvorlagen sind im eigenen Tab sichtbar.
+
+- **LOHN/FAKTUR** enthält alle Positionen beider Seiten, einschließlich
+  Fehlzeiten, Freischichten und offener Bewertungen.
+- **SUMME LOHN** und **SUMME FAKTUR** filtern dieselben Positionen nach Seite
+  und verdichten gleiche Lohnart, Satz, Prozent und Kategorie.
+- **FEHLZEITEN** enthält ausschließlich nichtproduktive Einträge und
+  Tageskennzeichnungen. Durchschnittsbeträge bleiben offen.
+- Die weiteren Summenansichten verdichten dieselben Daten, bei A./E. zusätzlich
+  nach Auftrag und Einsatzort. Noch nicht implementierte Bereiche werden benannt.
+
+Lohnzeilen sind grün, Fakturzeilen blau. Die Auswahl eines Tages filtert nach
+dem in der Stundenmatrix dargestellten Buchungstag. Auch über Mitternacht
+gehörende Abschnitte bleiben dieser Auswahl zugeordnet; ihr tatsächlicher
+Abschnittstag wird in `serviceDate` erhalten. Ohne Tagesauswahl gilt der Monat.
+`Monat anzeigen` hebt die Tagesauswahl auf. Tab- und Scrollzustand bleiben beim
+Laden anderer Monate erhalten.
+
+Gesamtstunden folgen ausschließlich `Lohnart.fuerGesamtstunden`, einschließlich
+der im Stamm gelieferten Werte `Ja`/`Nein`. Lohn und Faktur werden dabei getrennt
+summiert. Insbesondere führt eine zusätzliche 110-Zeile nicht automatisch zu
+weiteren Arbeitsstunden. Fehlende Kennzeichen und Zeitkonflikte werden als offene
+Stundenanrechnung angezeigt. ÜTZ zeigt Verrechnungsart, Ziel-Lohnart und Priorität;
+eine noch ungeklärte Verrechnung wird nicht als abgeschlossen ausgewiesen.
+
+Fehlende Preise oder Zuschlagsmengen bleiben leer und begründet. Bekannte
+Nettomengen ohne genaue Pausenlage bleiben für Grundstunden verwendbar;
+betroffene Zuschläge erscheinen als offene Zeilen ohne erfundene Menge.
+Die Betragsanzeige unterscheidet fertige Summen von bewerteten Teilpositionen.
+Monatsaggregate aus STUNDEN werden nicht zusätzlich zu Detailzeiten desselben
+Tages gezählt. Die eigentliche Monatsabschluss-/AZK- und Durchschnittslogik bleibt
+von dieser Tagesvorschau getrennt.
+
+### Gespeicherte Ausweisungen
 
 `GET /api/working-times/bookings?auftragNr=2510476` liest aktive Buchungen.
 Alternativ sind `employeeId` und `month=YYYY-MM` zusammen zulässig. Aggregierte

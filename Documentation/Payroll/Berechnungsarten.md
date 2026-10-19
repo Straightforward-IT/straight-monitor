@@ -131,6 +131,17 @@ Nenner sind Bestandteil des zukünftigen tarifkonformen Schnitt-Tools.
 Für Art 5 ist ein Lohndurchschnitt in EUR/Stunde erforderlich; die bloße
 Kennzeichnung einer Lohnart liefert diesen Wert noch nicht.
 
+Bestätigung vom 19.10.2026: Urlaub und weitere entsprechend konfigurierte
+Lohnarten verwenden das noch nicht implementierte Durchschnittsverfahren.
+SP1 (`durchschnittsspeicherCode`) ist bereits vorhanden; die eigentliche
+Durchschnittsberechnung bleibt ausdrücklich ein offenes TODO. Der erste
+[AUSWEISLOHN-Testabgleich](Ausweislohn-Testabgleich.md) erhält deren Sollpositionen,
+weist ihre eigene Berechnung aber als noch nicht implementiert aus. Fehlende
+Durchschnittswerte werden weder durch null noch durch den aktuellen Tariflohn
+ersetzt. Ein gelieferter Sollbetrag bei `PREIS=0` ist deshalb für sich genommen
+kein Rechenfehler. Die Zuordnung erfolgt je Lohnart, nicht pauschal für jede
+Fehlzeit.
+
 ## Bereitstellung in Konditionstabellen (Fakturierung)
 
 Die Zvoove-Quellspalte `ILOHNFAKTUR` wird unverändert als

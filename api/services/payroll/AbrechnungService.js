@@ -155,8 +155,15 @@ async function activate(importId, expectedRevision, user) {
   return getImport(importId, user);
 }
 async function activeInputs(auftragNr) {
-  const filter = auftragNr ? { _id: stateKey('INPUT', `order:${auftragNr}`) } : { _id: /^INPUT:order:/ };
-  return models.State.find(filter).sort({ _id: 1 }).lean();
+  const filter = auftragNr ? { $or: [{ _id: stateKey('INPUT', `order:${auftragNr}`) }, { _id: /^INPUT:year:/ }] } : { _id: /^INPUT:(order|year):/ };
+  const states = await models.State.find(filter).sort({ _id: 1 }).lean();
+  const years = states.filter(state => state._id.startsWith('INPUT:year:'));
+  const snapshots = await models.Snapshot.find({ _id: { $in: years.map(state => state.snapshotId) } }).select('timeRoles').lean();
+  return states.filter(state => !state._id.startsWith('INPUT:year:') || snapshots.find(snapshot => String(snapshot._id) === String(state.snapshotId))?.timeRoles?.includes('STUNDUHR'));
+}
+function preferredBookings(rows, states) {
+  const annual = new Map(states.filter(state => state._id.startsWith('INPUT:year:')).map(state => [state._id.slice(-4), String(state.snapshotId)]));
+  return rows.filter(row => !annual.has(row.date?.slice(0, 4)) || String(row.snapshotId) === annual.get(row.date.slice(0, 4)));
 }
 async function bookings(user, query) {
   keys(query, ['auftragNr', 'employeeId', 'month']);
@@ -165,14 +172,14 @@ async function bookings(user, query) {
   const employee = query.employeeId ? await employeeFor(user, query.employeeId) : null;
   if (query.auftragNr) await capture.orderForUser(user, query.auftragNr);
   const states = await activeInputs(query.auftragNr);
-  const rows = await models.Booking.find({ snapshotId: { $in: states.map(state => state.snapshotId).filter(Boolean) }, ...employeeSelection(employee) }).sort({ date: 1, ordinal: 1 }).lean();
-  return serialize({ bookings: rows.filter(booking => !query.month || !booking.date || booking.date.startsWith(query.month) || engine.workSegments(booking, query.month).length), sources: states.map(state => ({ snapshotId: state.snapshotId, revision: state.revision })), aggregateHoursIncluded: false });
+  const rows = await models.Booking.find({ snapshotId: { $in: states.map(state => state.snapshotId).filter(Boolean) }, ...employeeSelection(employee), ...(query.auftragNr ? { auftragNr: Number(query.auftragNr) } : {}) }).sort({ date: 1, ordinal: 1 }).lean();
+  return serialize({ bookings: preferredBookings(rows, states).filter(booking => !query.month || !booking.date || booking.date.startsWith(query.month) || engine.workSegments(booking, query.month).length), sources: states.map(state => ({ key: state._id, snapshotId: state.snapshotId, revision: state.revision })), aggregateHoursIncluded: false });
 }
 async function buildRates(selected, employeeId) {
   const result = [], employees = await Mitarbeiter.find({ _id: { $in: employeeId ? [employeeId] : [...new Set(selected.map(booking => booking.employeeId).filter(Boolean))] } }).lean();
   for (const employee of employees) {
     const context = await tariffs.createEmployeeContext(employee);
-    const dates = [...new Set(selected.filter(booking => String(booking.employeeId) === String(employee._id) && !booking.issues.length).flatMap(booking => engine.workSegments(booking).map(segment => segment.date)))].sort();
+    const dates = [...new Set(selected.filter(booking => String(booking.employeeId) === String(employee._id) && !booking.issues.length).flatMap(booking => [booking.date, ...engine.workSegments(booking).map(segment => segment.date)]).filter(Boolean))].sort();
     for (const day of dates) {
       const [base, allowance] = await Promise.all([tariffs.baseRate(String(employee._id), day, context), tariffs.aboveTariffValues(String(employee._id), day, context)]);
       const relevantPeriods = context.data.periods.filter(period => (!base.assignment || period.employeeGroupId === base.assignment.employeeGroupId) && period.validFrom <= day && (!period.validUntil || period.validUntil >= day));
@@ -194,9 +201,9 @@ async function calculate(user, input) {
   const employee = await authorize(user, input.side, input);
   if (input.auftragNr) await capture.orderForUser(user, input.auftragNr);
   const states = await activeInputs(input.auftragNr), inputSnapshotIds = states.map(state => state.snapshotId).filter(Boolean);
-  const all = await models.Booking.find({ snapshotId: { $in: inputSnapshotIds }, ...employeeSelection(employee) }).sort({ snapshotId: 1, ordinal: 1 }).lean();
-  if (all.length > 2000) d.fail('Höchstens 2000 Zeitbuchungen je Ausweisung. Auswahl einschränken.');
-  const selected = all.filter(booking => !input.month || !booking.date || engine.workSegments(booking, input.month).length || booking.date.startsWith(input.month));
+  const all = await models.Booking.find({ snapshotId: { $in: inputSnapshotIds }, ...employeeSelection(employee), ...(input.auftragNr ? { auftragNr: Number(input.auftragNr) } : {}) }).sort({ snapshotId: 1, ordinal: 1 }).lean();
+  const selected = preferredBookings(all, states).filter(booking => !input.month || !booking.date || engine.workSegments(booking, input.month).length || booking.date.startsWith(input.month));
+  if (selected.length > 2000) d.fail('Höchstens 2000 Zeitbuchungen je Ausweisung. Auswahl einschränken.');
   const [rules, wageTypes, rates] = await Promise.all([
     models.Rule.find({ snapshotId: { $in: inputSnapshotIds }, side: input.side }).sort({ snapshotId: 1, ordinal: 1 }).lean(),
     Lohnart.find().select('lohnartNummer berechnungsartCode verrechnungCode verrechnungslohnartNummer verrechnungsPrioritaet').sort({ lohnartNummer: 1 }).lean(),
@@ -222,9 +229,10 @@ async function getRun(user, runId) {
   const run = await models.Run.findById(id(runId)).lean();
   if (!run) d.fail('Ausweisung nicht gefunden.', 'ABRECHNUNG_NOT_FOUND', 404);
   const employee = await authorize(user, run.side, run.selection);
-  const states = await models.State.find({ _id: /^INPUT:order:/ }).lean();
+  const states = await activeInputs(run.selection.auftragNr);
   const active = new Set(states.map(state => String(state.snapshotId)));
   let stale = run.inputSnapshotIds.some(snapshot => !active.has(String(snapshot)));
+  stale ||= JSON.stringify(run.inputSnapshotIds.map(String).sort()) !== JSON.stringify(states.map(state => String(state.snapshotId)).sort());
   const currentWages = serialize(await Lohnart.find().select('lohnartNummer berechnungsartCode verrechnungCode verrechnungslohnartNummer verrechnungsPrioritaet').sort({ lohnartNummer: 1 }).lean());
   stale ||= d.hash(currentWages) !== d.hash(run.inputs.wageTypes);
   if (run.side === 'L' && run.inputs.rates.length) {
@@ -233,9 +241,8 @@ async function getRun(user, runId) {
   }
   // A new order in a complete employee-month selection also changes its coverage.
   if (!stale && run.selection.employeeId) {
-    const coveredStates = run.selection.auftragNr ? states.filter(state => state._id === stateKey('INPUT', `order:${run.selection.auftragNr}`)) : states;
-    const current = await models.Booking.find({ snapshotId: { $in: coveredStates.map(state => state.snapshotId) }, ...employeeSelection(employee) }).lean();
-    const relevant = current.filter(booking => !run.selection.month || !booking.date || booking.date.startsWith(run.selection.month) || engine.workSegments(booking, run.selection.month).length).map(booking => String(booking._id)).sort();
+    const current = await models.Booking.find({ snapshotId: { $in: states.map(state => state.snapshotId) }, ...employeeSelection(employee), ...(run.selection.auftragNr ? { auftragNr: run.selection.auftragNr } : {}) }).lean();
+    const relevant = preferredBookings(current, states).filter(booking => !run.selection.month || !booking.date || booking.date.startsWith(run.selection.month) || engine.workSegments(booking, run.selection.month).length).map(booking => String(booking._id)).sort();
     const before = run.inputs.bookings.map(booking => String(booking._id)).sort();
     stale = JSON.stringify(relevant) !== JSON.stringify(before);
   }
@@ -255,4 +262,4 @@ async function compare(user, runId, input) {
   try { return serialize({ ...(await models.Comparison.create({ runId, referenceSnapshotId: reference._id, referenceKind: input.referenceKind, contentHash, ...result, createdBy: user._id })).toObject(), calculationStale: run.stale }); }
   catch (error) { if (error.code !== 11000) throw error; return serialize({ ...(await models.Comparison.findOne({ contentHash }).lean()), calculationStale: run.stale }); }
 }
-module.exports = { preview, listImports, getImport, activate, bookings, calculate, getRun, compare, isAdmin, isPayroll };
+module.exports = { preview, listImports, getImport, activate, bookings, calculate, getRun, compare, isAdmin, isPayroll, buildRates, employeeFor };

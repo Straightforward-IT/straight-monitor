@@ -17,11 +17,11 @@
           <EmployeeCard :key="employeeId" :mitarbeiter-id="employeeId" :enable-header-context-menu="true" class="payroll-page__employee-card" />
           <p v-if="error" role="alert">{{ error }}</p>
           <template v-if="data">
-            <p class="payroll-page__notice">Zvoove-Import · Schreibgeschützte Monatsstunden</p>
+            <p class="payroll-page__notice">{{ data.sourceMode === 'TIME_BOOKINGS' ? 'Zvoove-Zeitbuchungen · Arbeits- und Pausenzeiten' : 'Zvoove-Import · Schreibgeschützte Monatsstunden' }}</p>
             <ul v-if="data.issues?.length" class="payroll-page__issues" aria-label="Hinweise zum importierten Datenstand"><li v-for="(issue, index) in data.issues" :key="`${issue.code}:${index}`">{{ issue.message }}</li></ul>
             <p v-if="!data.entries.length" class="payroll-page__notice">Für diesen Mitarbeiter und Monat liegen noch keine importierten Zvoove-Stunden vor.</p>
           </template>
-          <ZvooveTimeWorkspace v-show="!error" :key="employeeId" :employee="workspaceEmployee" :month="month" :entries="data?.entries || []" :totals="data?.totals" :loading="loading" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" @select-day="openDayDetails" />
+          <ZvooveTimeWorkspace v-show="!error" :key="employeeId" :employee="workspaceEmployee" :month="month" :entries="data?.entries || []" :totals="data?.totals" :loading="loading" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" :positions="positionData" :positions-loading="positionsLoading" :positions-error="positionsError" :positions-access="canViewPositions" @select-day="openDayDetails" @clear-day="clearDay" />
         </template>
       </div>
       <SidePanelFrame v-model="detailsOpen" class="payroll-page__day-panel" width="clamp(360px, 32vw, 480px)" :title="selectedDayLabel" :subtitle="data?.employee?.name || ''" :close-on-escape="false" @close="focusSelectedDay">
@@ -52,10 +52,17 @@ import ZvooveTimeWorkspace from '@/components/payroll/ZvooveTimeWorkspace.vue';
 import ZvooveDayDetails from '@/components/payroll/ZvooveDayDetails.vue';
 import { payrollTabs } from '@/components/layout/pageTabDefinitions';
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
+import { usePayrollPositions } from '@/composables/usePayrollPositions';
+import { useAuth } from '@/stores/auth';
 
 const route = useRoute(), router = useRouter();
 const storageKey = 'payroll_selected_employee_id';
 const data = ref(null), loading = ref(false), error = ref('');
+const auth = useAuth();
+const positionsAccessKey = computed(() => [auth.user?.role, ...(auth.user?.roles || [])].filter(Boolean).map(role => String(role).toUpperCase()).sort().join(','));
+const canViewPositions = computed(() => [auth.user?.role, ...(auth.user?.roles || [])].some(role => ['ADMIN', 'PAYROLL'].includes(String(role).toUpperCase())));
+const positionsState = usePayrollPositions(canViewPositions);
+const { data: positionData, loading: positionsLoading, error: positionsError } = positionsState;
 const detailsOpen = ref(false), showHelp = ref(false), selectedDay = ref('');
 let request = 0;
 const employeeId = computed(() => String(route.query.employeeId ?? sessionStorage.getItem(storageKey) ?? ''));
@@ -73,6 +80,7 @@ const selectedDayEntries = computed(() => (data.value?.entries || []).filter(ent
 const selectedDayLabel = computed(() => selectedDay.value
   ? new Date(`${selectedDay.value}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Tagesdetails');
 function openDayDetails(date) { if (!loading.value && !error.value) { selectedDay.value = date; detailsOpen.value = true; } }
+function clearDay() { selectedDay.value = ''; detailsOpen.value = false; }
 function focusSelectedDay() { nextTick(() => document.querySelector(`.payroll-page [data-day="${selectedDay.value}"] .tmx-date`)?.focus({ preventScroll: true })); }
 function replaceQuery(patch) {
   const query = { ...route.query, ...patch };
@@ -91,6 +99,7 @@ async function loadMonth() {
   const current = ++request;
   detailsOpen.value = false; selectedDay.value = ''; data.value = null; error.value = '';
   contingents.clear();
+  positionsState.load(employeeId.value, month.value);
   if (!employeeId.value) { loading.value = false; return; }
   const id = employeeId.value, period = month.value;
   contingents.load(id, contingentPeriod.value);
@@ -103,7 +112,7 @@ async function loadMonth() {
     if (current === request) error.value = failure?.response?.data?.message || 'Monatsstunden konnten nicht geladen werden.';
   } finally { if (current === request) loading.value = false; }
 }
-watch([employeeId, month], loadMonth, { immediate: true });
+watch([employeeId, month, positionsAccessKey], loadMonth, { immediate: true });
 onBeforeUnmount(() => { request++; });
 </script>
 

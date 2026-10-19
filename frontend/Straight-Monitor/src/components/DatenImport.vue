@@ -31,6 +31,7 @@
 
 
     <ZvooveHoursImport v-if="isAdmin" />
+    <ZvooveTimeImport v-if="isAdmin" />
 
     <!-- Personal Bereich -->
     <div class="import-section">
@@ -720,10 +721,11 @@ import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 import AppFileDropzone from '@/components/ui-elements/AppFileDropzone.vue';
 import ZvooveHoursImport from '@/components/payroll/ZvooveHoursImport.vue';
+import ZvooveTimeImport from '@/components/payroll/ZvooveTimeImport.vue';
 
 export default {
   name: "DatenImport",
-  components: { PageLayout, ModalFrame, AppButton, AppTextInput, AppFileDropzone, ZvooveHoursImport },
+  components: { PageLayout, ModalFrame, AppButton, AppTextInput, AppFileDropzone, ZvooveHoursImport, ZvooveTimeImport },
   setup() {
     const authStore = useAuth();
     const dataCache = useDataCache();

@@ -230,7 +230,7 @@ async function saveReview(user, number, input) {
           const result = await Stundenzeit.updateOne(
             { _id: einsatz._id, revision: row.revision },
             {
-              $set: { revision, status: 'DRAFT' },
+              $set: { revision, status: 'DRAFT', ...(previous.importSource?.key ? { 'importSource.editedLocally': true } : {}) },
               $unset: { released: 1, releasedAt: 1, releasedBy: 1 },
               $push: { history: { revision, action: 'WITHDRAWN', at, by: user._id, reason, values: previous.current } },
             },
@@ -241,7 +241,7 @@ async function saveReview(user, number, input) {
         }
         const current = calculate(date, row);
         const status = input.action === 'release' ? 'RELEASED' : 'DRAFT';
-        const patch = { current, revision, status, ...(status === 'RELEASED' ? { released: current, releasedAt: at, releasedBy: user._id } : {}) };
+        const patch = { current, revision, status, ...(previous?.importSource?.key ? { 'importSource.editedLocally': true } : {}), ...(status === 'RELEASED' ? { released: current, releasedAt: at, releasedBy: user._id } : {}) };
         const history = { revision, action: status, at, by: user._id, reason, values: current };
         if (previous) {
           const result = await Stundenzeit.updateOne({ _id: einsatz._id, revision: row.revision }, { $set: patch, $push: { history } }, { session, runValidators: true });
