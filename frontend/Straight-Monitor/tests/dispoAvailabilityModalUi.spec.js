@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   dispoEntries: [],
   dispoEmployees: [],
   openEmployeeContingent: vi.fn(),
+  openAuftrag: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
 vi.mock('@/composables/useEmployeeContingentModals', () => ({ useEmployeeContingentModals: () => ({ openEmployeeContingent: mocks.openEmployeeContingent }) }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { _id: 'user-1', roles: ['ADMIN'], email: 'test@example.com' }, employeeNameFormat: 'first-last' }) }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => ({}) }));
@@ -79,6 +81,19 @@ async function render() {
 }
 
 describe('Dispo employee tariff contingents', () => {
+  it('opens the order from the assignment context menu and closes that menu', async () => {
+    wrapper = shallowMount(DispoTable, { attachTo: document.body, global: { stubs: {
+      ...stubs, ContextMenu: { template: '<div role="menu"><slot /></div>' },
+    } } });
+    await flushPromises();
+    Object.assign(wrapper.vm.ctxMenu, { open: true, ma: { _id: 'employee-1', vorname: 'Ada', nachname: 'Test' }, day: '2026-10-20',
+      entries: [{ _id: 'assignment-1', _source: 'einsatz', auftragNr: 2510447, datumVon: '2026-10-20', typ: 'planned' }],
+    });
+    await wrapper.vm.$nextTick();
+    await wrapper.get('.ctx-item--open').trigger('click');
+    expect(mocks.openAuftrag).toHaveBeenCalledWith(2510447);
+    expect(wrapper.vm.ctxMenu.open).toBe(false);
+  });
   it('loads the same tariff view from both name triggers and only requests it on opening', async () => {
     mocks.dispoEmployees = [{ _id: 'employee-1', vorname: 'Ada', nachname: 'Test', isActive: true, arbeitsverhaeltnis: { typ: 2 } }];
     wrapper = shallowMount(DispoTable, { attachTo: document.body, global: { stubs } });

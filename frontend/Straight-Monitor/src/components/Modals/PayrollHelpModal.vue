@@ -16,6 +16,7 @@
       <h4>3. Stunden und Kennzeichen lesen</h4>
       <p>Die Kalenderwochen zeigen Stunden als Dezimalwerte. „6,50“ bedeutet sechseinhalb Stunden. Ein Stundenwert ohne KB-Kennzeichen ist produktive Zeit und erscheint als „P“. Kennzeichen werden über die Lohnartenstammdaten zugeordnet.</p>
       <p>Eine ausdrücklich eingetragene Null bleibt als „0,00“ sichtbar. Eine Tageskennzeichnung ohne Stunden, etwa „FS“, zeigt einen Strich beim Stundenwert. Leere Tage enthalten keinen Eintrag.</p>
+      <p>Geplante Schichten aus der Disposition erscheinen zusätzlich als „PL“ mit gestricheltem Rahmen. Ein Klick zeigt Auftrag, Schicht und geplante Zeit im Seitenpanel. Diese Planungszeiten zählen nicht in die erfassten Stunden, Wochensummen oder Lohn-/Fakturpositionen. Bereits eindeutig gebuchten Einsätzen wird kein zweiter PL-Eintrag hinzugefügt.</p>
     </section>
     <section id="payroll-help-day" class="help-section">
       <h4>4. Einen Tag öffnen</h4>

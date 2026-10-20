@@ -9,8 +9,10 @@ const mocks = vi.hoisted(() => ({
   auth: { user: { roles: [] } },
   theme: { isDark: false },
   router: { push: vi.fn() },
+  openAuftrag: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => mocks.cache }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('@/stores/theme', () => ({ useTheme: () => mocks.theme }));
@@ -69,6 +71,13 @@ async function render(initialTab = 'allgemein') {
 }
 
 describe('CustomerCard shared controls', () => {
+  it('opens calendar orders in a modal while retaining the customer card', async () => {
+    await render('einsaetze');
+    wrapper.getComponent({ name: 'CustomerOrderCalendar' }).vm.$emit('open', { auftragNr: 2510447, datumVon: '2026-10-20' });
+    expect(mocks.openAuftrag).toHaveBeenCalledWith(2510447);
+    expect(mocks.router.push).not.toHaveBeenCalled();
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
   it('names the shared frame and exposes linked keyboard tabs', async () => {
     await render();
     expect(wrapper.getComponent(ModalFrame).props('title')).toBe('Acme GmbH');

@@ -1,10 +1,10 @@
 <template>
-  <section class="zvoove-workspace" aria-label="Importierte Monatsstunden" :aria-busy="loading">
+  <section class="zvoove-workspace" aria-label="Monatsstunden und geplante Schichten" :aria-busy="loading">
     <div class="zvoove-workspace__layout" :class="{ 'zvoove-workspace__layout--solo': informationHidden }">
       <div class="zvoove-workspace__hours">
         <div class="zvoove-workspace__matrix">
           <div :inert="loading" :aria-hidden="loading || undefined">
-            <TimeMonthMatrix imported readonly :month="month" :entries="entries" :selected-date="selectedDate" @select-day="$emit('selectDay', $event)">
+            <TimeMonthMatrix imported readonly :month="month" :entries="entries" :planned-entries="plannedEntries" :selected-date="selectedDate" @select-day="$emit('selectDay', $event)">
               <template #heading-actions>
                 <AppIconButton v-if="informationHidden" label="Informationen einblenden" variant="ghost" size="sm" @click="setInformationHidden(false)"><FontAwesomeIcon :icon="faAnglesRight" /></AppIconButton>
               </template>
@@ -42,7 +42,7 @@ import EmployeeTariffWage from '@/components/tariffs/EmployeeTariffWage.vue';
 import PayrollWageTypesSection from '@/components/payroll/PayrollWageTypesSection.vue';
 import { buildPayrollHoursOverview } from '@/utils/payrollHoursOverview';
 
-const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, entries: { type: Array, default: () => [] }, totals: { type: Object, default: () => ({ hours: '0', byCode: [] }) }, selectedDate: { type: String, default: '' }, contingentData: { type: Object, default: null }, contingentLoading: Boolean, loading: Boolean, positions: { type: Object, default: null }, positionsLoading: Boolean, positionsError: { type: String, default: '' }, positionsAccess: Boolean });
+const props = defineProps({ employee: { type: Object, required: true }, month: { type: String, required: true }, entries: { type: Array, default: () => [] }, plannedEntries: { type: Array, default: () => [] }, totals: { type: Object, default: () => ({ hours: '0', byCode: [] }) }, selectedDate: { type: String, default: '' }, contingentData: { type: Object, default: null }, contingentLoading: Boolean, loading: Boolean, positions: { type: Object, default: null }, positionsLoading: Boolean, positionsError: { type: String, default: '' }, positionsAccess: Boolean });
 defineEmits(['selectDay', 'clearDay']);
 const hoursOverview = computed(() => buildPayrollHoursOverview(props));
 const informationTabs = [{ id: 'contingent', label: 'Kontingent' }, { id: 'wage', label: 'Lohn' }];

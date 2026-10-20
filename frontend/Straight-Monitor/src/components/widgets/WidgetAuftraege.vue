@@ -27,9 +27,11 @@
 
     <ul class="wa-list">
       <li v-for="auftrag in dayFiltered" :key="auftrag._id" class="wa-item">
-        <RouterLink
-          :to="{ path: '/auftraege', query: { auftragnr: auftrag.auftragNr, focusDate: selectedISO } }"
+        <button
+          type="button"
           class="wa-link"
+          :aria-label="`Auftrag ${auftrag.auftragNr} öffnen`"
+          @click="openAuftrag(auftrag)"
         >
           <div class="wa-info">
             <span class="wa-title">{{ auftrag.eventTitel || auftrag.eventOrt || auftrag.eventLocation || '—' }}</span>
@@ -44,7 +46,7 @@
             </div>
           </div>
           <font-awesome-icon :icon="['fas', 'chevron-right']" class="wa-arrow" />
-        </RouterLink>
+        </button>
       </li>
 
       <li v-if="!loading && !dayFiltered.length" class="wa-empty">
@@ -56,7 +58,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
-import { RouterLink } from "vue-router";
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import api from "@/utils/api";
 import { useDataCache } from "@/stores/dataCache";
@@ -67,6 +69,7 @@ import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
 const cache = useDataCache();
+const { openAuftrag } = useAuftragModals();
 const auth  = useAuth();
 
 const loading = computed(() => cache.loading.auftraege && cache.auftraege.length === 0);
@@ -179,6 +182,14 @@ onMounted(async () => {
 }
 
 .wa-link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;

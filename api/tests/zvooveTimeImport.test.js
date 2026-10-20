@@ -138,6 +138,32 @@ describe('year import storage, editable projections and payroll', function () {
     assert.equal(Object.keys(page.rows[0].stunduhr).length, 34);
     await assert.rejects(() => sourceModels.Row.updateOne({}, { $set: { date: '2000-01-01' } }), /unveränderlich/);
   });
+  it('shows accessible planned assignments separately without double-counting imported work', async () => {
+    await Mitarbeiter.collection.updateOne({ _id: employee._id }, { $set: { personalnrHistory: [{ value: '900001' }] } });
+    const futureId = oid(), secondId = oid(), missingTimesId = oid();
+    await Auftrag.collection.insertOne({ _id: oid(), auftragNr: 2510999, locationV2: oid() });
+    await Einsatz.collection.insertMany([
+      { _id: futureId, personalNr: 900001, auftragNr: 2510476, idAuftragArbeitsschichten: 18, datumVon: new Date('2026-10-21'), uhrzeitVon: '22:00', uhrzeitBis: '06:00' },
+      { _id: secondId, personalNr: 100001, auftragNr: 2510476, idAuftragArbeitsschichten: 19, datumVon: new Date('2026-10-09'), uhrzeitVon: '18:00', uhrzeitBis: '20:00' },
+      { _id: missingTimesId, personalNr: 100001, auftragNr: 2510476, datumVon: new Date('2026-10-22') },
+      { _id: oid(), personalNr: 100001, auftragNr: 2510476, datumVon: new Date('2026-10-23'), isPseudo: true },
+      { _id: oid(), personalNr: 100001, auftragNr: 2510999, datumVon: new Date('2026-10-24') },
+      { _id: oid(), personalNr: 100001, auftragNr: 2510476, datumVon: new Date('2026-11-01') },
+    ]);
+    const hours = require('../services/payroll/ZvooveHoursService');
+    const empty = await hours.month(staff, String(employee._id), '2026-10');
+    assert.equal(empty.entries.length, 0); assert.equal(empty.plannedEntries.length, 4); assert.equal(empty.totals.hours, '0');
+    // STUNDUHR can exist before the editable projection has been released.
+    const run = await service.preview(files(), 2026, admin); await service.activate(run.id, run.baseRevision, admin);
+    const month = await hours.month(staff, String(employee._id), '2026-10');
+    assert.equal(month.entries.length, 1); assert.equal(month.totals.hours, '7.5');
+    assert.deepEqual(new Set(month.plannedEntries.map(entry => entry.einsatzId)), new Set([String(futureId), String(secondId), String(missingTimesId)]));
+    const future = month.plannedEntries.find(entry => entry.einsatzId === String(futureId));
+    assert.equal(future.kind, 'planned'); assert.equal(future.credited, false); assert.equal(future.hours, '8');
+    assert.equal(future.plannedStart, '22:00'); assert.equal(future.plannedEnd, '06:00');
+    assert.equal(future.orderContext.assignment.id, String(futureId));
+    assert.equal(month.plannedEntries.find(entry => entry.einsatzId === String(missingTimesId)).hours, null);
+  });
   it('retains a missing employee/assignment as source and merges separately supplied table roles', async () => {
     await Mitarbeiter.collection.deleteMany({});
     const first = await service.preview([file('STUNDENVORTRAG', [draft()])], 2026, admin); await service.activate(first.id, first.baseRevision, admin);

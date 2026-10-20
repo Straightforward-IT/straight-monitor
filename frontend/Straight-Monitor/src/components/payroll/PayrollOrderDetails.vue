@@ -1,9 +1,9 @@
 <template>
   <div class="payroll-order-details">
     <header>
-      <span class="payroll-order-details__eyebrow">Produktive Stunden</span>
+      <span class="payroll-order-details__eyebrow">{{ isPlanned ? 'Geplante Schicht' : 'Produktive Stunden' }}</span>
       <h3>
-        <RouterLink v-if="calendarLink" :to="calendarLink" title="Auftrag im Kalender öffnen">Auftrag {{ orderNumber }}</RouterLink>
+        <button v-if="canOpenOrder" type="button" :aria-label="`Auftrag ${orderNumber} öffnen`" title="Auftrag öffnen" @click="openAuftrag(orderNumber)">Auftrag {{ orderNumber }}</button>
         <template v-else>{{ orderNumber ? `Auftrag ${orderNumber}` : 'Auftrag nicht zugeordnet' }}</template>
       </h3>
       <p v-if="order?.title" class="payroll-order-details__title">{{ order.title }}</p>
@@ -15,7 +15,15 @@
     </dl>
     <p v-else class="payroll-order-details__notice" role="status">{{ contextNotice }}</p>
 
-    <section aria-label="Gebuchte Arbeitszeit">
+    <section v-if="isPlanned" aria-label="Geplante Arbeitszeit">
+      <h4>Geplante Arbeitszeit</h4>
+      <dl class="payroll-order-details__facts">
+        <div><dt>Von / bis</dt><dd>{{ plannedTime(entry.plannedStart, entry.plannedEnd) }}</dd></div>
+        <div><dt>Geplante Stunden</dt><dd>{{ entry.hours == null ? 'Offen' : `${formatImportedHours(entry.hours, 2)} Std.` }}</dd></div>
+      </dl>
+      <p class="payroll-order-details__notice">Planungszeit ohne Ist-Pausen. Sie zählt nicht zu den erfassten Stunden oder den Lohn-/Fakturpositionen.</p>
+    </section>
+    <section v-else aria-label="Gebuchte Arbeitszeit">
       <h4>Gebuchte Arbeitszeit</h4>
       <dl class="payroll-order-details__facts">
         <div><dt>Produktive Stunden</dt><dd>{{ entry.hours == null ? 'Ungeklärt' : `${formatImportedHours(entry.hours, 2)} Std.` }}</dd></div>
@@ -58,17 +66,18 @@
 
 <script setup>
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { formatImportedHours } from '@/utils/importedHours';
 
 const props = defineProps({ entry: { type: Object, required: true } });
+const { openAuftrag } = useAuftragModals();
+const isPlanned = computed(() => props.entry.kind === 'planned');
 const context = computed(() => props.entry.orderContext);
 const order = computed(() => context.value?.status === 'AVAILABLE' ? context.value.order : null);
 const shift = computed(() => order.value ? context.value.shift : null);
 const assignment = computed(() => order.value ? context.value.assignment : null);
-const orderNumber = computed(() => order.value?.number || props.entry.booking?.auftragNr || null);
-const calendarLink = computed(() => orderNumber.value && context.value?.status !== 'FORBIDDEN'
-  ? { path: '/auftraege', query: { tab: 'calendar', auftragnr: String(orderNumber.value), focusDate: props.entry.date } } : null);
+const orderNumber = computed(() => order.value?.number || props.entry.booking?.auftragNr || props.entry.auftragNr || null);
+const canOpenOrder = computed(() => Boolean(orderNumber.value) && context.value?.status !== 'FORBIDDEN');
 const contextNotice = computed(() => context.value?.status === 'FORBIDDEN' ? 'Keine Berechtigung für die Auftragsdetails.'
   : orderNumber.value ? 'Die Auftragsdetails sind im aktuellen Datenstand nicht vorhanden.'
     : 'Der Stundenwert enthält keine eindeutige Auftrags-, Schicht- oder Einsatzzuordnung.');
@@ -85,8 +94,8 @@ const plannedTime = (from, until) => `${from || 'Offen'}–${until || 'Offen'}`;
 .payroll-order-details { display: grid; gap: 14px; min-width: 0; }
 .payroll-order-details__eyebrow { color: var(--muted); font-size: 11px; }
 .payroll-order-details h3 { margin: 4px 0 0; font-size: 16px; }
-.payroll-order-details h3 a { color: var(--primary, #329fe5); text-decoration: underline; text-underline-offset: 3px; }
-.payroll-order-details h3 a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.payroll-order-details h3 button { padding: 0; border: 0; background: transparent; font: inherit; text-align: left; color: var(--primary, #329fe5); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.payroll-order-details h3 button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .payroll-order-details h4 { margin: 0 0 10px; font-size: 12px; }
 .payroll-order-details h4 span { color: var(--muted); font-weight: normal; }
 .payroll-order-details section { border-top: 1px solid var(--border); padding-top: 12px; }

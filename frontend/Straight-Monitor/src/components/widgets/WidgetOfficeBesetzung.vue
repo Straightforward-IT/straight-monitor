@@ -135,6 +135,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import api from '@/utils/api';
 import DashboardWidget from './DashboardWidget.vue';
@@ -143,6 +144,7 @@ import EmployeeCardModal from '@/components/Modals/EmployeeCardModal.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 
 const router = useRouter();
+const { openAuftrag } = useAuftragModals();
 const officeUsers = ref([]);
 const selectedDate = ref(toDateKey(new Date()));
 const profilePictureUrls = ref({});
@@ -247,13 +249,7 @@ function handleContextMenuAction(action) {
   }
   if (action === 'open-order') {
     if (!orderNumber) return;
-    router.push({
-      path: '/auftraege',
-      query: {
-        auftragnr: String(orderNumber),
-        focusDate: selectedDate.value,
-      },
-    });
+    openAuftrag(orderNumber);
     return;
   }
   if (!employeeId) return;

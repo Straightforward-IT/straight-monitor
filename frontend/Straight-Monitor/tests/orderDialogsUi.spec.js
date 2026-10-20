@@ -231,7 +231,7 @@ describe('pseudo-order create dialog', () => {
     expect(api.post).toHaveBeenCalledWith('/api/auftraege', { eventTitel: 'Neuer Auftrag', vonDatum: '2026-09-29', bisDatum: '2026-09-30', locationV2: 'hamburg', eventOrt: 'Hamburg', eventLocation: 'Messe' });
     expect(wrapper.vm.auftraege.at(-1)).toMatchObject({ auftragNr: 43, einsaetzeCount: 0, schichtStatus: 'none' });
     expect(wrapper.vm.selectedEvent.auftragNr).toBe(43);
-    expect(api.get).toHaveBeenCalledWith('/api/auftraege/43/details');
+    expect(api.get).toHaveBeenCalledWith('/api/auftraege/43/details', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(wrapper.vm.showNewAuftragDialog).toBe(false);
   });
 

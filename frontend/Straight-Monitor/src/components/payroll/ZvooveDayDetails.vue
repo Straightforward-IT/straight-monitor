@@ -1,10 +1,10 @@
 <template>
   <section class="zvoove-day-details" aria-label="Aufträge und Tagesdetails">
-    <p v-if="!entries.length" class="zvoove-day-details__empty">Für diesen Tag liegt kein importierter Eintrag vor.</p>
+    <p v-if="!entries.length" class="zvoove-day-details__empty">Für diesen Tag liegt kein Stundeneintrag und keine geplante Schicht vor.</p>
     <article v-for="entry in entries" :key="entry.id" class="zvoove-day-entry" :class="`zvoove-day-entry--${entry.kind}`">
-      <PayrollOrderDetails v-if="entry.kind === 'productive'" :entry="entry" />
+      <PayrollOrderDetails v-if="['productive', 'planned'].includes(entry.kind)" :entry="entry" />
       <h3 v-else>{{ importedEntryCode(entry) }} · {{ entry.label }}</h3>
-      <component :is="entry.kind === 'productive' ? 'details' : 'div'" class="zvoove-day-entry__source" :class="{ 'zvoove-day-entry__source--collapsible': entry.kind === 'productive' }">
+      <component v-if="entry.kind !== 'planned'" :is="entry.kind === 'productive' ? 'details' : 'div'" class="zvoove-day-entry__source" :class="{ 'zvoove-day-entry__source--collapsible': entry.kind === 'productive' }">
         <summary v-if="entry.kind === 'productive'">Importquelle und Buchungsdetails</summary>
         <dl>
         <div><dt>Stunden (Quellwert)</dt><dd>{{ entry.hours == null ? 'Kein Stundenwert' : `${formatImportedHours(entry.hours)} Std.` }}</dd></div>

@@ -90,15 +90,17 @@ async function month(user, employeeId, requestedMonth) {
     const summarized = monthly.entries.filter(entry => entry.date === day && entry.kind === 'productive');
     if (summarized.length && sumDecimals(summarized.map(entry => entry.hours)) !== sumDecimals(bookings.filter(booking => booking.date === day).map(booking => booking.reportedHours))) issues.push({ ...problem('DETAIL_COVERAGE_UNRESOLVED', 'Detailbuchungen und produktive Tagesmenge weichen voneinander ab. Keine doppelte Übernahme.'), date: day });
   }
-  // A unique, historically valid qualification price can value base hours in
-  // our preview. It never replaces an explicit order rule or supplies premiums.
+  // Value base hours at the customer's price for this assignment's actual
+  // qualification and booking date. Supplement rules keep their own terms.
   const priceRules = [];
   for (const booking of bookings) {
-    if (!sides.includes('F') || rules.some(rule => rule.auftragNr === booking.auftragNr && rule.side === 'F' && rule.wageType === '100')) continue;
+    if (!sides.includes('F')) continue;
     const order = visibleOrders.find(order => order.auftragNr === booking.auftragNr);
     const assignment = assignments.find(assignment => String(assignment._id) === String(booking.assignmentId));
     const customer = customers.find(customer => customer.kundenNr === order?.kundenNr);
-    const matching = customer && assignment?.qualSchl != null ? prices.filter(price => String(price.kunde) === String(customer._id) && String(price.qualSchluessel) === String(assignment.qualSchl) && price.validFrom.toISOString().slice(0, 10) <= booking.date && (!price.validTill || price.validTill.toISOString().slice(0, 10) >= booking.date)) : [];
+    const qualification = String(assignment?.qualSchl ?? '').trim();
+    const qualificationKey = /^\d+$/.test(qualification) && Number.isSafeInteger(Number(qualification)) ? Number(qualification) : null;
+    const matching = customer && qualificationKey != null ? prices.filter(price => String(price.kunde) === String(customer._id) && price.qualSchluessel === qualificationKey && price.validFrom.toISOString().slice(0, 10) <= booking.date && (!price.validTill || price.validTill.toISOString().slice(0, 10) >= booking.date)) : [];
     if (matching.length !== 1) continue;
     const price = matching[0], from = booking.start ? new Date(booking.start) : null, until = booking.end ? new Date(booking.end) : null;
     // Bound each price rule to its own booking, including overnight segments.
@@ -114,7 +116,8 @@ async function month(user, employeeId, requestedMonth) {
     const overlaps = new Set();
     for (let i = 0; i < allowedBookings.length; i++) for (let j = i + 1; j < allowedBookings.length; j++) if (allowedBookings[i].start && allowedBookings[j].start && new Date(allowedBookings[i].start) < new Date(allowedBookings[j].end) && new Date(allowedBookings[j].start) < new Date(allowedBookings[i].end)) { overlaps.add(String(allowedBookings[i]._id)); overlaps.add(String(allowedBookings[j]._id)); }
     for (const booking of allowedBookings) {
-      const selectedRules = [...rules, ...priceRules.filter(rule => rule.bookingId === String(booking._id))];
+      const bookingPrices = priceRules.filter(rule => rule.bookingId === String(booking._id));
+      const selectedRules = [...rules.filter(rule => !(bookingPrices.length && rule.side === 'F' && rule.wageType === '100')), ...bookingPrices];
       const result = engine.calculate({ bookings: overlaps.has(String(booking._id)) ? [{ ...booking, issues: [...booking.issues, problem('BOOKING_OVERLAP', 'Arbeitszeit überschneidet sich mit einer weiteren Buchung.')] }] : [booking], rules: selectedRules, rates, wageTypes: wages, side, policies: POLICIES });
       if (side === 'F' && priceRules.some(rule => rule.bookingId === String(booking._id))) result.issues.push(problem('ORDER_CONDITIONS_PENDING', 'Grundstunden mit gültigem Kundenpreis bewertet. Auftragsspezifische Zuschlagskonditionen sind noch zu prüfen.'));
       issues.push(...result.issues.map(issue => ({ ...issue, date: booking.date, side })));

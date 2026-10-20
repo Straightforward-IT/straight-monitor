@@ -27,16 +27,16 @@
           <span v-if="vorgang.kundenKuerzel" class="sc-pill sc-pill--kunde">{{ vorgang.kundenKuerzel }}</span>
           <span v-if="vorgang.mitarbeiterName" class="sc-pill sc-pill--ma">{{ displayMitarbeiter }}</span>
           <span v-if="vorgang.locationV2 || vorgang.standort" class="sc-pill sc-pill--standort">{{ locationLabel }}</span>
-          <router-link
+          <button
             v-if="vorgang.auftragNr"
-            :to="`/auftraege?auftragNr=${vorgang.auftragNr}`"
+            type="button"
             class="sc-pill sc-pill--auftrag"
             :title="`Auftrag ${vorgang.auftragNr} öffnen`"
-            @click.stop
+            @click.stop="openAuftrag(vorgang.auftragNr)"
           >
             <font-awesome-icon :icon="['fas', 'briefcase']" />
             #{{ vorgang.auftragNr }}
-          </router-link>
+          </button>
           <span class="sc-progress-pill" :title="`${signedCount}/${vorgang.submitters.length} unterschrieben`">
             <span class="sc-progress-bar-mini"><span class="sc-progress-fill-mini" :style="{ width: progressPct + '%' }"></span></span>
             {{ signedCount }}/{{ vorgang.submitters.length }}
@@ -144,17 +144,18 @@
             <div class="sc-detail-block" v-if="vorgang.auftragNr || vorgang.kundenKuerzel || vorgang.mitarbeiterName || vorgang.graphContact?.displayName">
               <h4>Verknüpfungen</h4>
               <div class="sc-links">
-                <router-link
+                <button
                   v-if="vorgang.auftragNr"
-                  :to="`/auftraege?auftragNr=${vorgang.auftragNr}`"
+                  type="button"
                   class="sc-link-row"
-                  @click.stop
+                  :aria-label="`Auftrag ${vorgang.auftragNr} öffnen`"
+                  @click.stop="openAuftrag(vorgang.auftragNr)"
                 >
                   <font-awesome-icon :icon="['fas', 'briefcase']" class="sc-link-icon" />
                   <span class="sc-link-label">{{ vorgang.auftragTitel || `Auftrag #${vorgang.auftragNr}` }}</span>
                   <span class="sc-link-sub">#{{ vorgang.auftragNr }}</span>
                   <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="sc-link-ext" />
-                </router-link>
+                </button>
                 <router-link
                   v-if="vorgang.kundenKuerzel"
                   to="/kunden"
@@ -285,6 +286,7 @@ import FavoriteStarButton from '@/components/ui-elements/FavoriteStarButton.vue'
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import api from '@/utils/api';
 
 library.add(faChevronUp, faChevronDown, faDownload, faShieldHalved, faCopy, faRotateRight, faBan, faLink, faFileCircleQuestion, faSpinner, faCircleCheck, faClock, faCircleXmark, faHourglassHalf, faPenNib, faFileSignature, faTags, faFileContract, faMoneyBillWave, faCar, faPenToSquare, faBuilding, faEnvelope, faCalendarDays, faListCheck, faAddressCard, faArrowUpRightFromSquare);
@@ -304,6 +306,7 @@ const downloading = ref(false);
 const refreshing = ref(false);
 const headerMenu = ref({ visible: false, x: 0, y: 0 });
 const { openDocumentPreview } = useDocumentPreviewModals();
+const { openAuftrag } = useAuftragModals();
 
 const typLabel = computed(() => props.vorgang.typ?.label || props.vorgang.typKey || 'Signatur');
 const locationLabel = computed(() => props.vorgang.locationV2?.nameFull || props.vorgang.standort || '');
@@ -612,6 +615,7 @@ function onEmbedComplete() {
   flex-wrap: wrap;
 }
 .sc-pill {
+  font-family: inherit;
   font-size: 0.66rem;
   font-weight: 700;
   padding: 1px 7px;
@@ -620,6 +624,8 @@ function onEmbedComplete() {
   &--ma { background: color-mix(in srgb, var(--status-success-text) 16%, transparent); color: var(--status-success-text); }
   &--standort { background: var(--hover); color: var(--muted); }
   &--auftrag {
+    border: 0;
+    cursor: pointer;
     background: color-mix(in srgb, var(--action-accent-text) 14%, transparent);
     color: var(--action-accent-text);
     text-decoration: none;
@@ -782,6 +788,8 @@ function onEmbedComplete() {
   .sc-link-sub { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
   .sc-link-ext { font-size: 0.65rem; color: var(--muted); flex-shrink: 0; }
 }
+
+button.sc-link-row { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
 
 // ── Timestamps ────────────────────────────────────────────────────────
 .sc-timestamps { display: flex; flex-direction: column; gap: 4px; }

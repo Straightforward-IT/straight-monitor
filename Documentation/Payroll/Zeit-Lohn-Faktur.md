@@ -153,16 +153,23 @@ Sollmengen oder Sollpreise aus AUSWEISLOHN als Berechnungseingaben verwendet.
 Die Vorschau legt keine Ausweisung oder Rechnung in der Datenbank an.
 
 Ein eindeutiger, am Buchungstag gültiger Kundenpreis zur Einsatzqualifikation
-kann fehlende fakturseitige Grundstundenregeln für diese Vorschau ergänzen.
+liefert den fakturseitigen Grundstundenpreis dieser Vorschau. Maßgeblich ist
+`Einsatz.qualSchl`; führende Nullen werden beim Abgleich mit
+`Kundenpreis.qualSchluessel` normalisiert (`00008` entspricht `8`). Der gültige
+Kundenpreis wird auch bei vorhandenen Normalstundenregeln verwendet.
 Diese Grundstunden bleiben ausdrücklich eine Teilbewertung, bis die konkreten
-Auftragskonditionen geprüft sind. Es gibt keinen Vorrang vor vorhandenen
-Auftragsregeln und keinen daraus abgeleiteten Zuschlagssatz. Mehrdeutige Preise
+Auftragskonditionen geprüft sind. Zuschlagsregeln behalten ihre eigenen Sätze;
+aus dem Grundpreis wird kein Zuschlagssatz abgeleitet. Mehrdeutige Preise
 werden nicht ausgewählt. Kundenkonditionsvorlagen sind im eigenen Tab sichtbar.
 
 - **LOHN/FAKTUR** enthält alle Positionen beider Seiten, einschließlich
   Fehlzeiten, Freischichten und offener Bewertungen.
 - **SUMME LOHN** und **SUMME FAKTUR** filtern dieselben Positionen nach Seite
-  und verdichten gleiche Lohnart, Satz, Prozent und Kategorie.
+  und verdichten gleiche Lohnart, Satz, Prozent und Kategorie. Sie zeigen die
+  sechs Spalten Lohnart-Nr., Lohnart-Bezeichnung, Stunden, Preis, Zulage und
+  Betrag. Unterschiedliche Preise bleiben getrennt. ÜTZ verwendet den gültigen
+  Mitarbeitersatz; Grundbeträge entsprechen Stunden × Preis. Die Summen addieren
+  die bereits je Position auf Cent gerundeten Beträge.
 - **FEHLZEITEN** enthält ausschließlich nichtproduktive Einträge und
   Tageskennzeichnungen. Durchschnittsbeträge bleiben offen.
 - Die weiteren Summenansichten verdichten dieselben Daten, bei A./E. zusätzlich

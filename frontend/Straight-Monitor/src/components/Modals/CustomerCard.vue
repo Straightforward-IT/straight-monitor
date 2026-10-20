@@ -1014,7 +1014,7 @@
 
 <script setup>
 import { computed, ref, nextTick, watch, onMounted, onBeforeUnmount, useId } from 'vue';
-import { useRouter } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { useCurrentDockedModal } from '@bleck-it/vue-modal-dock';
 import { useAuth } from '@/stores/auth';
 import { useTheme } from '@/stores/theme';
@@ -1794,7 +1794,7 @@ watch(activeTab, (tab) => {
 }, { immediate: true });
 
 const dataCache = useDataCache();
-const router = useRouter();
+const { openAuftrag: openAuftragModal } = useAuftragModals();
 const dockedModal = useCurrentDockedModal();
 const isMinimized = dockedModal?.minimized ?? computed(() => false);
 const isTopmost = dockedModal?.topmost ?? computed(() => true);
@@ -1829,13 +1829,7 @@ async function toggleMaExpand(ma) {
 }
 
 function openAuftrag(einsatz) {
-  const focusDate = einsatz.datumVon
-    ? new Date(einsatz.datumVon).toISOString().slice(0, 10)
-    : undefined;
-  const query = { auftragnr: String(einsatz.auftragNr) };
-  if (focusDate) query.focusDate = focusDate;
-  router.push({ path: '/auftraege', query });
-  emit('close');
+  if (einsatz.auftragNr) openAuftragModal(einsatz.auftragNr);
 }
 
 function formatEinsatzDate(dateStr) {

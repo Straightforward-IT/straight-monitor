@@ -1,6 +1,6 @@
 <template>
-  <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent }">
-      <div class="main-content">
+  <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent, 'auftraege-page--detail-only': isHostedDetail }">
+      <div v-if="!isHostedDetail" class="main-content">
         <Toolbar
           v-if="viewMode === 'calendar'"
           class="calendar-navigation"
@@ -722,11 +722,22 @@
       <AuftragDetailsSidePanel
         v-model="hasSelectedEvent"
         :event="selectedEvent"
+        :auftrag-nr="hostedAuftragNr"
+        :presentation="isHostedDetail ? 'modal' : 'panel'"
+        :minimizable="detailMinimizable"
+        :minimize-id="detailMinimizeId"
         :format-range="formatDateRange"
         :status-class="getEventStatusClass"
         :status-text="getStatusText"
         @actions="toggleQuickActionsMenu"
+        @undock="undockSelectedOrder"
       >
+        <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
+        <div v-else-if="detailError" class="order-detail-error" role="alert">
+          <p>{{ detailError }}</p>
+          <AppButton variant="secondary" size="sm" @click="loadHostedOrder">Erneut laden</AppButton>
+        </div>
+        <template v-if="selectedEvent">
 
         <!-- Compact Info Grid -->
         <div class="info-grid">
@@ -1040,6 +1051,18 @@
         <div v-else class="no-einsaetze">
           <font-awesome-icon icon="fa-solid fa-calendar-xmark" />
           <span>Keine Schichten/Einsätze vorhanden</span>
+          <AppButton
+            variant="secondary"
+            size="sm"
+            :loading="detailReloading"
+            :disabled="detailReloading"
+            @click="reloadSelectedEventDetails"
+          >
+            <template #leading>
+              <font-awesome-icon icon="fa-solid fa-rotate-right" />
+            </template>
+            Neu laden
+          </AppButton>
         </div>
 
         <OrderDocumentsPanel
@@ -1069,6 +1092,7 @@
           @delete-document="deleteEinsatzDok"
           @upload="onEinsatzDokUpload"
         />
+        </template>
       </AuftragDetailsSidePanel>
 
       <OrderDocumentUploadDialog
@@ -1139,6 +1163,7 @@
     </div>
 
   <AuftragCalendarSearchDropdown
+    v-if="!isHostedDetail"
     :visible="showSearchDropdown"
     :style="dropdownStyle"
     :results="searchDropdownResults"
@@ -1287,6 +1312,7 @@ import AuftragCalendarSearchDropdown from "@/components/orders/calendar/AuftragC
 import { loadHolidaysForYear } from "@/utils/holidays.js";
 import { buildEventSchichten } from "@/utils/eventSchichten";
 import { getPeriodRange } from "@/utils/orderListPeriods";
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
@@ -1297,8 +1323,11 @@ import docusealPendingIcon from "@/assets/docuseal-pending.webp";
 
 export default {
   name: "AuftragCalendarWorkspace",
-  emits: ["mitarbeiter-drop"],
+  emits: ["mitarbeiter-drop", "close", "order-loaded"],
   props: {
+    hostedAuftragNr: { type: [String, Number], default: null },
+    detailMinimizable: { type: Boolean, default: false },
+    detailMinimizeId: { type: String, default: '' },
     viewMode: {
       type: String,
       default: "calendar",
@@ -1335,6 +1364,7 @@ export default {
     AuftragCalendarSearchDropdown,
   },
   setup() {
+    const { openAuftrag: openAuftragModal } = useAuftragModals();
     const { openExport } = useAdditionalModals();
     const { openDocumentPreview } = useDocumentPreviewModals();
     const { openCustomer } = useCustomerModals();
@@ -1359,6 +1389,7 @@ export default {
     };
 
     return {
+      openAuftragModal,
       openExport,
       openDocumentPreview,
       openCustomer,
@@ -1420,6 +1451,12 @@ export default {
       listReferenceDate: new Date(),
       currentWeekStart: null,
       selectedEvent: null,
+      detailLoading: false,
+      detailReloading: false,
+      detailError: '',
+      detailRevision: 0,
+      detailController: null,
+      detailDisposed: false,
       contextMenu: {
         open: false,
         x: 0,
@@ -1530,12 +1567,18 @@ export default {
     };
   },
   computed: {
+    isHostedDetail() {
+      return this.hostedAuftragNr != null && String(this.hostedAuftragNr).trim() !== '';
+    },
     hasSelectedEvent: {
       get() {
-        return Boolean(this.selectedEvent);
+        return this.isHostedDetail || Boolean(this.selectedEvent);
       },
       set(open) {
-        if (!open) this.selectedEvent = null;
+        if (!open) {
+          if (this.isHostedDetail) this.$emit('close');
+          else this.selectedEvent = null;
+        }
       },
     },
     ...mapState(useAuth, ["user"]),
@@ -1905,11 +1948,16 @@ export default {
     },
   },
   watch: {
+    hostedAuftragNr() {
+      if (this.isHostedDetail) this.loadHostedOrder();
+    },
     viewMode(value) {
+      if (this.isHostedDetail) return;
       this.closeCreateMenu();
       if (value === "list") this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
     },
     currentWeekStart() {
+      if (this.isHostedDetail) return;
       this.$nextTick(() => this.scrollKwToActive("smooth"));
       // Remember the viewed week so a page refresh returns to it.
       try {
@@ -1926,21 +1974,25 @@ export default {
       this.debouncedSearch();
     },
     "$route.query.openPseudo"(value) {
-      if (!value) return;
+      if (this.isHostedDetail || !value) return;
       this.handlePseudoRouteQuery();
     },
     async "$route.query.auftragnr"(auftragNr) {
-      if (!auftragNr) return;
+      if (this.isHostedDetail || !auftragNr) return;
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
-    selectedEvent(event) {
+    selectedEvent(event, previous) {
+      if (this.isHostedDetail && event) this.$emit('order-loaded', event);
+      if (this.isHostedDetail && !event && previous && !this.detailLoading) this.$emit('close');
       // Remember the open sidebar so a page refresh reopens it.
-      try {
-        if (event && event.auftragNr)
-          sessionStorage.setItem("auftraege_selected", String(event.auftragNr));
-        else sessionStorage.removeItem("auftraege_selected");
-      } catch (e) {
-        /* storage unavailable */
+      if (!this.isHostedDetail) {
+        try {
+          if (event && event.auftragNr)
+            sessionStorage.setItem("auftraege_selected", String(event.auftragNr));
+          else sessionStorage.removeItem("auftraege_selected");
+        } catch (e) {
+          /* storage unavailable */
+        }
       }
       if (event && event.auftragNr) {
         this.loadStundenlisteStatus(event.auftragNr);
@@ -2891,21 +2943,59 @@ export default {
       });
     },
     async selectEvent(event) {
+      const revision = ++this.detailRevision;
+      this.detailController?.abort();
+      const controller = new AbortController();
+      this.detailController = controller;
+      this.detailError = '';
+      this.detailLoading = this.isHostedDetail;
+      if (this.isHostedDetail) { this.selectedEvent = null; this.preparedSchichten = []; }
       this.showQuickActions = false;
       this.auftragDocs = [];
       // Load full details including Einsätze
       try {
         const response = await api.get(
-          `/api/auftraege/${event.auftragNr}/details`,
+          `/api/auftraege/${encodeURIComponent(event.auftragNr)}/details`,
+          { signal: controller.signal },
         );
+        if (revision !== this.detailRevision || this.detailDisposed) return;
+        if (!response.data?.auftragNr) throw new Error('Auftragsdetails fehlen.');
         this.selectedEvent = response.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
         this.fetchAuftragDocs(event.auftragNr);
       } catch (error) {
-        console.error("Error loading event details:", error);
-        this.selectedEvent = event; // fallback to basic data
-        this.preparedSchichten = this.calculateSchichten(event);
+        if (revision !== this.detailRevision || controller.signal.aborted || this.detailDisposed) return;
+        if (this.isHostedDetail) this.detailError = error.response?.data?.message || 'Auftragsdetails konnten nicht geladen werden.';
+        else {
+          console.error("Error loading event details:", error);
+          this.selectedEvent = event; // fallback to basic data
+          this.preparedSchichten = this.calculateSchichten(event);
+        }
+      } finally {
+        if (revision === this.detailRevision) this.detailLoading = false;
       }
+    },
+    loadHostedOrder() {
+      return this.selectEvent({ auftragNr: this.hostedAuftragNr });
+    },
+    async reloadSelectedEventDetails() {
+      if (!this.selectedEvent?.auftragNr || this.detailReloading) return;
+      this.detailReloading = true;
+      try {
+        await this.selectEvent(this.selectedEvent);
+      } finally {
+        this.detailReloading = false;
+      }
+    },
+    undockSelectedOrder() {
+      if (!this.selectedEvent || this.isHostedDetail) return;
+      this.openAuftragModal(this.selectedEvent);
+      this.detailRevision++;
+      this.detailController?.abort();
+      this.showQuickActions = false;
+      this.showNeuMenu = false;
+      this.selectedEvent = null;
+      this.preparedSchichten = [];
     },
     openEventEditor() {
       if (!this.selectedEvent) return;
@@ -3960,6 +4050,10 @@ export default {
     this.showNeuMenu = false;
   },
   async mounted() {
+    if (this.isHostedDetail) {
+      await this.loadHostedOrder();
+      return;
+    }
     this.checkMobile();
     window.addEventListener("resize", this.checkMobile);
     document.addEventListener("keydown", this.handleEscapeKey);
@@ -3988,7 +4082,7 @@ export default {
     const queryLocationId =
       locationV2 || this.getLocationIdForExternalId(geschSt);
     if (queryLocationId) {
-      this.setLocationFilter(String(queryLocationId));
+      if (String(this.filters.locationV2) !== String(queryLocationId)) this.setLocationFilter(String(queryLocationId));
       if (!locationV2 && geschSt) {
         const nextQuery = { ...this.$route.query, locationV2: queryLocationId };
         delete nextQuery.geschSt;
@@ -4022,6 +4116,11 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
+    this.detailDisposed = true;
+    this.detailRevision++;
+    this.detailController?.abort();
+    clearTimeout(this.debounceTimer);
+    clearTimeout(this.pseudoSearchTimer);
     window.removeEventListener("resize", this.checkMobile);
     document.removeEventListener("keydown", this.handleEscapeKey);
     document.removeEventListener("click", this.handleDocumentClick);
@@ -4050,6 +4149,8 @@ export default {
   border-color: color-mix(in srgb, var(--location-color) 45%, var(--border));
   color: var(--location-color);
 }
+
+.auftraege-page--detail-only { display: contents; }
 
 .auftraege-page :deep(.location-filter-chip.active) {
   background: color-mix(in srgb, var(--location-color) 12%, transparent);
@@ -4412,6 +4513,17 @@ export default {
     margin: 0 auto 8px;
     font-size: 1.5rem;
     opacity: 0.5;
+  }
+}
+
+.no-einsaetze {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+
+  svg {
+    margin: 0;
   }
 }
 

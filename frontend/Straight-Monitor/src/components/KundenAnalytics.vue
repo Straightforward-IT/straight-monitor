@@ -391,7 +391,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { Bar, Pie } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -762,7 +763,7 @@ const todayLinePlugin = {
   }
 };
 
-const router = useRouter();
+const { openAuftrag } = useAuftragModals();
 const route = useRoute();
 const dataCache = useDataCache();
 const theme = useTheme();
@@ -1604,15 +1605,7 @@ function handleDrillChartClick(event) {
   const dataset = drillChartData.value.datasets[datasetIndex];
   if (!dataset?.auftragNr) return;
 
-  // Navigate to AuftraegePage with the order opened
-  const focusDate = dataset.vonDatum || null;
-  router.push({
-    path: '/auftraege',
-    query: {
-      auftragnr: dataset.auftragNr,
-      ...(focusDate ? { focusDate } : {})
-    }
-  });
+  openAuftrag(dataset.auftragNr);
 }
 
 const drillChartOptions = computed(() => {

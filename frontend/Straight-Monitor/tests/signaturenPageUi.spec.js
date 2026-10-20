@@ -15,8 +15,10 @@ const mocks = vi.hoisted(() => ({
   auth: { user: { roles: ['ADMIN'], locationV2: 'hh' } },
   route: { query: {} },
   router: { push: vi.fn(), replace: vi.fn() },
+  openAuftrag: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('vue-router', async importOriginal => ({
   ...(await importOriginal()),
@@ -95,12 +97,18 @@ describe('Signaturen page shared controls', () => {
 
   it('uses labelled shared actions on a signature card without changing expand behavior', async () => {
     wrapper = mount(SignaturCard, {
-      props: { vorgang: { _id: 'sig', name: 'Vertrag', status: 'draft', submitters: [], createdAt: '2026-09-30' } },
+      props: { vorgang: { _id: 'sig', name: 'Vertrag', status: 'draft', submitters: [], createdAt: '2026-09-30', auftragNr: 2510447 } },
       global: { stubs },
     });
+    await wrapper.get('.sc-pill--auftrag').trigger('click');
+    expect(mocks.openAuftrag).toHaveBeenCalledWith(2510447);
+    expect(wrapper.find('.sc-body').exists()).toBe(false);
     const toggle = wrapper.get('button[aria-label="Signaturdetails öffnen"]');
     await toggle.trigger('click');
     expect(wrapper.get('button[aria-label="Signaturdetails schließen"]').attributes('aria-expanded')).toBe('true');
+    await wrapper.get('.sc-links button.sc-link-row').trigger('click');
+    expect(mocks.openAuftrag).toHaveBeenCalledTimes(2);
+    expect(mocks.router.push).not.toHaveBeenCalled();
     expect(wrapper.get('.sc-actions').text()).toContain('Bearbeiten');
     expect(wrapper.get('.sc-actions').text()).toContain('Stornieren');
     await wrapper.get('.sc-actions button').trigger('click');

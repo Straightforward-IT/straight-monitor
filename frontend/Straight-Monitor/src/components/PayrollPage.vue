@@ -13,16 +13,15 @@
           </ToolbarGroup>
           <template #bottom-actions><CalendarControls v-model="monthDate" type="month" /></template>
         </Toolbar>
-        <p v-if="!employeeId" class="payroll-page__notice">Wähle einen Mitarbeiter, um seine importierten Zvoove-Stunden für den Monat anzuzeigen.</p>
+        <p v-if="!employeeId" class="payroll-page__notice">Wähle einen Mitarbeiter, um seine Zvoove-Stunden und geplanten Schichten für den Monat anzuzeigen.</p>
         <template v-else>
           <EmployeeCard :key="employeeId" :mitarbeiter-id="employeeId" :enable-header-context-menu="true" class="payroll-page__employee-card" />
           <p v-if="error" role="alert">{{ error }}</p>
           <template v-if="data">
-            <p class="payroll-page__notice">{{ data.sourceMode === 'TIME_BOOKINGS' ? 'Zvoove-Zeitbuchungen · Arbeits- und Pausenzeiten' : 'Zvoove-Import · Schreibgeschützte Monatsstunden' }}</p>
             <ul v-if="data.issues?.length" class="payroll-page__issues" aria-label="Hinweise zum importierten Datenstand"><li v-for="(issue, index) in data.issues" :key="`${issue.code}:${index}`">{{ issue.message }}</li></ul>
             <p v-if="!data.entries.length" class="payroll-page__notice">Für diesen Mitarbeiter und Monat liegen noch keine importierten Zvoove-Stunden vor.</p>
           </template>
-          <ZvooveTimeWorkspace v-show="!error" :key="employeeId" :employee="workspaceEmployee" :month="month" :entries="data?.entries || []" :totals="data?.totals" :loading="loading" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" :positions="positionData" :positions-loading="positionsLoading" :positions-error="positionsError" :positions-access="canViewPositions" @select-day="openDayDetails" @clear-day="clearDay" />
+          <ZvooveTimeWorkspace v-show="!error" :key="employeeId" :employee="workspaceEmployee" :month="month" :entries="data?.entries || []" :planned-entries="data?.plannedEntries || []" :totals="data?.totals" :loading="loading" :selected-date="selectedDay" :contingent-data="contingentData" :contingent-loading="contingentLoading" :positions="positionData" :positions-loading="positionsLoading" :positions-error="positionsError" :positions-access="canViewPositions" @select-day="openDayDetails" @clear-day="clearDay" />
         </template>
       </div>
       <SidePanelFrame v-model="detailsOpen" class="payroll-page__day-panel" width="clamp(360px, 32vw, 480px)" :title="selectedDayLabel" :subtitle="data?.employee?.name || ''" :close-on-escape="false" @close="focusSelectedDay">
@@ -79,7 +78,7 @@ const selectedEmployeeId = computed({ get: () => employeeId.value || null, set: 
 const selectedEmployee = computed(() => data.value?.employee && String(data.value.employee.id) === employeeId.value
   ? { _id: data.value.employee.id, personalnr: data.value.employee.personalNr, vorname: data.value.employee.name, nachname: '' } : null);
 const workspaceEmployee = computed(() => data.value?.employee || { id: employeeId.value });
-const selectedDayEntries = computed(() => (data.value?.entries || []).filter(entry => entry.date === selectedDay.value));
+const selectedDayEntries = computed(() => [...(data.value?.entries || []), ...(data.value?.plannedEntries || [])].filter(entry => entry.date === selectedDay.value));
 const selectedDayLabel = computed(() => selectedDay.value
   ? new Date(`${selectedDay.value}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Tagesdetails');
 function openDayDetails(date) { if (!loading.value && !error.value) { selectedDay.value = date; detailsOpen.value = true; } }

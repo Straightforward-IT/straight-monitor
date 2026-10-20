@@ -1763,6 +1763,7 @@ import HoverDataCard from "./ui-elements/HoverDataCard.vue";
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 import { personGroupForMonth, currentPayrollMonth } from '@/utils/employeePayrollMasterData';
 import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import AppButton from "./ui-elements/AppButton.vue";
 import AppIconButton from "./ui-elements/AppIconButton.vue";
 import AppTextInput from "./ui-elements/AppTextInput.vue";
@@ -1823,6 +1824,7 @@ export default {
     const router = useRouter();
     const { openDocument: openDocumentModal } = useDocumentModals();
     const { openTimeCapture } = useTimeCaptureModals();
+    const { openAuftrag } = useAuftragModals();
     const signaturModal = useSignaturModal();
     const { openEmployeeEdit } = useAdditionalModals();
 
@@ -1964,6 +1966,7 @@ export default {
       flip,
       openDocumentModal,
       openTimeCapture,
+      openAuftrag,
       signaturModal,
       openEmployeeEdit,
     };
@@ -3115,13 +3118,7 @@ export default {
     },
     openCalEinsatz(e) {
       if (!e.auftragNr) return;
-      const focusDate = e.datumVon
-        ? new Date(e.datumVon).toISOString().slice(0, 10)
-        : undefined;
-      this.$router.push({
-        path: '/auftraege',
-        query: { auftragnr: String(e.auftragNr), ...(focusDate ? { focusDate } : {}) },
-      });
+      this.openAuftrag(e.auftragNr);
     },
 
     async loadEinsatzContext() {

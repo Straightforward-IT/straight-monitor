@@ -61,7 +61,7 @@
           <div v-if="doc.details?.auftragnummer">
             <dt>Auftrag</dt>
             <dd>
-              <AppButton class="link-btn" size="sm" variant="ghost" @click="goToAuftrag" title="Auftrag in Aufträge-Ansicht öffnen">
+              <AppButton class="link-btn" size="sm" variant="ghost" @click="goToAuftrag" title="Auftrag öffnen">
                 {{ auftragTitel || '#' + doc.details.auftragnummer }}
               </AppButton>
             </dd>
@@ -488,6 +488,7 @@ import { useAuth } from "@/stores/auth";
 import { useDataCache } from "@/stores/dataCache";
 import { useCustomerModals } from "@/composables/useCustomerModals";
 import { useDocumentPreviewModals } from "@/composables/useDocumentPreviewModals";
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import api from "@/utils/api";
 import logger from "@/utils/logger";
 import asanaLogo from "@/assets/asana.png";
@@ -585,6 +586,7 @@ export default {
     const dataCache = useDataCache();
     const dockedModal = useCurrentDockedModal();
     const { openCustomer } = useCustomerModals();
+    const { openAuftrag } = useAuftragModals();
     const { openDocumentPreview } = useDocumentPreviewModals();
     const isMinimized = dockedModal?.minimized ?? computed(() => false);
     const isTopmost = dockedModal?.topmost ?? computed(() => true);
@@ -638,6 +640,7 @@ export default {
       isMinimized,
       isTopmost,
       openCustomer,
+      openAuftrag,
       openDocumentPreview,
     };
   },
@@ -957,9 +960,7 @@ export default {
     goToAuftrag() {
       const nr = this.doc.details?.auftragnummer;
       if (!nr) return;
-      const query = { auftragnr: String(nr) };
-      if (this.doc.datum) query.focusDate = new Date(this.doc.datum).toISOString().slice(0, 10);
-      this.$router.push({ path: '/auftraege', query });
+      this.openAuftrag(nr);
     },
 
     async goToKunde() {

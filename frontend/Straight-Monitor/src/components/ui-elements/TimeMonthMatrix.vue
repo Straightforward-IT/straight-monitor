@@ -89,7 +89,18 @@
                         <span class="tm-entry__imported-code">{{ importedEntryCode(entry) }}</span>
                         <strong>{{ formatImportedHours(entry.hours, 2) }}</strong>
                       </button>
-                      <span v-if="!entriesByDate[week.days[weekdayIndex].date]?.length" class="tmx-imported-empty">—</span>
+                      <button
+                        v-for="entry in plannedByDate[week.days[weekdayIndex].date] || []"
+                        :key="entry.id"
+                        type="button"
+                        class="tm-entry tm-entry--imported tm-entry--planned"
+                        :title="`${entry.label} · Auftrag ${entry.auftragNr} · ${entry.plannedStart || 'Offen'}–${entry.plannedEnd || 'Offen'} · geplant`"
+                        :aria-label="`${week.days[weekdayIndex].day}. ${monthLabel} · Geplante Schicht · ${entry.label} · Auftrag ${entry.auftragNr} · ${entry.hours == null ? 'Stunden offen' : `${formatImportedHours(entry.hours, 2)} Stunden`} · Tagesdetails anzeigen`"
+                        @click="emit('selectDay', entry.date)"
+                      >
+                        <span class="tm-entry__imported-code">PL</span><strong>{{ formatImportedHours(entry.hours, 2) }}</strong>
+                      </button>
+                      <span v-if="!entriesByDate[week.days[weekdayIndex].date]?.length && !plannedByDate[week.days[weekdayIndex].date]?.length" class="tmx-imported-empty">—</span>
                     </div>
                     <template v-else>
                     <div
@@ -168,6 +179,7 @@
     <footer class="tmx-legend">
       <template v-if="imported">
         <span><i class="tmx-color--productive" />P Produktive Stunden (KB leer)</span><span><i class="tmx-color--sick" />KB Fehlzeit</span><span><i class="tmx-color--marker" />FS Tageskennzeichnung</span><span><i class="tmx-color--unresolved" />Zuordnung offen</span>
+        <span><i class="tmx-color--planned" />PL Geplante Schicht · ohne Anrechnung</span>
       </template>
       <template v-else>
         <span><i class="tmx-color--productive" />P Produktiv</span><span><i class="tmx-color--vacation" />U Urlaub</span><span><i class="tmx-color--sick" />K Krank</span><span><i class="tmx-color--correction" />M Korrektur</span><span><i class="tmx-color--planned" />PL Geplant</span>
@@ -181,7 +193,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { formatMinutes, monthWeeks, TIME_ENTRY_TYPES } from '@/utils/timeManagement';
 import { formatImportedHours, importedEntryCode, sumImportedHours } from '@/utils/importedHours';
-const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 }, readonly: Boolean, imported: Boolean });
+const props = defineProps({ month: { type: String, required: true }, entries: { type: Array, required: true }, plannedEntries: { type: Array, default: () => [] }, selectedDate: { type: String, default: '' }, held: { type: Number, default: 0 }, readonly: Boolean, imported: Boolean });
 const emit = defineEmits(['selectDay', 'selectWeek', 'changeType', 'openCapture']);
 function onHoursClick(event, entry) {
   if (!entry.locked) return;
@@ -198,6 +210,11 @@ const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocal
 const entriesByDate = computed(() => {
   const grouped = {};
   for (const entry of props.entries) (grouped[entry.date] ||= []).push(entry);
+  return grouped;
+});
+const plannedByDate = computed(() => {
+  const grouped = {};
+  for (const entry of props.plannedEntries) (grouped[entry.date] ||= []).push(entry);
   return grouped;
 });
 const activeTypeEntry = computed(() => props.entries.find(entry => entry.id === typeMenuId.value) || null);
@@ -289,6 +306,7 @@ onBeforeUnmount(() => {
 .tm-entry--sick, .tm-entry--absence { --entry-color: #a997d0; }
 .tm-entry--correction { --entry-color: #70b4af; }
 .tm-entry--planned { --entry-color: var(--primary); border-style: dashed; opacity: .75; cursor: default; }
+.tm-entry--imported.tm-entry--planned { cursor: pointer; opacity: 1; }
 .tm-entry--locked { opacity: 1; cursor: pointer; }
 .tm-entry--locked .tm-entry__hours { color: var(--primary); }
 .tm-entry--locked .tm-entry__hours:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }

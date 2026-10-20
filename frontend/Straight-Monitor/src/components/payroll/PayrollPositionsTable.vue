@@ -1,14 +1,16 @@
 <template>
-  <div class="payroll-positions">
+  <div class="payroll-positions" :class="{ 'payroll-positions--summary': summary }">
     <div v-if="rows.length" class="payroll-positions__scroll" tabindex="0" aria-label="Berechnete Lohn- und Fakturpositionen, horizontal scrollbar">
       <table>
-        <thead><tr><th>Auftrag</th><th>Einsatzort</th><th>Nr.</th><th>Lohnarten-Bezeichnung</th><th>Tage</th><th>Stunden</th><th>Preis €</th><th>Zulage %</th><th>Betrag €</th><th>Verw.</th><th>Projekt / Job</th><th>Verrechnung / Hinweis</th></tr></thead>
+        <thead><tr><th v-if="!summary">Auftrag</th><th v-if="!summary">Einsatzort</th><th>{{ summary ? 'Lohnart-Nr.' : 'Nr.' }}</th><th>Lohnart-Bezeichnung</th><th v-if="!summary">Tage</th><th>Stunden</th><th>Preis €</th><th>Zulage %</th><th>Betrag €</th><th v-if="!summary">Verw.</th><th v-if="!summary">Projekt / Job</th><th v-if="!summary">Verrechnung / Hinweis</th></tr></thead>
         <tbody><tr v-for="row in rows" :key="row.id" :class="row.side === 'L' ? 'payroll-positions__wage' : 'payroll-positions__invoice'" :data-side="row.side" :data-wage-type="row.wageType || row.kb">
-          <td>{{ row.auftragNr ?? '—' }}</td><td>{{ row.site || row.einsortNr || '—' }}</td><td>{{ row.wageType || row.kb || '—' }}</td>
+          <td v-if="!summary"><button v-if="row.auftragNr" type="button" class="payroll-positions__link" :aria-label="`Auftrag ${row.auftragNr} öffnen`" @click="openAuftrag(row.auftragNr)">{{ row.auftragNr }}</button><template v-else>—</template></td>
+          <td v-if="!summary">{{ row.site || row.einsortNr || '—' }}</td>
+          <td><button v-if="row.wageType" type="button" class="payroll-positions__link" :aria-label="`Lohnart ${row.wageType} öffnen`" @click="openLohnart(row.wageType)">{{ row.wageType }}</button><template v-else>{{ row.kb || '—' }}</template></td>
           <td class="payroll-positions__name">{{ row.label }}<span v-if="row.countForTotalHours === true" class="payroll-positions__flag" title="Diese Lohnart zählt für Gesamtstunden">Gesamtstunden</span></td>
-          <td class="number">{{ row.days }}</td><td class="number">{{ formatPositionHours(row) }}</td><td class="number">{{ formatPositionValue(row.rate) }}</td><td class="number">{{ formatPositionValue(row.percent) }}</td><td class="number">{{ formatPositionValue(row.amount) }}</td>
-          <td><abbr :title="row.side === 'L' ? 'Lohnseite' : 'Fakturseite'">{{ row.side }}</abbr></td><td>{{ row.project || row.activity || '—' }}</td>
-          <td class="payroll-positions__note"><span v-if="row.offset?.code && row.offset.code !== '0'">{{ row.offset.label || row.offset.code }}<template v-if="row.offset.target"> → {{ row.offset.target }}</template><template v-if="row.offset.priority"> · Priorität {{ row.offset.priority }}</template>. </span><span>{{ row.status === 'CALCULATED' ? 'Berechnet' : row.amount == null ? 'Berechnung offen' : 'Teilbewertung' }}</span><ul v-if="row.issues?.length"><li v-for="(issue, index) in row.issues" :key="index">{{ issue.message }}</li></ul></td>
+          <td v-if="!summary" class="number">{{ row.days }}</td><td class="number">{{ formatPositionHours(row) }}</td><td class="number">{{ formatPositionValue(row.rate) }}</td><td class="number">{{ formatPositionValue(row.percent) }}</td><td class="number">{{ formatPositionValue(row.amount) }}</td>
+          <td v-if="!summary"><abbr :title="row.side === 'L' ? 'Lohnseite' : 'Fakturseite'">{{ row.side }}</abbr></td><td v-if="!summary">{{ row.project || row.activity || '—' }}</td>
+          <td v-if="!summary" class="payroll-positions__note"><span v-if="row.offset?.code && row.offset.code !== '0'">{{ row.offset.label || row.offset.code }}<template v-if="row.offset.target"> → {{ row.offset.target }}</template><template v-if="row.offset.priority"> · Priorität {{ row.offset.priority }}</template>. </span><span>{{ row.status === 'CALCULATED' ? 'Berechnet' : row.amount == null ? 'Berechnung offen' : 'Teilbewertung' }}</span><ul v-if="row.issues?.length"><li v-for="(issue, index) in row.issues" :key="index">{{ issue.message }}</li></ul></td>
         </tr></tbody>
       </table>
     </div>
@@ -24,16 +26,24 @@
 <script setup>
 import { computed } from 'vue';
 import { formatPositionHours, formatPositionValue, summarizePositions } from '@/utils/payrollPositions';
-const props = defineProps({ rows: { type: Array, default: () => [] } });
+import { useAuftragModals } from '@/composables/useAuftragModals';
+import { useLohnartModals } from '@/composables/useLohnartModals';
+const props = defineProps({ rows: { type: Array, default: () => [] }, summary: Boolean });
+const { openAuftrag } = useAuftragModals();
+const { openLohnart } = useLohnartModals();
 const summaries = computed(() => summarizePositions(props.rows));
 </script>
 <style scoped>
 .payroll-positions { min-width: 0; }
 .payroll-positions__scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
 .payroll-positions table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: 11px; }
+.payroll-positions--summary table { min-width: 520px; }
+.payroll-positions--summary .payroll-positions__name { min-width: 0; }
 .payroll-positions th { background: var(--hover); color: var(--muted); font-weight: 600; text-align: left; white-space: nowrap; }
 .payroll-positions th, .payroll-positions td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .payroll-positions .number { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.payroll-positions__link { border: 0; padding: 0; background: transparent; color: var(--primary); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.payroll-positions__link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 .payroll-positions__wage { background: var(--payroll-wage-bg); color: var(--text); }
 .payroll-positions__invoice { background: var(--payroll-invoice-bg); color: var(--text); }
 .payroll-positions__wage > td:first-child { box-shadow: inset 3px 0 var(--payroll-wage-accent); }

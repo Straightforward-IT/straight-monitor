@@ -1667,7 +1667,8 @@ const vSetText = {
     el.innerText = binding.value || '';
   },
 };
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import api from '@/utils/api';
 import { personGroupForMonth } from '@/utils/employeePayrollMasterData';
 import { useAuth } from '@/stores/auth';
@@ -1713,7 +1714,7 @@ const dataCache = useDataCache();
 const flip = useFlipAll();
 const comments = useComments();
 const ui = useUi();
-const router = useRouter();
+const { openAuftrag } = useAuftragModals();
 const route = useRoute();
 const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
 
@@ -3899,16 +3900,7 @@ function closeCtxMenu() {
 
 function openEinsatz(entry) {
   closeCtxMenu();
-  const focusDate = entry.datumVon
-    ? new Date(entry.datumVon).toISOString().slice(0, 10)
-    : ctxMenu.day || undefined;
-  router.push({
-    name: 'Auftraege',
-    query: {
-      auftragnr: String(entry.auftragNr),
-      ...(focusDate ? { focusDate } : {}),
-    },
-  });
+  if (entry.auftragNr) openAuftrag(entry.auftragNr);
 }
 
 function onCellMouseDown(ma, day, event) {

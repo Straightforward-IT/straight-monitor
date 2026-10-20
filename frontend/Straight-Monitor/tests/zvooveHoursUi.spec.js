@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TimeMonthMatrix from '@/components/ui-elements/TimeMonthMatrix.vue';
 import ZvooveDayDetails from '@/components/payroll/ZvooveDayDetails.vue';
@@ -6,6 +6,8 @@ import ZvooveTimeWorkspace from '@/components/payroll/ZvooveTimeWorkspace.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import { buildPayrollHoursOverview } from '@/utils/payrollHoursOverview';
 import { formatImportedHours, sumImportedHours } from '@/utils/importedHours';
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: vi.fn() }) }));
+vi.mock('@/composables/useLohnartModals', () => ({ useLohnartModals: () => ({ openLohnart: vi.fn() }) }));
 
 let wrapper;
 afterEach(() => { wrapper?.unmount(); wrapper = null; localStorage.clear(); });
@@ -58,6 +60,24 @@ describe('Imported Zvoove hour presentation', () => {
     expect(wrapper.text()).toContain('Tabelle1 / 22');
     expect(wrapper.text()).toContain('T1 / KZ1');
     expect(wrapper.find('input').exists()).toBe(false);
+  });
+
+  it('displays planning beside recorded hours without adding it to imported week totals or provenance', async () => {
+    const planned = { id: 'planned:1', einsatzId: '1', date: '2026-03-02', kind: 'planned', credited: false, auftragNr: 2510476, label: 'Abendschicht', hours: '8', plannedStart: '22:00', plannedEnd: '06:00' };
+    wrapper = mount(TimeMonthMatrix, { props: { month: '2026-03', entries, plannedEntries: [planned, { ...planned, id: 'planned:2', date: '2026-03-06', hours: null }], imported: true, readonly: true } });
+    const day = wrapper.get('[data-day="2026-03-02"]');
+    expect(day.findAll('.tm-entry')).toHaveLength(2);
+    expect(day.get('.tm-entry--productive').text()).toBe('P6,12');
+    expect(day.get('.tm-entry--planned').text()).toBe('PL8,00');
+    expect(wrapper.findAll('.tmx-week')[1].text()).toContain('Std. 10,17');
+    expect(wrapper.get('[data-day="2026-03-06"] .tm-entry--planned').text()).toBe('PL—');
+    expect(wrapper.find('[data-day="2026-03-06"] .tmx-imported-empty').exists()).toBe(false);
+    await day.get('.tm-entry--planned').trigger('click'); expect(wrapper.emitted('selectDay')).toEqual([['2026-03-02']]);
+    wrapper.unmount();
+    wrapper = mount(ZvooveDayDetails, { props: { entries: [planned] } });
+    expect(wrapper.text()).toContain('Geplante Schicht'); expect(wrapper.text()).toContain('22:00–06:00');
+    expect(wrapper.get('[aria-label="Auftrag 2510476 öffnen"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toMatch(/Gebuchte Arbeitszeit|Quellwert|Tabellenblatt|Zvoove/);
   });
 
   it('moves the imported total and breakdown into the information card and retains visibility controls', async () => {

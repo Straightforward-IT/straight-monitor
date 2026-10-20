@@ -92,6 +92,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -296,6 +297,7 @@ const props = defineProps({
 const emit = defineEmits(['navigate']);
 
 const router = useRouter();
+const { openAuftrag } = useAuftragModals();
 const theme = useTheme();
 
 // --- State ---
@@ -668,13 +670,7 @@ function handleDrillChartClick(event) {
   const dataset = drillChartData.value.datasets[datasetIndex];
   if (!dataset?.auftragNr) return;
 
-  router.push({
-    path: '/auftraege',
-    query: {
-      auftragnr: dataset.auftragNr,
-      ...(dataset.vonDatum ? { focusDate: dataset.vonDatum } : {})
-    }
-  });
+  openAuftrag(dataset.auftragNr);
 }
 
 const drillChartOptions = computed(() => {

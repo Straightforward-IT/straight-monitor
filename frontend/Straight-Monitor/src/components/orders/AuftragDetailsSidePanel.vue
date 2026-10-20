@@ -2,7 +2,12 @@
   <SidePanelFrame
     :model-value="modelValue"
     class="detail-sidebar"
-    :title="event?.eventTitel || 'Auftrag Details'"
+    :class="{ 'auftrag-details-modal': presentation === 'modal' }"
+    :title="event?.eventTitel || (auftragNr ? `Auftrag #${auftragNr}` : 'Auftrag Details')"
+    :presentation="presentation"
+    :modal-minimizable="minimizable"
+    :minimize-id="minimizeId"
+    modal-size="lg"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template
@@ -26,9 +31,20 @@
     <template #actions>
       <div class="sidebar-header-actions">
         <AppIconButton
+          v-if="event && presentation === 'panel'"
+          variant="ghost"
+          size="sm"
+          label="Auftrag in Fenster öffnen"
+          title="Abdocken"
+          @click.stop="$emit('undock')"
+        >
+          <font-awesome-icon :icon="faUpRightFromSquare" />
+        </AppIconButton>
+        <AppIconButton
           variant="ghost"
           size="sm"
           :label="`Aktionen für Auftrag ${event?.auftragNr || ''}`.trim()"
+          :disabled="!event"
           @click.stop="$emit('actions', $event)"
         >
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
@@ -36,23 +52,52 @@
       </div>
     </template>
     <slot />
+    <template v-if="calendarTarget" #modal-footer>
+      <RouterLink :to="calendarTarget" class="auftrag-calendar-link" @click="closeForCalendarNavigation">
+        <FontAwesomeIcon :icon="faCalendarDays" />
+        Im Auftragskalender öffnen
+      </RouterLink>
+    </template>
   </SidePanelFrame>
 </template>
 
 <script setup>
+import { computed } from 'vue';
+import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import { faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import SidePanelFrame from "@/components/frames/SidePanelFrame.vue";
 import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   event: { type: Object, default: null },
+  auftragNr: { type: [String, Number], default: null },
+  presentation: { type: String, default: 'panel' },
+  minimizable: { type: Boolean, default: false },
+  minimizeId: { type: String, default: '' },
   formatRange: { type: Function, required: true },
   statusClass: { type: Function, required: true },
   statusText: { type: Function, required: true },
 });
 
-defineEmits(["update:modelValue", "actions"]);
+const emit = defineEmits(["update:modelValue", "actions", "undock"]);
+const calendarTarget = computed(() => {
+  const number = props.event?.auftragNr || props.auftragNr;
+  if (props.presentation !== 'modal' || !number) return null;
+  const date = props.event?.vonDatum ? new Date(props.event.vonDatum) : null;
+  const location = props.event?.locationV2;
+  const locationId = typeof location === 'object' ? location?._id : location;
+  return { path: '/auftraege', query: {
+    tab: 'calendar', auftragnr: String(number),
+    ...(date && !Number.isNaN(date.getTime()) ? { focusDate: date.toISOString().slice(0, 10) } : {}),
+    ...(locationId ? { locationV2: String(locationId) } : {}),
+  } };
+});
+function closeForCalendarNavigation(event) {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  emit('update:modelValue', false);
+}
 </script>
 
 <style scoped lang="scss">
@@ -64,4 +109,7 @@ defineEmits(["update:modelValue", "actions"]);
 .sidebar-status.status-confirmed { background: color-mix(in srgb, var(--status-success-text) 12%, var(--tile-bg)); color: var(--status-success-text); }
 .sidebar-status.status-completed { background: #dbeafe; color: #1e40af; }
 .sidebar-header-actions { display: flex; align-items: center; gap: 4px; }
+.auftrag-details-modal { --surface: var(--panel); --soft: var(--hover); --brand: var(--primary); }
+.auftrag-calendar-link { display: inline-flex; align-items: center; gap: 8px; color: var(--primary); font-size: .875rem; font-weight: 600; text-underline-offset: 3px; }
+.auftrag-calendar-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 3px; }
 </style>

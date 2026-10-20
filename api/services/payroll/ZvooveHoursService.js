@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Lohnart = require('../../models/Payroll/Lohnart');
 const { Week, Snapshot, Import, State } = require('../../models/Payroll/ZvooveHours');
-const { canAccess } = require('../TimeCaptureService');
+const capture = require('../TimeCaptureService');
+const { canAccess } = capture;
 const d = require('../../domain/payroll/zvooveHours');
 
 function objectId(id) { if (!mongoose.isValidObjectId(id)) d.fail('Ungültige ID.'); return id; }
@@ -141,7 +142,14 @@ async function month(user, employeeId, requestedMonth) {
   const employmentLabel = ['Vollzeit', 'Teilzeit', 'Geringfügig beschäftigt', 'Kurzfristig beschäftigt'][employee.arbeitsverhaeltnis?.typ] || '';
   const employeeDoc = new Mitarbeiter(employee);
   const monthlyHours = employeeDoc.getMonthlyWorkingHours ? employeeDoc.getMonthlyWorkingHours(period.slice(0, 4), period.slice(5, 7)) : null;
+  // Keep disposition outside the imported facts and their payroll totals.
+  const planning = await capture.monthView(user, employeeId, period);
+  const bookedAssignments = new Set(entries.map(entry => entry.booking?.assignmentId || entry.orderContext?.assignment?.id).filter(Boolean).map(String));
+  const planned = planning.initialData.entries.filter(entry => entry.kind === 'planned' && !bookedAssignments.has(entry.einsatzId));
+  const plannedContexts = await require('./PayrollOrderContextService').contexts(user, planned.map(entry => ({ ...entry, _id: entry.id, assignmentId: entry.einsatzId })));
+  const plannedEntries = planned.map(entry => ({ ...entry, id: `planned:${entry.id}`, code: 'PL', hours: entry.minutes > 0 ? String(entry.minutes / 60) : null,
+    orderContext: plannedContexts.get(entry.id) || null }));
   return serialize({ employee: { id: String(employee._id), personalNr: employee.personalnr || '', name: [employee.vorname, employee.nachname].filter(Boolean).join(' '), monthlyHours: Number.isFinite(Number(monthlyHours)) ? Number(monthlyHours) : null, employmentLabel },
-    month: period, entries, sourceMode: usesTimeBookings ? 'TIME_BOOKINGS' : 'MONTHLY_IMPORT', monthlyReference: { entries: monthlyReference, hours: d.sumDecimals(monthlyReference.map(entry => entry.hours)), available: !!snapshot, datasetRevision: state?.revision || 0 }, totals: { hours: d.sumDecimals(entries.map(entry => entry.hours)), byCode: [...byCode.values()].map(group => ({ kb: group.kb, label: group.label, hours: d.sumDecimals(group.hours), days: group.dates.size })) }, datasetRevision: usesTimeBookings ? timeState.revision : state?.revision || 0, issues });
+    month: period, entries, plannedEntries, sourceMode: usesTimeBookings ? 'TIME_BOOKINGS' : 'MONTHLY_IMPORT', monthlyReference: { entries: monthlyReference, hours: d.sumDecimals(monthlyReference.map(entry => entry.hours)), available: !!snapshot, datasetRevision: state?.revision || 0 }, totals: { hours: d.sumDecimals(entries.map(entry => entry.hours)), byCode: [...byCode.values()].map(group => ({ kb: group.kb, label: group.label, hours: d.sumDecimals(group.hours), days: group.dates.size })) }, datasetRevision: usesTimeBookings ? timeState.revision : state?.revision || 0, issues });
 }
 module.exports = { preview, imports, getImport, activate, month };

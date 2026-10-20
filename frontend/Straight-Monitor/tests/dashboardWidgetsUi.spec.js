@@ -15,8 +15,10 @@ const mocks = vi.hoisted(() => ({
   },
   cache: { loading: { auftraege: false }, auftraege: [], loadAuftraege: vi.fn() },
   api: { get: vi.fn() },
+  openAuftrag: vi.fn(),
 }));
 vi.mock('@/stores/dashboardPrefs', () => ({ useDashboardPrefs: () => mocks.prefs }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
 vi.mock('@/stores/dataCache', () => ({ useDataCache: () => mocks.cache }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: {} }) }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
@@ -68,6 +70,9 @@ describe('dashboard and widget controls', () => {
   });
 
   it('keeps order date navigation and the location filter with shared controls', async () => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const order = { auftragNr: 2510447, eventTitel: 'Office', vonDatum: today.toISOString(), bisDatum: new Date(today.getTime() + 86400000 - 1).toISOString(), locationV2: 'hamburg', einsaetzeCount: 1 };
+    mocks.cache.auftraege = [order];
     const wrapper = mount(WidgetAuftraege, {
       global: { stubs: { DashboardWidget: widgetStub, 'font-awesome-icon': true, RouterLink: true } },
     });
@@ -78,6 +83,8 @@ describe('dashboard and widget controls', () => {
     expect(select.attributes('aria-label')).toBe('Aufträge nach Standort filtern');
     await select.get('select').setValue('hamburg');
     expect(select.props('modelValue')).toBe('hamburg');
+    await wrapper.get('button[aria-label="Auftrag 2510447 öffnen"]').trigger('click');
+    expect(mocks.openAuftrag).toHaveBeenCalledWith(order);
     await wrapper.get('button[aria-label="Vorheriger Tag"]').trigger('click');
     expect(wrapper.get('.wa-date-label').text()).not.toBe('Heute');
     await wrapper.get('.wa-date-label').trigger('click');

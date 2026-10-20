@@ -204,6 +204,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle, faTimesCircle, faEye, faEyeSlash, faFileLines, faPenClip, faChartColumn } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from './CustomTooltip.vue';
 import { useDocumentModals } from '@/composables/useDocumentModals';
+import { useAuftragModals } from '@/composables/useAuftragModals';
 import { useTheme } from '@/stores/theme';
 import { useAuth } from '@/stores/auth';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -226,6 +227,7 @@ library.add(faChevronRight, faChevronDown, faArrowLeft, faSpinner, faCheckCircle
 const router = useRouter();
 const route = useRoute();
 const { openDocument } = useDocumentModals();
+const { openAuftrag } = useAuftragModals();
 const teamleiterList = ref([]);
 const loading = ref(true);
 const error = ref(null);
@@ -366,12 +368,9 @@ const sortBy = (key) => {
   }
 };
 
-const openOrder = (nr, geschSt, date) => {
+const openOrder = (nr) => {
   if(!nr) return;
-  const query = { auftragnr: nr };
-  if(geschSt) query.geschSt = geschSt;
-  if(date) query.focusDate = date;
-  router.push({ path: '/auftraege', query });
+  openAuftrag(nr);
 };
 
 const openReport = (doc) => {

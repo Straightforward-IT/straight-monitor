@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   get: vi.fn(),
   loadDocuments: vi.fn(),
+  openAuftrag: vi.fn(),
 }));
 
 vi.mock('@bleck-it/vue-modal-dock', () => ({ useCurrentDockedModal: () => null }));
@@ -18,6 +19,8 @@ vi.mock('@/stores/dataCache', () => ({
   }),
 }));
 vi.mock('@/composables/useCustomerModals', () => ({ useCustomerModals: () => ({ openCustomer: vi.fn() }) }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
+vi.mock('@/composables/useDocumentPreviewModals', () => ({ useDocumentPreviewModals: () => ({ openDocumentPreview: vi.fn() }) }));
 vi.mock('@/utils/api', () => ({ default: { post: mocks.post, get: mocks.get } }));
 
 const frameStub = {
@@ -55,6 +58,13 @@ afterEach(() => {
 });
 
 describe('DocumentCard shared modal controls', () => {
+  it('opens its related order in a modal and keeps the document open', async () => {
+    render({ _id: 'doc-order', docType: 'Laufzettel', details: { auftragnummer: '2510447' } });
+    await wrapper.get('button[title="Auftrag öffnen"]').trigger('click');
+    expect(mocks.openAuftrag).toHaveBeenCalledWith('2510447');
+    expect(wrapper.vm.$router.push).not.toHaveBeenCalled();
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
   it('names its frame and renders labelled shared actions', async () => {
     render({ _id: 'doc-1', docType: 'Laufzettel', bezeichnung: 'Probe', details: {} });
     expect(wrapper.get('[role="dialog"]').attributes('aria-labelledby')).toBe('document-title');

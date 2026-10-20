@@ -66,7 +66,7 @@ const dockOptions = useModalDockOptions();
 const dockThemeStyle = computed(() => createModalDockThemeStyle(dockOptions.theme));
 const dockIcons = {
   employee: 'user', customer: 'building', document: 'file-lines', 'document-preview': 'file-lines',
-  event: 'user-tie', package: 'box-open', 'package-editor': 'box-open',
+  event: 'calendar-days', package: 'box-open', 'package-editor': 'box-open',
   'travel-expense': 'signature', signature: 'signature', 'time-capture': 'clock',
   lead: 'bullseye',
 };

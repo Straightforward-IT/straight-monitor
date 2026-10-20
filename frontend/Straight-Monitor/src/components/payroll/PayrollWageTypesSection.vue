@@ -35,11 +35,11 @@
         <template v-else-if="positions">
           <p class="payroll-wage-types__legend"><span class="payroll-wage-types__lohn">L · Lohnseite</span><span class="payroll-wage-types__faktur" v-if="positions.allowedSides?.includes('F')">F · Fakturseite</span><span>Eigene Berechnung · {{ selectedDate ? 'ausgewählter Buchungstag' : 'gesamter Monat' }}</span></p>
           <template v-if="tab.id === 'konditionsvereinbarungen'">
-            <div v-if="positions.conditions?.length" class="payroll-wage-types__scroll"><table><thead><tr><th>Kunde</th><th>Nr.</th><th>Lohnart</th><th>Verw.</th><th>Regel</th><th>Von</th><th>Bis</th><th>Zulage %</th><th>Preis €</th></tr></thead><tbody><tr v-for="condition in positions.conditions" :key="condition.id" :class="condition.side === 'L' ? 'payroll-wage-types__lohn' : 'payroll-wage-types__faktur'"><td>{{ condition.customerNumber }}</td><td>{{ condition.wageType }}</td><td>{{ condition.label }}</td><td>{{ condition.side }}</td><td>{{ condition.type === 'uhrzeit' ? 'Uhrzeit' : condition.type === 'stunden' ? 'Stunden' : 'Offen' }}</td><td>{{ condition.from ?? '—' }}</td><td>{{ condition.until ?? '—' }}</td><td>{{ formatPositionValue(condition.percent) }}</td><td>{{ formatPositionValue(condition.rate) }}</td></tr></tbody></table></div>
+            <div v-if="positions.conditions?.length" class="payroll-wage-types__scroll"><table><thead><tr><th>Kunde</th><th>Nr.</th><th>Lohnart</th><th>Verw.</th><th>Regel</th><th>Von</th><th>Bis</th><th>Zulage %</th><th>Preis €</th></tr></thead><tbody><tr v-for="condition in positions.conditions" :key="condition.id" :class="condition.side === 'L' ? 'payroll-wage-types__lohn' : 'payroll-wage-types__faktur'"><td>{{ condition.customerNumber }}</td><td><button v-if="condition.wageType" type="button" class="payroll-wage-types__link" :aria-label="`Lohnart ${condition.wageType} öffnen`" @click="openLohnart(condition.wageType)">{{ condition.wageType }}</button><template v-else>—</template></td><td>{{ condition.label }}</td><td>{{ condition.side }}</td><td>{{ condition.type === 'uhrzeit' ? 'Uhrzeit' : condition.type === 'stunden' ? 'Stunden' : 'Offen' }}</td><td>{{ condition.from ?? '—' }}</td><td>{{ condition.until ?? '—' }}</td><td>{{ formatPositionValue(condition.percent) }}</td><td>{{ formatPositionValue(condition.rate) }}</td></tr></tbody></table></div>
             <p v-else class="payroll-wage-types__state">Keine Kundenkonditionen für die Aufträge dieses Monats vorhanden.</p>
           </template>
           <p v-else-if="['abzuege-bezuege', 'monatliche-lohnarten'].includes(tab.id)" class="payroll-wage-types__state">Für diesen Bereich ist die eigene Berechnung noch nicht implementiert.</p>
-          <PayrollPositionsTable v-else :rows="visibleRows" />
+          <PayrollPositionsTable v-else :rows="visibleRows" :summary="['summe-lohn', 'summe-faktur'].includes(tab.id)" />
           <details v-if="visibleIssues.length" class="payroll-wage-types__issues"><summary>Offene Punkte ({{ visibleIssues.length }})</summary><ul><li v-for="(issue, index) in visibleIssues" :key="index">{{ issue.side }} · {{ issue.message }}</li></ul></details>
           <p class="payroll-wage-types__state payroll-wage-types__footnote">Gesamtstunden folgen dem Kennzeichen der Lohnart. ÜTZ und Zuschläge zählen dadurch nicht automatisch als weitere Arbeitszeit. Durchschnittsverfahren und offene Verrechnungen sind noch nicht bewertet.</p>
           <details class="payroll-wage-types__issues"><summary>Berechnungsannahmen</summary><p>Cent-Rundung je Position. Zuschlagsfenster beziehen sich auf den tatsächlichen Abschnittstag; gleichzeitig zutreffende Zuschläge werden addiert. Die Tagesauswahl zeigt die gesamte gebuchte Schicht einschließlich ihrer Abschnitte nach Mitternacht. Auftragsregeln liefern die Zuschlagssätze.</p></details>
@@ -56,6 +56,7 @@ import AppTabs from '@/components/ui-elements/AppTabs.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import PayrollPositionsTable from '@/components/payroll/PayrollPositionsTable.vue';
 import { selectPositions, formatPositionValue } from '@/utils/payrollPositions';
+import { useLohnartModals } from '@/composables/useLohnartModals';
 
 const props = defineProps({
   month: { type: String, required: true },
@@ -66,6 +67,7 @@ const props = defineProps({
   hasAccess: Boolean,
 });
 defineEmits(['clearDay']);
+const { openLohnart } = useLohnartModals();
 const tabsId = `payroll-wage-types-${getCurrentInstance().uid}`;
 const activeTab = ref('lohn-faktur');
 const tabs = [
@@ -85,7 +87,10 @@ const monthLabel = computed(() => new Date(`${props.month}-01T12:00:00`).toLocal
 const selectedDateLabel = computed(() => props.selectedDate
   ? new Date(`${props.selectedDate}T12:00:00`).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
 const visibleRows = computed(() => selectPositions(props.positions, activeTab.value, props.selectedDate));
-const visibleIssues = computed(() => [...new Map((props.positions?.issues || []).filter(issue => (!props.selectedDate || issue.date === props.selectedDate) && (activeTab.value !== 'summe-lohn' || issue.side === 'L') && (activeTab.value !== 'summe-faktur' || issue.side === 'F')).map(issue => [`${issue.side}:${issue.message}`, issue])).values()]);
+const visibleIssues = computed(() => [...new Map([
+  ...(props.positions?.issues || []).filter(issue => (!props.selectedDate || issue.date === props.selectedDate) && (activeTab.value !== 'summe-lohn' || issue.side === 'L') && (activeTab.value !== 'summe-faktur' || issue.side === 'F')),
+  ...visibleRows.value.flatMap(row => (row.issues || []).map(issue => ({ ...issue, side: row.side }))),
+].map(issue => [`${issue.side}:${issue.message}`, issue])).values()]);
 </script>
 
 <style scoped>
@@ -107,4 +112,6 @@ const visibleIssues = computed(() => [...new Map((props.positions?.issues || [])
 .payroll-wage-types__scroll { overflow-x: auto; }
 .payroll-wage-types__scroll table { min-width: 700px; width: 100%; border-collapse: collapse; font-size: 11px; }
 .payroll-wage-types__scroll th, .payroll-wage-types__scroll td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.payroll-wage-types__link { border: 0; padding: 0; background: transparent; color: var(--primary); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.payroll-wage-types__link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 2px; }
 </style>

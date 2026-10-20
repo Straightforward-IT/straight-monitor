@@ -11,9 +11,11 @@ const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), patch: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
   updateEmployee: vi.fn(),
   openDocument: vi.fn(),
+  openAuftrag: vi.fn(),
   openEmployeeContingent: vi.fn(),
 }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: mocks.openAuftrag }) }));
 vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { roles: ['ADMIN'] } }) }));
 vi.mock('@/stores/theme', () => ({ useTheme: () => ({ isDark: false }) }));
 vi.mock('@/stores/flipAll', () => ({ useFlipAll: () => ({ enablePhotos: false, ensurePhoto: vi.fn() }) }));
@@ -60,6 +62,12 @@ function render(props = {}) {
 }
 
 describe('EmployeeCard shared shell controls', () => {
+  it('opens calendar assignments in the order modal without closing the employee card', async () => {
+    render(); await flushPromises();
+    wrapper.vm.openCalEinsatz({ auftragNr: 2510447, datumVon: '2026-10-20' });
+    expect(mocks.openAuftrag).toHaveBeenCalledWith(2510447);
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
   it('opens the independent termination modal from both document menus and refreshes storage after saving', async () => {
     render();
     for (const options of [wrapper.vm.contextMenuOptions, wrapper.vm.quickActionsOptions]) {

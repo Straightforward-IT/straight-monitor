@@ -35,7 +35,7 @@ describe('own payroll position preview', function () {
     admin = { _id: oid(), email: 'admin@positions.test', role: 'ADMIN', isConfirmed: true, locationV2: location };
     payroll = { _id: oid(), email: 'payroll@positions.test', role: 'PAYROLL', isConfirmed: true, locationV2: location };
     staff = { _id: oid(), email: 'staff@positions.test', role: 'USER', isConfirmed: true, locationV2: location };
-    assignment = { _id: oid(), personalNr: 100001, auftragNr: 2510476, qualSchl: '10' };
+    assignment = { _id: oid(), personalNr: 100001, auftragNr: 2510476, qualSchl: '00010' };
     await Mitarbeiter.collection.insertOne(employee); await User.collection.insertMany([admin, payroll, staff]); await Einsatz.collection.insertOne(assignment);
     await Auftrag.collection.insertOne({ _id: oid(), auftragNr: 2510476, kundenNr: 42, eventTitel: 'Testauftrag', locationV2: location });
     await Lohnart.create([
@@ -96,15 +96,37 @@ describe('own payroll position preview', function () {
     assert.equal(vacation.hours, '4.05'); assert.equal(vacation.auftragNr, null); assert.equal(vacation.amount, null); assert.equal(vacation.issues[0].code, 'AVERAGE_NOT_IMPLEMENTED');
     assert.equal(result.rows.find(row => row.kb === 'FS').kind, 'marker'); assert.equal(result.rows.filter(row => row.side === 'F' && row.kind !== 'productive').length, 0);
   });
-  it('uses a unique valid qualification price only for base previews and never overrides order prices', async () => {
+  it('uses the valid customer qualification price for base hours even when an order base rule exists', async () => {
     await accounting.Rule.collection.deleteMany({});
     const customer = { _id: oid(), kundenNr: 42 }; await Kunde.collection.insertOne(customer);
     await Kundenpreis.collection.insertOne({ _id: oid(), sourceId: 'price-1', kunde: customer._id, qualSchluessel: 10, validFrom: new Date('2026-01-01'), validTill: null, hourlyRateCents: 3500 });
     const result = await preview(); assert.equal(result.rows.find(row => row.side === 'F').amount, '280.00'); assert.equal(result.rows.find(row => row.side === 'F').status, 'PARTIAL');
-    await baseRule(); assert.equal((await preview()).rows.find(row => row.side === 'F').amount, '264.00');
+    await baseRule(); assert.equal((await preview()).rows.find(row => row.side === 'F').amount, '280.00');
+    await accounting.Rule.collection.updateOne({ wageType: '100' }, { $set: { rate: null } });
+    assert.equal((await preview()).rows.find(row => row.side === 'F').amount, '280.00');
     await accounting.Rule.collection.deleteMany({});
     await Kundenpreis.collection.insertOne({ _id: oid(), sourceId: 'price-2', kunde: customer._id, qualSchluessel: 10, validFrom: new Date('2026-09-01'), validTill: null, hourlyRateCents: 4000 });
     assert.equal((await preview()).rows.find(row => row.side === 'F').amount, null);
+  });
+  it('uses each assignment qualification and historical price without replacing supplement rules', async () => {
+    const customer = { _id: oid(), kundenNr: 42 }; await Kunde.collection.insertOne(customer);
+    const qualification10 = oid(), qualification20 = oid();
+    await Kundenpreis.collection.insertMany([
+      { _id: oid(), sourceId: 'old', kunde: customer._id, qualifikation: qualification10, qualSchluessel: 10, validFrom: new Date('2026-01-01'), validTill: new Date('2026-10-08'), hourlyRateCents: 3000 },
+      { _id: oid(), sourceId: 'current', kunde: customer._id, qualifikation: qualification10, qualSchluessel: 10, validFrom: new Date('2026-10-09'), hourlyRateCents: 3500 },
+      { _id: oid(), sourceId: 'other-qualification', kunde: customer._id, qualifikation: qualification20, qualSchluessel: 20, validFrom: new Date('2026-01-01'), hourlyRateCents: 4000 },
+    ]);
+    const other = { _id: oid(), personalNr: 100001, auftragNr: 2510476, qualSchl: '00020' }; await Einsatz.collection.insertOne(other);
+    await booked({ assignmentId: other._id, date: '2026-10-10', start: '2026-10-10T06:00:00Z', end: '2026-10-10T14:30:00Z' });
+    await booked({ date: '2026-10-08', start: '2026-10-08T06:00:00Z', end: '2026-10-08T14:30:00Z' });
+    await baseRule({ wageType: '166', percent: '25' });
+    const result = await preview();
+    const base = result.rows.filter(row => row.side === 'F' && row.wageType === '100');
+    assert.deepEqual(base.map(row => [row.date, row.rate, row.amount]).sort(), [
+      ['2026-10-08', '30.00', '240.00'], ['2026-10-09', '35.00', '280.00'], ['2026-10-10', '40.00', '320.00'],
+    ]);
+    assert.ok(result.rows.some(row => row.side === 'F' && row.wageType === '166'));
+    assert.ok(result.issues.some(issue => issue.code === 'BREAK_LOCATION_REQUIRED'));
   });
   it('enforces current roles and location permissions without exposing F to PAYROLL', async () => {
     await assert.rejects(() => preview(staff), error => error.statusCode === 403);

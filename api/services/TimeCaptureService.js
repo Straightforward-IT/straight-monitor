@@ -268,7 +268,7 @@ async function monthView(user, employeeId, month) {
   const assignments = await Einsatz.find({ personalNr: { $in: employeeNumbers(employee) }, isPseudo: { $ne: true }, $or: [
     { detailDatumVon: { $gte: new Date(from), $lt: new Date(till) } },
     { detailDatumVon: null, datumVon: { $gte: new Date(from), $lt: new Date(till) } },
-  ] }).select('_id auftragNr schicht detailDatumVon datumVon uhrzeitVon uhrzeitBis').lean();
+  ] }).select('_id auftragNr personalNr schicht idAuftragArbeitsschichten detailDatumVon datumVon uhrzeitVon uhrzeitBis').lean();
   // Access to a complete employee month is governed by the employee's location,
   // while editing an individual order separately requires that order's location.
   const orders = await Auftrag.find({ auftragNr: { $in: [...entries, ...assignments].map(item => item.auftragNr) } }).select('auftragNr eventTitel eventLocation eventOrt locationV2').lean();
@@ -296,6 +296,7 @@ async function monthView(user, employeeId, month) {
       const end = item.uhrzeitBis || shift?.uhrzeitBis;
       return { id: String(item._id), einsatzId: String(item._id), schichtId: item.schicht ? String(item.schicht) : null, auftragNr: item.auftragNr,
         date: (item.detailDatumVon || item.datumVon).toISOString().slice(0, 10), kind: 'planned', code: 'O', credited: false,
+        personalNr: String(item.personalNr), shiftId: item.idAuftragArbeitsschichten || null, plannedStart: start || null, plannedEnd: end || null,
         minutes: scheduledMinutes(start, end), originalMinutes: scheduledMinutes(start, end), locked: true, label: order?.eventTitel || `Auftrag ${item.auftragNr}`,
         location: order?.eventLocation || order?.eventOrt || '', source: 'Ausstehend · Schnellerfassung öffnen', note: start && end ? `${start}–${end} · geplant` : '',
       };

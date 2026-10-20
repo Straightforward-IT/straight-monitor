@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import Section from '@/components/payroll/PayrollWageTypesSection.vue';
 import Table from '@/components/payroll/PayrollPositionsTable.vue';
 import { aggregatePositions, selectPositions, summarizePositions, formatPositionHours } from '@/utils/payrollPositions';
+
+vi.mock('@/composables/useAuftragModals', () => ({ useAuftragModals: () => ({ openAuftrag: vi.fn() }) }));
+vi.mock('@/composables/useLohnartModals', () => ({ useLohnartModals: () => ({ openLohnart: vi.fn() }) }));
 
 const row = extra => ({ id: 'l100', date: '2026-10-09', side: 'L', kind: 'productive', wageType: '100', label: 'Normalstunden', auftragNr: 2510476, days: 1, hours: '8', quantityNumerator: '480', quantityDenominator: '60', rate: '15', percent: null, amount: '120.00', status: 'CALCULATED', countForTotalHours: true, offset: { code: '0' }, issues: [], ...extra });
 const rows = [row(), row({ id: 'l110', wageType: '110', label: 'Übertarifliche Zulage', rate: '1.39', amount: '11.12', countForTotalHours: false, status: 'PARTIAL', offset: { code: '3', label: 'ÜTZ', target: '602', priority: '1' }, issues: [{ code: 'OFFSET', message: 'Verrechnung offen' }] }), row({ id: 'f100', side: 'F', rate: '33', amount: '264.00' }), row({ id: 'vacation', date: '2026-10-08', kind: 'absence', wageType: '310', label: 'Urlaub', hours: '4.05', quantityNumerator: null, quantityDenominator: null, rate: null, amount: null, countForTotalHours: false, status: 'PENDING', issues: [{ code: 'AVERAGE_NOT_IMPLEMENTED', message: 'Durchschnittsverfahren (SP1) noch nicht implementiert.' }] }), row({ id: 'fs', kind: 'marker', wageType: null, kb: 'FS', label: 'Freischicht', hours: null, quantityNumerator: null, quantityDenominator: null, rate: null, amount: null, countForTotalHours: false, status: 'PENDING' })];
@@ -49,6 +52,14 @@ describe('payroll position filters, quantities and presentation', () => {
     wrapper = mount(Section, { props: { month: '2026-10', selectedDate: '2026-10-09', positions: data, hasAccess: true } });
     expect(wrapper.getComponent(Table).props('rows')).toHaveLength(4);
     await tab('summe-lohn').trigger('click'); expect(wrapper.getComponent(Table).props('rows').every(row => row.side === 'L')).toBe(true);
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['Lohnart-Nr.', 'Lohnart-Bezeichnung', 'Stunden', 'Preis €', 'Zulage %', 'Betrag €']);
+    const allowance = wrapper.get('[data-wage-type="110"]');
+    expect(allowance.findAll('td').map(td => td.text())).toEqual(['110', 'Übertarifliche Zulage', '8,00', '1,39', '—', '11,12']);
+    expect(wrapper.text()).toContain('Verrechnung offen');
+    await tab('summe-faktur').trigger('click');
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1);
+    expect(wrapper.get('tbody tr').findAll('td').map(td => td.text())).toEqual(['100', 'NormalstundenGesamtstunden', '8,00', '33,00', '—', '264,00']);
+    await tab('summe-lohn').trigger('click');
     await wrapper.setProps({ selectedDate: '2026-10-08' });
     expect(tab('summe-lohn').attributes('aria-selected')).toBe('true'); expect(wrapper.getComponent(Table).props('rows')[0].wageType).toBe('310');
     await wrapper.findAll('button').find(button => button.text() === 'Monat anzeigen').trigger('click'); expect(wrapper.emitted('clearDay')).toHaveLength(1);

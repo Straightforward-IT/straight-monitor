@@ -8,6 +8,7 @@ import { payrollTabs } from '@/components/layout/pageTabDefinitions';
 
 const mocks = vi.hoisted(() => ({ api: { get: vi.fn() }, route: null, replace: vi.fn() }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
+vi.mock('@/stores/auth', () => ({ useAuth: () => ({ user: { roles: [] } }) }));
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: mocks.replace }) }));
 
 let wrapper;
@@ -48,14 +49,16 @@ describe('Payroll Zvoove month and tariff contingent integration', () => {
     expect(mocks.api.get.mock.calls.filter(([url]) => url.includes('/api/payroll/'))).toHaveLength(2);
   });
 
-  it('opens provenance for a selected imported day without inventing order links', async () => {
+  it('passes planning through the calendar and shows both sources in the selected day', async () => {
     const entry = { id: 'source-1', date: '2026-10-08', hours: '6.123', kb: '', label: 'Produktive Stunden', kind: 'productive', personalNr: 2001113,
       source: { filename: 'Oktober.xlsx', sheet: 'Tabelle1', row: 2, daySlot: 4 } };
-    mocks.api.get.mockImplementation(async url => ({ data: url.includes('/analytics/contingent') ? tariffData : { ...monthData, entries: [entry] } }));
+    const planned = { id: 'planned:2', date: '2026-10-08', kind: 'planned', auftragNr: 2510476, hours: '8' };
+    mocks.api.get.mockImplementation(async url => ({ data: url.includes('/analytics/contingent') ? tariffData : { ...monthData, entries: [entry], plannedEntries: [planned] } }));
     render(); await flushPromises();
     wrapper.getComponent(ZvooveTimeWorkspace).vm.$emit('select-day', '2026-10-08');
     await nextTick();
-    expect(wrapper.getComponent(ZvooveDayDetails).props('entries')).toEqual([entry]);
+    expect(wrapper.getComponent(ZvooveTimeWorkspace).props('plannedEntries')).toEqual([planned]);
+    expect(wrapper.getComponent(ZvooveDayDetails).props('entries')).toEqual([entry, planned]);
     expect(wrapper.getComponent(ZvooveTimeWorkspace).props('selectedDate')).toBe('2026-10-08');
     expect(wrapper.find('[aria-label="Aktionen für diesen Tag"]').exists()).toBe(false);
   });
