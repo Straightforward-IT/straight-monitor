@@ -415,6 +415,69 @@ async function sendBewerberSubmittedEmail({ bewerber, invitation }) {
   await sendMail(recipient, `Bewerberdaten eingereicht: ${bewerber.vorname} ${bewerber.nachname}`, content, bewerber.teamKey);
 }
 
+function buildReisekostenInvitationEmailHtml({ vorname, kundenName, eventTitel, datumText, publicUrl }) {
+  const safeName = escapeHtml(vorname || 'Hallo');
+  const safeEvent = escapeHtml(eventTitel || kundenName || 'deinen Einsatz');
+  const safeKunde = escapeHtml(kundenName || '');
+  const safeDatum = escapeHtml(datumText || '');
+  const safeUrl = escapeHtml(publicUrl);
+
+  return `
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e5e5e5;">
+        <tr>
+          <td style="padding:32px 40px 24px;font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e8730a;">Reisekostenabrechnung</p>
+            <h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;">Reisekosten für deine Schicht einreichen</h1>
+            <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333333;">
+              Hallo ${safeName},<br><br>
+              für deinen Einsatz (<strong>${safeEvent}</strong>${safeKunde && safeKunde !== safeEvent ? ` · ${safeKunde}` : ''}${safeDatum ? ` am ${safeDatum}` : ''}) wurde für dich ein Formular zur Reisekostenabrechnung freigeschaltet.
+            </p>
+            <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#555555;">
+              Über den folgenden Button kannst du deine Auslagen (Tankbeleg Mietwagen, ÖPNV-Ticket oder Kilometer mit eigenem PKW) sowie deine Belege direkt einreichen:
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+              <tr>
+                <td style="background:#e8730a;border-radius:4px;">
+                  <a href="${safeUrl}" style="display:inline-block;padding:14px 28px;background:#e8730a;color:#ffffff;text-decoration:none;font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+                    REISEKOSTEN EINREICHEN
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-size:12px;color:#888888;line-height:1.6;">
+              Falls der Button nicht funktioniert, kopiere diesen Link in deinen Browser:<br>
+              <a href="${safeUrl}" style="color:#1a1a1a;word-break:break-all;">${safeUrl}</a>
+            </p>
+          </td>
+        </tr>
+        <tr><td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #e8e8e8;margin:0;"></td></tr>
+        <tr>
+          <td style="padding:20px 40px 28px;font-family:'Helvetica Neue',Arial,sans-serif;background:#fafafa;">
+            <p style="margin:0 0 4px;font-size:12px;color:#555555;font-weight:700;">H. &amp; P. Straightforward GmbH</p>
+            <p style="margin:0;font-size:11px;color:#999999;">Bitte reiche Originalbelege (insb. Tankbelege) fristgerecht im Büro ein.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+async function sendReisekostenInvitationEmail({ recipientEmail, vorname, kundenName, eventTitel, datumText, publicUrl, senderKey = 'it' }) {
+  const titlePart = eventTitel || kundenName || 'Einsatzfahrt';
+  const subject = `Reisekosten einreichen: ${titlePart}`;
+  const content = buildReisekostenInvitationEmailHtml({ vorname, kundenName, eventTitel, datumText, publicUrl });
+  await sendMail(recipientEmail, subject, content, senderKey);
+}
+
 module.exports = {
   sendMail,
   sendConfirmationEmail,
@@ -425,4 +488,6 @@ module.exports = {
   buildBewerberInvitationEmailHtml,
   sendBewerberInvitationEmail,
   sendBewerberSubmittedEmail,
+  buildReisekostenInvitationEmailHtml,
+  sendReisekostenInvitationEmail,
 };

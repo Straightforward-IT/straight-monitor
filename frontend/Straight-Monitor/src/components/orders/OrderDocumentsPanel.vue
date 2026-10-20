@@ -155,7 +155,7 @@
           Reisekostenabrechnung
         </div>
         <div class="order-document-meta">
-          {{ expenseName(expense) }} · {{ expense.status === 'signature_pending' ? 'Signatur ausstehend' : expense.status === 'completed' ? 'Unterschrieben' : 'Entwurf' }}
+          {{ expenseName(expense) }} · {{ expenseStatusText(expense.status) }}
         </div>
       </div>
       <div class="order-document-actions">
@@ -177,7 +177,7 @@
           <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
         </AppIconButton>
         <AppIconButton
-          v-if="expense.status === 'draft'"
+          v-if="['draft', 'invited', 'submitted'].includes(expense.status)"
           variant="ghost"
           size="sm"
           :label="`Reisekosten für ${expenseName(expense)} bearbeiten`"
@@ -186,7 +186,7 @@
           <font-awesome-icon icon="fa-solid fa-pencil" />
         </AppIconButton>
         <AppButton
-          v-if="expense.status === 'draft' && canSign"
+          v-if="['draft', 'submitted'].includes(expense.status) && canSign"
           variant="outlined"
           size="sm"
           title="Zur Signatur senden"
@@ -307,6 +307,13 @@ const titleId = `order-documents-${getCurrentInstance().uid}`;
 const hoursList = computed(() => props.hoursStatus?.vorgang);
 const completedSigners = computed(() => (hoursList.value?.submitters || []).filter(signer => signer.status === 'completed').length);
 const hoursStatusText = computed(() => ({ open: 'Ausstehend', completed: 'Unterschrieben', draft: 'Entwurf', cancelled: 'Storniert' })[hoursList.value?.status] || hoursList.value?.status);
+const expenseStatusText = (status) => ({
+  draft: 'Entwurf',
+  invited: 'Link an MA gesendet',
+  submitted: 'Eingereicht · Prüfung offen',
+  signature_pending: 'Signatur ausstehend',
+  completed: 'Unterschrieben',
+}[status] || 'Entwurf');
 </script>
 
 <style scoped>

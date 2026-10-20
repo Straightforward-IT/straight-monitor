@@ -190,4 +190,47 @@ describe('ReisekostenModal shared-control migration', () => {
     delete URL.createObjectURL;
     delete URL.revokeObjectURL;
   });
+
+  it('auto-saves and sends an employee public form invitation from step 1', async () => {
+    mocks.api.get.mockResolvedValueOnce({ data: { ...defaults, mitarbeiterEmail: 'ada@example.com' } });
+    mocks.api.post
+      .mockResolvedValueOnce({ data: { data: { _id: 'rk-invite-1', status: 'draft' } } })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            _id: 'rk-invite-1',
+            status: 'invited',
+            invitation: { recipientEmail: 'ada@example.com', sentAt: '2026-10-20T12:00:00.000Z' },
+          },
+          publicUrl: 'https://straightmonitor.com/reisekosten/tok123',
+        },
+      });
+    await render();
+    const sendBtn = button('Formular per Mail senden');
+    expect(sendBtn).toBeTruthy();
+    await sendBtn.trigger('click');
+    await flushPromises();
+    expect(mocks.api.post).toHaveBeenNthCalledWith(1, '/api/reisekosten', expect.objectContaining({ auftragNr: 42, personalNr: 7 }));
+    expect(mocks.api.post).toHaveBeenNthCalledWith(2, '/api/reisekosten/rk-invite-1/send-invite', { email: 'ada@example.com' });
+    expect(dialog().get('.rk-invite-success').text()).toContain('ada@example.com');
+  });
+
+  it('shows the submitted review banner when an employee has submitted the form', async () => {
+    mocks.api.get.mockImplementation(url => url === '/api/reisekosten/rk-sub-1'
+      ? Promise.resolve({
+          data: {
+            data: {
+              ...defaults,
+              personalNr: 7,
+              status: 'submitted',
+              invitation: { category: 'privatpkw' },
+              anlagen: [{ _id: 'a-1', key: 'employees/123/documents/uploads/route.png', filename: 'route.png', contentType: 'image/png' }],
+            },
+          },
+        })
+      : Promise.resolve({ data: defaults }));
+    await render({ docId: 'rk-sub-1' });
+    expect(dialog().get('.rk-review-banner').text()).toContain('Vom Mitarbeiter eingereicht (Privat-PKW)');
+    expect(dialog().get('.rk-beleg-chip').text()).toContain('route.png');
+  });
 });

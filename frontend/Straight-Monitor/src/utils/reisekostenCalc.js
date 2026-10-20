@@ -6,6 +6,7 @@
  */
 
 export const KM_SATZ_DEFAULT_CENT = 30;
+export const KM_SATZ_PRIVAT_PKW_CENT = 36;
 
 function money(n) {
   const v = Number(n);

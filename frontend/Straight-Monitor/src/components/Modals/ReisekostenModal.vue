@@ -39,6 +39,26 @@
         </div>
 
         <div v-else class="dialog__body" :inert="interactionBusy">
+          <!-- Review banner when submitted by employee -->
+          <div v-if="docStatus === 'submitted'" class="rk-review-banner" role="status">
+            <div class="rk-review-banner__main">
+              <strong>Vom Mitarbeiter eingereicht ({{ categoryLabel }}) — Prüfung erforderlich</strong>
+              <span>Bitte prüfe die Angaben, Route/Kilometer und die hochgeladenen Belege vor der Freigabe / Signatur.</span>
+            </div>
+            <div v-if="anlagen.length" class="rk-review-banner__belege">
+              <button
+                v-for="a in anlagen"
+                :key="a._id || a.key"
+                type="button"
+                class="rk-beleg-chip"
+                @click="openAnlagePreview(a)"
+              >
+                <font-awesome-icon :icon="['fas', a.contentType && a.contentType.includes('pdf') ? 'file-pdf' : 'file-image']" />
+                <span>{{ a.filename }}</span>
+              </button>
+            </div>
+          </div>
+
           <!-- ───────── STEP 1: Grunddaten ───────── -->
           <section v-show="currentStep === 0" class="rk-section">
             <div v-if="!isEditing" class="rk-block">
@@ -80,6 +100,36 @@
                 <label>Gesamtdauer (Tage)<AppTextInput v-model.number="form.kopf.tage" type="number" min="0" /></label>
                 <label>Gesamtdauer (Stunden)<AppTextInput v-model="form.kopf.stunden" /></label>
               </div>
+            </div>
+
+            <!-- Freigabe / Public Formular per E-Mail an Mitarbeiter senden -->
+            <div v-if="canSave" class="rk-block rk-invite-box">
+              <div class="section-heading">
+                <h4>Formular an Mitarbeiter auslagern <span>Freigabe per E-Mail-Link für diese Schicht</span></h4>
+                <span v-if="docStatus === 'invited'" class="rk-status-pill rk-status-pill--invited">Link versendet</span>
+                <span v-else-if="docStatus === 'submitted'" class="rk-status-pill rk-status-pill--submitted">Eingereicht</span>
+              </div>
+              <div class="rk-invite-row">
+                <label class="rk-invite-email">
+                  E-Mail-Adresse des Mitarbeiters
+                  <AppTextInput v-model="inviteEmail" type="email" placeholder="mitarbeiter@beispiel.de" />
+                </label>
+                <AppButton
+                  variant="outlined"
+                  size="sm"
+                  class="rk-invite-btn"
+                  :disabled="interactionBusy || !inviteEmail.trim()"
+                  :loading="activeAction === 'invite'"
+                  @click="sendEmployeeInvite"
+                >
+                  <font-awesome-icon :icon="['fas', 'paper-plane']" />
+                  {{ invitationInfo?.sentAt ? 'Link erneut senden' : 'Formular per Mail senden' }}
+                </AppButton>
+              </div>
+              <p v-if="inviteSuccessMsg" class="rk-invite-success" role="status">{{ inviteSuccessMsg }}</p>
+              <p v-else-if="invitationInfo?.sentAt" class="rk-hint">
+                Zuletzt gesendet an {{ invitationInfo.recipientEmail }} am {{ formatDateTime(invitationInfo.sentAt) }}.
+              </p>
             </div>
           </section>
 
@@ -213,7 +263,22 @@
               </div>
               <div v-for="a in anlagen" :key="a.key" class="anlage-row">
                 <font-awesome-icon :icon="['fas', a.contentType && a.contentType.includes('pdf') ? 'file-pdf' : 'file-image']" />
-                <span class="anlage-name">{{ a.filename }}</span>
+                <button
+                  type="button"
+                  class="anlage-name anlage-preview-btn"
+                  :title="`${a.filename} in der Dokumentvorschau öffnen`"
+                  @click="openAnlagePreview(a)"
+                >
+                  {{ a.filename }}
+                </button>
+                <AppIconButton
+                  variant="ghost"
+                  size="sm"
+                  :label="`${a.filename} öffnen`"
+                  @click="openAnlagePreview(a)"
+                >
+                  <font-awesome-icon :icon="['fas', 'eye']" />
+                </AppIconButton>
                 <AppIconButton variant="ghost" size="sm" class="del-btn" :label="`${a.filename} entfernen`" :loading="deletingAnlageKey === a.key" @click="deleteAnlage(a)"><font-awesome-icon :icon="['fas','xmark']" /></AppIconButton>
               </div>
               <AppButton variant="outlined" size="sm" class="anlage-upload" :disabled="interactionBusy" :loading="uploadingAnlage" @click="anlageInput?.click()">
@@ -254,17 +319,20 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink, faPaperPlane } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import api from '@/utils/api';
 import { computeSummen, centToStr, kmGesamtCent, pauschalGesamtCent, eurToCent, centToEur } from '@/utils/reisekostenCalc';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import AddressAutocomplete from '@/components/ui-elements/AddressAutocomplete.vue';
 import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
 
-library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink);
+library.add(faCheck, faSpinner, faXmark, faPlus, faEye, faFloppyDisk, faFileSignature, faUpload, faFilePdf, faFileImage, faArrowLeft, faArrowRight, faLink, faPaperPlane);
+
+const { openDocumentPreview } = useDocumentPreviewModals();
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -294,8 +362,20 @@ const deletingAnlageKey = ref(null);
 const activeAction = ref('');
 const anlageInput = ref(null);
 const serverAddressSuggestions = ref([]);
+const docStatus = ref('draft');
+const invitationInfo = ref(null);
+const inviteEmail = ref('');
+const inviteSuccessMsg = ref('');
 // Local id: starts from prop, set after the first (auto-)save so the doc can be edited/attached to.
 const localDocId = ref(props.docId);
+
+const categoryLabel = computed(() => {
+  const cat = invitationInfo.value?.category;
+  if (cat === 'mietwagen') return 'Tankbeleg Mietwagen';
+  if (cat === 'oeffi') return 'Öffi-Ticket';
+  if (cat === 'privatpkw') return 'Privat-PKW';
+  return 'Mitarbeiter-Formular';
+});
 
 const tagKeys = [
   { key: 'tage24', label: 'Abwesenheit ≥ 24 Std' },
@@ -483,11 +563,24 @@ function applyDefaults(d) {
   form.kilometerpauschale = (d.kilometerpauschale || []).map((r) => ({ bezeichnung: r.bezeichnung || '', start: r.start || '', ziel: r.ziel || '', kilometer: r.kilometer || 0, satzEur: centToEur(r.satzCent) }));
   if (d.ort != null) form.ort = d.ort;
   if (Array.isArray(d.addressSuggestions)) serverAddressSuggestions.value = d.addressSuggestions;
+  if (d.mitarbeiterEmail) {
+    inviteEmail.value = d.mitarbeiterEmail;
+  } else if (d.mitarbeiter?.email) {
+    inviteEmail.value = d.mitarbeiter.email;
+  } else {
+    const selectedEmp = (props.einsaetze || []).find((e) => String(e.personalNr) === String(selectedPersonalNr.value || d.personalNr));
+    if (selectedEmp?.mitarbeiterData?.email) inviteEmail.value = selectedEmp.mitarbeiterData.email;
+  }
 }
 
 function applyExisting(d) {
   form.personalNr = d.personalNr ?? null;
+  docStatus.value = d.status || 'draft';
+  invitationInfo.value = d.invitation || null;
   applyDefaults(d);
+  if (d.invitation?.recipientEmail && !inviteEmail.value) {
+    inviteEmail.value = d.invitation.recipientEmail;
+  }
   form.ort = d.ort || '';
   form.vorschussEur = centToEur(d.vorschussCent);
   const mapBetrag = (r) => ({ bezeichnung: r.bezeichnung || '', betragEur: centToEur(r.betragCent) });
@@ -547,9 +640,64 @@ function resetForm() {
   selectedPersonalNr.value = '';
   anlagen.value = [];
   serverAddressSuggestions.value = [];
+  docStatus.value = 'draft';
+  invitationInfo.value = null;
+  inviteEmail.value = '';
+  inviteSuccessMsg.value = '';
   localDocId.value = props.docId;
   currentStep.value = 0;
   error.value = '';
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return isNaN(d.getTime())
+    ? ''
+    : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+async function sendEmployeeInvite() {
+  if (interactionBusy.value || !canSave.value || !inviteEmail.value.trim()) return;
+  busy.value = true;
+  activeAction.value = 'invite';
+  error.value = '';
+  inviteSuccessMsg.value = '';
+  try {
+    const id = await ensureSaved();
+    if (!id) return;
+    const { data } = await api.post(`/api/reisekosten/${id}/send-invite`, {
+      email: inviteEmail.value.trim(),
+    });
+    if (data.data) {
+      docStatus.value = data.data.status || 'invited';
+      invitationInfo.value = data.data.invitation || null;
+      emit('saved', { doc: data.data, sign: false });
+    }
+    inviteSuccessMsg.value = `Einladungs-E-Mail mit Formular-Link wurde an ${inviteEmail.value.trim()} gesendet.`;
+  } catch (e) {
+    error.value = e.response?.data?.message || 'E-Mail-Einladung konnte nicht gesendet werden.';
+  } finally {
+    busy.value = false;
+    activeAction.value = '';
+  }
+}
+
+function openAnlagePreview(anlage) {
+  if (!localDocId.value || !anlage) return;
+  const anlageId = anlage._id || anlage.key;
+  openDocumentPreview({
+    id: `rk-anlage-${localDocId.value}-${anlageId}`,
+    filename: anlage.filename || 'Beleg',
+    mimeType: anlage.contentType || undefined,
+    resolveUrl: async ({ download = false, signal } = {}) => {
+      const { data } = await api.get(
+        `/api/reisekosten/${localDocId.value}/anlagen/${encodeURIComponent(String(anlageId))}/url`,
+        { params: download ? { download: 1 } : {}, signal }
+      );
+      return data.url;
+    },
+  });
 }
 
 /** Persist the draft if it doesn't exist yet; returns the doc id (or null on failure). */
@@ -719,8 +867,24 @@ label.mini { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
 .rk-hint { color: var(--muted); font-size: 0.76rem; font-style: italic; margin: 0; }
 .anlage-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; padding: 4px 0; }
 .anlage-row .anlage-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anlage-preview-btn { background: transparent; border: 0; padding: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.anlage-preview-btn:hover { color: var(--action-accent-text); }
 .anlage-row svg { color: var(--action-accent-text); }
 .anlage-upload { border-style: dashed; }
+.rk-invite-box { border: 1px dashed var(--border); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--surface) 92%, var(--primary)); }
+.rk-invite-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.rk-invite-email { flex: 1 1 240px; }
+.rk-invite-btn { flex-shrink: 0; }
+.rk-invite-success { margin: 0; font-size: 0.78rem; color: var(--status-success-text); font-weight: 600; }
+.rk-status-pill { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.rk-status-pill--invited { background: color-mix(in srgb, var(--status-warning) 18%, transparent); color: var(--status-warning-text, var(--text)); }
+.rk-status-pill--submitted { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--action-accent-text); }
+.rk-review-banner { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--primary); border-radius: 8px; background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.rk-review-banner__main { display: grid; gap: 2px; font-size: 0.8rem; }
+.rk-review-banner__main span { color: var(--muted); font-size: 0.75rem; }
+.rk-review-banner__belege { display: flex; flex-wrap: wrap; gap: 6px; }
+.rk-beleg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 0.75rem; cursor: pointer; }
+.rk-beleg-chip:hover { border-color: var(--primary); color: var(--action-accent-text); }
 .rk-summen { border-top: 1px solid var(--border); padding-top: 12px; gap: 6px; }
 .summen-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; }
 .summen-row .mini { display: inline-flex; align-items: center; gap: 4px; }

@@ -10,6 +10,8 @@
 
 /** Default mileage rate in cents per kilometer (0,30 €/km). */
 const KM_SATZ_DEFAULT_CENT = 30;
+/** Private car mileage rate in cents per kilometer for employee self-service (0,36 €/km). */
+const KM_SATZ_PRIVAT_PKW_CENT = 36;
 
 function money(n) {
   const v = Number(n);
@@ -91,6 +93,7 @@ function computeSummen(doc = {}) {
 
 module.exports = {
   KM_SATZ_DEFAULT_CENT,
+  KM_SATZ_PRIVAT_PKW_CENT,
   computeSummen,
   kmGesamtCent,
   pauschalGesamtCent,

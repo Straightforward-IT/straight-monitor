@@ -13,16 +13,22 @@ let previewId = 0;
  * uses R2Service.getSignedDownloadUrl. Keep storage credentials on the server.
  */
 export function useDocumentPreviewModals() {
-  const dockedModals = useDockedModals();
+  let dockedModals = null;
+  try {
+    dockedModals = useDockedModals();
+  } catch (_) {
+    // Allow components to mount in unit tests without the modal dock plugin installed
+  }
 
   function openDocumentPreview(source, options = {}) {
     const document = typeof source === 'string' ? { url: source, ...options } : source;
     if (!document || (!document.url && !document.resolveUrl && !document.loadBlob)) {
       throw new Error('Die Dokumentvorschau benötigt einen Link oder eine Ladefunktion.');
     }
+    const activeDock = dockedModals || useDockedModals();
     const id = `document-preview-${document.id || document.url || ++previewId}`;
     const filename = document.filename || documentFilename(document.url);
-    return dockedModals.open({
+    return activeDock.open({
       id,
       title: filename,
       component: DocumentPreviewModal,
@@ -36,7 +42,7 @@ export function useDocumentPreviewModals() {
         modelValue: true,
         minimizable: options.minimizable ?? true,
         minimizeId: id,
-        'onUpdate:modelValue': open => { if (!open) dockedModals.remove(id); },
+        'onUpdate:modelValue': open => { if (!open) activeDock.remove(id); },
       },
     });
   }

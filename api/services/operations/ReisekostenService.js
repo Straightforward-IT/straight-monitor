@@ -16,6 +16,8 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 
 const Auftrag = require('../../models/Event/Auftrag');
 const Einsatz = require('../../models/Event/Einsatz');
+const Schicht = require('../../models/Event/Schicht');
+const Kunde = require('../../models/Customer/Kunde');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Location = require('../../models/System/Location');
 const logger = require('../../utils/logger');
@@ -125,21 +127,39 @@ class ReisekostenService {
       mitarbeiter = await Mitarbeiter.findOne({
         $or: [{ personalnr: pnr }, { 'personalnrHistory.value': pnr }],
       })
-        .select('vorname nachname personalnr locationV2 adresse adresse2')
+        .select('vorname nachname personalnr email locationV2 adresse adresse2')
         .lean();
     }
 
-    // Einsatz-Zeitraum des konkreten Mitarbeiters, sonst Auftragszeitraum.
+    let kundenName = '';
+    if (auftrag?.kundenNr != null) {
+      const kunde = await Kunde.findOne({ kundenNr: auftrag.kundenNr }).select('kundName kundBez').lean();
+      kundenName = kunde?.kundName || kunde?.kundBez || '';
+    }
+
+    // Einsatz-Zeitraum + Treffpunkt des konkreten Mitarbeiters, sonst Auftragszeitraum.
     let von = auftrag?.vonDatum || null;
     let bis = auftrag?.bisDatum || null;
+    let treffpunktOrt = '';
     if (Number.isFinite(nr) && personalNr != null) {
       const einsaetze = await Einsatz.find({ auftragNr: nr, personalNr: Number(personalNr) })
-        .select('datumVon datumBis')
+        .select('datumVon datumBis treffpunktOrt schicht idAuftragArbeitsschichten')
         .sort({ datumVon: 1 })
         .lean();
       if (einsaetze.length) {
         von = einsaetze[0].datumVon || von;
         bis = einsaetze[einsaetze.length - 1].datumBis || einsaetze[einsaetze.length - 1].datumVon || bis;
+        treffpunktOrt = einsaetze.map((e) => String(e.treffpunktOrt || '').trim()).find(Boolean) || '';
+        if (!treffpunktOrt) {
+          const schichtId = einsaetze.map((e) => e.schicht).find(Boolean);
+          const idSchicht = einsaetze.map((e) => e.idAuftragArbeitsschichten).find((v) => v != null);
+          const schichtDoc = schichtId
+            ? await Schicht.findById(schichtId).select('treffpunktOrt').lean()
+            : (idSchicht != null
+              ? await Schicht.findOne({ auftragNr: nr, idAuftragArbeitsschichten: idSchicht }).select('treffpunktOrt').lean()
+              : null);
+          treffpunktOrt = String(schichtDoc?.treffpunktOrt || '').trim();
+        }
       }
     }
 
@@ -151,6 +171,7 @@ class ReisekostenService {
     const ortLocationId = auftrag?.locationV2 || mitarbeiter?.locationV2 || null;
     let kostenstelle = '';
     let ort = '';
+    let locationAddr = '';
     const addressSuggestions = [];
     const pushAddr = (a) => { const s = String(a || '').trim(); if (s && !addressSuggestions.includes(s)) addressSuggestions.push(s); };
     const fmtLocAddr = (adr) => {
@@ -167,33 +188,45 @@ class ReisekostenService {
       const ol = ortLocationId ? map.get(String(ortLocationId)) : null;
       kostenstelle = kl ? (kl.kostenstelle || kl.externalId || '') : '';
       ort = ol ? (ol.address?.city || '') : '';
+      locationAddr = fmtLocAddr(kl?.address || ol?.address);
       for (const l of locs) pushAddr(fmtLocAddr(l.address));
     }
-    // Event-Adresse des Auftrags als Vorschlag.
-    if (auftrag) {
-      pushAddr(Auftrag.formatEventAddress(auftrag));
+    if (treffpunktOrt) pushAddr(treffpunktOrt);
+    // Event-Adresse des Auftrags als Vorschlag und Standard-Ziel.
+    const eventAddress = auftrag
+      ? (Auftrag.formatEventAddress(auftrag) || [auftrag.eventLocation, auftrag.eventStrasse, [auftrag.eventPlz, auftrag.eventOrt].filter(Boolean).join(' ')].filter(Boolean).join(', '))
+      : '';
+    if (eventAddress) {
+      pushAddr(eventAddress);
     }
     // Mitarbeiter-Adressen (Haupt- + Zweitadresse) als Vorschlag.
+    const fmtMaAddr = (a) => a ? [a.strasse, [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';
+    const maHomeAddress = mitarbeiter ? (fmtMaAddr(mitarbeiter.adresse) || fmtMaAddr(mitarbeiter.adresse2)) : '';
     if (mitarbeiter) {
-      const fmtMaAddr = (a) => a ? [a.strasse, [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';
       pushAddr(fmtMaAddr(mitarbeiter.adresse));
       pushAddr(fmtMaAddr(mitarbeiter.adresse2));
     }
+
+    const defaultStart = treffpunktOrt || maHomeAddress || locationAddr || '';
+    const defaultZiel = eventAddress || '';
 
     return {
       auftragNr: Number.isFinite(nr) ? nr : null,
       personalNr: personalNr != null ? Number(personalNr) : null,
       mitarbeiterId: mitarbeiter?._id || null,
+      mitarbeiterEmail: mitarbeiter?.email || '',
+      kundenName,
+      eventTitel,
       locationV2: locationId,
       kopf: {
         titel: '',
         name: mitarbeiter?.nachname || '',
         vorname: mitarbeiter?.vorname || '',
         firma: FIRMA,
-        zweck: eventTitel ? `Hin- & Rückfahrt Einsatz – ${eventTitel}` : 'Hin- & Rückfahrt Einsatz',
-        reiseziel: '',
-        start: '',
-        ziel: '',
+        zweck: eventTitel ? `Einsatzfahrt – ${eventTitel}` : 'Einsatzfahrt',
+        reiseziel: defaultZiel,
+        start: defaultStart,
+        ziel: defaultZiel,
         reisebeginn: von ? new Date(von).toISOString() : null,
         reiseende: bis ? new Date(bis).toISOString() : null,
         transportmittel: 'privatpkw',

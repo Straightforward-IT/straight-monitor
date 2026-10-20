@@ -109,8 +109,22 @@ const ReisekostenabrechnungSchema = new mongoose.Schema({
 
   // Storage & lifecycle
   r2Key:  { type: String, default: '' }, // unsigned PDF in R2
-  status: { type: String, enum: ['draft', 'signature_pending', 'completed'], default: 'draft' },
+  status: { type: String, enum: ['draft', 'invited', 'submitted', 'signature_pending', 'completed'], default: 'draft' },
   signaturVorgang: { type: mongoose.Schema.Types.ObjectId, ref: 'SignaturVorgang', default: null },
+
+  // Public employee form invitation & submission state
+  invitation: {
+    accessTokenHash:             { type: String, default: null, select: false, index: true },
+    recipientEmail:              { type: String, default: '' },
+    sentAt:                      { type: Date, default: null },
+    expiresAt:                   { type: Date, default: null },
+    submittedAt:                 { type: Date, default: null },
+    category:                    { type: String, enum: ['', 'mietwagen', 'oeffi', 'privatpkw'], default: '' },
+    isRoundTrip:                 { type: Boolean, default: false },
+    singleWayKm:                 { type: Number, default: 0 },
+    kundenName:                  { type: String, default: '' },
+    originalReceiptNoteAccepted: { type: Boolean, default: false },
+  },
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
