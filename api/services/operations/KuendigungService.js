@@ -249,10 +249,10 @@ class KuendigungService {
   async _validateParameters(employee, parameters) {
     const anrede = String(parameters.anrede || '').trim().toLowerCase();
     if (!['frau', 'herr'].includes(anrede)) {
-      throw httpError(400, 'Bitte wählen Sie eine Anrede.');
+      throw httpError(400, 'Bitte Anrede auswählen.');
     }
     if (!mongoose.isObjectIdOrHexString(parameters.locationId)) {
-      throw httpError(400, 'Bitte wählen Sie einen Standort.');
+      throw httpError(400, 'Bitte Standort auswählen.');
     }
     const location = await Location.findOne({ _id: parameters.locationId, isActive: true })
       .select('nameFull address.city')

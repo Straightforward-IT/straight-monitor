@@ -1555,7 +1555,7 @@ export default {
           alert(`⚠️ KONFLIKT: Diese Personalnummer wird bereits verwendet!\n\n` +
                 `Von: ${conflict.name}\n` +
                 `E-Mail: ${conflict.email}\n\n` +
-                `Bitte wählen Sie eine andere Personalnummer.`);
+                `Bitte eine andere Personalnummer nehmen.`);
         } else {
           alert("Fehler beim Speichern der Personalnummer: " + (error.response?.data?.message || error.message));
         }

@@ -879,7 +879,7 @@ export default {
     async processFiles() {
       if (this.loading) return;
       if (!this.hasAnyFile()) {
-        alert("Bitte wählen Sie zuerst mindestens eine Datei aus.");
+        alert("Bitte mindestens eine Datei auswählen.");
         return;
       }
 

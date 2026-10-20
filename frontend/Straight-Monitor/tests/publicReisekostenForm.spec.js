@@ -14,6 +14,9 @@ vi.mock('@/utils/api-public', () => ({ default: mocks.apiPublic }));
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { accessToken: 'tok-test-123' } }),
 }));
+vi.mock('@/stores/theme', () => ({
+  useTheme: () => ({ isDark: false }),
+}));
 
 let wrapper;
 

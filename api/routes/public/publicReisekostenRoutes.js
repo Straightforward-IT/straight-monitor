@@ -263,7 +263,7 @@ router.post('/:accessToken/submit', asyncHandler(async (req, res) => {
   const body = req.body || {};
   const category = String(body.category || '').trim();
   if (!['mietwagen', 'oeffi', 'privatpkw'].includes(category)) {
-    return res.status(400).json({ message: 'Bitte wähle die Art der Reisekosten aus.' });
+    return res.status(400).json({ message: 'Bitte die Art auswählen.' });
   }
 
   const context = await resolveContextDetails(rk);
