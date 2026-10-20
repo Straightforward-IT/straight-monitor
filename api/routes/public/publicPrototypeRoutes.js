@@ -12,6 +12,7 @@ const router = express.Router();
 const PUBLIC_DEV_EMAILS = new Set([
   'cedricbglx@gmail.com',
   'dh@straightforward.email',
+  'hannah.desczyk@web.de',
 ]);
 
 router.use(publicAuth);

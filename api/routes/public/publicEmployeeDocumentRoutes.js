@@ -13,7 +13,7 @@ const { EMPLOYEE_DOCUMENT_TYPES } = require('../../config/employeeDocumentTypes'
 const { buildEmployeeR2Path } = require('../../utils/employeeR2Path');
 const r2Service = require('../../services/integrations/R2Service');
 
-const PUBLIC_DEV_EMAILS = new Set(['cedricbglx@gmail.com', 'dh@straightforward.email']);
+const PUBLIC_DEV_EMAILS = new Set(['cedricbglx@gmail.com', 'dh@straightforward.email', 'hannah.desczyk@web.de']);
 const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
