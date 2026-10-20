@@ -1,3 +1,5 @@
+import { formatImportedHours } from '@/utils/importedHours';
+
 export const tariffFileRoles = [
   { key: 'contract', importNumber: 700, label: 'Tarifvertrag', hint: 'Vertrag 17055' },
   { key: 'employeeGroups', importNumber: 701, label: 'Tarifmitarbeitergruppe', hint: 'Tarifvarianten, einschließlich inaktiver Varianten' },
@@ -21,14 +23,14 @@ export function formatTariffDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.split('-').reverse().join('.') : String(value);
 }
 
-// Keep all imported decimal places; never turn tariff amounts into binary floats.
+// Currency displays round to cents; raw decimals retain their source precision.
+// Both formats avoid conversion to binary floats.
 export function formatTariffDecimal(value, currency = false) {
   if (value === null || value === undefined || value === '') return '—';
   const text = String(value);
   if (!/^-?\d+(?:\.\d+)?$/.test(text)) return text;
-  const [whole, decimals = ''] = text.split('.');
+  const [whole, fraction = ''] = (currency ? formatImportedHours(text, 2).replace(',', '.') : text).split('.');
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  const fraction = currency ? decimals.padEnd(2, '0') : decimals;
   return `${grouped}${fraction ? `,${fraction}` : ''}${currency ? ' €' : ''}`;
 }
 

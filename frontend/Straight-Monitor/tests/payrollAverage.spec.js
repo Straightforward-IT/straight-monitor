@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import PayrollAverageModal from '@/components/Modals/PayrollAverageModal.vue';
-const mocks = vi.hoisted(() => ({ get: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), openLohnart: vi.fn() }));
 vi.mock('@/utils/api', () => ({ default: { get: mocks.get } }));
+vi.mock('@/composables/useLohnartModals', () => ({ useLohnartModals: () => ({ openLohnart: mocks.openLohnart }) }));
 let wrapper;
 afterEach(() => { wrapper?.unmount(); wrapper = null; vi.clearAllMocks(); });
 const result = () => ({ employee: { id: 'employee-1', personalNr: '2000638', name: 'Testperson' }, months: ['2026-05', '2026-06', '2026-07'],
@@ -65,6 +66,8 @@ describe('historical SP1 average modal', () => {
     expect(wrapper.text()).toContain('Stunden-Schnittberechnung Monat'); expect(wrapper.text()).toContain('AUSWEISLOHN');
     expect(wrapper.get('.payroll-average__period').text()).toContain('Mai 2026');
     expect(wrapper.get('[aria-label="Lohnarten im Durchschnitt"]').text()).toContain('Sonntagszuschlag');
+    await wrapper.get('button[aria-label="Lohnart 100 öffnen"]').trigger('click');
+    expect(mocks.openLohnart).toHaveBeenCalledWith('100');
     expect(wrapper.get('[aria-label="Arbeitstage im Durchschnitt"]').text()).toContain('Davon FS');
     const totals = wrapper.get('.payroll-average__totals tbody').text();
     expect(totals).toContain('264,00'); expect(totals).toContain('66,00'); expect(totals).toContain('4855,50');

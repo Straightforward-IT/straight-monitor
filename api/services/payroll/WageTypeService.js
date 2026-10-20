@@ -63,8 +63,7 @@ function createWageTypeService(models = {}) {
     return rows.map(row => ({ ...enrich(row), kunden: customersFor(byWageType.get(String(row._id)) || []) }));
   }
 
-  async function detail(id) {
-    const row = await WageType.findById(id).lean();
+  async function enrichDetail(row) {
     if (!row) return null;
     const targetNumber = text(row.verrechnungslohnartNummer);
     const [conditions, target] = await Promise.all([
@@ -78,6 +77,14 @@ function createWageTypeService(models = {}) {
       if (metadata.status === 'unknown') issues.push({ severity: 'warning', code: 'UNKNOWN_CODE', field, message: `Für ${field} ist der Quellcode ${metadata.code} noch nicht dokumentiert.` });
     }
     return { ...enrich(row), kunden: customersFor(conditions), kundenkonditionen: conditions, verrechnungsbezug: reference, issues };
+  }
+
+  async function detail(id) {
+    return enrichDetail(await WageType.findById(id).lean());
+  }
+
+  async function detailByNumber(number) {
+    return enrichDetail(await WageType.findOne({ lohnartNummer: text(number) }).lean());
   }
 
   async function importWorkbook(buffer, options) {
@@ -107,7 +114,7 @@ function createWageTypeService(models = {}) {
     return { format: parsed.format, total: parsed.records.length, inserted, updated, unchanged, issues };
   }
 
-  return { list, detail, importWorkbook };
+  return { list, detail, detailByNumber, importWorkbook };
 }
 
 module.exports = { createWageTypeService, offsetReference, ...createWageTypeService() };

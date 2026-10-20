@@ -18,6 +18,14 @@ function createWageTypeRouter(options = {}) {
     try { res.json({ success: true, data: await api.list() }); }
     catch (error) { logger.error('GET Lohnarten Error:', error); res.status(500).json({ success: false, message: 'Fehler beim Abrufen der Lohnarten.' }); }
   });
+  router.get('/lohnarten/nummer/:number', authenticate, async (req, res) => {
+    if (!/^\d{1,12}$/.test(req.params.number)) return res.status(400).json({ success: false, message: 'Ungültige Lohnartnummer.' });
+    try {
+      const data = await api.detailByNumber(req.params.number);
+      if (!data) return res.status(404).json({ success: false, message: 'Lohnart nicht gefunden.' });
+      res.json({ success: true, data });
+    } catch (error) { logger.error('GET Lohnartdetails nach Nummer Error:', error); res.status(500).json({ success: false, message: 'Lohnartdetails konnten nicht geladen werden.' }); }
+  });
   router.get('/lohnarten/:id', authenticate, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Ungültige Lohnart-ID.' });
     try {

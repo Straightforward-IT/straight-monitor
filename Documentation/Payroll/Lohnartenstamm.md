@@ -130,6 +130,8 @@ Lohnabrechnung aus. AZK (+) ist im Stamm mehrfach vorhanden: **191 hat Code 3**,
   Herkunftsspalten werden zur Begrenzung der Listenantwort erst im Detail geladen.
 - `GET /api/import/lohnarten/:id`: vollständige Modellwerte, `source`,
   `sourceHistory`, Kundenkonditionen, Verrechnungsbezug und Klärungshinweise.
+- `GET /api/import/lohnarten/nummer/:number`: dieselben Details anhand der
+  Lohnartnummer; authentifizierter Lesezugriff wie beim Abruf per ID.
 - `POST /api/import/lohnart`: bestehender Dateiimport; vor dem Upload wird die
   **aktuelle Admin-Rolle aus der Datenbank** geprüft. Ein alter ADMIN-Claim im
   Token genügt nach Rollenentzug nicht. Authentifizierter Lesezugriff bleibt wie
@@ -148,6 +150,28 @@ Scroll-Pfeilen. Die Auswahl bleibt beim Lohnartwechsel erhalten; Ziel-Lohnarten
 öffnen sich im selben Panel. Auf schmalen Ansichten nutzt es das vorhandene
 responsive SidePanelFrame. Ladefehler sind sichtbar und überholte Antworten
 werden verworfen. Herkunft zeigt auch ungeklärte Rohfelder und frühere Quellen.
+
+Das wiederverwendbare `Modals/LohnartModal.vue` nutzt dieselbe Detailkomponente
+mit denselben sechs Tabs. „Im Modal öffnen“ im Sidepanel übernimmt die aktuelle
+Tab-Auswahl. In der Schnittberechnung öffnen die Lohnartnummern das Modal direkt.
+Es wird im globalen Dock gehostet, bleibt beim Seitenwechsel erhalten und lässt
+sich minimieren. Erneutes Öffnen derselben Lohnartnummer stellt die bestehende
+Instanz samt ausgewähltem Tab wieder her. Verrechnungsziele öffnen ein eigenes
+Lohnartmodal; Kundenverweise öffnen die Kundenkarte im Tab Preise.
+
+Aufruf aus einer beliebigen Vue-Komponente innerhalb der App:
+
+```js
+import { useLohnartModals } from '@/composables/useLohnartModals';
+
+const { openLohnart } = useLohnartModals();
+openLohnart(100); // Auch '100', eine MongoDB-ID oder ein Lohnart-Stammdatensatz
+openLohnart(lohnart, { initialTab: 'conditions' });
+```
+
+Gültige Starttabs: `calculation`, `time`, `conditions`, `tariff`, `accounting`,
+`source`. Das Modal lädt seine Details über die API; übergebene Stammdatensätze
+dienen vorab nur der Überschrift. Alle Angaben bleiben schreibgeschützt.
 
 ## Prüfung und nächste Schritte
 

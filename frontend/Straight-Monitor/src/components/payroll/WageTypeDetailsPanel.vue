@@ -1,5 +1,7 @@
 <template>
-  <SidePanelFrame :model-value="Boolean(selectedId)" :title="title" subtitle="Schreibgeschützter Zvoove-Lohnartenstamm" width="520px" class="wage-detail" @close="emit('close')">
+  <SidePanelFrame :model-value="Boolean(selectedId || selectedNumber !== '')" :title="title" subtitle="Schreibgeschützter Zvoove-Lohnartenstamm" width="520px" :presentation="presentation" class="wage-detail" :class="{ 'wage-detail--modal': presentation === 'modal' }" @close="emit('close')">
+    <template #actions><slot name="actions" :record="record || selectedRecord" :active-tab="activeTab" /></template>
+    <template v-if="$slots['modal-footer']" #modal-footer><slot name="modal-footer" /></template>
     <AppTabs v-model="activeTab" :tabs="tabs" :id-prefix="tabPrefix" label="Lohnartdetails" size="sm" variant="compact" scroll-controls />
     <p v-if="loading" class="wage-detail__state" role="status">Lohnartdetails werden geladen …</p>
     <div v-else-if="error" class="wage-detail__error" role="alert"><p>{{ error }}</p><AppButton size="sm" variant="secondary" @click="loadDetails">Erneut laden</AppButton></div>
@@ -88,8 +90,12 @@ import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 import AppTabs from '@/components/ui-elements/AppTabs.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 
-const props = defineProps({ selectedId: { type: String, default: '' }, selectedRecord: { type: Object, default: null } });
-const emit = defineEmits(['close', 'select', 'open-customer']);
+const props = defineProps({
+  selectedId: { type: String, default: '' }, selectedNumber: { type: [String, Number], default: '' },
+  selectedRecord: { type: Object, default: null }, initialTab: { type: String, default: 'calculation' },
+  presentation: { type: String, default: 'panel' },
+});
+const emit = defineEmits(['close', 'select', 'open-customer', 'title-change']);
 const record = ref(null);
 const loading = ref(false);
 const error = ref('');
@@ -102,10 +108,12 @@ const tabs = [
   { id: 'conditions', label: 'Faktur & Konditionen' }, { id: 'tariff', label: 'Tarif & Verrechnung' },
   { id: 'accounting', label: 'Abrechnung' }, { id: 'source', label: 'Herkunft' },
 ].map(tab => ({ ...tab, panelId: `${tabPrefix}-${tab.id}-panel` }));
+watch(() => props.initialTab, value => { activeTab.value = tabs.some(tab => tab.id === value) ? value : 'calculation'; }, { immediate: true });
 const title = computed(() => {
   const selected = record.value || props.selectedRecord;
-  return selected ? `Lohnart ${selected.lohnartNummer} · ${selected.lohnartBezeichnung || ''}` : 'Lohnartdetails';
+  return selected ? `Lohnart ${selected.lohnartNummer}${selected.lohnartBezeichnung ? ` · ${selected.lohnartBezeichnung}` : ''}` : props.selectedNumber !== '' ? `Lohnart ${props.selectedNumber}` : 'Lohnartdetails';
 });
+watch(title, value => emit('title-change', value), { immediate: true });
 const issues = computed(() => record.value?.issues || []);
 const sourceColumns = computed(() => record.value?.source?.columns || []);
 const sourceHistory = computed(() => record.value?.sourceHistory || []);
@@ -173,10 +181,11 @@ async function loadDetails() {
   controller?.abort();
   controller = new AbortController();
   record.value = null; error.value = ''; loading.value = false;
-  if (!props.selectedId) return;
+  if (!props.selectedId && props.selectedNumber === '') return;
   loading.value = true;
   try {
-    const { data } = await api.get(`/api/import/lohnarten/${encodeURIComponent(props.selectedId)}`, { signal: controller.signal });
+    const path = props.selectedId ? encodeURIComponent(props.selectedId) : `nummer/${encodeURIComponent(props.selectedNumber)}`;
+    const { data } = await api.get(`/api/import/lohnarten/${path}`, { signal: controller.signal });
     if (current !== revision) return;
     if (!data.data) throw new Error('Lohnartdetails fehlen.');
     record.value = data.data;
@@ -185,7 +194,7 @@ async function loadDetails() {
     error.value = cause?.response?.data?.message || 'Lohnartdetails konnten nicht geladen werden.';
   } finally { if (current === revision) loading.value = false; }
 }
-watch(() => props.selectedId, loadDetails, { immediate: true });
+watch(() => [props.selectedId, props.selectedNumber], loadDetails, { immediate: true });
 onBeforeUnmount(() => { revision++; controller?.abort(); });
 </script>
 
@@ -197,6 +206,9 @@ onBeforeUnmount(() => { revision++; controller?.abort(); });
 .wage-detail__settings dt { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .wage-detail__settings dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .wage-detail__settings small { display: block; margin-top: 5px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+@media (min-width: 760px) {
+  .wage-detail--modal .wage-detail__settings { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+}
 .wage-detail__relation, .wage-detail__conditions { margin-top: 18px; }
 .wage-detail h3 { margin: 12px 0 8px; font-size: 14px; }
 .wage-detail h4 { margin: 14px 0 8px; font-size: 13px; }

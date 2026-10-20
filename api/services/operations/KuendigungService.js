@@ -149,8 +149,9 @@ class KuendigungService {
     const logo = await doc.embedPng(fs.readFileSync(LOGO_PATH));
     const logoWidth = CONTENT_W * 0.86;
     const logoHeight = (logo.height / logo.width) * logoWidth;
-    page.drawImage(logo, { x: MARGIN, y: ctx.y - logoHeight, width: logoWidth, height: logoHeight });
-    ctx.y -= logoHeight + 20;
+    const logoTopY = PAGE_H - 28;
+    page.drawImage(logo, { x: MARGIN, y: logoTopY - logoHeight, width: logoWidth, height: logoHeight });
+    ctx.y -= logoHeight + 30;
 
     this._text(ctx, COMPANY_ADDRESS, { size: 8, underline: true });
     ctx.y -= 15;

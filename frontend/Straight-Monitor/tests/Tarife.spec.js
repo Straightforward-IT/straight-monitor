@@ -47,10 +47,18 @@ describe('Tarife access, display, and route state', () => {
     expect(wrapper.text()).toContain('ausschließlich für Admins');
   });
 
-  it('preserves exact decimal values and route query tabs', () => {
-    expect(formatTariffDecimal('12345678901234567.8901', true)).toBe('12.345.678.901.234.567,8901 €');
+  it('displays currency rounded to cents, preserves raw decimals and keeps route query tabs', () => {
+    expect(formatTariffDecimal('12345678901234567.8901', true)).toBe('12.345.678.901.234.567,89 €');
+    expect(formatTariffDecimal('12345678901234567.8901')).toBe('12.345.678.901.234.567,8901');
+    expect(formatTariffDecimal('1.3900000000000001', true)).toBe('1,39 €');
+    expect(formatTariffDecimal('18.5000000000000001', true)).toBe('18,50 €');
+    expect(formatTariffDecimal('1.395', true)).toBe('1,40 €');
+    expect(formatTariffDecimal('999.995', true)).toBe('1.000,00 €');
+    expect(formatTariffDecimal('-1.395', true)).toBe('-1,40 €');
+    expect(formatTariffDecimal('-0.004', true)).toBe('0,00 €');
     expect(formatTariffDecimal('15.33', true)).toBe('15,33 €');
     expect(formatTariffDecimal('0', true)).toBe('0,00 €');
+    expect(formatTariffDecimal(null, true)).toBe('—');
     const route = { name: 'Tarife', query: { keep: 'value', tab: 'employees' } };
     expect(tariffTabs.find((entry) => entry.isActive(route)).id).toBe('employees');
     expect(tariffTabs[0].to(route)).toEqual({ path: '/tarife', query: { keep: 'value' } });

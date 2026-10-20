@@ -58,7 +58,9 @@
           </tbody>
         </table>
       </div>
-      <WageTypeDetailsPanel :selected-id="selectedId" :selected-record="selectedRecord" @close="selectedId = ''" @select="selectTarget" @open-customer="openCustomerPrices" />
+      <WageTypeDetailsPanel :selected-id="selectedId" :selected-record="selectedRecord" @close="selectedId = ''" @select="selectTarget" @open-customer="openCustomerPrices">
+        <template #actions="{ record, activeTab }"><AppButton v-if="record" size="sm" variant="secondary" aria-label="Lohnart im Modal öffnen" @click="openLohnart(record, { initialTab: activeTab })">Im Modal öffnen</AppButton></template>
+      </WageTypeDetailsPanel>
     </div>
   </section>
 </template>
@@ -67,6 +69,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import api from '@/utils/api';
 import { useCustomerModals } from '@/composables/useCustomerModals';
+import { useLohnartModals } from '@/composables/useLohnartModals';
 import { families, getCodeMetadaten, formatSetting, getSettingHint } from '@/utils/wageTypeSettings';
 import SearchBar from '@/components/SearchBar.vue';
 import Toolbar from '@/components/ui-elements/Toolbar.vue';
@@ -79,6 +82,7 @@ import AppButton from '@/components/ui-elements/AppButton.vue';
 import WageTypeDetailsPanel from './WageTypeDetailsPanel.vue';
 
 const { openCustomer } = useCustomerModals();
+const { openLohnart } = useLohnartModals();
 const records = ref([]);
 const loading = ref(false);
 const error = ref('');

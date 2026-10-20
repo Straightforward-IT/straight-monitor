@@ -19,7 +19,7 @@
             <thead><tr><TableSortHeader v-for="column in wageColumns" :key="column.key" :data-sort-key="column.key" :label="column.label" :sort="wageTable.ariaSort(column.key)" :class="{ number: column.right }" @sort="wageTable.toggle(column.key)" /></tr></thead>
             <tbody>
               <tr v-for="row in sortedWages" :key="`${row.month}:${row.personalNr}:${row.wageType}`">
-                <td>{{ row.month.slice(0, 4) }}</td><td>{{ monthLabel(row.month, false) }}</td><td>{{ row.personalNr }}</td><td>{{ row.wageType }}</td><td>{{ row.label }}</td><td :title="row.rule">{{ row.sp1 ?? 'Offen' }}</td><td class="number">{{ number(row.hours) }}</td><td class="number">{{ number(row.amount) }}</td>
+                <td>{{ row.month.slice(0, 4) }}</td><td>{{ monthLabel(row.month, false) }}</td><td>{{ row.personalNr }}</td><td><button type="button" class="payroll-average__wage-link" :aria-label="`Lohnart ${row.wageType} öffnen`" @click="openLohnart(row.wageType)">{{ row.wageType }}</button></td><td>{{ row.label }}</td><td :title="row.rule">{{ row.sp1 ?? 'Offen' }}</td><td class="number">{{ number(row.hours) }}</td><td class="number">{{ number(row.amount) }}</td>
               </tr>
               <tr v-if="!data.rows.length"><td colspan="8">Keine berücksichtigten Lohnpositionen im Zeitraum vorhanden.</td></tr>
             </tbody>
@@ -60,9 +60,11 @@ import TableSortHeader from '@/components/ui-elements/TableSortHeader.vue';
 import api from '@/utils/api';
 import { formatImportedHours } from '@/utils/importedHours';
 import { sortTableRows } from '@/utils/tableSorting';
+import { useLohnartModals } from '@/composables/useLohnartModals';
 
 const props = defineProps({ modelValue: Boolean, employeeId: { type: String, default: '' }, employeeName: { type: String, default: '' }, personalNr: { type: String, default: '' }, month: { type: String, required: true }, accessKey: { type: String, default: '' } });
 defineEmits(['update:modelValue']);
+const { openLohnart } = useLohnartModals();
 const cutoff = ref(`${props.month}-01`), count = ref(3), data = ref(null), error = ref(''), loading = ref(false);
 const dayNote = row => row.days == null ? 'Kalenderzählung offen' : 'Alle Montag–Freitag des Kalendermonats';
 const dateColumns = [{ key: 'year', label: 'Jahr', numeric: true, value: row => row.month.slice(0, 4) }, { key: 'month', label: 'Monat' }];
@@ -117,6 +119,7 @@ const monthLabel = (month, year = true) => new Date(`${month}-01T12:00:00Z`).toL
 .payroll-average__section--wages h4 { flex-shrink: 0; }
 .payroll-average__scroll { overflow: auto; }.payroll-average__scroll--wages { max-height: 33vh; min-height: 0; flex: 1; }
 .payroll-average__section table { border-collapse: collapse; width: 100%; font-size: 12px; white-space: nowrap; }
+.payroll-average__wage-link { border: 0; padding: 0; background: transparent; color: var(--primary); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .payroll-average__section th { text-align: left; color: var(--muted); font-weight: 600; background: var(--surface); position: sticky; top: 0; }
 .payroll-average__section td, .payroll-average__section th { padding: 6px 12px; border-bottom: 1px solid var(--border); }
 .payroll-average__section th.table-sort-header { padding: 0; }

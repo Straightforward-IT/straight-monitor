@@ -61,16 +61,21 @@ describe('Tariflohn in der Mitarbeiter-Lohnsection', () => {
     expect(wrapper.text()).toContain('ÜTZ: Historische Personalnummer 1000001 verwendet');
     expect(wrapper.get('[data-wage="total"]').text()).toBe('17,73 €');
   });
-  it('addiert Tariflohn und ÜTZ ohne Gleitkommarundung oder weitere ÜTZ-Felder', async () => {
+  it('addiert Tariflohn und ÜTZ exakt und zeigt Geldwerte auf ganze Cent gerundet', async () => {
     const data = fixture();
     data.baseRate.value = '12345678901234567.8901';
     data.aboveTariff.values.DPREIS = '0.0099';
     mocks.api.get.mockResolvedValueOnce({ data }); await render();
+    expect(wrapper.get('[data-wage="base"]').text()).toBe('12.345.678.901.234.567,89 €');
+    expect(wrapper.get('[data-wage="above"]').text()).toBe('0,01 €');
     expect(wrapper.get('[data-wage="total"]').text()).toBe('12.345.678.901.234.567,90 €');
-    const precise = fixture(); precise.baseRate.value = '15.33'; precise.aboveTariff.values.DPREIS = '2.400000000000000000001';
+    const precise = fixture(); precise.baseRate.value = '17.11'; precise.aboveTariff.values.DPREIS = '1.3900000000000001';
     mocks.api.get.mockResolvedValueOnce({ data: precise });
     await reopen();
-    expect(wrapper.get('[data-wage="total"]').text()).toBe('17,730000000000000000001 €');
+    expect(wrapper.get('[data-wage="base"]').text()).toBe('17,11 €');
+    expect(wrapper.get('[data-wage="above"]').text()).toBe('1,39 €');
+    expect(wrapper.get('[data-wage="total"]').text()).toBe('18,50 €');
+    expect(precise.aboveTariff.values.DPREIS).toBe('1.3900000000000001');
   });
   it('lädt erst beim Öffnen und sendet für Nichtadmins keine Anfragen', async () => {
     await render({ active: false });
@@ -122,14 +127,14 @@ describe('Tariflohn in der Mitarbeiter-Lohnsection', () => {
     expect(wrapper.get('[data-wage="base"]').text()).toBe('15,33 €');
     expect(wrapper.find('button').exists()).toBe(false);
   });
-  it('zeigt vorhandene ÜTZ auch ohne Tarifzuordnung und bewahrt exakte Nachkommastellen', async () => {
+  it('zeigt vorhandene ÜTZ auch ohne Tarifzuordnung auf ganze Cent', async () => {
     const data = fixture(); data.baseRate = { status: 'UNRESOLVED', code: 'ASSIGNMENT_MISSING', message: 'Keine gültige Tarifzuordnung.' };
     data.aboveTariff.values.DPREIS = '2.400000000000000000001';
     mocks.api.get.mockResolvedValueOnce({ data }); await render();
     expect(wrapper.get('[data-wage="base"]').text()).toBe('Klärung erforderlich');
     expect(wrapper.text()).toContain('Keine gültige Tarifzuordnung.');
     expect(wrapper.find('[data-wage="total"]').exists()).toBe(false);
-    expect(wrapper.get('[data-wage="above"]').text()).toBe('2,400000000000000000001 €');
+    expect(wrapper.get('[data-wage="above"]').text()).toBe('2,40 €');
   });
   it('zeigt Null und Gesamtlohn auch bei einem leeren ÜTZ-Betrag', async () => {
     const data = fixture(); data.aboveTariff.values.DPREIS = '0';

@@ -189,6 +189,12 @@ describe('Lohnarten service and authenticated API (isolated MongoDB)', function 
     assert.equal(detail.body.data.verrechnungsbezug.targetNumber, '602');
     assert.equal(detail.body.data.verrechnungsbezug.priority, '1');
     assert.equal(detail.body.data.verrechnungsbezug.target._id, target._id);
+    const byNumber = await get('lohnarten/nummer/110');
+    assert.equal(byNumber.status, 200);
+    assert.deepEqual(byNumber.body.data, detail.body.data);
+    assert.equal((await get('lohnarten/nummer/110', null)).status, 401);
+    assert.equal((await get('lohnarten/nummer/invalid')).status, 400);
+    assert.equal((await get('lohnarten/nummer/999999')).status, 404);
     assert.equal((await get('lohnarten/invalid')).status, 400);
     assert.equal((await get(`lohnarten/${new mongoose.Types.ObjectId()}`)).status, 404);
   });
@@ -221,6 +227,7 @@ describe('Lohnarten service and authenticated API (isolated MongoDB)', function 
     assert.equal(byUsage.get('F').zuschlagsProzent, 25);
     assert.equal(byUsage.get('F').preisNr, '1');
     assert.equal(byUsage.get('F').zvooveKonditionsId, '672571');
+    assert.deepEqual((await get('lohnarten/nummer/170')).body.data, detail.body.data);
   });
 
   it('keeps a missing offset target as a warning without adding calculated wage positions', async () => {

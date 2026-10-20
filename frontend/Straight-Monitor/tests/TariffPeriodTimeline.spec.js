@@ -50,7 +50,7 @@ describe('TariffPeriodTimeline', () => {
 
   it('shows exact IX/IY values, missing cells, and ambiguous cells without estimates', () => {
     const wrapper = mount(TariffPeriodTimeline, { props: { periods: [period('exact', '2024-01-01', '2024-12-31', [rate('12345678901234567.8901'), rate('100.00', 2, 0)]), period('missing', '2025-01-01', '2025-12-31', [rate('200.00', 1, 1)]), period('ambiguous', '2026-01-01', null, [rate('15.33'), rate('16.08')])], stagePosition: '1', groupPosition: 0 } });
-    expect(wrapper.findAll('.tariff-period-timeline__rate').map((entry) => entry.text())).toEqual(['12.345.678.901.234.567,8901 €', 'Grundwert fehlt', 'Nicht eindeutig']);
+    expect(wrapper.findAll('.tariff-period-timeline__rate').map((entry) => entry.text())).toEqual(['12.345.678.901.234.567,89 €', 'Grundwert fehlt', 'Nicht eindeutig']);
     expect(wrapper.text()).toContain('IX 1 / IY 0');
     wrapper.unmount();
   });

@@ -136,15 +136,38 @@
               v-for="document in documents"
               :key="document._id"
             >
-              <span>{{ document.filename }}</span>
-              <AppButton
-                variant="secondary"
-                size="sm"
-                :disabled="busy"
-                @click="download(document)"
-              >
-                Herunterladen
-              </AppButton>
+              <div class="document-info">
+                <button
+                  type="button"
+                  class="document-preview-link"
+                  :disabled="busy"
+                  :title="`${document.filename} öffnen`"
+                  @click="preview(document)"
+                >
+                  {{ document.filename }}
+                </button>
+                <small v-if="document.createdAt">
+                  Erstellt am {{ formatCreatedAt(document.createdAt) }}
+                </small>
+              </div>
+              <div class="document-actions">
+                <AppButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="busy"
+                  @click="preview(document)"
+                >
+                  Öffnen
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  size="sm"
+                  :disabled="busy"
+                  @click="download(document)"
+                >
+                  Herunterladen
+                </AppButton>
+              </div>
             </li>
           </ul>
         </section>
@@ -195,6 +218,7 @@ import ModalFrame from '@/components/frames/ModalFrame.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppSelect from '@/components/ui-elements/AppSelect.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
+import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
 import api from '@/utils/api';
 
 const props = defineProps({
@@ -202,6 +226,7 @@ const props = defineProps({
   mitarbeiter: { type: Object, required: true },
 });
 const emit = defineEmits(['update:modelValue', 'saved']);
+const { openDocumentPreview } = useDocumentPreviewModals();
 const defaults = ref(null);
 const parameters = ref({});
 const documents = ref([]);
@@ -294,6 +319,28 @@ async function download(document) {
   }
 }
 
+function preview(document) {
+  if (busy.value) return;
+  error.value = '';
+  const storageUrlEndpoint = `/api/personal/mitarbeiter/${props.mitarbeiter._id}/storage/url`;
+  try {
+    openDocumentPreview({
+      id: `${storageUrlEndpoint}:${document.r2Key}`,
+      filename: document.filename,
+      mimeType: 'application/pdf',
+      resolveUrl: async ({ download: isDownload, signal }) => {
+        const { data } = await api.get(storageUrlEndpoint, {
+          params: { key: document.r2Key, download: isDownload ? 'true' : 'false' },
+          signal,
+        });
+        return data.url;
+      },
+    });
+  } catch (err) {
+    error.value = err.message || 'Dokument konnte nicht geöffnet werden.';
+  }
+}
+
 function close() {
   if (!busy.value) emit('update:modelValue', false);
 }
@@ -301,6 +348,18 @@ function close() {
 function hasNonNegativeNumber(value) {
   return value !== '' && value !== null && value !== undefined
     && Number.isFinite(Number(value)) && Number(value) >= 0;
+}
+
+function formatCreatedAt(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date) + ' Uhr';
 }
 
 watch(() => [props.modelValue, props.mitarbeiter._id], ([open]) => {
@@ -350,7 +409,40 @@ watch(() => [props.modelValue, props.mitarbeiter._id], ([open]) => {
   .document-error { color: var(--danger, #dc3545); }
   ul { list-style: none; padding: 0; }
   li { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-  li span { overflow-wrap: anywhere; min-width: 0; }
+  .document-info {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+
+    .document-preview-link {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      overflow-wrap: anywhere;
+      min-width: 0;
+
+      &:hover:not(:disabled) {
+        color: var(--primary);
+        text-decoration: underline;
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+    }
+    small { font-size: 0.78rem; color: var(--muted, #6b7280); }
+  }
+  .document-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
 
   @media (max-width: 600px) {
     .form-grid { grid-template-columns: 1fr; }
