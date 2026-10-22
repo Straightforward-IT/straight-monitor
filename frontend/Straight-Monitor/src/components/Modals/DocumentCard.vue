@@ -705,7 +705,10 @@ export default {
     },
     filteredDetails() {
       if (!this.doc.details) return {};
-      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'location', 'locationV2', 'mitarbeiter_feedback', 'attachments', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'puenktlichkeit', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft', 'sonstiges'];
+      const excludeKeys = ['_id', '__v', 'mitarbeiter', 'teamleiter', 'laufzettel', 'task_id', 'assigned', 'date', 'location', 'locationV2', 'mitarbeiter_feedback', 'attachments', 'comments', 'version', 'createdAt', 'updatedAt', 'status', 'kunde', 'auftragnummer', 'grooming', 'motivation', 'technische_fertigkeiten', 'lernbereitschaft'];
+      if (this.doc.docType === 'Laufzettel') {
+        excludeKeys.push('puenktlichkeit', 'sonstiges');
+      }
       const filtered = {};
       for (const [key, value] of Object.entries(this.doc.details)) {
         if (!excludeKeys.includes(key)) {
