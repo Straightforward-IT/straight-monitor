@@ -202,7 +202,12 @@ router.patch(
       }
       const license = { klasse: klasse || null, gueltigVon, gueltigBis, source: 'manual' };
       updates.fuehrerscheine = klasse || gueltigVon || gueltigBis ? [license] : [];
-      updates.fuehrerschein = { klasse: license.klasse, gueltigVon, gueltigBis };
+      updates['fuehrerschein.klasse'] = license.klasse;
+      updates['fuehrerschein.gueltigVon'] = gueltigVon;
+      updates['fuehrerschein.gueltigBis'] = gueltigBis;
+      if (typeof licenseInput.hatAuto === 'boolean') {
+        updates['fuehrerschein.hatAuto'] = licenseInput.hatAuto;
+      }
     }
 
     const mongoUpdate = { $set: updates };
@@ -426,7 +431,11 @@ router.get(
     }
 
     const mitarbeiter = await Mitarbeiter.findOne({ $or: orConditions })
-        .select("_id vorname nachname email telefon fuehrerscheine fuehrerschein personalnr flip_id rank publicMenuOptions konfektionsgroesse schuhgroesse qualifikationen laufzettel_submitted laufzettel_received evaluierungen_submitted")
+        .select("_id vorname nachname email telefon fuehrerscheine fuehrerschein personalnr flip_id rank publicMenuOptions konfektionsgroesse schuhgroesse qualifikationen kundenwuensche laufzettel_submitted laufzettel_received evaluierungen_submitted")
+      .populate({
+        path: "kundenwuensche.kunde",
+        select: "kundenNr kundName kuerzel",
+      })
       .populate({
         path: "laufzettel_submitted",
         populate: [

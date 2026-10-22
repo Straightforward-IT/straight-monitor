@@ -604,7 +604,7 @@ class StundenlisteService {
 
     ctx.page.drawText('Datum',                            { x: entX,                     y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
     ctx.page.drawText('Entleiher Unterschrift', { x: entX + dateW + subGap,    y: lineY - 11, size: 8, font: ctx.font,     color: COLOR_MUTED });
-    ctx.page.drawText(getKundeSignaturName(kunde) || '—', { x: entX + dateW + subGap, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
+    ctx.page.drawText(String(kunde?.kundName || '').trim() || '—', { x: entX + dateW + subGap, y: lineY - 21, size: 8, font: ctx.fontBold, color: COLOR_TEXT });
 
     // Unsichtbare DocuSeal-Texttags + sichtbares "Verified by DocuSeal" Badge (zentriert unter den Feldern).
     if (ctx.signatureTags) {

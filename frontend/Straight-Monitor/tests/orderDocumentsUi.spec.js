@@ -36,11 +36,11 @@ function panel(props = {}) {
 }
 // Real parent contracts and child controls/teleports; only startup, unrelated
 // dock launchers and sidebar async refreshes are isolated for this offline fixture.
-function workspace(data = {}, methods = {}) {
+function workspace(data = {}, methods = {}, setupOverrides = {}) {
   const pinia = createPinia();
   const wrapper = shallowMount({
     ...AuftragCalendarWorkspace,
-    setup: () => ({ formatEmployeeName: record => record.name, restoreMinimizedStundenliste: () => false }),
+    setup: () => ({ formatEmployeeName: record => record.name, restoreMinimizedStundenliste: () => false, openSigning: vi.fn(), ...setupOverrides }),
     mounted() { document.addEventListener('keydown', this.handleEscapeKey); },
     methods: {
       ...AuftragCalendarWorkspace.methods, loadStundenlisteStatus: vi.fn(), loadEinsatzDoks: vi.fn(),
@@ -105,8 +105,13 @@ describe('shared order document overview', () => {
     const wrapper = panel({ hoursStatus: hoursStatus(status), canSign: true });
     expect(wrapper.find('button[aria-label="Signaturentwurf löschen"]').exists()).toBe(status === 'draft');
     expect(wrapper.find('button[aria-label="Signaturprozess anzeigen"]').exists()).toBe(status === 'open');
+    expect(wrapper.find('button[aria-label="Stundenliste stornieren"]').exists()).toBe(status === 'open');
     expect(wrapper.find('button[title="Stundenliste neu ausstellen"]').exists()).toBe(status === 'completed');
     expect(wrapper.get('.order-document-badge').text()).toBe({ draft: 'Entwurf', open: 'Ausstehend', completed: 'Unterschrieben', cancelled: 'Storniert' }[status]);
+    if (status === 'open') {
+      await button(wrapper, 'Stundenliste stornieren').trigger('click');
+      expect(wrapper.emitted('delete-hours')).toEqual([[]]);
+    }
     if (status === 'completed') {
       await wrapper.get('button[title="Stundenliste neu ausstellen"]').trigger('click');
       expect(wrapper.emitted('edit-hours')).toEqual([[{ allowReplacement: true }]]);
@@ -115,6 +120,39 @@ describe('shared order document overview', () => {
     expect(wrapper.find('button[aria-label="Signaturentwurf löschen"]').exists()).toBe(status === 'draft');
     expect(wrapper.find('button[title="Stundenliste neu ausstellen"]').exists()).toBe(false);
     expect(wrapper.find('button[aria-label="Signaturprozess anzeigen"]').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="Stundenliste stornieren"]').exists()).toBe(false);
+  });
+
+  it('shows the in-app sign button on open hours lists only while an embedded signer is still pending', async () => {
+    const pendingStatus = {
+      vorgang: {
+        _id: 'hours-1',
+        name: 'Stundenliste Konferenz',
+        status: 'open',
+        submitters: [
+          { role: 'Verleiher', name: 'Max', email: 'max@example.com', embedded: true, slug: 'verleiher-slug', status: 'awaiting' },
+          { role: 'Entleiher', name: 'Kunde', email: 'kunde@example.com', embedded: false, slug: 'entleiher-slug', status: 'awaiting' },
+        ],
+      },
+    };
+    const wrapper = panel({ hoursStatus: pendingStatus });
+    const signBtn = wrapper.find('button[title="Stundenliste unterschreiben"]');
+    expect(signBtn.exists()).toBe(true);
+    await signBtn.trigger('click');
+    expect(wrapper.emitted('sign-hours')).toEqual([[]]);
+
+    await wrapper.setProps({
+      hoursStatus: {
+        vorgang: {
+          ...pendingStatus.vorgang,
+          submitters: [
+            { ...pendingStatus.vorgang.submitters[0], status: 'completed' },
+            pendingStatus.vorgang.submitters[1],
+          ],
+        },
+      },
+    });
+    expect(wrapper.find('button[title="Stundenliste unterschreiben"]').exists()).toBe(false);
   });
 
   it('forwards document actions separately and contextualizes accessible names', async () => {
@@ -480,6 +518,38 @@ describe('document and hours workspace contracts', () => {
     confirm.mockReturnValue(true); api.post.mockResolvedValueOnce({ data: { _id: 'new-draft' } });
     await wrapper.vm.handleDocumentMenuAction('stundenliste');
     expect(api.post).toHaveBeenCalledWith('/api/signaturen/stundenliste/42/draft', { name: 'Stundenliste Konferenz', locationId: undefined });
+    expect(loadStatus).toHaveBeenCalledWith(42);
+  });
+
+  it('allows cancelling an open hours list and launching pending in-app signing for any user role', async () => {
+    const openSigning = vi.fn();
+    const loadStatus = vi.fn();
+    const openHours = {
+      vorgang: {
+        _id: 'hours-1',
+        name: 'Stundenliste Konferenz',
+        status: 'open',
+        submitters: [
+          { role: 'Verleiher', name: 'Max', email: 'max@example.com', embedded: true, slug: 'verleiher-slug', status: 'awaiting' },
+          { role: 'Entleiher', name: 'Kunde', email: 'kunde@example.com', embedded: false, slug: 'entleiher-slug', status: 'awaiting' },
+        ],
+      },
+    };
+    const { wrapper } = workspace({ stundenlisteStatus: openHours }, { loadStundenlisteStatus: loadStatus }, { openSigning });
+    expect(wrapper.vm.canSignaturen).toBe(true);
+    await wrapper.get('button[title="Stundenliste unterschreiben"]').trigger('click');
+    expect(openSigning).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Stundenliste Konferenz',
+      signers: [{ src: 'https://docuseal.eu/s/verleiher-slug', role: 'Verleiher', name: 'Max', email: 'max@example.com' }],
+    }));
+    openSigning.mock.calls[0][0].onComplete();
+    expect(loadStatus).toHaveBeenCalledWith(42, { refresh: true });
+
+    confirm.mockReturnValue(true);
+    await button(wrapper, 'Stundenliste stornieren').trigger('click');
+    await flushPromises();
+    expect(confirm).toHaveBeenCalledWith('Stundenliste wirklich stornieren?');
+    expect(api.delete).toHaveBeenCalledWith('/api/signaturen/hours-1');
     expect(loadStatus).toHaveBeenCalledWith(42);
   });
 });

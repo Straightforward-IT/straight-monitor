@@ -5,6 +5,8 @@ const Auftrag = require('../../models/Event/Auftrag');
 const Schicht = require('../../models/Event/Schicht');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Einsatz = require('../../models/Event/Einsatz');
+const JobBewerbung = require('../../models/Event/JobBewerbung');
+const mongoose = require('mongoose');
 const { createTomorrowConfirmationFixture, deleteTomorrowConfirmationFixture } = require('../../services/public/PublicNeuigkeitenFixtureService');
 
 const router = express.Router();
@@ -50,8 +52,19 @@ async function resolveMitarbeiter(req) {
   if (!conditions.length) return null;
 
   return Mitarbeiter.findOne({ $or: conditions })
-    .select('_id locationV2')
+    .select('_id locationV2 kundenwuensche')
+    .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
     .lean();
+}
+
+function getBlockedKundenNrs(mitarbeiter) {
+  const blocked = new Set();
+  for (const wish of mitarbeiter?.kundenwuensche || []) {
+    if (wish?.typ !== 'negativ') continue;
+    const nr = Number(wish.kunde?.kundenNr ?? wish.kundenNr);
+    if (Number.isFinite(nr) && nr > 0) blocked.add(nr);
+  }
+  return blocked;
 }
 
 router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
@@ -60,21 +73,48 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
     return res.status(404).json({ msg: 'Mitarbeiter für diesen Flip-Account nicht gefunden' });
   }
   if (!mitarbeiter.locationV2) {
-    return res.json({ jobs: [], reason: 'missing_location' });
+    return res.json({ jobs: [], applications: {}, applicationSteps: {}, reason: 'missing_location' });
+  }
+
+  const existingBewerbungen = await JobBewerbung.find({ mitarbeiter: mitarbeiter._id }).lean();
+  const applications = {};
+  const applicationSteps = {};
+  const appliedSchichtIds = [];
+  for (const bew of existingBewerbungen) {
+    applications[bew.jobId] = bew.status;
+    if (bew.status === 'scheduled') {
+      applicationSteps[bew.jobId] = Number(bew.confirmationStep || 0);
+    }
+    if (bew.schicht && mongoose.isValidObjectId(bew.schicht)) {
+      appliedSchichtIds.push(bew.schicht);
+    } else if (mongoose.isValidObjectId(bew.jobId)) {
+      appliedSchichtIds.push(new mongoose.Types.ObjectId(bew.jobId));
+    }
   }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const schichten = await Schicht.find({
-    locationV2: mitarbeiter.locationV2,
-    datumBis: { $gte: today },
-    bedarf: { $gt: 0 },
-  })
+  const schichtQuery = appliedSchichtIds.length
+    ? {
+        $or: [
+          { locationV2: mitarbeiter.locationV2, datumBis: { $gte: today }, bedarf: { $gt: 0 } },
+          { _id: { $in: appliedSchichtIds } },
+        ],
+      }
+    : {
+        locationV2: mitarbeiter.locationV2,
+        datumBis: { $gte: today },
+        bedarf: { $gt: 0 },
+      };
+
+  const schichten = await Schicht.find(schichtQuery)
     .select('auftragNr idAuftragArbeitsschichten bezeichnung treffpunkt treffpunktOrt datumVon datumBis uhrzeitVon uhrzeitBis bedarf besetzt offen endeOffen einsatzinformation')
     .sort({ datumVon: 1, uhrzeitVon: 1 })
     .limit(100)
     .lean();
+
+  const blockedKundenNrs = getBlockedKundenNrs(mitarbeiter);
 
   const auftragNrs = [...new Set(schichten.map((schicht) => schicht.auftragNr))];
   const auftraege = auftragNrs.length
@@ -84,10 +124,14 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
         isPseudo: { $ne: true },
         auftStatus: 2,
       })
-        .select('auftragNr eventTitel eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum')
+        .select('auftragNr kundenNr eventTitel eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum')
         .lean()
     : [];
-  const auftragByNr = new Map(auftraege.map((auftrag) => [auftrag.auftragNr, auftrag]));
+  const auftragByNr = new Map(
+    auftraege
+      .filter((auftrag) => !blockedKundenNrs.has(Number(auftrag.kundenNr)))
+      .map((auftrag) => [auftrag.auftragNr, auftrag])
+  );
   const legacyKeys = schichten.map(shift => shift.idAuftragArbeitsschichten).filter(value => value !== null && value !== undefined);
   const assignmentCounts = await Einsatz.aggregate([
     {
@@ -115,11 +159,13 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
       ?? occupiedByLegacy.get(`${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`)
       ?? 0;
     const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
-    if (!openPlaces) return [];
+    const hasApplication = Boolean(applications[String(schicht._id)]);
+    if (!openPlaces && !hasApplication) return [];
 
     return [{
       id: String(schicht._id),
       auftragNr: schicht.auftragNr,
+      kundenNr: auftrag.kundenNr || null,
       schichtId: schicht._id,
       legacySchichtId: schicht.idAuftragArbeitsschichten,
       title: auftrag.eventTitel || auftrag.eventLocation || `Auftrag ${schicht.auftragNr}`,
@@ -142,7 +188,106 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
     }];
   });
 
-  return res.json({ jobs, source: 'database' });
+  return res.json({ jobs, applications, applicationSteps, source: 'database' });
+}));
+
+router.get('/applications', requirePrototypeOidc, asyncHandler(async (req, res) => {
+  const mitarbeiter = await resolveMitarbeiter(req);
+  if (!mitarbeiter) {
+    return res.status(404).json({ msg: 'Mitarbeiter für diesen Flip-Account nicht gefunden' });
+  }
+  const items = await JobBewerbung.find({ mitarbeiter: mitarbeiter._id }).lean();
+  const applications = {};
+  const applicationSteps = {};
+  for (const item of items) {
+    applications[item.jobId] = item.status;
+    if (item.status === 'scheduled') {
+      applicationSteps[item.jobId] = Number(item.confirmationStep || 0);
+    }
+  }
+  return res.json({ applications, applicationSteps, items });
+}));
+
+router.put('/applications/:jobId', requirePrototypeOidc, asyncHandler(async (req, res) => {
+  const mitarbeiter = await resolveMitarbeiter(req);
+  if (!mitarbeiter) {
+    return res.status(404).json({ msg: 'Mitarbeiter für diesen Flip-Account nicht gefunden' });
+  }
+  const jobId = String(req.params.jobId || '').trim();
+  if (!jobId) {
+    return res.status(400).json({ msg: 'Job-ID ist erforderlich' });
+  }
+
+  const status = req.body?.status ? String(req.body.status).trim() : null;
+  if (!status) {
+    await JobBewerbung.findOneAndDelete({ jobId, mitarbeiter: mitarbeiter._id });
+    return res.json({ ok: true, jobId, status: null });
+  }
+
+  if (!['submitted', 'scheduled', 'confirmed', 'rejected'].includes(status)) {
+    return res.status(400).json({ msg: 'Ungültiger Bewerbungsstatus' });
+  }
+
+  let schicht = null;
+  let auftrag = null;
+  if (mongoose.isValidObjectId(jobId)) {
+    schicht = await Schicht.findById(jobId).lean();
+    if (schicht?.auftragNr) {
+      auftrag = await Auftrag.findOne({ auftragNr: schicht.auftragNr }).select('auftragNr kundenNr eventTitel eventLocation').lean();
+    }
+  }
+
+  const blockedKundenNrs = getBlockedKundenNrs(mitarbeiter);
+  if (auftrag?.kundenNr != null && blockedKundenNrs.has(Number(auftrag.kundenNr))) {
+    return res.status(403).json({ msg: 'Diese Schicht ist für dich nicht verfügbar.' });
+  }
+
+  const confirmationStep = Number.isInteger(Number(req.body?.confirmationStep))
+    ? Math.max(0, Number(req.body.confirmationStep))
+    : 0;
+
+  const update = {
+    jobId,
+    mitarbeiter: mitarbeiter._id,
+    status,
+    confirmationStep: status === 'scheduled' ? confirmationStep : 0,
+    auftragNr: schicht?.auftragNr ?? (Number.isInteger(Number(req.body?.auftragNr)) ? Number(req.body.auftragNr) : null),
+    schicht: schicht?._id || null,
+    idAuftragArbeitsschichten: schicht?.idAuftragArbeitsschichten ?? null,
+    schichtBezeichnung: schicht?.bezeichnung || req.body?.role || null,
+    jobTitle: auftrag?.eventTitel || auftrag?.eventLocation || req.body?.jobTitle || null,
+  };
+
+  const bewerbung = await JobBewerbung.findOneAndUpdate(
+    { jobId, mitarbeiter: mitarbeiter._id },
+    { $set: update },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+
+  if (status === 'confirmed' && bewerbung.einsatz) {
+    const now = new Date();
+    await Einsatz.findByIdAndUpdate(bewerbung.einsatz, {
+      $set: {
+        bestaetigt: true,
+        'bestaetigung.version': 'einsatz-confirmation-v1',
+        'bestaetigung.einsatzzeitenGelesenAt': now,
+        'bestaetigung.einsatzkleidungAt': now,
+        'bestaetigung.ankunftspufferAt': now,
+        'bestaetigung.completedAt': now,
+      },
+    });
+  }
+
+  return res.json({ ok: true, bewerbung });
+}));
+
+router.delete('/applications', requirePrototypeOidc, asyncHandler(async (req, res) => {
+  const mitarbeiter = await resolveMitarbeiter(req);
+  if (!mitarbeiter) {
+    return res.status(404).json({ msg: 'Mitarbeiter für diesen Flip-Account nicht gefunden' });
+  }
+  await JobBewerbung.deleteMany({ mitarbeiter: mitarbeiter._id });
+  return res.json({ ok: true });
 }));
 
 // Local-only fixture for exercising the public news confirmation flow.

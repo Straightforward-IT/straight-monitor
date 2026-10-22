@@ -56,8 +56,7 @@ describe('Tariflohn in der Mitarbeiter-Lohnsection', () => {
     data.baseRate.assignmentSelection = { basis: 'CURRENT_PERSONAL_NUMBER', personalNr: '2000001', excludedPersonalNumbers: ['1000001'] };
     data.aboveTariff.selection = { basis: 'HISTORICAL_PERSONAL_NUMBER', personalNr: '1000001', currentPersonalNr: '2000001' };
     mocks.api.get.mockResolvedValueOnce({ data }); await render();
-    expect(wrapper.text()).toContain('Aktuelle Personalnummer 2000001 verwendet');
-    expect(wrapper.text()).toContain('historischen Nummern 1000001');
+    expect(wrapper.find('.employee-tariff-wage__heading + .employee-tariff-wage__context').text()).toBe('Lohn Ost KZF · Eingangsstufe');
     expect(wrapper.text()).toContain('ÜTZ: Historische Personalnummer 1000001 verwendet');
     expect(wrapper.get('[data-wage="total"]').text()).toBe('17,73 €');
   });

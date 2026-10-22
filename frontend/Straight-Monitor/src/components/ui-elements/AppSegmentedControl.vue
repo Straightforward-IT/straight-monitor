@@ -99,6 +99,7 @@ function onKeydown(event, value) {
     // Reserve the bold width so options never shift when selection changes.
     &::after {
       content: attr(data-label);
+      display: block;
       height: 0;
       overflow: hidden;
       visibility: hidden;

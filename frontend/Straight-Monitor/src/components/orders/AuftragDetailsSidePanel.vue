@@ -7,6 +7,7 @@
     :presentation="presentation"
     :modal-minimizable="minimizable"
     :minimize-id="minimizeId"
+    :has-modal-side="showModalSide && Boolean($slots['modal-side'])"
     modal-size="lg"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -49,9 +50,24 @@
         >
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
         </AppIconButton>
+        <AppIconButton
+          v-if="showStaffingExpand && event"
+          variant="ghost"
+          size="sm"
+          label="Personal & Bewerbungen einblenden"
+          @click.stop="$emit('expand-staffing')"
+        >
+          <font-awesome-icon :icon="faAnglesRight" />
+        </AppIconButton>
       </div>
     </template>
     <slot />
+    <template
+      v-if="showModalSide && $slots['modal-side']"
+      #modal-side
+    >
+      <slot name="modal-side" />
+    </template>
     <template v-if="calendarTarget" #modal-footer>
       <RouterLink :to="calendarTarget" class="auftrag-calendar-link" @click="closeForCalendarNavigation">
         <FontAwesomeIcon :icon="faCalendarDays" />
@@ -65,7 +81,7 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faAnglesRight, faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import SidePanelFrame from "@/components/frames/SidePanelFrame.vue";
 import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
 
@@ -76,12 +92,14 @@ const props = defineProps({
   presentation: { type: String, default: 'panel' },
   minimizable: { type: Boolean, default: false },
   minimizeId: { type: String, default: '' },
+  showStaffingExpand: { type: Boolean, default: false },
+  showModalSide: { type: Boolean, default: false },
   formatRange: { type: Function, required: true },
   statusClass: { type: Function, required: true },
   statusText: { type: Function, required: true },
 });
 
-const emit = defineEmits(["update:modelValue", "actions", "undock"]);
+const emit = defineEmits(["update:modelValue", "actions", "undock", "expand-staffing"]);
 const calendarTarget = computed(() => {
   const number = props.event?.auftragNr || props.auftragNr;
   if (props.presentation !== 'modal' || !number) return null;

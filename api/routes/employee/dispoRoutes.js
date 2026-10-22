@@ -115,18 +115,22 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     }
   }
 
-  // Kuerzel-Lookup: auftragNr → kuerzel
+  // Kuerzel- & Titel-Lookup: auftragNr → { kuerzel, eventTitel }
   const auftragNrs = [...new Set(einsaetze.map(e => e.auftragNr).filter(Boolean))];
   let auftragNrToKuerzel = {};
+  let auftragNrToTitel = {};
   if (auftragNrs.length) {
-    const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } }).select('auftragNr kundenNr').lean();
+    const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } }).select('auftragNr kundenNr eventTitel eventLocation').lean();
     const kundenNrs = [...new Set(auftraege.map(a => a.kundenNr).filter(Boolean))];
     const kunden = kundenNrs.length
       ? await Kunde.find({ kundenNr: { $in: kundenNrs } }).select('kundenNr kuerzel').lean()
       : [];
     const kundenNrToKuerzel = {};
     for (const k of kunden) kundenNrToKuerzel[k.kundenNr] = k.kuerzel || null;
-    for (const a of auftraege) auftragNrToKuerzel[a.auftragNr] = kundenNrToKuerzel[a.kundenNr] || null;
+    for (const a of auftraege) {
+      auftragNrToKuerzel[a.auftragNr] = kundenNrToKuerzel[a.kundenNr] || null;
+      auftragNrToTitel[a.auftragNr] = a.eventTitel || a.eventLocation || null;
+    }
   }
 
   // Einsätze als pseudo-DispoEinträge konvertieren
@@ -138,6 +142,7 @@ router.get('/', auth, asyncHandler(async (req, res) => {
     datumBis: e.datumBis,
     typ: 'planned',
     auftragNr: e.auftragNr,
+    eventTitel: auftragNrToTitel[e.auftragNr] || null,
     bezeichnung: e.bezeichnung,
     schichtBezeichnung: e.schichtBezeichnung,
     uhrzeitVon: e.uhrzeitVon,

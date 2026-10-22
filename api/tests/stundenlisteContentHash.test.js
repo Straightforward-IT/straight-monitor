@@ -85,6 +85,31 @@ describe('Stundenliste content hash', () => {
     assert.ok(pdf.length > 0);
   });
 
+  it('renders the customer name rather than the signing contact below the signature field', () => {
+    const drawnText = [];
+    const ctx = {
+      y: 200,
+      font: {},
+      fontBold: {},
+      signatureTags: false,
+      page: {
+        drawLine() {},
+        drawText(text) {
+          drawnText.push(text);
+        },
+      },
+    };
+
+    StundenlisteService._signatureBlock(ctx, {
+      kundName: 'Kunde GmbH',
+      signaturKontaktId: 'contact-id',
+      signaturKontakte: [{ id: 'contact-id', name: 'Markus Bergmann' }],
+    });
+
+    assert.ok(drawnText.includes('Kunde GmbH'));
+    assert.ok(!drawnText.includes('Markus Bergmann'));
+  });
+
   it('records unequal double-copy page counts and delivers the actual 2 + 1 layout', async () => {
     const data = createData();
     data.einsaetze.push({

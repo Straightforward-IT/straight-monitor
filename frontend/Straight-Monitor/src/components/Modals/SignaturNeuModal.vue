@@ -1869,8 +1869,19 @@ async function submit() {
         email: '',
       });
     }
+    const onCreatedCallback = modal._onCreated;
+    const refreshAfterSigning = () => {
+      if (typeof onCreatedCallback === 'function') {
+        try { onCreatedCallback(vorgang); } catch (_) { /* ignore */ }
+      }
+    };
     const signingSession = signersBySrc.size
-      ? { title: signingRecord?.name || form.value.name.trim(), signers: [...signersBySrc.values()] }
+      ? {
+          title: signingRecord?.name || form.value.name.trim(),
+          signers: [...signersBySrc.values()],
+          onComplete: refreshAfterSigning,
+          onClose: refreshAfterSigning,
+        }
       : null;
 
     modal.notifyCreated(vorgang);

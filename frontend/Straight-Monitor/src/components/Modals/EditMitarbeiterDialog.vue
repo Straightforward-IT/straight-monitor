@@ -126,6 +126,12 @@
           <span class="form-section__icon"><font-awesome-icon icon="fa-solid fa-id-card" /></span>
           <h4>Führerscheine</h4>
         </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input v-model="form.hatAuto" type="checkbox" :disabled="saving" />
+            <span>Auto vorhanden</span>
+          </label>
+        </div>
         <div class="list-editor">
           <div v-for="(license, index) in form.fuehrerscheine" :key="index" class="license-row">
             <AppTextInput
@@ -414,6 +420,7 @@ const form = ref({
   adresse: { strasse: "", plz: "", ort: "", land: "" },
   adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
   fuehrerscheine: [],
+  hatAuto: false,
 });
 
 // yyyy-MM-dd for <input type="date">
@@ -475,6 +482,7 @@ watch(
           gueltigBis: toDateInput(license.gueltigBis),
           source: license.source || "manual",
         })),
+        hatAuto: Boolean(newVal.fuehrerschein?.hatAuto),
       };
     }
   },

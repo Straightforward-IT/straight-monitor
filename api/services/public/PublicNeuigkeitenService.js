@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Einsatz = require('../../models/Event/Einsatz');
 const Auftrag = require('../../models/Event/Auftrag');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const JobBewerbung = require('../../models/Event/JobBewerbung');
 const { resolvePersonalNumbers } = require('../operations/EinsatzCountingService');
 
 const CONFIRMATION_VERSION = 'einsatz-confirmation-v1';
@@ -153,6 +154,23 @@ async function confirmStep({ mitarbeiterId, einsatzId, stepKey }) {
       einsatz.bestaetigt = true;
     }
     await einsatz.save();
+
+    const bewerbungMatch = {
+      mitarbeiter: mitarbeiter._id,
+      $or: [
+        { einsatz: einsatz._id },
+        ...(einsatz.schicht ? [{ schicht: einsatz.schicht }] : []),
+      ],
+    };
+    if (einsatz.bestaetigt) {
+      await JobBewerbung.updateMany(bewerbungMatch, {
+        $set: { status: 'confirmed', confirmationStep: CONFIRMATION_STEPS.length },
+      });
+    } else {
+      await JobBewerbung.updateMany(bewerbungMatch, {
+        $set: { confirmationStep: stepIndex + 1 },
+      });
+    }
   }
   return { completed: einsatz.bestaetigt, nextStep: currentStep(einsatz)?.key || null };
 }

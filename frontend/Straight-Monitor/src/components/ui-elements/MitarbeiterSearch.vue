@@ -52,7 +52,7 @@
         @keydown.down.prevent="moveDown"
         @keydown.up.prevent="moveUp"
         @keydown.enter.prevent="selectHighlighted"
-        @keydown.escape="close"
+        @keydown.escape.stop.prevent="onEscape"
         @keydown.backspace="removeLastFilter"
         @focus="openSuggestions"
       />
@@ -213,7 +213,7 @@ function createFilter(category, item, code = '') {
 
 const filterCatalog = computed(() => [
   ...locations.value.map((item) => createFilter('standorte', item, item.shortName)),
-  ...AKTIV_STATUS.map((item) => createFilter('aktivstatus', item)),
+  ...(props.includeInactive ? AKTIV_STATUS.map((item) => createFilter('aktivstatus', item)) : []),
   ...BEWERBER_STATUS.map((item) => createFilter('bewerber', item)),
   ...dataCache.berufe.map((item) => createFilter('berufe', item, item.jobKey)),
   ...ARBEITSVERHAELTNISSE.map((item) => createFilter('arbeitsverhaeltnisse', item)),
@@ -317,6 +317,7 @@ async function fetchResults() {
       includeInactive: props.includeInactive,
       requirePersonalnr: props.requirePersonalnr,
       preferActive: props.preferActive,
+      locationV2: effectiveLocationV2.value || undefined,
       ...filterParams(),
     } });
     if (currentRequest !== requestId) return;
@@ -418,6 +419,10 @@ function openSuggestions() {
 }
 
 function close() { showDropdown.value = false; }
+function onEscape() {
+  showDropdown.value = false;
+  inputEl.value?.blur();
+}
 
 function moveDown() { if (highlighted.value < suggestions.value.length - 1) highlighted.value++; }
 function moveUp()   { if (highlighted.value > 0) highlighted.value--; }

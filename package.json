@@ -7,7 +7,7 @@
     "heroku-postbuild": "npm run build",
     "start": "node api/app.js",
     "frontend": "npm run dev --prefix frontend/Straight-Monitor",
-    "backend": "nodemon --cwd api app.js",
+    "backend": "cd api && node --watch app.js",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\" \"cloudflared tunnel run dev-backend 2>&1 | grep -v 'INF'\""
   },
   "engines": {
@@ -20,7 +20,6 @@
     "concurrently": "^9.0.1",
     "file-saver": "^2.0.5",
     "lodash.debounce": "^4.0.8",
-    "nodemon": "^3.1.7",
     "pdfjs-dist": "^5.4.624",
     "pdfmake": "^0.2.18",
     "vue-tsc": "^3.3.7",

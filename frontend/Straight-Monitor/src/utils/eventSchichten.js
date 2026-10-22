@@ -3,7 +3,7 @@ export function buildEventSchichten(event) {
 
   const grouped = {};
   (event.schichten || []).forEach(schicht => {
-    const key = schicht.idAuftragArbeitsschichten || 'none';
+    const key = schicht.idAuftragArbeitsschichten || schicht._id || 'none';
     if (grouped[key]) return;
     grouped[key] = {
       einsaetze: [],
@@ -12,6 +12,7 @@ export function buildEventSchichten(event) {
         schichtId: schicht._id || null,
         idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten || null,
         datumVon: schicht.datumVon || null,
+        datumBis: schicht.datumBis || null,
         treffpunkt: schicht.treffpunkt || null,
         treffpunktOrt: schicht.treffpunktOrt || null,
         ansprechpartnerName: schicht.ansprechpartnerName || null,
@@ -20,13 +21,20 @@ export function buildEventSchichten(event) {
         uhrzeitVon: schicht.uhrzeitVon || null,
         uhrzeitBis: schicht.uhrzeitBis || null,
         bedarf: schicht.bedarf ?? null,
+        qualSchl: schicht.qualSchl || null,
+        berufSchl: schicht.berufSchl || null,
         bedarfMet: false,
       },
     };
   });
 
   (event.einsaetze || []).forEach(einsatz => {
-    const key = einsatz.idAuftragArbeitsschichten || 'none';
+    const schichtRef = typeof einsatz.schicht === 'object' ? einsatz.schicht?._id : einsatz.schicht;
+    const pseudoGroupKey =
+      !einsatz.idAuftragArbeitsschichten && !schichtRef && einsatz.isPseudo && einsatz.schichtBezeichnung
+        ? `pseudo:${einsatz.schichtBezeichnung}:${einsatz.uhrzeitVon || ''}:${einsatz.uhrzeitBis || ''}`
+        : null;
+    const key = einsatz.idAuftragArbeitsschichten || schichtRef || pseudoGroupKey || 'none';
     if (!grouped[key]) {
       grouped[key] = {
         einsaetze: [],
@@ -35,6 +43,7 @@ export function buildEventSchichten(event) {
           schichtId: null,
           idAuftragArbeitsschichten: einsatz.idAuftragArbeitsschichten || null,
           datumVon: einsatz.datumVon || null,
+          datumBis: einsatz.datumBis || null,
           treffpunkt: einsatz.treffpunkt || null,
           treffpunktOrt: einsatz.treffpunktOrt || null,
           ansprechpartnerName: einsatz.ansprechpartnerName || null,
@@ -43,9 +52,17 @@ export function buildEventSchichten(event) {
           uhrzeitVon: einsatz.uhrzeitVon || null,
           uhrzeitBis: einsatz.uhrzeitBis || null,
           bedarf: einsatz.bedarf ?? null,
+          qualSchl: einsatz.qualSchl || null,
+          berufSchl: einsatz.berufSchl || null,
           bedarfMet: false,
         },
       };
+    }
+    if (grouped[key].meta.bedarf == null && einsatz.bedarf != null) {
+      grouped[key].meta.bedarf = einsatz.bedarf;
+    }
+    if (!grouped[key].meta.qualSchl && einsatz.qualSchl) {
+      grouped[key].meta.qualSchl = einsatz.qualSchl;
     }
     grouped[key].einsaetze.push(einsatz);
   });

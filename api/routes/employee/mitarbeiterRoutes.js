@@ -332,6 +332,9 @@ router.get(
       persgruppen,
       arbeitsverhaeltnisse,
       standorte,
+      locationV2,
+      allowEmpty,
+      limit,
       isActive: activeState,
       bewerber,
     } = req.query;
@@ -342,11 +345,12 @@ router.get(
     const persgruppeValues = parseList(persgruppen).map(Number).filter(Number.isInteger);
     const arbeitsverhaeltnisValues = parseList(arbeitsverhaeltnisse).map(Number).filter(Number.isInteger);
     const standortIds = parseList(standorte).filter(mongoose.isValidObjectId);
+    const priorityLocationId = mongoose.isValidObjectId(locationV2) ? String(locationV2) : null;
     const hasSmartFilters = berufIds.length || qualifikationIds.length || persgruppeValues.length
       || arbeitsverhaeltnisValues.length || standortIds.length
-      || activeState === 'true' || activeState === 'false'
+      || (includeInactive === 'true' && (activeState === 'true' || activeState === 'false'))
       || bewerber === 'true' || bewerber === 'false';
-    if (search.length < 2 && !hasSmartFilters) return res.json([]);
+    if (search.length < 2 && !hasSmartFilters && allowEmpty !== 'true') return res.json([]);
     const terms = search.split(/\s+/).filter(Boolean).slice(0, 5);
     const regex = (term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const matchingTerm = (term) => ({
@@ -360,17 +364,19 @@ router.get(
         { personalnr: regex(term) },
       ],
     });
-    const filter = {
-      $and: terms.map(matchingTerm),
-    };
-    if (activeState === 'true' || activeState === 'false') filter.isActive = activeState === 'true';
-    else if (includeInactive !== 'true') filter.isActive = true;
-    if (requirePersonalnr === 'true') filter.$and.push({ personalnr: { $exists: true, $nin: [null, ''] } });
+    const andClauses = terms.map(matchingTerm);
+    const filter = {};
+    if (includeInactive === 'true' && (activeState === 'true' || activeState === 'false')) {
+      filter.isActive = activeState === 'true';
+    } else if (includeInactive !== 'true') {
+      filter.isActive = true;
+    }
+    if (requirePersonalnr === 'true') andClauses.push({ personalnr: { $exists: true, $nin: [null, ''] } });
     if (berufIds.length) filter.berufe = { $in: berufIds };
     if (qualifikationIds.length) filter.qualifikationen = { $in: qualifikationIds };
     if (persgruppeValues.length) {
       const month = Mitarbeiter.currentPayrollMonth();
-      filter.$and.push({ $or: [
+      andClauses.push({ $or: [
         { lohnStammdaten: { $elemMatch: { month, persgruppe: { $in: persgruppeValues } } } },
         { $and: [
           { lohnStammdaten: { $not: { $elemMatch: { month, $or: [{ persgruppe: { $ne: null } }, { sourceId: { $ne: null } }, { persgruppe_set_explicitly: true }] } } } },
@@ -381,12 +387,19 @@ router.get(
     if (arbeitsverhaeltnisValues.length) filter['arbeitsverhaeltnis.typ'] = { $in: arbeitsverhaeltnisValues };
     if (standortIds.length) filter.locationV2 = { $in: standortIds };
     if (bewerber === 'true' || bewerber === 'false') filter.isBewerberstatus = bewerber === 'true';
+    if (andClauses.length) filter.$and = andClauses;
+
+    const maxResults = Math.min(300, Math.max(1, Number.parseInt(limit, 10) || 20));
     const results = await Mitarbeiter.find(filter)
-      .select('_id vorname nachname email personalnr flip_id profilbild persgruppe lohnStammdaten isActive locationV2')
-      .limit(20)
+      .select('_id vorname nachname email telefon personalnr flip_id profilbild persgruppe arbeitsverhaeltnis lohnStammdaten berufe qualifikationen kundenwuensche isActive isBewerberstatus locationV2 dispoNotiz einsatzCount eintrittsdatum austrittsdatum createdAt dateCreated')
+      .populate('locationV2', 'nameFull shortName color externalId')
+      .populate('berufe', 'jobKey designation')
+      .populate('qualifikationen', 'qualificationKey designation')
+      .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
       .lean();
     const normalizedSearch = search.toLocaleLowerCase('de-DE');
     const score = (employee) => {
+      if (!normalizedSearch) return 1;
       const fullName = `${employee.vorname || ''} ${employee.nachname || ''}`.trim().toLocaleLowerCase('de-DE');
       const email = String(employee.email || '').toLocaleLowerCase('de-DE');
       const personalNr = String(employee.personalnr || '');
@@ -394,9 +407,21 @@ router.get(
       if (fullName.startsWith(normalizedSearch)) return 2;
       return 1;
     };
-    res.json(results.sort((first, second) => (preferActive === 'true' ? Number(second.isActive) - Number(first.isActive) : 0)
-      || score(second) - score(first)
-      || `${first.nachname || ''} ${first.vorname || ''}`.localeCompare(`${second.nachname || ''} ${second.vorname || ''}`, 'de')));
+    const isPriorityLocation = (employee) => {
+      if (!priorityLocationId) return 0;
+      const empLocId = String(employee.locationV2?._id || employee.locationV2 || '');
+      return empLocId === priorityLocationId ? 1 : 0;
+    };
+    res.json(
+      results
+        .sort((first, second) =>
+          isPriorityLocation(second) - isPriorityLocation(first)
+          || (preferActive === 'true' ? Number(second.isActive) - Number(first.isActive) : 0)
+          || score(second) - score(first)
+          || `${first.nachname || ''} ${first.vorname || ''}`.localeCompare(`${second.nachname || ''} ${second.vorname || ''}`, 'de')
+        )
+        .slice(0, maxResults)
+    );
   })
 );
 
@@ -1868,6 +1893,7 @@ router.get(
         },
         "berufe",
         "qualifikationen",
+        { path: "kundenwuensche.kunde", select: "kundenNr kundName kuerzel" },
         { path: "locationV2", select: "nameFull shortName color externalId" },
       ]);
 

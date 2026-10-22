@@ -255,7 +255,7 @@
         :einsatz-time="einsatzTime"
         :formatted-today="formattedToday"
         :job-time="jobTime"
-        :jobs="jobs"
+        :jobs="visibleJobs"
         :month-short="monthShort"
         :confirming-news-id="confirmingNewsId"
         :next-einsatz="nextEinsatz"
@@ -283,7 +283,7 @@
         :job-filter="jobFilter"
         :job-roles="jobRoles"
         :job-time="jobTime"
-        :jobs="jobs"
+        :jobs="visibleJobs"
         :jobs-are-fixtures="jobsAreFixtures"
         :jobs-error="jobsError"
         :jobs-loading="jobsLoading"
@@ -544,8 +544,26 @@ const nextProfileRank = computed(() => {
   const currentIndex = rankTestTiers.indexOf(rankPreviewTier.value);
   return rankTestTiers[(currentIndex + 1) % rankTestTiers.length];
 });
-const jobRoles = computed(() => [...new Set(jobs.value.map((job) => job.role).filter(Boolean))]);
-const filteredJobs = computed(() => jobFilter.value === 'all' ? jobs.value : jobs.value.filter((job) => job.role === jobFilter.value));
+const blockedKundenNrs = computed(() => {
+  const blocked = new Set();
+  for (const wish of props.mitarbeiter?.kundenwuensche || []) {
+    if (wish?.typ !== 'negativ') continue;
+    const nr = Number(wish.kunde?.kundenNr ?? wish.kundenNr);
+    if (Number.isFinite(nr) && nr > 0) blocked.add(nr);
+  }
+  return blocked;
+});
+const visibleJobs = computed(() =>
+  jobs.value.filter((job) => {
+    const kundenNr = Number(job?.kundenNr);
+    if (Number.isFinite(kundenNr) && kundenNr > 0 && blockedKundenNrs.value.has(kundenNr)) {
+      return false;
+    }
+    return true;
+  })
+);
+const jobRoles = computed(() => [...new Set(visibleJobs.value.map((job) => job.role).filter(Boolean))]);
+const filteredJobs = computed(() => jobFilter.value === 'all' ? visibleJobs.value : visibleJobs.value.filter((job) => job.role === jobFilter.value));
 const nextEinsatz = computed(() => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -659,7 +677,7 @@ const openLaufzettelCount = computed(() =>
   (props.mitarbeiter?.laufzettel_received || []).filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
 );
 const navigation = computed(() => [
-  { id: 'home', label: 'Home', icon: 'fa-solid fa-house' }, { id: 'jobs', label: 'Jobs', icon: 'fa-solid fa-briefcase', badge: jobs.value.length || null },
+  { id: 'home', label: 'Home', icon: 'fa-solid fa-house' }, { id: 'jobs', label: 'Jobs', icon: 'fa-solid fa-briefcase', badge: visibleJobs.value.length || null },
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
@@ -748,6 +766,24 @@ function openDocumentList() { returnDetailView.value = 'documents'; detailView.v
 function openDocument(document) { returnDetailView.value = detailView.value === 'document-list' ? 'document-list' : null; selectedDocument.value = document; detailView.value = 'document'; }
 function openPayroll(payroll) { returnDetailView.value = ['documents', 'payroll-list'].includes(detailView.value) ? detailView.value : null; selectedPayroll.value = payroll; detailView.value = 'payroll'; }
 function applicationStatus(id) { return demoState.applications[id] || null; }
+async function syncApplicationToBackend(id, status, confirmationStep = 0) {
+  const job = jobs.value.find((entry) => String(entry.id) === String(id)) || selectedJob.value || null;
+  try {
+    await props.api.put(
+      `/api/public/prototype/applications/${encodeURIComponent(id)}`,
+      {
+        status,
+        confirmationStep,
+        jobTitle: job?.title || null,
+        role: job?.role || null,
+        auftragNr: job?.auftragNr ?? null,
+      },
+      { params: { email: props.email } }
+    );
+  } catch {
+    // Keep local demo state responsive even if backend sync fails
+  }
+}
 function setApplication(id, status) {
   if (!demoState.applicationSteps) demoState.applicationSteps = {};
   if (status) {
@@ -758,6 +794,7 @@ function setApplication(id, status) {
     delete demoState.applications[id];
     delete demoState.applicationSteps[id];
   }
+  void syncApplicationToBackend(id, status, 0);
 }
 function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', scheduled: 'Bestätigung ausstehend', confirmed: 'Eingeplant & bestätigt', rejected: 'Abgesagt' }[status] || status); }
 function applicationDetailMessage(status) {
@@ -771,7 +808,12 @@ function stopTime() { const entry = timeEntry.value; if (entry.status === 'pause
 function submitTime() { timeEntry.value.status = 'submitted'; }
 function advanceTime(status) { timeEntry.value.history.push({ status, at: new Date().toISOString() }); timeEntry.value.status = status; }
 function requestCorrection() { timeEntry.value.correction = { original: formatClock(timeEntry.value.stoppedAt), requested: correctionTime.value, reason: correctionReason.value, requestedAt: new Date().toISOString() }; showCorrection.value = false; correctionTime.value = ''; correctionReason.value = ''; }
-function resetPrototype() { reset(); resetMessage.value = 'Der lokale Prototyp wurde zurückgesetzt.'; window.setTimeout(() => { resetMessage.value = ''; }, 2500); }
+function resetPrototype() {
+  reset();
+  void props.api.delete('/api/public/prototype/applications', { params: { email: props.email } }).catch(() => {});
+  resetMessage.value = 'Der lokale Prototyp wurde zurückgesetzt.';
+  window.setTimeout(() => { resetMessage.value = ''; }, 2500);
+}
 function setTheme(value) { theme.set(value); }
 async function savePersonalData() {
   if (personalDataSaving.value) return;
@@ -896,7 +938,31 @@ function payrollTitle(payroll) {
 }
 function payrollTypeLabel(type) { return type === 'LST' ? 'Lohnsteuerbescheid' : 'Lohnabrechnung'; }
 function payrollDescription(payroll) { return payroll.lastModified ? `Zuletzt aktualisiert ${formatLongDate(payroll.lastModified)}` : 'PDF-Abrechnung'; }
-async function loadJobs() { jobsLoading.value = true; try { const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } }); jobs.value = response.data.jobs || []; if (!jobs.value.length && import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } catch (error) { jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.'; if (import.meta.env.DEV) { jobs.value = createDemoJobs(); jobsAreFixtures.value = true; } } finally { jobsLoading.value = false; } }
+async function loadJobs() {
+  jobsLoading.value = true;
+  try {
+    const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } });
+    jobs.value = response.data.jobs || [];
+    if (response.data.applications && typeof response.data.applications === 'object') {
+      demoState.applications = { ...demoState.applications, ...response.data.applications };
+    }
+    if (response.data.applicationSteps && typeof response.data.applicationSteps === 'object') {
+      demoState.applicationSteps = { ...(demoState.applicationSteps || {}), ...response.data.applicationSteps };
+    }
+    if (!jobs.value.length && response.data?.source !== 'database' && import.meta.env.DEV) {
+      jobs.value = createDemoJobs();
+      jobsAreFixtures.value = true;
+    }
+  } catch (error) {
+    jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.';
+    if (import.meta.env.DEV) {
+      jobs.value = createDemoJobs();
+      jobsAreFixtures.value = true;
+    }
+  } finally {
+    jobsLoading.value = false;
+  }
+}
 async function loadNews() {
   newsLoading.value = true;
   newsError.value = '';
@@ -916,9 +982,11 @@ async function confirmNewsItem(item) {
     if (nextIdx >= CONFIRMATION_STEPS.length) {
       demoState.applications[item.jobId] = 'confirmed';
       delete demoState.applicationSteps[item.jobId];
+      void syncApplicationToBackend(item.jobId, 'confirmed', CONFIRMATION_STEPS.length);
       closeConfirmationModal();
     } else {
       demoState.applicationSteps[item.jobId] = nextIdx;
+      void syncApplicationToBackend(item.jobId, 'scheduled', nextIdx);
     }
     return;
   }

@@ -1,6 +1,6 @@
 <template>
   <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent, 'auftraege-page--detail-only': isHostedDetail }">
-      <div v-if="!isHostedDetail" class="main-content">
+      <div v-if="!isHostedDetail" ref="mainContent" class="main-content">
         <Toolbar
           v-if="viewMode === 'calendar'"
           class="calendar-navigation"
@@ -124,13 +124,20 @@
             <RouterLink
               v-if="dataStatus && !isMobile"
               class="data-status-badge"
+              :class="{ 'data-status-badge--compact': isCompactToolbar }"
               to="/daten-import"
               :title="'Stand der Daten: ' + formatDataStatus(dataStatus)"
+              :aria-label="'Stand der Daten: ' + formatDataStatus(dataStatus)"
             >
               <font-awesome-icon icon="fa-solid fa-clock" />
-              <span>{{ formatDataStatus(dataStatus) }}</span>
+              <span class="data-status-badge__label">{{ formatDataStatus(dataStatus) }}</span>
             </RouterLink>
-            <CalendarControls v-if="!isMobile" v-model="calendarWeekDate" type="week" />
+            <CalendarControls
+              v-if="!isMobile"
+              v-model="calendarDayDate"
+              type="day"
+              :compact="isCompactToolbar"
+            />
           </template>
         </Toolbar>
 
@@ -362,7 +369,12 @@
 
         <div
           v-else-if="viewMode === 'calendar'"
+          ref="calendarGrid"
           class="calendar-grid"
+          :style="{
+            '--visible-days': visibleDays.length || 7,
+            '--day-min-width': `${minDayColumnWidth}px`,
+          }"
         >
           <div class="calendar-header">
             <label class="kw-cell" style="cursor: pointer; cursor: hand">
@@ -375,7 +387,7 @@
               />
             </label>
             <div
-              v-for="day in weekDays"
+              v-for="day in visibleDays"
               :key="day.key"
               class="day-header"
               role="button"
@@ -461,7 +473,7 @@
               </div>
             </div>
             <div
-              v-for="day in weekDays"
+              v-for="day in visibleDays"
               :key="day.key"
               class="day-column"
               :class="{
@@ -652,6 +664,7 @@
           :pseudo-einsatz="filters.pseudoEinsatz"
           :period="listPeriod"
           :reference-date="listReferenceDate"
+          :compact-controls="isCompactToolbar"
           :status-class="getEventStatusClass"
           :status-text="getStatusText"
           @select="selectEvent"
@@ -726,11 +739,14 @@
         :presentation="isHostedDetail ? 'modal' : 'panel'"
         :minimizable="detailMinimizable"
         :minimize-id="detailMinimizeId"
+        :show-staffing-expand="isAdmin && staffingPanelHidden"
+        :show-modal-side="isAdmin && isHostedDetail && Boolean(selectedEvent) && !staffingPanelHidden"
         :format-range="formatDateRange"
         :status-class="getEventStatusClass"
         :status-text="getStatusText"
         @actions="toggleQuickActionsMenu"
         @undock="undockSelectedOrder"
+        @expand-staffing="setStaffingPanelHidden(false)"
       >
         <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
         <div v-else-if="detailError" class="order-detail-error" role="alert">
@@ -804,46 +820,75 @@
           </div>
 
           <div class="schichten-list">
+            <!-- Neue Schicht Button / Dropzone (Pseudo-Schicht) -->
+            <button
+              type="button"
+              class="neue-schicht-dropzone"
+              :class="{
+                'neue-schicht-dropzone--drag-over':
+                  schichtDragOverKey === 'new-pseudo-schicht',
+              }"
+              @click="openNewPseudoSchichtDialog()"
+              @dragenter.prevent="handleSchichtDragEnter($event, { key: 'new-pseudo-schicht', meta: {} })"
+              @dragover.prevent="handleSchichtDragOver($event, { key: 'new-pseudo-schicht', meta: {} })"
+              @dragleave="handleSchichtDragLeave($event, { key: 'new-pseudo-schicht', meta: {} })"
+              @drop.prevent="handleNewPseudoSchichtDrop($event)"
+            >
+              <font-awesome-icon icon="fa-solid fa-plus" />
+              <span>Neue Schicht</span>
+              <small v-if="schichtDragOverKey === 'new-pseudo-schicht'">
+                Mitarbeiter in neue Pseudo-Schicht einplanen
+              </small>
+            </button>
+
             <div
               v-for="schichtData in preparedSchichten"
               :key="schichtData.key"
-              class="schicht-card"
-              :class="{
-                'schicht-card--drag-over':
-                  schichtDragOverKey === schichtData.key,
-              }"
-              @dragenter.prevent="handleSchichtDragEnter($event, schichtData)"
-              @dragover.prevent="handleSchichtDragOver($event, schichtData)"
-              @dragleave="handleSchichtDragLeave($event, schichtData)"
-              @drop.prevent="handleMitarbeiterDrop($event, schichtData)"
+              class="schicht-card-row"
             >
-              <div class="schicht-header-compact">
-                <div class="schicht-summary">
-                  <div class="schicht-title-line">
-                    <span class="schicht-name">{{
-                      schichtData.meta.schichtBezeichnung || "Schicht"
-                    }}</span>
+              <div
+                class="schicht-card"
+                :class="{
+                  'schicht-card--drag-over':
+                    schichtDragOverKey === schichtData.key,
+                }"
+                @dragenter.prevent="handleSchichtDragEnter($event, schichtData)"
+                @dragover.prevent="handleSchichtDragOver($event, schichtData)"
+                @dragleave="handleSchichtDragLeave($event, schichtData)"
+                @drop.prevent="handleMitarbeiterDrop($event, schichtData)"
+              >
+                <div class="schicht-header-compact">
+                  <div class="schicht-summary">
+                    <div class="schicht-title-line">
+                      <span class="schicht-name">{{
+                        schichtData.meta.schichtBezeichnung || "Schicht"
+                      }}</span>
+                    </div>
+                    <div class="schicht-detail-line">
+                      <span
+                        v-if="
+                          getCommonQualifikation(schichtData.einsaetze) ||
+                          resolveRequiredShiftQualification(schichtData)
+                        "
+                        class="schicht-quali"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                        {{
+                          (
+                            getCommonQualifikation(schichtData.einsaetze) ||
+                            resolveRequiredShiftQualification(schichtData)
+                          ).designation
+                        }}
+                      </span>
+                    </div>
                   </div>
-                  <div class="schicht-detail-line">
-                    <span
-                      v-if="getCommonQualifikation(schichtData.einsaetze)"
-                      class="schicht-quali"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-                      {{
-                        getCommonQualifikation(schichtData.einsaetze)
-                          .designation
-                      }}
-                    </span>
-                  </div>
+                  <OrderHoursVisibilityButton
+                    :included="schichtStundenlisteIncluded(schichtData)"
+                    :pending="isStundenlisteTogglePending(schichtData.einsaetze)"
+                    :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
+                    @toggle="toggleSchichtStundenlisteInclusion(schichtData)"
+                  />
                 </div>
-                <OrderHoursVisibilityButton
-                  :included="schichtStundenlisteIncluded(schichtData)"
-                  :pending="isStundenlisteTogglePending(schichtData.einsaetze)"
-                  :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
-                  @toggle="toggleSchichtStundenlisteInclusion(schichtData)"
-                />
-              </div>
 
               <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
               <div
@@ -914,20 +959,36 @@
                     {{ schichtData.einsaetze.length }}/{{
                       schichtData.meta.bedarf || "?"
                     }}
-                    besetzt
                   </span>
                 </div>
                 <div
                   v-for="einsatz in schichtData.einsaetze"
                   :key="einsatz._id"
                   class="mitarbeiter-row"
+                  :class="{
+                    'mitarbeiter-row--selected':
+                      isAdmin &&
+                      selectedStaffingMitarbeiter?._id &&
+                      String(selectedStaffingMitarbeiter._id) ===
+                        String(einsatz.mitarbeiterData?._id),
+                    'mitarbeiter-row--draggable':
+                      isAdmin && Boolean(einsatz.mitarbeiterData?._id),
+                  }"
+                  :draggable="isAdmin && Boolean(einsatz.mitarbeiterData?._id)"
+                  @dragstart="handleSchichtMitarbeiterDragStart($event, einsatz, schichtData)"
+                  @dragend="handleSchichtMitarbeiterDragEnd"
+                  @click="
+                    isAdmin && einsatz.mitarbeiterData
+                      ? (selectedStaffingMitarbeiter = einsatz.mitarbeiterData)
+                      : null
+                  "
                 >
                   <div class="ma-info">
                     <template v-if="einsatz.mitarbeiterData">
                       <a
                         href="#"
                         class="ma-name"
-                        @click.prevent="
+                        @click.prevent.stop="
                           openMitarbeiterCard(einsatz.mitarbeiterData)
                         "
                       >
@@ -1034,35 +1095,108 @@
                   <span>Keine Mitarbeiter geplant</span>
                 </div>
               </div>
-              <div
-                class="schicht-drop-hint"
-                :class="{
-                  'is-visible': schichtDragOverKey === schichtData.key,
-                }"
-              >
-                <font-awesome-icon icon="fa-solid fa-arrow-down" />
-                Mitarbeiter dieser Schicht zuordnen
+                <div
+                  class="schicht-drop-hint"
+                  :class="{
+                    'is-visible': schichtDragOverKey === schichtData.key,
+                  }"
+                >
+                  <font-awesome-icon icon="fa-solid fa-arrow-down" />
+                  Als Pseudo-Einsatz dieser Schicht zuordnen
+                </div>
+              </div>
+              <div v-if="isAdmin" class="schicht-docked-actions">
+                <button
+                  type="button"
+                  class="schicht-docked-btn schicht-docked-duplicate-btn"
+                  :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} als Pseudo-Schicht duplizieren`"
+                  title="Als Pseudo-Schicht nach unten duplizieren"
+                  :disabled="
+                    duplicatingSchichtKey === schichtData.key ||
+                    deletingSchichtKey === schichtData.key
+                  "
+                  @click.stop="duplicateSchichtAsPseudo(schichtData)"
+                >
+                  <font-awesome-icon
+                    v-if="duplicatingSchichtKey === schichtData.key"
+                    icon="fa-solid fa-spinner"
+                    spin
+                  />
+                  <template v-else>
+                    <font-awesome-icon
+                      icon="fa-solid fa-copy"
+                      class="schicht-duplicate-icon-copy"
+                    />
+                    <font-awesome-icon
+                      icon="fa-solid fa-arrow-turn-down"
+                      class="schicht-duplicate-icon-arrow"
+                    />
+                  </template>
+                </button>
+                <button
+                  type="button"
+                  class="schicht-docked-btn schicht-docked-delete-btn"
+                  :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} löschen`"
+                  title="Schicht löschen"
+                  :disabled="
+                    deletingSchichtKey === schichtData.key ||
+                    duplicatingSchichtKey === schichtData.key
+                  "
+                  @click.stop="deleteSchichtCard(schichtData)"
+                >
+                  <font-awesome-icon
+                    v-if="deletingSchichtKey === schichtData.key"
+                    icon="fa-solid fa-spinner"
+                    spin
+                  />
+                  <font-awesome-icon
+                    v-else
+                    icon="fa-solid fa-trash"
+                  />
+                </button>
               </div>
             </div>
           </div>
         </div>
 
         <!-- No Einsätze State -->
-        <div v-else class="no-einsaetze">
+        <div
+          v-else
+          class="no-einsaetze"
+          :class="{
+            'schicht-card--drag-over': schichtDragOverKey === 'none',
+          }"
+          @dragenter.prevent="handleSchichtDragEnter($event, { key: 'none', meta: {} })"
+          @dragover.prevent="handleSchichtDragOver($event, { key: 'none', meta: {} })"
+          @dragleave="handleSchichtDragLeave($event, { key: 'none', meta: {} })"
+          @drop.prevent="handleNewPseudoSchichtDrop($event)"
+        >
           <font-awesome-icon icon="fa-solid fa-calendar-xmark" />
           <span>Keine Schichten/Einsätze vorhanden</span>
-          <AppButton
-            variant="secondary"
-            size="sm"
-            :loading="detailReloading"
-            :disabled="detailReloading"
-            @click="reloadSelectedEventDetails"
-          >
-            <template #leading>
-              <font-awesome-icon icon="fa-solid fa-rotate-right" />
-            </template>
-            Neu laden
-          </AppButton>
+          <div class="no-einsaetze__actions">
+            <AppButton
+              variant="secondary"
+              size="sm"
+              @click="openNewPseudoSchichtDialog()"
+            >
+              <template #leading>
+                <font-awesome-icon icon="fa-solid fa-plus" />
+              </template>
+              Neue Schicht
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              size="sm"
+              :loading="detailReloading"
+              :disabled="detailReloading"
+              @click="reloadSelectedEventDetails"
+            >
+              <template #leading>
+                <font-awesome-icon icon="fa-solid fa-rotate-right" />
+              </template>
+              Neu laden
+            </AppButton>
+          </div>
         </div>
 
         <OrderDocumentsPanel
@@ -1082,6 +1216,7 @@
           @preview-hours="previewStundenliste"
           @download-hours="downloadStundenliste"
           @edit-hours="openSignatureDialog"
+          @sign-hours="signStundenlisteInApp"
           @delete-hours="deleteStundenlisteDraft"
           @open-expense-pdf="openReisekostenPdf"
           @edit-expense="openReisekostenModal"
@@ -1093,7 +1228,44 @@
           @upload="onEinsatzDokUpload"
         />
         </template>
+        <template
+          v-if="isAdmin && isHostedDetail"
+          #modal-side
+        >
+          <AuftragAdminStaffingSidePanel
+            ref="adminStaffingPanel"
+            embedded
+            :model-value="Boolean(selectedEvent) && !staffingPanelHidden"
+            :event="selectedEvent"
+            :shifts="preparedSchichten"
+            :default-location-id="filters.locationV2"
+            :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
+            :dragging-assigned-einsatz="draggingSchichtEinsatz"
+            @open-employee-card="openMitarbeiterCard"
+            @select-mitarbeiter="selectedStaffingMitarbeiter = $event"
+            @bewerbung-updated="onBewerbungUpdated"
+            @unassign-einsatz="handleUnassignDroppedEinsatz"
+            @minimize="setStaffingPanelHidden(true)"
+          />
+        </template>
       </AuftragDetailsSidePanel>
+
+      <!-- Second Right Side Panel (Admin Only): Mitarbeiter, Bewerbungen, Profile, HoverDataCard & Dispo -->
+      <AuftragAdminStaffingSidePanel
+        v-if="isAdmin && !isHostedDetail"
+        ref="adminStaffingPanel"
+        :model-value="Boolean(selectedEvent) && !staffingPanelHidden"
+        :event="selectedEvent"
+        :shifts="preparedSchichten"
+        :default-location-id="filters.locationV2"
+        :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
+        :dragging-assigned-einsatz="draggingSchichtEinsatz"
+        @open-employee-card="openMitarbeiterCard"
+        @select-mitarbeiter="selectedStaffingMitarbeiter = $event"
+        @bewerbung-updated="onBewerbungUpdated"
+        @unassign-einsatz="handleUnassignDroppedEinsatz"
+        @minimize="setStaffingPanelHidden(true)"
+      />
 
       <OrderDocumentUploadDialog
         v-if="showEinsatzDokDialog"
@@ -1148,6 +1320,8 @@
         v-model:mode="pseudoSchichtMode"
         v-model:new-shift="pseudoNewSchicht"
         v-model:shift-key="pseudoSelectedSchicht"
+        :kunden-nr="selectedEvent?.kundenNr || null"
+        :order-date="selectedEvent?.vonDatum || null"
         :shifts="preparedSchichten"
         :search="pseudoSearch"
         :results="pseudoSearchResults"
@@ -1158,6 +1332,13 @@
         @update:search="updatePseudoSearch"
         @toggle="togglePseudoMa"
         @submit="savePseudoEinsatz"
+      />
+      <SchichtDropWarningDialog
+        :model-value="Boolean(dropWarningFlow.steps.length)"
+        :step="currentDropWarningStep"
+        :busy="dropWarningFlow.busy"
+        @cancel="cancelDropWarningFlow"
+        @decide="handleDropWarningDecision"
       />
 
     </div>
@@ -1219,6 +1400,8 @@ import {
   faClipboardList,
   faFileLines,
   faStarHalfStroke,
+  faArrowTurnDown,
+  faCopy,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
@@ -1265,11 +1448,14 @@ library.add(
   faClipboardList,
   faFileLines,
   faStarHalfStroke,
+  faArrowTurnDown,
+  faCopy,
 );
 
 import api from "@/utils/api";
 import { mapState } from "pinia";
 import { useAuth } from "@/stores/auth";
+import { useDataCache } from "@/stores/dataCache";
 import { useFlipAll } from "@/stores/flipAll";
 import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
@@ -1292,9 +1478,11 @@ import { useCustomerModals } from "@/composables/useCustomerModals";
 import { useDocumentModals } from "@/composables/useDocumentModals";
 import { useEventModals } from "@/composables/useEventModals";
 import { useReisekostenModals } from "@/composables/useReisekostenModals";
+import { useSigningModals } from "@/composables/useSigningModals";
 import { useTimeCaptureModals } from "@/composables/useTimeCaptureModals";
 import AuftragListView from "@/components/orders/AuftragListView.vue";
 import AuftragDetailsSidePanel from "@/components/orders/AuftragDetailsSidePanel.vue";
+import AuftragAdminStaffingSidePanel from "@/components/orders/AuftragAdminStaffingSidePanel.vue";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import ToolbarButton from "@/components/ui-elements/ToolbarButton.vue";
@@ -1304,6 +1492,7 @@ import AuftragMobileDateNavigation from "@/components/orders/calendar/AuftragMob
 import OrderLabelDialog from "@/components/orders/dialogs/OrderLabelDialog.vue";
 import PseudoOrderCreateDialog from "@/components/orders/dialogs/PseudoOrderCreateDialog.vue";
 import PseudoAssignmentDialog from "@/components/orders/dialogs/PseudoAssignmentDialog.vue";
+import SchichtDropWarningDialog from "@/components/orders/dialogs/SchichtDropWarningDialog.vue";
 import TlBadge from "@/components/ui-elements/TlBadge.vue";
 import ContextMenu from "@/components/ContextMenu.vue";
 import PillMultiSelect from "@/components/ui-elements/PillMultiSelect.vue";
@@ -1337,6 +1526,7 @@ export default {
   components: {
     AuftragListView,
     AuftragDetailsSidePanel,
+    AuftragAdminStaffingSidePanel,
     OrderDocumentsPanel,
     OrderHoursVisibilityButton,
     AppButton,
@@ -1357,6 +1547,7 @@ export default {
     OrderLabelDialog,
     PseudoOrderCreateDialog,
     PseudoAssignmentDialog,
+    SchichtDropWarningDialog,
     TlBadge,
     ContextMenu,
     PillMultiSelect,
@@ -1371,8 +1562,10 @@ export default {
     const { openDocument } = useDocumentModals();
     const { openEvent, openCreateEvent } = useEventModals();
     const { openReisekosten } = useReisekostenModals();
+    const { openSigning } = useSigningModals();
     const { openTimeCapture } = useTimeCaptureModals();
     const minimizeDock = useDockedModals();
+    const dataCache = useDataCache();
     const { formatName: formatEmployeeName } = useMitarbeiterNameFormatter();
 
     const restoreMinimizedStundenliste = (auftragNr) => {
@@ -1397,8 +1590,10 @@ export default {
       openEvent,
       openCreateEvent,
       openReisekosten,
+      openSigning,
       openTimeCapture,
       restoreMinimizedStundenliste,
+      dataCache,
       docusealLogo,
       docusealPendingIcon,
       formatEmployeeName,
@@ -1450,6 +1645,11 @@ export default {
       listPeriod: "month",
       listReferenceDate: new Date(),
       currentWeekStart: null,
+      calendarStartDate: null,
+      hasCustomStartDay: false,
+      calendarGridWidth: 0,
+      minDayColumnWidth: 175,
+      calendarResizeObserver: null,
       selectedEvent: null,
       detailLoading: false,
       detailReloading: false,
@@ -1485,8 +1685,19 @@ export default {
       isMobile: false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
+      selectedStaffingMitarbeiter: null,
+      staffingPanelHidden: (() => {
+        try {
+          return localStorage.getItem("auftraege.staffingPanelHidden") === "1";
+        } catch {
+          return false;
+        }
+      })(),
       preparedSchichten: [], // Lazy loaded schichten data
       schichtDragOverKey: null,
+      draggingSchichtEinsatz: null,
+      duplicatingSchichtKey: null,
+      deletingSchichtKey: null,
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1520,7 +1731,14 @@ export default {
       // Pseudo-MA dialog
       showPseudoDialog: false,
       pseudoSchichtMode: "existing", // 'existing' | 'new'
-      pseudoNewSchicht: { bezeichnung: "", uhrzeitVon: "", uhrzeitBis: "" },
+      pseudoNewSchicht: {
+        bezeichnung: "",
+        uhrzeitVon: "",
+        uhrzeitBis: "",
+        berufSchl: "",
+        qualSchl: "",
+        bedarf: 1,
+      },
       pseudoSearch: "",
       pseudoSearchResults: [],
       pseudoSearching: false,
@@ -1528,6 +1746,16 @@ export default {
       pseudoSelectedMas: [],
       pseudoSelectedSchicht: null,
       pseudoSaving: false,
+      // Drag-and-Drop Shift Warning Dialog Flow
+      dropWarningFlow: {
+        steps: [],
+        stepIndex: 0,
+        busy: false,
+        mitarbeiter: null,
+        schichtData: null,
+        schichtId: null,
+        replanFromEinsatzIds: [],
+      },
       // Three-dots dropdown
       showQuickActions: false,
       isGeneratingHoursList: false,
@@ -1570,6 +1798,9 @@ export default {
     isHostedDetail() {
       return this.hostedAuftragNr != null && String(this.hostedAuftragNr).trim() !== '';
     },
+    currentDropWarningStep() {
+      return this.dropWarningFlow.steps[this.dropWarningFlow.stepIndex] || null;
+    },
     hasSelectedEvent: {
       get() {
         return this.isHostedDetail || Boolean(this.selectedEvent);
@@ -1596,7 +1827,7 @@ export default {
       return Array.isArray(u.roles) && u.roles.includes("VERTRIEB");
     },
     canSignaturen() {
-      return this.isAdmin || this.isVertrieb;
+      return true;
     },
     sidebarStundenliste() {
       return this.stundenlisteStatus?.vorgang || null;
@@ -1632,6 +1863,54 @@ export default {
       set(date) {
         this.setDateFromPicker(date);
       },
+    },
+    calendarDayDate: {
+      get() {
+        return this.visibleDays[0]?.date || this.calendarStartDate || this.currentWeekStart;
+      },
+      set(date) {
+        this.setCalendarStartDate(date);
+      },
+    },
+    isCompactToolbar() {
+      return this.calendarGridWidth > 0 && this.calendarGridWidth <= 400;
+    },
+    visibleDayCount() {
+      if (!this.calendarGridWidth) return 7;
+      const kwColWidth = window.innerWidth <= 1024 ? 40 : 58;
+      const availableWidth = Math.max(0, this.calendarGridWidth - kwColWidth);
+      return Math.max(
+        1,
+        Math.min(7, Math.floor(availableWidth / this.minDayColumnWidth)),
+      );
+    },
+    visibleDays() {
+      if (!this.currentWeekStart && !this.calendarStartDate) return [];
+      const count = this.visibleDayCount || 7;
+      const baseStart =
+        count < 7 || this.hasCustomStartDay
+          ? this.calendarStartDate || this.currentWeekStart
+          : this.currentWeekStart;
+      const jsDayNames = [
+        "SONNTAG",
+        "MONTAG",
+        "DIENSTAG",
+        "MITTWOCH",
+        "DONNERSTAG",
+        "FREITAG",
+        "SAMSTAG",
+      ];
+      const days = [];
+      for (let i = 0; i < count; i++) {
+        const date = new Date(baseStart);
+        date.setDate(date.getDate() + i);
+        days.push({
+          key: date.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" }),
+          name: jsDayNames[date.getDay()],
+          date,
+        });
+      }
+      return days;
     },
     currentKW() {
       if (!this.currentWeekStart) return "";
@@ -1955,6 +2234,26 @@ export default {
       if (this.isHostedDetail) return;
       this.closeCreateMenu();
       if (value === "list") this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+      if (value === "calendar") {
+        this.$nextTick(() => this.setupCalendarResizeObserver());
+      }
+    },
+    visibleDayCount(newCount, oldCount) {
+      if (newCount < 7 && oldCount === 7 && !this.hasCustomStartDay) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const weekStart = this.currentWeekStart ? new Date(this.currentWeekStart) : null;
+        if (weekStart) {
+          weekStart.setHours(0, 0, 0, 0);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 6);
+          if (today >= weekStart && today <= weekEnd) {
+            this.calendarStartDate = today;
+          } else {
+            this.calendarStartDate = new Date(weekStart);
+          }
+        }
+      }
     },
     currentWeekStart() {
       if (this.isHostedDetail) return;
@@ -2136,6 +2435,106 @@ export default {
         ),
       );
     },
+    async duplicateSchichtAsPseudo(schichtData) {
+      if (
+        !this.isAdmin ||
+        !this.selectedEvent?.auftragNr ||
+        this.duplicatingSchichtKey
+      )
+        return;
+      const meta = schichtData?.meta || {};
+      const commonBeruf = this.getCommonBeruf(schichtData?.einsaetze || []);
+      const commonQuali = this.getCommonQualifikation(
+        schichtData?.einsaetze || [],
+      );
+      const payload = {
+        isNewPseudoSchicht: true,
+        forceCreateNewSchicht: true,
+        newSchichtBezeichnung: meta.schichtBezeichnung || "Schicht",
+        newBedarf:
+          Number.isInteger(Number(meta.bedarf)) && Number(meta.bedarf) > 0
+            ? Number(meta.bedarf)
+            : schichtData?.einsaetze?.length || 1,
+      };
+      if (meta.uhrzeitVon) payload.newUhrzeitVon = meta.uhrzeitVon;
+      if (meta.uhrzeitBis) payload.newUhrzeitBis = meta.uhrzeitBis;
+      if (meta.datumVon) payload.newDatumVon = meta.datumVon;
+      if (meta.datumBis) payload.newDatumBis = meta.datumBis;
+      if (meta.treffpunkt) payload.newTreffpunkt = meta.treffpunkt;
+      if (meta.treffpunktOrt) payload.newTreffpunktOrt = meta.treffpunktOrt;
+      if (meta.ansprechpartnerName)
+        payload.newAnsprechpartnerName = meta.ansprechpartnerName;
+      if (meta.ansprechpartnerTelefon)
+        payload.newAnsprechpartnerTelefon = meta.ansprechpartnerTelefon;
+      if (meta.ansprechpartnerEmail)
+        payload.newAnsprechpartnerEmail = meta.ansprechpartnerEmail;
+
+      const berufSchl =
+        meta.berufSchl ||
+        (commonBeruf?.jobKey != null ? String(commonBeruf.jobKey) : null);
+      const qualSchl =
+        meta.qualSchl ||
+        (commonQuali?.qualificationKey != null
+          ? String(commonQuali.qualificationKey)
+          : null);
+      if (berufSchl) payload.newBerufSchl = String(berufSchl);
+      if (qualSchl) payload.newQualSchl = String(qualSchl);
+
+      this.duplicatingSchichtKey = schichtData.key;
+      try {
+        await api.post(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
+          payload,
+        );
+        await this.reloadSelectedEventDetails();
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Schicht konnte nicht dupliziert werden",
+        );
+      } finally {
+        this.duplicatingSchichtKey = null;
+      }
+    },
+    async deleteSchichtCard(schichtData) {
+      if (
+        !this.isAdmin ||
+        !this.selectedEvent?.auftragNr ||
+        this.deletingSchichtKey
+      )
+        return;
+      const meta = schichtData?.meta || {};
+      const schichtName = meta.schichtBezeichnung || "Schicht";
+      if (!confirm(`Schicht "${schichtName}" wirklich löschen?`)) return;
+
+      this.deletingSchichtKey = schichtData.key;
+      try {
+        const targetId = meta.schichtId || meta.idAuftragArbeitsschichten;
+        if (targetId) {
+          await api.delete(
+            `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-schicht/${targetId}`,
+          );
+        } else if (Array.isArray(schichtData?.einsaetze) && schichtData.einsaetze.length) {
+          await Promise.all(
+            schichtData.einsaetze
+              .filter((e) => e?._id)
+              .map((e) =>
+                api.delete(
+                  `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz/${e._id}`,
+                ),
+              ),
+          );
+        }
+        await this.reloadSelectedEventDetails();
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Schicht konnte nicht gelöscht werden",
+        );
+      } finally {
+        this.deletingSchichtKey = null;
+      }
+    },
     async toggleEinsatzStundenlisteInclusion(einsatz) {
       await this.updateStundenlisteInclusion(
         einsatz,
@@ -2177,6 +2576,58 @@ export default {
         types.includes("application/json")
       );
     },
+    handleSchichtMitarbeiterDragStart(event, einsatz, schichtData) {
+      const ma = einsatz?.mitarbeiterData;
+      if (!this.isAdmin || !ma?._id || !event.dataTransfer) {
+        event.preventDefault();
+        return;
+      }
+      const dragInfo = {
+        _id: ma._id,
+        mitarbeiterId: ma._id,
+        vorname: ma.vorname,
+        nachname: ma.nachname,
+        personalnr: ma.personalnr,
+        qualifikationen: ma.qualifikationen || [],
+        sourceSchichtKey: schichtData?.key || null,
+        sourceEinsatzId: einsatz._id || null,
+        isPseudo: Boolean(einsatz.isPseudo),
+        schichtBezeichnung: schichtData?.meta?.schichtBezeichnung || "Schicht",
+        name: this.formatEmployeeName(ma),
+      };
+      this.draggingSchichtEinsatz = dragInfo;
+      const payload = JSON.stringify(dragInfo);
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData(
+        "application/x-straight-monitor-mitarbeiter",
+        payload,
+      );
+      event.dataTransfer.setData(
+        "application/x-straight-monitor-schicht-einsatz",
+        payload,
+      );
+      event.dataTransfer.setData("application/json", payload);
+    },
+    handleSchichtMitarbeiterDragEnd() {
+      this.draggingSchichtEinsatz = null;
+    },
+    async handleUnassignDroppedEinsatz(payload) {
+      this.draggingSchichtEinsatz = null;
+      const einsatzId = payload?.sourceEinsatzId || payload?.einsatzId;
+      if (!this.isAdmin || !this.selectedEvent?.auftragNr || !einsatzId) return;
+      try {
+        const endpoint = payload?.isPseudo
+          ? `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz/${einsatzId}`
+          : `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatzId}`;
+        await api.delete(endpoint);
+        await this.reloadSelectedEventDetails();
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Einsatz konnte nicht entfernt werden",
+        );
+      }
+    },
     handleSchichtDragEnter(event, schichtData) {
       if (this.hasMitarbeiterDragPayload(event))
         this.schichtDragOverKey = schichtData.key;
@@ -2191,7 +2642,7 @@ export default {
       if (this.schichtDragOverKey === schichtData.key)
         this.schichtDragOverKey = null;
     },
-    handleMitarbeiterDrop(event, schichtData) {
+    async handleMitarbeiterDrop(event, schichtData) {
       this.schichtDragOverKey = null;
       const rawPayload =
         event.dataTransfer?.getData(
@@ -2201,18 +2652,322 @@ export default {
 
       try {
         const mitarbeiter = JSON.parse(rawPayload);
-        if (!mitarbeiter?._id && !mitarbeiter?.mitarbeiterId) return;
+        const mitarbeiterId = mitarbeiter?._id || mitarbeiter?.mitarbeiterId;
+        if (!mitarbeiterId) return;
+        const schichtId =
+          schichtData?.meta?.idAuftragArbeitsschichten ??
+          schichtData?.meta?.schichtId ??
+          schichtData?.key ??
+          null;
         this.$emit("mitarbeiter-drop", {
           mitarbeiter,
           auftragNr: this.selectedEvent?.auftragNr || null,
-          schichtId: schichtData.meta.schichtId,
+          schichtId: schichtData?.meta?.schichtId || null,
           idAuftragArbeitsschichten:
-            schichtData.meta.idAuftragArbeitsschichten || schichtData.key,
-          datumVon: schichtData.meta.datumVon,
+            schichtData?.meta?.idAuftragArbeitsschichten || schichtData?.key,
+          datumVon: schichtData?.meta?.datumVon,
         });
+
+        if (this.isAdmin && this.selectedEvent?.auftragNr) {
+          await this.startDropValidationFlow(mitarbeiter, schichtData, schichtId);
+        }
+      } catch (error) {
+        console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
+        if (error.response?.data?.message) {
+          alert(error.response.data.message);
+        }
+      }
+    },
+    resolveRequiredShiftQualification(schichtData) {
+      const commonQuali = this.getCommonQualifikation(schichtData?.einsaetze || []);
+      if (commonQuali) return commonQuali;
+      const qualSchl = schichtData?.meta?.qualSchl;
+      if (!qualSchl) return null;
+      const numericKey = Number.parseInt(qualSchl, 10);
+      if (!Number.isInteger(numericKey)) return null;
+      const found = (this.dataCache.qualifikationen || []).find(
+        (q) => Number(q.qualificationKey) === numericKey,
+      );
+      return found || { qualificationKey: numericKey, designation: `Qualifikation #${numericKey}` };
+    },
+    employeeHasQualification(mitarbeiter, requiredQuali) {
+      if (!requiredQuali) return true;
+      const list = mitarbeiter?.qualifikationen || [];
+      return list.some((q) => {
+        if (requiredQuali._id && String(q?._id || q) === String(requiredQuali._id)) return true;
+        if (
+          requiredQuali.qualificationKey != null &&
+          Number(q?.qualificationKey) === Number(requiredQuali.qualificationKey)
+        ) {
+          return true;
+        }
+        return false;
+      });
+    },
+    async startDropValidationFlow(mitarbeiter, schichtData, schichtId) {
+      const mitarbeiterId = String(mitarbeiter._id || mitarbeiter.mitarbeiterId);
+      const employeeName = this.formatEmployeeName(mitarbeiter);
+      const shiftName = schichtData?.meta?.schichtBezeichnung || "Schicht";
+
+      // Duplicate check in the exact same target shift
+      const alreadyInTargetShift = (schichtData?.einsaetze || []).some(
+        (e) =>
+          String(e.mitarbeiterData?._id || "") === mitarbeiterId ||
+          (mitarbeiter.personalnr && String(e.personalNr || "") === String(mitarbeiter.personalnr)),
+      );
+      if (alreadyInTargetShift) {
+        alert(`${employeeName} ist bereits in der Schicht "${shiftName}" eingeplant.`);
+        return;
+      }
+
+      if (!this.dataCache.qualifikationen?.length) {
+        await this.dataCache.loadQualifikationen().catch(() => {});
+      }
+
+      const dispoInfo =
+        this.$refs.adminStaffingPanel?.rowDispoInfo?.(mitarbeiterId) ||
+        mitarbeiter.dispoInfo ||
+        null;
+
+      const steps = [];
+
+      // 1. Missing Qualification check
+      const requiredQuali = this.resolveRequiredShiftQualification(schichtData);
+      if (requiredQuali && !this.employeeHasQualification(mitarbeiter, requiredQuali)) {
+        steps.push({
+          type: "missing-qualification",
+          employeeName,
+          shiftName,
+          qualification: requiredQuali,
+        });
+      }
+
+      // 2. Already planned in another shift on this day
+      const targetEinsatzIds = new Set(
+        (schichtData?.einsaetze || []).map((e) => String(e._id)),
+      );
+      const sameOrderOtherShifts = (this.preparedSchichten || [])
+        .filter((s) => s.key !== schichtData?.key)
+        .flatMap((s) =>
+          (s.einsaetze || [])
+            .filter(
+              (e) =>
+                String(e.mitarbeiterData?._id || "") === mitarbeiterId ||
+                (mitarbeiter.personalnr &&
+                  String(e.personalNr || "") === String(mitarbeiter.personalnr)),
+            )
+            .map((e) => ({
+              einsatzId: String(e._id),
+              auftragNr: this.selectedEvent?.auftragNr,
+              title: `${this.selectedEvent?.eventTitel || `Auftrag #${this.selectedEvent?.auftragNr}`}`,
+              subtitle: [
+                s.meta?.schichtBezeichnung || "Schicht",
+                s.meta?.uhrzeitVon
+                  ? `${this.formatTime(s.meta.uhrzeitVon)}${s.meta?.uhrzeitBis ? "–" + this.formatTime(s.meta.uhrzeitBis) : ""} Uhr`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+            })),
+        );
+
+      const dispoPlannedJobs = (dispoInfo?.plannedJobs || []).filter(
+        (job) => !job.einsatzId || !targetEinsatzIds.has(String(job.einsatzId)),
+      );
+      const seenJobKeys = new Set();
+      const existingJobs = [...sameOrderOtherShifts, ...dispoPlannedJobs].filter((job) => {
+        const key = job.einsatzId ? `e:${job.einsatzId}` : `${job.title}:${job.subtitle}`;
+        if (seenJobKeys.has(key)) return false;
+        seenJobKeys.add(key);
+        return true;
+      });
+
+      if (existingJobs.length > 0) {
+        const dateObj = schichtData?.meta?.datumVon
+          ? new Date(schichtData.meta.datumVon)
+          : this.selectedEvent?.vonDatum
+            ? new Date(this.selectedEvent.vonDatum)
+            : new Date();
+        steps.push({
+          type: "already-planned",
+          employeeName,
+          shiftName,
+          dateLabel: this.formatDayDateFull(dateObj),
+          existingJobs,
+        });
+      }
+
+      // 3. Dispo status = blocked / not available
+      if (dispoInfo?.status === "blocked") {
+        steps.push({
+          type: "dispo-blocked",
+          employeeName,
+          shiftName,
+          statusLabel: dispoInfo.statusLabel || "Nicht verfügbar",
+          note: (dispoInfo.notes || [])[0] || (dispoInfo.comments || [])[0]?.text || "",
+        });
+      }
+
+      // 4. Shift Bedarf exceeded
+      const bedarf = Number(schichtData?.meta?.bedarf || 0);
+      const currentCount = (schichtData?.einsaetze || []).length;
+      if (bedarf > 0 && currentCount >= bedarf) {
+        steps.push({
+          type: "bedarf-exceeded",
+          employeeName,
+          shiftName,
+          currentCount,
+          bedarf,
+        });
+      }
+
+      if (!steps.length) {
+        await this.executePseudoDropAssignment({
+          mitarbeiter,
+          schichtId,
+          replanFromEinsatzIds: [],
+        });
+        return;
+      }
+
+      this.dropWarningFlow = {
+        steps,
+        stepIndex: 0,
+        busy: false,
+        mitarbeiter,
+        schichtData,
+        schichtId,
+        replanFromEinsatzIds: [],
+      };
+    },
+    cancelDropWarningFlow() {
+      if (this.dropWarningFlow.busy) return;
+      this.dropWarningFlow = {
+        steps: [],
+        stepIndex: 0,
+        busy: false,
+        mitarbeiter: null,
+        schichtData: null,
+        schichtId: null,
+        replanFromEinsatzIds: [],
+      };
+    },
+    async handleDropWarningDecision(action) {
+      const step = this.currentDropWarningStep;
+      const flow = this.dropWarningFlow;
+      if (!step || flow.busy) return;
+
+      flow.busy = true;
+      try {
+        if (step.type === "missing-qualification" && action === "assign-qualification") {
+          const maId = String(flow.mitarbeiter._id || flow.mitarbeiter.mitarbeiterId);
+          let qualiDoc = step.qualification;
+          if (!qualiDoc._id) {
+            await this.dataCache.loadQualifikationen(true);
+            qualiDoc = (this.dataCache.qualifikationen || []).find(
+              (q) => Number(q.qualificationKey) === Number(step.qualification.qualificationKey),
+            );
+          }
+          if (qualiDoc?._id) {
+            const currentIds = (flow.mitarbeiter.qualifikationen || [])
+              .map((q) => q?._id || q)
+              .filter(Boolean);
+            const nextIds = [...new Set([...currentIds.map(String), String(qualiDoc._id)])];
+            const res = await api.patch(`/api/personal/mitarbeiter/${maId}`, {
+              qualifikationen: nextIds,
+            });
+            if (res.data?.data) {
+              this.dataCache.updateOneMitarbeiter(res.data.data);
+              flow.mitarbeiter = {
+                ...flow.mitarbeiter,
+                qualifikationen: [...(flow.mitarbeiter.qualifikationen || []), qualiDoc],
+              };
+            }
+          }
+        } else if (step.type === "already-planned" && action === "replan") {
+          // Pseudo mode: keep existing shift assignment intact and only create the new Pseudo-Einsatz
+          flow.replanFromEinsatzIds = [];
+        }
+
+        if (flow.stepIndex + 1 < flow.steps.length) {
+          flow.stepIndex += 1;
+          flow.busy = false;
+          return;
+        }
+
+        await this.executePseudoDropAssignment({
+          mitarbeiter: flow.mitarbeiter,
+          schichtId: flow.schichtId,
+          replanFromEinsatzIds: flow.replanFromEinsatzIds,
+        });
+        flow.busy = false;
+        this.cancelDropWarningFlow();
+      } catch (err) {
+        flow.busy = false;
+        alert(err.response?.data?.message || err.message || "Fehler bei der Einplanung");
+      }
+    },
+    async executePseudoDropAssignment({ mitarbeiter, schichtId, replanFromEinsatzIds = [] }) {
+      const mitarbeiterId = mitarbeiter?._id || mitarbeiter?.mitarbeiterId;
+      if (!mitarbeiterId || !this.selectedEvent?.auftragNr) return;
+      await api.post(
+        `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
+        {
+          mitarbeiterId,
+          ...(schichtId ? { schichtId } : {}),
+          ...(replanFromEinsatzIds.length ? { replanFromEinsatzIds } : {}),
+        },
+      );
+      await this.reloadSelectedEventDetails();
+      await Promise.all([
+        this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+        this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+      ]);
+    },
+    openNewPseudoSchichtDialog(mitarbeiter = null) {
+      this.openPseudoDialog();
+      this.pseudoSchichtMode = "new";
+      if (mitarbeiter?._id || mitarbeiter?.mitarbeiterId) {
+        this.pseudoSelectedMas = [
+          {
+            ...mitarbeiter,
+            _id: mitarbeiter._id || mitarbeiter.mitarbeiterId,
+          },
+        ];
+      }
+    },
+    handleNewPseudoSchichtDrop(event) {
+      this.schichtDragOverKey = null;
+      const rawPayload =
+        event.dataTransfer?.getData(
+          "application/x-straight-monitor-mitarbeiter",
+        ) || event.dataTransfer?.getData("application/json");
+      if (!rawPayload) {
+        this.openNewPseudoSchichtDialog();
+        return;
+      }
+      try {
+        const mitarbeiter = JSON.parse(rawPayload);
+        if (!mitarbeiter?._id && !mitarbeiter?.mitarbeiterId) return;
+        this.openNewPseudoSchichtDialog(mitarbeiter);
       } catch (error) {
         console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
       }
+    },
+    async onBewerbungUpdated() {
+      await this.reloadSelectedEventDetails();
+    },
+    setStaffingPanelHidden(value) {
+      this.staffingPanelHidden = Boolean(value);
+      try {
+        localStorage.setItem(
+          "auftraege.staffingPanelHidden",
+          this.staffingPanelHidden ? "1" : "0",
+        );
+      } catch {
+        /* localStorage unavailable */
+      }
+      this.$nextTick(() => this.updateCalendarGridWidth());
     },
 
     // Check if all einsaetze in a schicht have the same beruf
@@ -2243,6 +2998,60 @@ export default {
     },
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
+      this.updateCalendarGridWidth();
+    },
+    updateCalendarGridWidth() {
+      const el = this.$refs.calendarGrid || this.$refs.mainContent;
+      if (!el) return;
+      const width = el.clientWidth || el.getBoundingClientRect().width;
+      if (width > 0) {
+        this.calendarGridWidth = width;
+      }
+    },
+    setupCalendarResizeObserver() {
+      if (this.calendarResizeObserver) {
+        this.calendarResizeObserver.disconnect();
+        this.calendarResizeObserver = null;
+      }
+      const el = this.$refs.calendarGrid || this.$refs.mainContent;
+      if (!el || typeof ResizeObserver === "undefined") {
+        this.updateCalendarGridWidth();
+        return;
+      }
+      this.updateCalendarGridWidth();
+      this.calendarResizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const w = entry.contentRect?.width || entry.target.clientWidth;
+          if (w > 0) this.calendarGridWidth = w;
+        }
+      });
+      if (this.$refs.mainContent) {
+        this.calendarResizeObserver.observe(this.$refs.mainContent);
+      }
+      if (this.$refs.calendarGrid && this.$refs.calendarGrid !== this.$refs.mainContent) {
+        this.calendarResizeObserver.observe(this.$refs.calendarGrid);
+      }
+    },
+    async setCalendarStartDate(date) {
+      if (!date) return;
+      const selected = new Date(date);
+      if (isNaN(selected.getTime())) return;
+      selected.setHours(0, 0, 0, 0);
+      this.calendarStartDate = selected;
+      this.hasCustomStartDay = true;
+
+      const day = selected.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(selected);
+      monday.setDate(selected.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      this.currentWeekStart = monday;
+      this.mobileDayIndex = day === 0 ? 6 : day - 1;
+
+      const rangeEnd = new Date(selected);
+      rangeEnd.setDate(selected.getDate() + 7);
+      await this.ensureMonthLoaded(selected);
+      await this.ensureMonthLoaded(rangeEnd);
     },
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ??
@@ -2262,10 +3071,13 @@ export default {
     },
     async setDateFromPicker(date) {
       if (!date) return;
-      const day = date.getDay();
+      const selected = new Date(date);
+      selected.setHours(0, 0, 0, 0);
+      this.calendarStartDate = selected;
+      const day = selected.getDay();
       const diff = day === 0 ? -6 : 1 - day;
-      const monday = new Date(date);
-      monday.setDate(date.getDate() + diff);
+      const monday = new Date(selected);
+      monday.setDate(selected.getDate() + diff);
       monday.setHours(0, 0, 0, 0);
       this.currentWeekStart = monday;
       await this.ensureMonthLoaded(monday);
@@ -2447,12 +3259,15 @@ export default {
     },
     initializeWeek() {
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const dayOfWeek = today.getDay();
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday as first day
       const monday = new Date(today);
       monday.setDate(today.getDate() + diff);
       monday.setHours(0, 0, 0, 0);
       this.currentWeekStart = monday;
+      this.calendarStartDate = new Date(today);
+      this.hasCustomStartDay = false;
 
       // Set to today
       this.mobileDayIndex = (dayOfWeek + 6) % 7;
@@ -2483,16 +3298,23 @@ export default {
       }
     },
     async jumpToDate(date) {
-      const dayOfWeek = date.getDay(); // 0 = Sun
+      const target = date instanceof Date ? new Date(date) : new Date(date);
+      if (isNaN(target.getTime())) return;
+      target.setHours(0, 0, 0, 0);
+      const dayOfWeek = target.getDay(); // 0 = Sun
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(date);
-      monday.setDate(date.getDate() + diff);
+      const monday = new Date(target);
+      monday.setDate(target.getDate() + diff);
       monday.setHours(0, 0, 0, 0);
 
       this.currentWeekStart = monday;
-
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const sunday = new Date(monday);
       sunday.setDate(sunday.getDate() + 6);
+      this.calendarStartDate =
+        today >= monday && today <= sunday ? today : new Date(target);
+      this.hasCustomStartDay = false;
 
       // Load both start and end month of the week to handle crossovers
       await this.ensureMonthLoaded(monday);
@@ -2761,6 +3583,13 @@ export default {
       const d = new Date(date);
       d.setHours(0, 0, 0, 0);
       this.currentWeekStart = d;
+      this.hasCustomStartDay = false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(d);
+      weekEnd.setDate(d.getDate() + 6);
+      this.calendarStartDate =
+        today >= d && today <= weekEnd ? today : new Date(d);
       this.ensureMonthLoaded(d);
       // Prefetch the next 2 months ahead of the jump target
       for (let i = 1; i <= 2; i++) {
@@ -2809,12 +3638,16 @@ export default {
       const newStart = new Date(this.currentWeekStart);
       newStart.setDate(newStart.getDate() - 7);
       this.currentWeekStart = newStart;
+      this.calendarStartDate = new Date(newStart);
+      this.hasCustomStartDay = false;
       await this.ensureMonthLoaded(newStart);
     },
     async nextWeek() {
       const newStart = new Date(this.currentWeekStart);
       newStart.setDate(newStart.getDate() + 7);
       this.currentWeekStart = newStart;
+      this.calendarStartDate = new Date(newStart);
+      this.hasCustomStartDay = false;
       await this.ensureMonthLoaded(newStart);
       // Silently prefetch the next 2 months so forward navigation never triggers a visible reload
       for (let i = 1; i <= 2; i++) {
@@ -2843,12 +3676,15 @@ export default {
       const val = event.target.value;
       if (!val) return;
 
-      const date = new Date(val + "T00:00:00");
+      const picked = new Date(val + "T00:00:00");
+      const date = new Date(picked);
       // Calculate start of that week (Monday)
       const Day = date.getDay() || 7; // Sunday is 0 -> make it 7
       date.setDate(date.getDate() - Day + 1); // Set to Monday
 
       this.currentWeekStart = date;
+      this.calendarStartDate = picked;
+      this.hasCustomStartDay = true;
       await this.ensureMonthLoaded(date);
 
       // Reset picker
@@ -2948,8 +3784,11 @@ export default {
       const controller = new AbortController();
       this.detailController = controller;
       this.detailError = '';
-      this.detailLoading = this.isHostedDetail;
-      if (this.isHostedDetail) { this.selectedEvent = null; this.preparedSchichten = []; }
+      this.detailLoading = this.isHostedDetail && !this.detailReloading;
+      if (this.isHostedDetail && !this.detailReloading) {
+        this.selectedEvent = null;
+        this.preparedSchichten = [];
+      }
       this.showQuickActions = false;
       this.auftragDocs = [];
       // Load full details including Einsätze
@@ -3714,17 +4553,54 @@ export default {
     },
     async deleteStundenlisteDraft() {
       const vorgang = this.sidebarStundenliste;
-      if (!vorgang?._id || !confirm("Signaturentwurf wirklich löschen?"))
-        return;
+      if (!vorgang?._id) return;
+      const isDraft = vorgang.status === "draft";
+      const confirmMessage = isDraft
+        ? "Signaturentwurf wirklich löschen?"
+        : "Stundenliste wirklich stornieren?";
+      if (!confirm(confirmMessage)) return;
       try {
         await api.delete(`/api/signaturen/${vorgang._id}`);
         await this.loadStundenlisteStatus(this.selectedEvent.auftragNr);
       } catch (err) {
         alert(
           err.response?.data?.message ||
-            "Fehler beim Löschen des Signaturentwurfs",
+            (isDraft
+              ? "Fehler beim Löschen des Signaturentwurfs"
+              : "Fehler beim Stornieren der Stundenliste"),
         );
       }
+    },
+    signStundenlisteInApp() {
+      const vorgang = this.sidebarStundenliste;
+      if (!vorgang || vorgang.status !== "open") return;
+      const auftragNr = this.selectedEvent?.auftragNr;
+      const signersBySrc = new Map();
+      for (const submitter of vorgang.submitters || []) {
+        const signingSrc =
+          submitter.embedSrc ||
+          (submitter.slug ? `https://docuseal.eu/s/${submitter.slug}` : "");
+        if (submitter.embedded && signingSrc && submitter.status !== "completed") {
+          signersBySrc.set(signingSrc, {
+            src: signingSrc,
+            role: submitter.role || "",
+            name: submitter.name || "",
+            email: submitter.email || "",
+          });
+        }
+      }
+      if (!signersBySrc.size) return;
+      const refreshIfSelected = () => {
+        if (auftragNr && this.selectedEvent?.auftragNr === auftragNr) {
+          this.loadStundenlisteStatus(auftragNr, { refresh: true });
+        }
+      };
+      this.openSigning({
+        title: vorgang.name || "Stundenliste unterschreiben",
+        signers: [...signersBySrc.values()],
+        onComplete: refreshIfSelected,
+        onClose: refreshIfSelected,
+      });
     },
     async deleteEinsatzDok(dok) {
       if (!this.selectedEvent?.auftragNr) return;
@@ -3894,6 +4770,9 @@ export default {
         bezeichnung: "",
         uhrzeitVon: "",
         uhrzeitBis: "",
+        berufSchl: "",
+        qualSchl: "",
+        bedarf: 1,
       };
       this.showPseudoDialog = true;
     },
@@ -3931,43 +4810,78 @@ export default {
       this.debouncedPseudoSearch();
     },
     async savePseudoEinsatz() {
-      if (this.pseudoSaving || !this.selectedEvent || !this.pseudoSelectedMas.length) return;
+      if (this.pseudoSaving || !this.selectedEvent) return;
       if (
         this.pseudoSchichtMode === "new" &&
         !this.pseudoNewSchicht.bezeichnung.trim()
       )
         return;
+      if (
+        this.pseudoSchichtMode !== "new" &&
+        !this.pseudoSelectedMas.length
+      )
+        return;
       this.pseudoSaving = true;
       const errors = [];
       try {
-        await Promise.all(
-          this.pseudoSelectedMas.map(async (ma) => {
-            try {
-              const payload = { mitarbeiterId: ma._id };
-              if (this.pseudoSchichtMode === "new") {
-                payload.isNewPseudoSchicht = true;
-                payload.newSchichtBezeichnung =
-                  this.pseudoNewSchicht.bezeichnung.trim();
-                if (this.pseudoNewSchicht.uhrzeitVon)
-                  payload.newUhrzeitVon = this.pseudoNewSchicht.uhrzeitVon;
-                if (this.pseudoNewSchicht.uhrzeitBis)
-                  payload.newUhrzeitBis = this.pseudoNewSchicht.uhrzeitBis;
-              } else {
-                // null = auto (first shift), 'none' = explicitly the no-id group, anything else = real schichtId
-                if (this.pseudoSelectedSchicht !== null)
-                  payload.schichtId = this.pseudoSelectedSchicht;
+        if (
+          this.pseudoSchichtMode === "new" &&
+          this.pseudoSelectedMas.length === 0
+        ) {
+          const payload = {
+            isNewPseudoSchicht: true,
+            newSchichtBezeichnung: this.pseudoNewSchicht.bezeichnung.trim(),
+          };
+          if (this.pseudoNewSchicht.uhrzeitVon)
+            payload.newUhrzeitVon = this.pseudoNewSchicht.uhrzeitVon;
+          if (this.pseudoNewSchicht.uhrzeitBis)
+            payload.newUhrzeitBis = this.pseudoNewSchicht.uhrzeitBis;
+          if (this.pseudoNewSchicht.berufSchl)
+            payload.newBerufSchl = String(this.pseudoNewSchicht.berufSchl);
+          if (this.pseudoNewSchicht.qualSchl)
+            payload.newQualSchl = String(this.pseudoNewSchicht.qualSchl);
+          if (this.pseudoNewSchicht.bedarf)
+            payload.newBedarf = Number(this.pseudoNewSchicht.bedarf) || 1;
+          await api.post(
+            `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
+            payload,
+          );
+        } else {
+          await Promise.all(
+            this.pseudoSelectedMas.map(async (ma) => {
+              try {
+                const payload = { mitarbeiterId: ma._id };
+                if (this.pseudoSchichtMode === "new") {
+                  payload.isNewPseudoSchicht = true;
+                  payload.newSchichtBezeichnung =
+                    this.pseudoNewSchicht.bezeichnung.trim();
+                  if (this.pseudoNewSchicht.uhrzeitVon)
+                    payload.newUhrzeitVon = this.pseudoNewSchicht.uhrzeitVon;
+                  if (this.pseudoNewSchicht.uhrzeitBis)
+                    payload.newUhrzeitBis = this.pseudoNewSchicht.uhrzeitBis;
+                  if (this.pseudoNewSchicht.berufSchl)
+                    payload.newBerufSchl = String(this.pseudoNewSchicht.berufSchl);
+                  if (this.pseudoNewSchicht.qualSchl)
+                    payload.newQualSchl = String(this.pseudoNewSchicht.qualSchl);
+                  if (this.pseudoNewSchicht.bedarf)
+                    payload.newBedarf = Number(this.pseudoNewSchicht.bedarf) || 1;
+                } else {
+                  // null = auto (first shift), 'none' = explicitly the no-id group, anything else = real schichtId
+                  if (this.pseudoSelectedSchicht !== null)
+                    payload.schichtId = this.pseudoSelectedSchicht;
+                }
+                await api.post(
+                  `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
+                  payload,
+                );
+              } catch (err) {
+                errors.push(
+                  `${this.formatEmployeeName(ma)}: ${err.response?.data?.message || "Fehler"}`,
+                );
               }
-              await api.post(
-                `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
-                payload,
-              );
-            } catch (err) {
-              errors.push(
-                `${this.formatEmployeeName(ma)}: ${err.response?.data?.message || "Fehler"}`,
-              );
-            }
-          }),
-        );
+            }),
+          );
+        }
         // Reload full event details to refresh schichten
         const detailsRes = await api.get(
           `/api/auftraege/${this.selectedEvent.auftragNr}/details`,
@@ -4020,7 +4934,7 @@ export default {
     },
 
     handleEscapeKey(event) {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       // Shared frames own Escape, including their loading and topmost guards.
       // Never close the workspace detail behind an open dialog.
       if (
@@ -4071,6 +4985,7 @@ export default {
     await this.loadInitialData();
     // Wait for layout paint before measuring the KW scroller height
     await this.$nextTick();
+    this.setupCalendarResizeObserver();
     requestAnimationFrame(() =>
       requestAnimationFrame(() => this.scrollKwToActive()),
     );
@@ -4107,7 +5022,14 @@ export default {
       } else if (savedWeek) {
         const d = new Date(savedWeek);
         if (!isNaN(d.getTime())) {
+          d.setHours(0, 0, 0, 0);
           this.currentWeekStart = d;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const weekEnd = new Date(d);
+          weekEnd.setDate(d.getDate() + 6);
+          this.calendarStartDate =
+            today >= d && today <= weekEnd ? today : new Date(d);
           await this.ensureMonthLoaded(d);
         }
       }
@@ -4119,6 +5041,10 @@ export default {
     this.detailDisposed = true;
     this.detailRevision++;
     this.detailController?.abort();
+    if (this.calendarResizeObserver) {
+      this.calendarResizeObserver.disconnect();
+      this.calendarResizeObserver = null;
+    }
     clearTimeout(this.debounceTimer);
     clearTimeout(this.pseudoSearchTimer);
     window.removeEventListener("resize", this.checkMobile);
@@ -4163,6 +5089,7 @@ export default {
   flex: 1;
   min-width: 0;
   padding: 0;
+  container-type: inline-size;
   /* Removed transition on margin-right as layout is now flex-driven */
 
   @media (max-width: 768px) {
@@ -4247,7 +5174,15 @@ export default {
   gap: 12px;
 }
 
+.schicht-card-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
 .schicht-card {
+  flex: 1;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -4256,6 +5191,63 @@ export default {
     border-color 0.15s,
     box-shadow 0.15s,
     background 0.15s;
+}
+
+.schicht-docked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 26px;
+  flex: 0 0 26px;
+  margin-top: 9px;
+}
+
+.schicht-docked-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 0 5px 5px 0;
+  background: color-mix(in srgb, var(--surface) 70%, var(--panel));
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.62rem;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+
+  &:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: var(--tile-bg);
+    color: var(--primary);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .schicht-duplicate-icon-copy {
+    font-size: 0.95em;
+  }
+
+  .schicht-duplicate-icon-arrow {
+    font-size: 0.9em;
+  }
+}
+
+.schicht-docked-delete-btn:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: var(--tile-bg);
+  color: #ef4444;
 }
 
 .schicht-card--drag-over {
@@ -4445,6 +5437,26 @@ export default {
   align-items: center;
   padding: 6px 12px;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  cursor: pointer;
+  transition: background 0.12s ease;
+
+  &--draggable {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &--selected {
+    background: color-mix(in srgb, var(--primary) 10%, var(--panel));
+    border-left: 3px solid var(--primary);
+    padding-left: 9px;
+  }
 
   &:last-child {
     border-bottom: none;
@@ -4525,6 +5537,56 @@ export default {
   svg {
     margin: 0;
   }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+.neue-schicht-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 26px);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--panel));
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+
+  svg {
+    font-size: 0.78rem;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 500;
+  }
+
+  &:hover,
+  &--drag-over {
+    border-style: solid;
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 11%, var(--panel));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
 }
 
 .no-mitarbeiter {
@@ -4597,6 +5659,7 @@ export default {
   z-index: 5;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   font-size: 0.7rem;
   color: var(--muted);
@@ -4619,6 +5682,24 @@ export default {
     font-size: 0.65rem;
     color: var(--primary);
     flex-shrink: 0;
+  }
+
+  &--compact {
+    padding: 4px 7px;
+
+    .data-status-badge__label {
+      display: none;
+    }
+  }
+}
+
+@container (max-width: 400px) {
+  .data-status-badge {
+    padding: 4px 7px;
+
+    .data-status-badge__label {
+      display: none;
+    }
   }
 }
 
@@ -4835,22 +5916,26 @@ export default {
 }
 
 .calendar-grid {
+  --kw-col-width: 58px;
   background: var(--tile-bg);
   border: 1px solid color-mix(in oklab, var(--border) 82%, var(--primary));
   border-radius: 16px;
   overflow: hidden;
   background-clip: padding-box;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
 }
 
 .calendar-header {
   display: grid;
-  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
+  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7), minmax(0, 1fr));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
 }
 
 .kw-cell {
+  box-sizing: border-box;
   padding: 12px 8px;
   text-align: center;
   font-weight: 700;
@@ -4966,10 +6051,13 @@ export default {
 }
 
 .day-header {
+  box-sizing: border-box;
+  min-width: 0;
   padding: 10px 4px;
   text-align: center;
   border-right: 1px solid var(--border);
   cursor: pointer;
+  overflow: hidden;
   transition:
     background 0.15s,
     color 0.15s;
@@ -5012,11 +6100,14 @@ export default {
 
 .calendar-body {
   display: grid;
-  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
+  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7), minmax(0, 1fr));
   min-height: 500px;
+  box-sizing: border-box;
 }
 
 .day-column {
+  box-sizing: border-box;
+  min-width: 0;
   border-right: 1px solid var(--border);
   padding: 8px;
   display: flex;
@@ -5024,6 +6115,7 @@ export default {
   gap: 6px;
   min-height: 400px;
   overflow-y: auto;
+  overflow-x: hidden;
 
   &:last-child {
     border-right: none;
@@ -5047,6 +6139,8 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .customer-event-group__header {
@@ -5058,6 +6152,9 @@ export default {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
   &:hover,
   &:focus-visible {
@@ -5067,6 +6164,10 @@ export default {
 }
 
 .event-card {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -5422,9 +6523,8 @@ export default {
 
 /* Mobile */
 @media (max-width: 1024px) {
-  .calendar-header,
-  .calendar-body {
-    grid-template-columns: 40px repeat(7, minmax(100px, 1fr));
+  .calendar-grid {
+    --kw-col-width: 40px;
   }
 
   .day-header .day-name {
@@ -5672,6 +6772,8 @@ export default {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .event-title {
@@ -5679,6 +6781,10 @@ export default {
   font-weight: 600;
   color: var(--primary);
   line-height: 1.4;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .event-shifts {

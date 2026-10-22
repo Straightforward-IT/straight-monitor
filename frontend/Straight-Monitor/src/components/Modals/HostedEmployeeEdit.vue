@@ -54,6 +54,13 @@ async function save(form, force = false) {
       source: license.source === 'import' ? 'import' : 'manual',
     }));
   }
+  const firstLicense = Array.isArray(payload.fuehrerscheine) ? payload.fuehrerscheine[0] : null;
+  payload.fuehrerschein = {
+    klasse: firstLicense?.klasse || props.mitarbeiter?.fuehrerschein?.klasse || null,
+    gueltigVon: firstLicense?.gueltigVon || props.mitarbeiter?.fuehrerschein?.gueltigVon || null,
+    gueltigBis: firstLicense?.gueltigBis || props.mitarbeiter?.fuehrerschein?.gueltigBis || null,
+    hatAuto: Boolean(form.hatAuto),
+  };
   payload.geburtsdatum = form.geburtsdatum || null;
   if (force) payload.forcePersonalnr = true;
   try {

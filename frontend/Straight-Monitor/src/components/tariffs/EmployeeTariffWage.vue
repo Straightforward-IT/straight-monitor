@@ -10,6 +10,7 @@
     <p v-if="loading" role="status">Tariflohn wird geladen …</p>
     <p v-else-if="error" role="alert">{{ error }}</p>
     <template v-else-if="data">
+      <p v-if="!compact && resolved && data.baseRate?.group" class="employee-tariff-wage__context">{{ data.baseRate.group.name }}<template v-if="data.baseRate.stage?.name"> · {{ data.baseRate.stage.name }}</template></p>
       <dl class="employee-tariff-wage__values">
         <div><dt>Tariflohn</dt><dd data-wage="base">{{ resolved ? formatTariffDecimal(data.baseRate.value, true) : 'Klärung erforderlich' }}</dd></div>
         <div><dt>Entgeltgruppe</dt><dd data-wage="group">{{ data.baseRate?.payGroup?.name || 'Nicht eindeutig zugeordnet' }}</dd></div>
@@ -22,10 +23,7 @@
       </dl>
       <p v-if="!compact && !resolved" class="employee-tariff-wage__notice" role="status">{{ data.baseRate?.message || 'Der Tariflohn konnte nicht eindeutig ermittelt werden.' }}</p>
       <p v-if="!compact && aboveTariffNotice" class="employee-tariff-wage__notice" role="status">{{ aboveTariffNotice }}</p>
-      <p v-if="!compact && resolved && data.baseRate?.group" class="employee-tariff-wage__context">{{ data.baseRate.group.name }}<template v-if="data.baseRate.stage?.name"> · {{ data.baseRate.stage.name }}</template></p>
-      <p v-if="!compact && tariffSelectionNotice(data.baseRate?.assignmentSelection)" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.baseRate.assignmentSelection) }}</p>
       <p v-if="!compact && tariffSelectionNotice(data.aboveTariff?.selection, 'ÜTZ')" class="employee-tariff-wage__context">{{ tariffSelectionNotice(data.aboveTariff.selection, 'ÜTZ') }}</p>
-      <p v-if="!compact && total !== null" class="employee-tariff-wage__context">Die Summe enthält den Tariflohn und die ausgewiesene ÜTZ.</p>
     </template>
   </div>
 </template>

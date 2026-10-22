@@ -56,6 +56,15 @@ describe('shared order date controls', () => {
     expect(byLabel(wrapper, 'Kalenderwoche wählen').text()).toBe('KW 53 2020');
   });
 
+  it('supports compact icon-only mode for the date picker trigger while keeping the full date title', async () => {
+    const wrapper = render(CalendarControls, { props: { modelValue: referenceDate(), type: 'day', compact: true } });
+    expect(wrapper.classes()).toContain('calendar-controls--compact');
+    const picker = wrapper.get('.calendar-controls__picker');
+    expect(picker.attributes('title')).toBe('29. September 2026');
+    expect(picker.find('.calendar-controls__picker-icon').exists()).toBe(true);
+    expect(picker.find('.calendar-controls__picker-label').text()).toBe('29. September 2026');
+  });
+
   it.each(['day', 'week', 'month'])('opens the real %s picker and forwards its selection', async type => {
     const wrapper = render(CalendarControls, { props: { modelValue: referenceDate(), type } });
     await wrapper.get('.calendar-controls__picker').trigger('click');

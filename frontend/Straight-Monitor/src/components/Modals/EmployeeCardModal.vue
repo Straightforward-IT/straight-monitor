@@ -7,7 +7,7 @@
     :show-close="false"
     minimizable
     :minimize-title="minimizeTitle"
-    style="--mf-max-width: min(1100px, calc(100vw - 40px)); --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-minimize-right: 56px"
+    style="--mf-max-width: min(1100px, calc(100vw - 40px)); --mf-max-height: 92dvh; --mf-body-padding: 0; --mf-minimize-top: 16px; --mf-minimize-right: 52px"
     @close="handleClose"
   >
     <EmployeeCard
@@ -109,6 +109,10 @@ export default EmployeeCardModal;
 <style scoped>
 :global(.employee-card-modal) {
   min-width: min(1100px, calc(100vw - 40px));
+}
+
+:global(.employee-card-modal .card-header .employee-card-header-action) {
+  margin-left: 38px;
 }
 
 @media (max-width: 720px) {

@@ -138,9 +138,11 @@ function summary(action, changes) {
   const verb = { created: 'angelegt', updated: 'geändert', deleted: 'gelöscht', released: 'freigegeben' };
   if (action === 'planning.updated') return `Personalplanung geändert · ${changes.filter(item => item.entity === 'Einsatz').length} Einsätze`;
   const [entity, event] = action.split('.');
-  const primary = changes.find(item => item.entity === entity);
+  const primary = changes.find(item => item.entity === entity) || (changes.length === 1 ? changes[0] : null);
+  const effectiveEntity = primary?.entity || entity;
+  const effectiveEvent = primary && primary.entity !== entity ? primary.action : event;
   const affected = changes.filter(item => item !== primary).length;
-  return `${entity} ${verb[event] || 'geändert'}${primary ? `: ${primary.label}` : ''}${affected ? ` · ${affected} weitere Datensätze` : ''}`;
+  return `${effectiveEntity} ${verb[effectiveEvent] || 'geändert'}${primary ? `: ${primary.label}` : ''}${affected ? ` · ${affected} weitere Datensätze` : ''}`;
 }
 
 class RejectedResponse extends Error {
@@ -210,10 +212,15 @@ function withAuftragChronik(action, handler) {
           const order = after.Auftrag?.[0] || before.Auftrag?.[0];
           const user = await User.findById(req.user?.id || req.user?._id).select('name email').lean();
           if (!user) throw new Error('Chronik: Benutzerkonto nicht gefunden');
-          await Entry.create({ auftragId: order._id, auftragNr: order.auftragNr,
-            orderTitle: order.eventTitel || '', locationV2: order.locationV2,
-            kind: 'change', action, actor: { id: user._id, name: user.name || user.email },
-            summary: summary(action, changes), changes });
+          const locationV2 = order.locationV2 || (order.geschSt
+            ? (await require('./LocationResolutionService').resolveLocationFromGeschSt(order.geschSt))?._id
+            : null);
+          if (locationV2) {
+            await Entry.create({ auftragId: order._id, auftragNr: order.auftragNr,
+              orderTitle: order.eventTitel || '', locationV2,
+              kind: 'change', action, actor: { id: user._id, name: user.name || user.email },
+              summary: summary(action, changes), changes });
+          }
         }
         return response;
       });

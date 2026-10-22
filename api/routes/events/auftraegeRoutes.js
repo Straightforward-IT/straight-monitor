@@ -4,9 +4,12 @@ const multer = require('multer');
 const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 const auth = require('../../middleware/auth');
+const requireAdmin = require('../../middleware/requireAdmin');
 const Auftrag = require('../../models/Event/Auftrag');
 const Einsatz = require('../../models/Event/Einsatz');
 const Schicht = require('../../models/Event/Schicht');
+const DispoEintrag = require('../../models/System/DispoEintrag');
+const JobBewerbung = require('../../models/Event/JobBewerbung');
 const Kunde = require('../../models/Customer/Kunde');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const Beruf = require('../../models/Event/Beruf');
@@ -1209,8 +1212,27 @@ router.get('/berufe/search', auth, asyncHandler(async (req, res) => {
         ],
       }
     : {};
-  const berufe = await Beruf.find(search).select('jobKey designation').sort({ jobKey: 1 }).limit(30).lean();
+  const berufe = await Beruf.find(search).select('jobKey designation').sort({ jobKey: 1 }).limit(100).lean();
   res.json(berufe);
+}));
+
+// GET /api/auftraege/qualifikationen/search?q=... - compact selector data for qualification searchbars
+router.get('/qualifikationen/search', auth, asyncHandler(async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const search = query
+    ? {
+        $or: [
+          { designation: { $regex: escapeRegex(query), $options: 'i' } },
+          ...(Number.isInteger(Number(query)) ? [{ qualificationKey: Number(query) }] : []),
+        ],
+      }
+    : {};
+  const qualifikationen = await Qualifikation.find(search)
+    .select('qualificationKey designation')
+    .sort({ qualificationKey: 1 })
+    .limit(100)
+    .lean();
+  res.json(qualifikationen);
 }));
 
 // GET /api/auftraege/sync?since=<ISO_DATE> - Incremental sync endpoint
@@ -1272,6 +1294,235 @@ router.get('/sync', async (req, res) => {
     res.status(500).json({ success: false, message: 'Fehler beim Sync', error: error.message });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// JOB BEWERBUNGEN (PublicDevPortal -> Admin Auftrags-Workspace)
+// ─────────────────────────────────────────────────────────────
+
+const BEWERBUNG_MITARBEITER_SELECT = '_id vorname nachname personalnr email telefon profilbild flip_id persgruppe arbeitsverhaeltnis lohnStammdaten qualifikationen berufe locationV2 isActive isBewerberstatus kundenwuensche dispoNotiz vorarbeitgebertage';
+
+async function listJobBewerbungenHandler(req, res) {
+  const rawAuftragNr = req.params.auftragNr ?? req.query.auftragNr;
+  const parsedAuftragNr = rawAuftragNr !== undefined && rawAuftragNr !== null && rawAuftragNr !== ''
+    ? parseInt(rawAuftragNr, 10)
+    : null;
+  const statusFilter = req.query.status && req.query.status !== 'all' ? String(req.query.status).trim() : null;
+  const includeAll = req.query.scope === 'all';
+
+  const query = {};
+  if (statusFilter) {
+    query.status = statusFilter;
+  }
+  if (!includeAll && Number.isInteger(parsedAuftragNr)) {
+    query.auftragNr = parsedAuftragNr;
+  }
+
+  const docs = await JobBewerbung.find(query)
+    .populate({
+      path: 'mitarbeiter',
+      select: BEWERBUNG_MITARBEITER_SELECT,
+      populate: [
+        { path: 'qualifikationen', select: 'qualificationKey designation' },
+        { path: 'berufe', select: 'jobKey designation' },
+        { path: 'kundenwuensche.kunde', select: 'kundenNr kundName kuerzel' },
+        { path: 'locationV2', select: 'nameFull shortName color externalId' },
+      ],
+    })
+    .populate('schicht', '_id bezeichnung uhrzeitVon uhrzeitBis datumVon datumBis idAuftragArbeitsschichten auftragNr bedarf')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const validDocs = docs.filter((doc) => doc.mitarbeiter != null);
+  res.json({ bewerbungen: validDocs });
+}
+
+async function deleteJobBewerbungenHandler(req, res) {
+  const rawAuftragNr = req.params.auftragNr ?? req.query.auftragNr;
+  const parsedAuftragNr = rawAuftragNr !== undefined && rawAuftragNr !== null && rawAuftragNr !== ''
+    ? parseInt(rawAuftragNr, 10)
+    : null;
+  const filter = Number.isInteger(parsedAuftragNr) && req.query.scope !== 'all'
+    ? { auftragNr: parsedAuftragNr }
+    : {};
+  const result = await JobBewerbung.deleteMany(filter);
+  res.json({ ok: true, deletedCount: result.deletedCount || 0 });
+}
+
+async function decideJobBewerbungHandler(req, res) {
+  const { bewerbungId } = req.params;
+  if (!mongoose.isValidObjectId(bewerbungId)) {
+    return res.status(400).json({ message: 'Ungültige Bewerbungs-ID' });
+  }
+
+  const bewerbung = await JobBewerbung.findById(bewerbungId);
+  if (!bewerbung) {
+    return res.status(404).json({ message: 'Bewerbung nicht gefunden' });
+  }
+
+  const action = String(req.body?.action || '').trim().toLowerCase();
+  const explicitStatus = String(req.body?.status || '').trim().toLowerCase();
+  let nextStatus = explicitStatus;
+  if (action === 'accept') nextStatus = 'scheduled';
+  else if (action === 'deny' || action === 'reject') nextStatus = 'rejected';
+
+  if (!['submitted', 'scheduled', 'confirmed', 'rejected'].includes(nextStatus)) {
+    return res.status(400).json({ message: 'Ungültige Aktion oder Status für Bewerbung' });
+  }
+
+  const mitarbeiter = await Mitarbeiter.findById(bewerbung.mitarbeiter).lean();
+  if (!mitarbeiter) {
+    return res.status(404).json({ message: 'Zugehöriger Mitarbeiter nicht gefunden' });
+  }
+
+  let createdOrExistingEinsatz = null;
+  const rawAuftragNr = req.params.auftragNr ?? req.body?.auftragNr ?? bewerbung.auftragNr;
+  const parsedAuftragNr = rawAuftragNr !== undefined && rawAuftragNr !== null && rawAuftragNr !== ''
+    ? parseInt(rawAuftragNr, 10)
+    : null;
+
+  if (nextStatus === 'scheduled' && Number.isInteger(parsedAuftragNr)) {
+    const auftrag = await Auftrag.findOne({ auftragNr: parsedAuftragNr });
+    if (auftrag) {
+      await assertOrderHasLocation(req, auftrag);
+      const personalnrInt = mitarbeiter.personalnr ? parseInt(mitarbeiter.personalnr, 10) : null;
+      const requestedSchichtId = req.body?.schichtId || (bewerbung.auftragNr === parsedAuftragNr ? bewerbung.schicht : null);
+      const requestedLegacyId = bewerbung.auftragNr === parsedAuftragNr ? bewerbung.idAuftragArbeitsschichten : null;
+
+      let schichtTemplate = null;
+      const isRequestedObjectId =
+        typeof requestedSchichtId === 'string' &&
+        /^[0-9a-fA-F]{24}$/.test(requestedSchichtId.trim());
+      if (isRequestedObjectId) {
+        schichtTemplate = await Schicht.findOne({ _id: requestedSchichtId.trim(), auftragNr: parsedAuftragNr }).lean();
+      }
+      if (!schichtTemplate && requestedSchichtId != null && !Number.isNaN(parseInt(requestedSchichtId, 10))) {
+        schichtTemplate = await Schicht.findOne({
+          auftragNr: parsedAuftragNr,
+          idAuftragArbeitsschichten: parseInt(requestedSchichtId, 10),
+        }).lean();
+      }
+      if (!schichtTemplate && requestedLegacyId != null) {
+        schichtTemplate = await Schicht.findOne({
+          auftragNr: parsedAuftragNr,
+          idAuftragArbeitsschichten: requestedLegacyId,
+        }).lean();
+      }
+      if (!schichtTemplate) {
+        schichtTemplate = await Schicht.findOne({ auftragNr: parsedAuftragNr })
+          .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
+          .lean();
+      }
+
+      const duplicateFilter = {
+        auftragNr: parsedAuftragNr,
+        personalNr: personalnrInt,
+      };
+      if (schichtTemplate?._id) {
+        duplicateFilter.$or = [
+          { schicht: schichtTemplate._id },
+          ...(schichtTemplate.idAuftragArbeitsschichten != null
+            ? [{ idAuftragArbeitsschichten: schichtTemplate.idAuftragArbeitsschichten }]
+            : []),
+        ];
+      }
+      createdOrExistingEinsatz = await Einsatz.findOne(duplicateFilter);
+
+      if (!createdOrExistingEinsatz) {
+        const templateEinsatz = await Einsatz.findOne({
+          auftragNr: parsedAuftragNr,
+          ...(schichtTemplate?.idAuftragArbeitsschichten != null
+            ? { idAuftragArbeitsschichten: schichtTemplate.idAuftragArbeitsschichten }
+            : {}),
+        }).lean();
+        const tpl = schichtTemplate || templateEinsatz;
+
+        let monitorId = undefined;
+        try {
+          monitorId = await allocateMonitorIdForAuftrag('einsatz', auftrag);
+        } catch (_) {
+          monitorId = undefined;
+        }
+
+        createdOrExistingEinsatz = await Einsatz.create({
+          ...(monitorId ? { monitorId } : {}),
+          creationOrigin: 'manual',
+          source: 'monitor',
+          plannedBy: userId(req),
+          auftragNr: parsedAuftragNr,
+          locationV2: auftrag.locationV2 || null,
+          schicht: schichtTemplate?._id || tpl?.schicht || null,
+          personalNr: personalnrInt,
+          datumVon: schichtTemplate?.datumVon || tpl?.datumVon || auftrag.vonDatum,
+          datumBis: schichtTemplate?.datumBis || tpl?.datumBis || auftrag.bisDatum,
+          idAuftragArbeitsschichten: schichtTemplate?.idAuftragArbeitsschichten ?? tpl?.idAuftragArbeitsschichten ?? null,
+          schichtBezeichnung: schichtTemplate?.bezeichnung || tpl?.schichtBezeichnung || tpl?.bezeichnung || bewerbung.schichtBezeichnung || 'Schicht',
+          bezeichnung: schichtTemplate?.bezeichnung || tpl?.bezeichnung || bewerbung.schichtBezeichnung || 'Einsatz',
+          uhrzeitVon: schichtTemplate?.uhrzeitVon || tpl?.uhrzeitVon,
+          uhrzeitBis: schichtTemplate?.uhrzeitBis || tpl?.uhrzeitBis,
+          treffpunkt: schichtTemplate?.treffpunkt || tpl?.treffpunkt,
+          treffpunktOrt: schichtTemplate?.treffpunktOrt || tpl?.treffpunktOrt,
+          ansprechpartnerName: schichtTemplate?.ansprechpartnerName || tpl?.ansprechpartnerName,
+          ansprechpartnerTelefon: schichtTemplate?.ansprechpartnerTelefon || tpl?.ansprechpartnerTelefon,
+          berufSchl: schichtTemplate?.berufSchl || tpl?.berufSchl,
+          qualSchl: schichtTemplate?.qualSchl || tpl?.qualSchl,
+          bedarf: schichtTemplate?.bedarf ?? tpl?.bedarf,
+          isPseudo: true,
+          stundenlisteIncluded: false,
+          bestaetigungErforderlich: true,
+          bestaetigt: false,
+        });
+      }
+
+      bewerbung.auftragNr = parsedAuftragNr;
+      if (schichtTemplate?._id) bewerbung.schicht = schichtTemplate._id;
+      if (schichtTemplate?.idAuftragArbeitsschichten != null) {
+        bewerbung.idAuftragArbeitsschichten = schichtTemplate.idAuftragArbeitsschichten;
+      }
+      if (schichtTemplate?.bezeichnung) {
+        bewerbung.schichtBezeichnung = schichtTemplate.bezeichnung;
+      }
+      bewerbung.einsatz = createdOrExistingEinsatz._id;
+    }
+  } else if (nextStatus === 'rejected' && bewerbung.einsatz) {
+    await Einsatz.findOneAndDelete({ _id: bewerbung.einsatz, isPseudo: true });
+    bewerbung.einsatz = null;
+  }
+
+  bewerbung.status = nextStatus;
+  if (nextStatus === 'scheduled') {
+    bewerbung.confirmationStep = 0;
+  }
+  bewerbung.decidedBy = userId(req);
+  bewerbung.decidedAt = new Date();
+  await bewerbung.save();
+
+  const populated = await JobBewerbung.findById(bewerbung._id)
+    .populate({
+      path: 'mitarbeiter',
+      select: BEWERBUNG_MITARBEITER_SELECT,
+      populate: [
+        { path: 'qualifikationen', select: 'qualificationKey designation' },
+        { path: 'berufe', select: 'jobKey designation' },
+        { path: 'kundenwuensche.kunde', select: 'kundenNr kundName kuerzel' },
+        { path: 'locationV2', select: 'nameFull shortName color externalId' },
+      ],
+    })
+    .populate('schicht', '_id bezeichnung uhrzeitVon uhrzeitBis datumVon datumBis idAuftragArbeitsschichten auftragNr bedarf')
+    .lean();
+
+  res.json({
+    ok: true,
+    bewerbung: populated,
+    einsatz: createdOrExistingEinsatz ? createdOrExistingEinsatz.toObject?.() || createdOrExistingEinsatz : null,
+  });
+}
+
+router.get('/bewerbungen', auth, requireAdmin, asyncHandler(listJobBewerbungenHandler));
+router.get('/:auftragNr/bewerbungen', auth, requireAdmin, asyncHandler(listJobBewerbungenHandler));
+router.delete('/bewerbungen', auth, requireAdmin, asyncHandler(deleteJobBewerbungenHandler));
+router.delete('/:auftragNr/bewerbungen', auth, requireAdmin, asyncHandler(deleteJobBewerbungenHandler));
+router.patch('/bewerbungen/:bewerbungId', auth, requireAdmin, asyncHandler(decideJobBewerbungHandler));
+router.patch('/:auftragNr/bewerbungen/:bewerbungId', auth, requireAdmin, withAuftragChronik('Einsatz.created', decideJobBewerbungHandler));
 
 // ─────────────────────────────────────────────────────────────
 // LABELS
@@ -1415,82 +1666,268 @@ router.delete('/:auftragNr', auth, withAuftragChronik('Auftrag.deleted', async (
 // PSEUDO-EINSÄTZE
 // ─────────────────────────────────────────────────────────────
 
-// POST /api/auftraege/:auftragNr/pseudo-einsatz – Schedule a pseudo-employee
+// POST /api/auftraege/:auftragNr/pseudo-einsatz – Schedule a pseudo-employee or create a new pseudo-shift
 router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.created', async (req, res) => {
   const { auftragNr } = req.params;
-  const { mitarbeiterId, schichtId, isNewPseudoSchicht, newSchichtBezeichnung, newUhrzeitVon, newUhrzeitBis } = req.body;
-  if (!mitarbeiterId) return res.status(400).json({ message: 'mitarbeiterId erforderlich' });
-  if (isNewPseudoSchicht && !newSchichtBezeichnung) return res.status(400).json({ message: 'Bezeichnung für neue Pseudo-Schicht erforderlich' });
+  const parsedAuftragNr = parseInt(auftragNr, 10);
+  const {
+    mitarbeiterId,
+    schichtId,
+    isNewPseudoSchicht,
+    forceCreateNewSchicht,
+    newSchichtBezeichnung,
+    newUhrzeitVon,
+    newUhrzeitBis,
+    newBerufSchl,
+    newQualSchl,
+    newBedarf,
+    newDatumVon,
+    newDatumBis,
+    newTreffpunkt,
+    newTreffpunktOrt,
+    newAnsprechpartnerName,
+    newAnsprechpartnerTelefon,
+    newAnsprechpartnerEmail,
+    replanFromEinsatzIds,
+  } = req.body;
+  if (!mitarbeiterId && !isNewPseudoSchicht) {
+    return res.status(400).json({ message: 'mitarbeiterId oder neue Pseudo-Schicht erforderlich' });
+  }
+  if (isNewPseudoSchicht && !String(newSchichtBezeichnung || '').trim()) {
+    return res.status(400).json({ message: 'Bezeichnung für neue Pseudo-Schicht erforderlich' });
+  }
 
-  const auftrag = await Auftrag.findOne({ auftragNr: parseInt(auftragNr) });
+  const auftrag = await Auftrag.findOne({ auftragNr: parsedAuftragNr });
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   await assertOrderHasLocation(req, auftrag);
 
-  const mitarbeiter = await Mitarbeiter.findById(mitarbeiterId).lean();
-  if (!mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
+  const mitarbeiter = mitarbeiterId ? await Mitarbeiter.findById(mitarbeiterId).lean() : null;
+  if (mitarbeiterId && !mitarbeiter) return res.status(404).json({ message: 'Mitarbeiter nicht gefunden' });
 
-  const personalnrInt = mitarbeiter.personalnr ? parseInt(mitarbeiter.personalnr) : null;
+  const personalnrInt = mitarbeiter?.personalnr ? parseInt(mitarbeiter.personalnr, 10) : null;
+
+  // Optional replanning: remove previous shift assignments before creating the new one
+  if (Array.isArray(replanFromEinsatzIds) && replanFromEinsatzIds.length) {
+    const validIds = replanFromEinsatzIds.filter(
+      (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id.trim())
+    );
+    if (validIds.length) {
+      await Einsatz.deleteMany({
+        _id: { $in: validIds },
+        ...(personalnrInt != null ? { personalNr: personalnrInt } : {}),
+      });
+    }
+  }
+
+  // Create or find a Schicht record when creating a new pseudo-shift
+  let createdPseudoSchicht = null;
+  if (isNewPseudoSchicht) {
+    const trimmedName = String(newSchichtBezeichnung).trim();
+    const parsedBedarf = Number.isInteger(Number(newBedarf)) && Number(newBedarf) > 0 ? Number(newBedarf) : 1;
+    if (!forceCreateNewSchicht) {
+      createdPseudoSchicht = await Schicht.findOne({
+        auftragNr: parsedAuftragNr,
+        source: 'monitor',
+        bezeichnung: trimmedName,
+        uhrzeitVon: newUhrzeitVon || null,
+        uhrzeitBis: newUhrzeitBis || null,
+      }).lean();
+    }
+
+    if (!createdPseudoSchicht) {
+      let schichtMonitorId = undefined;
+      try {
+        schichtMonitorId = await allocateMonitorIdForAuftrag('schicht', auftrag);
+      } catch (_) {
+        schichtMonitorId = undefined;
+      }
+      const savedSchicht = await Schicht.create({
+        ...(schichtMonitorId ? { monitorId: schichtMonitorId } : {}),
+        creationOrigin: 'manual',
+        source: 'monitor',
+        createdBy: userId(req),
+        auftragNr: parsedAuftragNr,
+        locationV2: auftrag.locationV2 || null,
+        idAuftragArbeitsschichten: null,
+        bezeichnung: trimmedName,
+        datumVon: newDatumVon ? new Date(newDatumVon) : auftrag.vonDatum,
+        datumBis: newDatumBis ? new Date(newDatumBis) : (auftrag.bisDatum || auftrag.vonDatum),
+        uhrzeitVon: newUhrzeitVon || undefined,
+        uhrzeitBis: newUhrzeitBis || undefined,
+        treffpunkt: newTreffpunkt || undefined,
+        treffpunktOrt: newTreffpunktOrt || undefined,
+        ansprechpartnerName: newAnsprechpartnerName || undefined,
+        ansprechpartnerTelefon: newAnsprechpartnerTelefon || undefined,
+        ansprechpartnerEmail: newAnsprechpartnerEmail || undefined,
+        berufSchl: newBerufSchl ? String(newBerufSchl).trim() : undefined,
+        qualSchl: newQualSchl ? String(newQualSchl).trim() : undefined,
+        bedarf: parsedBedarf,
+      });
+      createdPseudoSchicht = savedSchicht.toObject();
+    }
+
+    if (!mitarbeiter) {
+      return res.status(201).json({
+        ok: true,
+        schicht: createdPseudoSchicht,
+      });
+    }
+  }
 
   // 'none' means the shift group with no idAuftragArbeitsschichten (null); null means auto (first shift)
   const isNoneGroup = schichtId === 'none';
-  const hasRealSchichtId = schichtId && !isNoneGroup;
+  const isPseudoNamedGroup = typeof schichtId === 'string' && schichtId.startsWith('pseudo:');
+  const [, pseudoName, pseudoVon, pseudoBis] = isPseudoNamedGroup ? schichtId.split(':') : [];
+  const isObjectIdSchicht =
+    typeof schichtId === 'string' &&
+    /^[0-9a-fA-F]{24}$/.test(schichtId.trim());
+  const numericSchichtId =
+    schichtId != null && !isNoneGroup && !isPseudoNamedGroup && !isObjectIdSchicht
+      ? parseInt(schichtId, 10)
+      : NaN;
+  const hasNumericSchichtId = Number.isInteger(numericSchichtId);
+
+  let schichtTemplate = null;
+  if (!isNewPseudoSchicht && !isPseudoNamedGroup) {
+    if (isObjectIdSchicht) {
+      schichtTemplate = await Schicht.findOne({ _id: schichtId.trim(), auftragNr: parsedAuftragNr }).lean();
+    } else if (hasNumericSchichtId) {
+      schichtTemplate = await Schicht.findOne({
+        auftragNr: parsedAuftragNr,
+        idAuftragArbeitsschichten: numericSchichtId,
+      }).lean();
+    } else if (!isNoneGroup) {
+      schichtTemplate = await Schicht.findOne({ auftragNr: parsedAuftragNr }).sort({ idAuftragArbeitsschichten: 1, datumVon: 1 }).lean();
+    }
+  }
 
   // Check for duplicate pseudo-einsatz (skip strict check for new pseudo schichten)
   if (!isNewPseudoSchicht) {
-    const duplicate = await Einsatz.findOne({
-      auftragNr: parseInt(auftragNr),
+    const duplicateFilter = {
+      auftragNr: parsedAuftragNr,
       personalNr: personalnrInt,
-      isPseudo: true,
-      ...(hasRealSchichtId
-        ? { idAuftragArbeitsschichten: parseInt(schichtId) }
-        : isNoneGroup
-          ? { idAuftragArbeitsschichten: null }
-          : {})
-    });
+    };
+    if (isPseudoNamedGroup) {
+      duplicateFilter.idAuftragArbeitsschichten = null;
+      duplicateFilter.schichtBezeichnung = pseudoName || null;
+    } else if (schichtTemplate?._id) {
+      duplicateFilter.$or = [
+        { schicht: schichtTemplate._id },
+        ...(schichtTemplate.idAuftragArbeitsschichten != null
+          ? [{ idAuftragArbeitsschichten: schichtTemplate.idAuftragArbeitsschichten }]
+          : []),
+      ];
+    } else if (hasNumericSchichtId) {
+      duplicateFilter.idAuftragArbeitsschichten = numericSchichtId;
+    } else if (isNoneGroup) {
+      duplicateFilter.idAuftragArbeitsschichten = null;
+    }
+    const duplicate = await Einsatz.findOne(duplicateFilter);
     if (duplicate) return res.status(400).json({ message: 'Mitarbeiter bereits in dieser Schicht eingeplant' });
   }
 
   let tpl = null;
   if (!isNewPseudoSchicht) {
     // Copy metadata from an existing Einsatz or Schicht in the same schicht
-    const templateQuery = { auftragNr: parseInt(auftragNr) };
-    if (hasRealSchichtId) templateQuery.idAuftragArbeitsschichten = parseInt(schichtId);
-    else if (isNoneGroup) templateQuery.idAuftragArbeitsschichten = null;
-    const template = await Einsatz.findOne(templateQuery).lean();
-
-    // Fallback: use Schicht if no Einsatz template found (e.g. empty shift from 7011)
-    let schichtTemplate = null;
-    if (!template && hasRealSchichtId) {
-      schichtTemplate = await Schicht.findOne({
-        auftragNr: parseInt(auftragNr),
-        idAuftragArbeitsschichten: parseInt(schichtId)
-      }).lean();
+    const templateQuery = { auftragNr: parsedAuftragNr };
+    if (isPseudoNamedGroup) {
+      templateQuery.idAuftragArbeitsschichten = null;
+      templateQuery.schichtBezeichnung = pseudoName || null;
+    } else if (schichtTemplate?._id) {
+      templateQuery.$or = [
+        { schicht: schichtTemplate._id },
+        ...(schichtTemplate.idAuftragArbeitsschichten != null
+          ? [{ idAuftragArbeitsschichten: schichtTemplate.idAuftragArbeitsschichten }]
+          : []),
+      ];
+    } else if (hasNumericSchichtId) {
+      templateQuery.idAuftragArbeitsschichten = numericSchichtId;
+    } else if (isNoneGroup) {
+      templateQuery.idAuftragArbeitsschichten = null;
     }
+    const template = await Einsatz.findOne(templateQuery).lean();
     tpl = template || schichtTemplate;
   }
 
+  let monitorId = undefined;
+  try {
+    monitorId = await allocateMonitorIdForAuftrag('einsatz', auftrag);
+  } catch (_) {
+    monitorId = undefined;
+  }
+
   const newEinsatz = new Einsatz({
-    monitorId: await allocateMonitorIdForAuftrag('einsatz', auftrag),
+    ...(monitorId ? { monitorId } : {}),
     creationOrigin: 'manual',
-    auftragNr: parseInt(auftragNr),
+    source: 'monitor',
+    plannedBy: userId(req),
+    auftragNr: parsedAuftragNr,
     locationV2: auftrag.locationV2 || null,
+    schicht: createdPseudoSchicht?._id || schichtTemplate?._id || tpl?.schicht || null,
     personalNr: personalnrInt,
-    datumVon: tpl?.datumVon || auftrag.vonDatum,
-    datumBis: tpl?.datumBis || auftrag.bisDatum,
-    idAuftragArbeitsschichten: hasRealSchichtId ? parseInt(schichtId) : isNoneGroup ? null : tpl?.idAuftragArbeitsschichten,
-    schichtBezeichnung: isNewPseudoSchicht ? newSchichtBezeichnung : (tpl?.schichtBezeichnung || tpl?.bezeichnung),
-    uhrzeitVon: isNewPseudoSchicht ? (newUhrzeitVon || undefined) : tpl?.uhrzeitVon,
-    uhrzeitBis: isNewPseudoSchicht ? (newUhrzeitBis || undefined) : tpl?.uhrzeitBis,
-    treffpunkt: tpl?.treffpunkt,
-    ansprechpartnerName: tpl?.ansprechpartnerName,
-    ansprechpartnerTelefon: tpl?.ansprechpartnerTelefon,
-    bezeichnung: tpl?.bezeichnung,
-    berufSchl: tpl?.berufSchl,
-    qualSchl: tpl?.qualSchl,
+    datumVon: schichtTemplate?.datumVon || tpl?.datumVon || auftrag.vonDatum,
+    datumBis: schichtTemplate?.datumBis || tpl?.datumBis || auftrag.bisDatum,
+    idAuftragArbeitsschichten: isNewPseudoSchicht || isPseudoNamedGroup
+      ? null
+      : (schichtTemplate?.idAuftragArbeitsschichten ?? (hasNumericSchichtId ? numericSchichtId : isNoneGroup ? null : tpl?.idAuftragArbeitsschichten)),
+    schichtBezeichnung: isNewPseudoSchicht
+      ? newSchichtBezeichnung
+      : isPseudoNamedGroup
+        ? (pseudoName || tpl?.schichtBezeichnung)
+        : (schichtTemplate?.bezeichnung || tpl?.schichtBezeichnung || tpl?.bezeichnung),
+    uhrzeitVon: isNewPseudoSchicht
+      ? (newUhrzeitVon || undefined)
+      : isPseudoNamedGroup
+        ? (pseudoVon || tpl?.uhrzeitVon || undefined)
+        : (schichtTemplate?.uhrzeitVon || tpl?.uhrzeitVon),
+    uhrzeitBis: isNewPseudoSchicht
+      ? (newUhrzeitBis || undefined)
+      : isPseudoNamedGroup
+        ? (pseudoBis || tpl?.uhrzeitBis || undefined)
+        : (schichtTemplate?.uhrzeitBis || tpl?.uhrzeitBis),
+    treffpunkt: schichtTemplate?.treffpunkt || tpl?.treffpunkt,
+    treffpunktOrt: schichtTemplate?.treffpunktOrt || tpl?.treffpunktOrt,
+    ansprechpartnerName: schichtTemplate?.ansprechpartnerName || tpl?.ansprechpartnerName,
+    ansprechpartnerTelefon: schichtTemplate?.ansprechpartnerTelefon || tpl?.ansprechpartnerTelefon,
+    bezeichnung: isNewPseudoSchicht
+      ? newSchichtBezeichnung
+      : (schichtTemplate?.bezeichnung || tpl?.bezeichnung || pseudoName),
+    berufSchl: isNewPseudoSchicht
+      ? (newBerufSchl ? String(newBerufSchl).trim() : undefined)
+      : (schichtTemplate?.berufSchl || tpl?.berufSchl),
+    qualSchl: isNewPseudoSchicht
+      ? (newQualSchl ? String(newQualSchl).trim() : undefined)
+      : (schichtTemplate?.qualSchl || tpl?.qualSchl),
+    bedarf: isNewPseudoSchicht
+      ? (Number.isInteger(Number(newBedarf)) && Number(newBedarf) > 0 ? Number(newBedarf) : 1)
+      : (schichtTemplate?.bedarf ?? tpl?.bedarf),
     isPseudo: true,
     stundenlisteIncluded: false,
+    bestaetigungErforderlich: false,
+    bestaetigt: false,
   });
   await newEinsatz.save();
+
+  // Sync any matching JobBewerbung for this employee
+  await JobBewerbung.updateMany(
+    {
+      mitarbeiter: mitarbeiter._id,
+      status: 'submitted',
+      $or: [
+        { auftragNr: parsedAuftragNr },
+        ...(schichtTemplate?._id ? [{ jobId: String(schichtTemplate._id) }, { schicht: schichtTemplate._id }] : []),
+      ],
+    },
+    {
+      $set: {
+        status: 'scheduled',
+        confirmationStep: 0,
+        einsatz: newEinsatz._id,
+        decidedBy: userId(req),
+        decidedAt: new Date(),
+      },
+    }
+  );
 
   res.status(201).json({
     ...newEinsatz.toObject(),
@@ -1762,21 +2199,49 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
 
 router.delete('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schicht.deleted', async (req, res) => {
   const auftragNr = parseAuftragNr(req.params.auftragNr);
-  if (!mongoose.isValidObjectId(req.params.schichtId)) throw validationError('Ungültige Schicht-ID');
+  const rawSchichtId = String(req.params.schichtId || '').trim();
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(rawSchichtId);
+  const numericSchichtId = !isObjectId && Number.isFinite(Number(rawSchichtId)) ? Number(rawSchichtId) : null;
+  if (!isObjectId && numericSchichtId === null) throw validationError('Ungültige Schicht-ID');
+
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderHasLocation(req, auftrag);
-  const schicht = await Schicht.findOneAndDelete({ _id: req.params.schichtId, auftragNr });
-  if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
-  await Einsatz.deleteMany({
+
+  const schicht = await Schicht.findOneAndDelete(
+    isObjectId
+      ? { _id: rawSchichtId, auftragNr }
+      : { idAuftragArbeitsschichten: numericSchichtId, auftragNr }
+  );
+
+  const einsatzFilter = {
     auftragNr,
     $or: [
-      { schicht: schicht._id },
-      ...(schicht.idAuftragArbeitsschichten !== null
+      ...(schicht?._id ? [{ schicht: schicht._id }] : []),
+      ...(isObjectId ? [{ schicht: rawSchichtId }] : []),
+      ...(schicht?.idAuftragArbeitsschichten != null
         ? [{ idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten }]
-        : []),
+        : numericSchichtId !== null
+          ? [{ idAuftragArbeitsschichten: numericSchichtId }]
+          : []),
     ],
-  });
+  };
+
+  if (!schicht && !einsatzFilter.$or.length) {
+    return res.status(404).json({ message: 'Schicht nicht gefunden' });
+  }
+
+  if (einsatzFilter.$or.length) {
+    const einsaetzeToDelete = await Einsatz.find(einsatzFilter).select('_id').lean();
+    const einsatzIds = einsaetzeToDelete.map((e) => e._id);
+    if (einsatzIds.length) {
+      await DispoEintrag.deleteMany({
+        typ: 'einsatz',
+        'referenz.einsatzId': { $in: einsatzIds },
+      });
+      await Einsatz.deleteMany({ _id: { $in: einsatzIds } });
+    }
+  }
+
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
   res.json({ ok: true });
 }));
@@ -2148,17 +2613,22 @@ router.patch('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Einsa
   if (!current) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
   const auftrag = await Auftrag.findOne({ auftragNr }).lean();
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
-  await assertOrderHasLocation(req, auftrag);
+  const isStundenlisteInclusionOnly = Object.keys(patch).length === 1 && Object.hasOwn(patch, 'stundenlisteIncluded');
+  if (!isStundenlisteInclusionOnly) {
+    await assertOrderHasLocation(req, auftrag);
+  }
   const confirmationTimeChanged = hasEinsatzTimeChange(patch, current);
-  const personalNr = patch.personalNr ?? current.personalNr;
-  const shiftKey = patch.idAuftragArbeitsschichten ?? current.idAuftragArbeitsschichten;
-  const duplicate = await Einsatz.exists({
-    _id: { $ne: current._id },
-    auftragNr,
-    personalNr,
-    idAuftragArbeitsschichten: shiftKey,
-  });
-  if (duplicate) return res.status(409).json({ message: 'Mitarbeiter ist bereits in dieser Schicht eingeplant' });
+  if (Object.hasOwn(patch, 'personalNr') || Object.hasOwn(patch, 'idAuftragArbeitsschichten')) {
+    const personalNr = patch.personalNr ?? current.personalNr;
+    const shiftKey = patch.idAuftragArbeitsschichten ?? current.idAuftragArbeitsschichten;
+    const duplicate = await Einsatz.exists({
+      _id: { $ne: current._id },
+      auftragNr,
+      personalNr,
+      idAuftragArbeitsschichten: shiftKey,
+    });
+    if (duplicate) return res.status(409).json({ message: 'Mitarbeiter ist bereits in dieser Schicht eingeplant' });
+  }
 
   const einsatz = await Einsatz.findByIdAndUpdate(
     current._id,
@@ -2180,9 +2650,71 @@ router.delete('/:auftragNr/einsaetze/:einsatzId', auth, withAuftragChronik('Eins
   await assertOrderHasLocation(req, auftrag);
   const einsatz = await Einsatz.findOneAndDelete({ _id: req.params.einsatzId, auftragNr });
   if (!einsatz) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
+  await DispoEintrag.deleteMany({
+    typ: 'einsatz',
+    'referenz.einsatzId': einsatz._id,
+  });
+  await JobBewerbung.updateMany(
+    { einsatz: einsatz._id },
+    { $set: { einsatz: null } }
+  );
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
 
   logger.info(`Einsatz ${einsatz._id} deleted from Auftrag ${auftragNr} by user ${req.user?.id || 'unknown'}`);
+  res.json({ ok: true });
+}));
+
+// DELETE /api/auftraege/:auftragNr/pseudo-schicht/:schichtId – Delete a pseudo-shift and its Einsätze
+router.delete('/:auftragNr/pseudo-schicht/:schichtId', auth, withAuftragChronik('Schicht.deleted', async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const rawSchichtId = String(req.params.schichtId || '').trim();
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(rawSchichtId);
+  const numericSchichtId = !isObjectId && Number.isFinite(Number(rawSchichtId)) ? Number(rawSchichtId) : null;
+  if (!isObjectId && numericSchichtId === null) throw validationError('Ungültige Schicht-ID');
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+
+  const schicht = await Schicht.findOneAndDelete(
+    isObjectId
+      ? { _id: rawSchichtId, auftragNr }
+      : { idAuftragArbeitsschichten: numericSchichtId, auftragNr }
+  );
+
+  const einsatzFilter = {
+    auftragNr,
+    $or: [
+      ...(schicht?._id ? [{ schicht: schicht._id }] : []),
+      ...(isObjectId ? [{ schicht: rawSchichtId }] : []),
+      ...(schicht?.idAuftragArbeitsschichten != null
+        ? [{ idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten }]
+        : numericSchichtId !== null
+          ? [{ idAuftragArbeitsschichten: numericSchichtId }]
+          : []),
+    ],
+  };
+
+  if (!schicht && !einsatzFilter.$or.length) {
+    return res.status(404).json({ message: 'Schicht nicht gefunden' });
+  }
+
+  if (einsatzFilter.$or.length) {
+    const einsaetzeToDelete = await Einsatz.find(einsatzFilter).select('_id').lean();
+    const einsatzIds = einsaetzeToDelete.map((e) => e._id);
+    if (einsatzIds.length) {
+      await DispoEintrag.deleteMany({
+        typ: 'einsatz',
+        'referenz.einsatzId': { $in: einsatzIds },
+      });
+      await JobBewerbung.updateMany(
+        { einsatz: { $in: einsatzIds } },
+        { $set: { einsatz: null } }
+      );
+      await Einsatz.deleteMany({ _id: { $in: einsatzIds } });
+    }
+  }
+
+  await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
   res.json({ ok: true });
 }));
 
@@ -2197,6 +2729,14 @@ router.delete('/:auftragNr/pseudo-einsatz/:einsatzId', auth, withAuftragChronik(
   const einsatz = await Einsatz.findOne({ _id: einsatzId, auftragNr, isPseudo: true });
   if (!einsatz) return res.status(404).json({ message: 'Pseudo-Einsatz nicht gefunden' });
   await einsatz.deleteOne();
+  await DispoEintrag.deleteMany({
+    typ: 'einsatz',
+    'referenz.einsatzId': einsatz._id,
+  });
+  await JobBewerbung.updateMany(
+    { einsatz: einsatz._id },
+    { $set: { einsatz: null } }
+  );
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
   res.json({ ok: true });
 }));

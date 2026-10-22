@@ -217,6 +217,33 @@ describe('EmployeeCard shared shell controls', () => {
 
     await wrapper.get('button[aria-label="Staatsangehörigkeit bearbeiten"]').trigger('click');
     expect(wrapper.get('select[aria-label="Staatsangehörigkeit"]').classes()).toContain('app-select');
+
+    await wrapper.get('button[aria-label="Führerscheine bearbeiten"]').trigger('click');
+    expect(wrapper.vm.stammdatenDraft.hatAuto).toBe(false);
+    await wrapper.get('input[aria-label="Führerscheinklassen"]').setValue('B, BE');
+    await wrapper.get('input[aria-label="Auto vorhanden"]').setValue(true);
+    mocks.api.patch.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          fuehrerscheine: [{ klasse: 'B', source: 'manual' }, { klasse: 'BE', source: 'manual' }],
+          fuehrerschein: { klasse: 'B', gueltigVon: null, gueltigBis: null, hatAuto: true },
+        },
+      },
+    });
+    await wrapper.get('button[aria-label="Führerscheine speichern"]').trigger('click');
+    expect(mocks.api.patch).toHaveBeenCalledWith('/api/personal/mitarbeiter/employee-1', {
+      fuehrerscheine: [
+        { klasse: 'B', gueltigVon: null, gueltigBis: null, source: 'manual' },
+        { klasse: 'BE', gueltigVon: null, gueltigBis: null, source: 'manual' },
+      ],
+      fuehrerschein: {
+        klasse: 'B',
+        gueltigVon: null,
+        gueltigBis: null,
+        hatAuto: true,
+      },
+    });
   });
 
   it('locks the inline editor during a pending save and closes it after success', async () => {

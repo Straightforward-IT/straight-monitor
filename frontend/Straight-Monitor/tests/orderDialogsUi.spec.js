@@ -306,7 +306,7 @@ describe('pseudo-assignment integration', () => {
     expect(dialog().get('input[required]').element.value).toBe(' Service ');
     expect(submit().text()).toContain('2 Mitarbeiter einplanen');
     await clickSubmit();
-    expect(api.post.mock.calls.map(call => call[1])).toEqual([employee, otherEmployee].map(item => ({ mitarbeiterId: item._id, isNewPseudoSchicht: true, newSchichtBezeichnung: 'Service', newUhrzeitVon: '08:00' })));
+    expect(api.post.mock.calls.map(call => call[1])).toEqual([employee, otherEmployee].map(item => ({ mitarbeiterId: item._id, isNewPseudoSchicht: true, newSchichtBezeichnung: 'Service', newUhrzeitVon: '08:00', newBedarf: 1 })));
     expect(api.get).toHaveBeenCalledWith('/api/auftraege/42/details');
     expect(alert).toHaveBeenCalledWith('Einige konnten nicht eingeplant werden:\nTom Beispiel: Nicht verfügbar');
     expect(wrapper.vm.showPseudoDialog).toBe(false); expect(wrapper.vm.pseudoSaving).toBe(false);
@@ -320,5 +320,46 @@ describe('pseudo-assignment integration', () => {
     await wrapper.vm.removePseudoEinsatz('assignment');
     expect(api.delete).toHaveBeenCalledWith('/api/auftraege/42/pseudo-einsatz/assignment');
     expect(wrapper.vm.selectedEvent.auftragNr).toBe(42);
+  });
+
+  it('previews the customer qualification price in a disabled input when creating a pseudo-shift', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url === '/api/kunden/500/preise') {
+        return {
+          data: [
+            {
+              qualSchluessel: 102,
+              qualifikation: { qualificationKey: 102, designation: 'Servicekraft' },
+              hourlyRateCents: 2850,
+              validFrom: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        };
+      }
+      if (url === '/api/auftraege/qualifikationen/search') {
+        return { data: [{ qualificationKey: 102, designation: 'Servicekraft' }] };
+      }
+      return { data: [] };
+    });
+
+    const wrapper = workspace({
+      selectedEvent: { ...order(), kundenNr: 500, vonDatum: '2026-06-15' },
+      showPseudoDialog: true,
+      pseudoSchichtMode: 'new',
+      pseudoNewSchicht: {
+        bezeichnung: 'Service',
+        uhrzeitVon: '09:00',
+        uhrzeitBis: '17:00',
+        berufSchl: '',
+        qualSchl: '102',
+        bedarf: 1,
+      },
+    });
+    await flushPromises();
+
+    const priceInput = dialog().get('.pseudo-price-input');
+    expect(priceInput.element.disabled).toBe(true);
+    expect(priceInput.element.value).toContain('28,50');
+    expect(priceInput.element.value).toContain('/ Std.');
   });
 });

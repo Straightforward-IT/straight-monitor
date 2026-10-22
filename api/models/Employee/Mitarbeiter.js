@@ -30,6 +30,7 @@ const MitarbeiterSchema = new mongoose.Schema({
         klasse: { type: String, trim: true, default: null },
         gueltigVon: { type: Date, default: null },
         gueltigBis: { type: Date, default: null },
+        hatAuto: { type: Boolean, default: null },
     },
     // Hauptadresse (Adresse 1) aus Zvoove — Tel/Email der Hauptadresse fließen in telefon/email.
     adresse: {

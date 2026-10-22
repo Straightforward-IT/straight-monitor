@@ -12,7 +12,16 @@ export function useSigningModals() {
       title: session.title || 'Dokument unterschreiben',
       component: DocuSealSigningModal,
       icon: 'signature',
-      props: { ...session, onClose: () => manager.remove(id) },
+      props: {
+        ...session,
+        onComplete: () => {
+          session.onComplete?.();
+        },
+        onClose: () => {
+          session.onClose?.();
+          manager.remove(id);
+        },
+      },
     });
   }
   return { openSigning };

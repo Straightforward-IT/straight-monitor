@@ -188,8 +188,15 @@ describe('Auftrag Chronik routes with real transactions', function () {
     assert.equal(fields.find(item => item.field === 'uhrzeitVon').before, '18:00');
     await Mitarbeiter.updateOne({ _id: replacement._id }, { $set: { nachname: 'Renamed' } });
     assert.match((await feed())[1].changes[0].label, /Ben Test/);
+
+    const standardUser = { _id: oid(), name: 'Standard User', email: 'standard@example.com', role: 'USER', roles: ['USER'] };
+    await User.collection.insertOne(standardUser);
+    const toggledByUser = await request('PATCH', `/${order.auftragNr}/einsaetze/${assigned.body._id}`, { stundenlisteIncluded: true }, standardUser);
+    assert.equal(toggledByUser.status, 200, JSON.stringify(toggledByUser.body));
+    assert.equal(toggledByUser.body.stundenlisteIncluded, true);
+
     assert.equal((await request('DELETE', `/${order.auftragNr}/einsaetze/${assigned.body._id}`)).status, 200);
-    assert.equal((await feed())[2].changes[0].action, 'deleted');
+    assert.equal((await feed())[3].changes[0].action, 'deleted');
   });
 
   it('groups shift time propagation and cascade deletion with all affected assignment details', async () => {

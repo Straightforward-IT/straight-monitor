@@ -100,6 +100,25 @@
         >
           <font-awesome-icon icon="fa-solid fa-arrow-up-right-from-square" />
         </AppIconButton>
+        <AppIconButton
+          v-if="hoursList.status === 'open' && canSign"
+          variant="ghost"
+          size="sm"
+          label="Stundenliste stornieren"
+          class="order-document-delete"
+          @click="emit('delete-hours')"
+        >
+          <font-awesome-icon icon="fa-solid fa-ban" />
+        </AppIconButton>
+        <AppButton
+          v-if="hasPendingEmbeddedHoursSigner && canSign"
+          variant="outlined"
+          size="sm"
+          title="Stundenliste unterschreiben"
+          @click="emit('sign-hours')"
+        >
+          <font-awesome-icon icon="fa-solid fa-file-signature" /> Signieren
+        </AppButton>
         <template v-if="hoursList.status === 'draft'">
           <AppIconButton
             v-if="hoursStatus?.unsignedPdfUrl"
@@ -290,22 +309,28 @@
 import { computed, getCurrentInstance, ref } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faBan, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import AppButton from '@/components/ui-elements/AppButton.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
-library.add(faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate);
+library.add(faFolderOpen, faPlus, faChevronDown, faArrowUpRightFromSquare, faDownload, faFileSignature, faTrash, faBan, faCar, faPencil, faFile, faXmark, faUpload, faArrowsRotate);
 const props = defineProps({
   hoursStatus: { type: Object, default: null }, hoursLoading: { type: Boolean, default: false },
   documents: { type: Array, default: () => [] }, documentsLoading: { type: Boolean, default: false },
   expenses: { type: Array, default: () => [] }, uploading: { type: Boolean, default: false },
-  canSign: { type: Boolean, default: false }, menuOpen: { type: Boolean, default: false },
+  canSign: { type: Boolean, default: true }, menuOpen: { type: Boolean, default: false },
   expenseName: { type: Function, required: true }, formatSize: { type: Function, required: true },
 });
-const emit = defineEmits(['toggle-menu', 'open-signature', 'refresh-hours', 'preview-hours', 'download-hours', 'edit-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
+const emit = defineEmits(['toggle-menu', 'open-signature', 'refresh-hours', 'preview-hours', 'download-hours', 'edit-hours', 'sign-hours', 'delete-hours', 'open-expense-pdf', 'edit-expense', 'sign-expense', 'delete-expense', 'preview-document', 'download-document', 'delete-document', 'upload']);
 const fileInput = ref(null);
 const titleId = `order-documents-${getCurrentInstance().uid}`;
 const hoursList = computed(() => props.hoursStatus?.vorgang);
 const completedSigners = computed(() => (hoursList.value?.submitters || []).filter(signer => signer.status === 'completed').length);
+const hasPendingEmbeddedHoursSigner = computed(() =>
+  hoursList.value?.status === 'open'
+  && (hoursList.value?.submitters || []).some(signer =>
+    signer.embedded && (signer.embedSrc || signer.slug) && signer.status !== 'completed'
+  )
+);
 const hoursStatusText = computed(() => ({ open: 'Ausstehend', completed: 'Unterschrieben', draft: 'Entwurf', cancelled: 'Storniert' })[hoursList.value?.status] || hoursList.value?.status);
 const expenseStatusText = (status) => ({
   draft: 'Entwurf',

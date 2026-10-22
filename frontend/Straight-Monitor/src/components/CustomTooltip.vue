@@ -140,6 +140,7 @@ const transformBy = pos => {
   if (pos === 'top') return 'translate(-50%, -100%)'
   if (pos === 'bottom') return 'translate(-50%, 0)'
   if (pos === 'left') return 'translate(-100%, -50%)'
+  if (pos === 'right') return 'translate(0, -50%)'
 
   return 'translate(-50%, -100%)'
 }
@@ -159,6 +160,7 @@ const transformBy = pos => {
 .tooltip {
   position: absolute;
   z-index: 1000;
+  width: max-content;
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
@@ -179,23 +181,33 @@ const transformBy = pos => {
      /* Position handled via style binding */
      z-index: 9999;
   }
-  &.bottom {
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  &.left {
-    right: calc(100% + 8px);
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  &.right {
-    left: calc(100% + 8px);
-    top: 50%;
-    transform: translateY(-50%);
+
+  &:not(.global) {
+    &.top {
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    &.bottom {
+      top: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    &.left {
+      right: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    &.right {
+      left: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+    }
   }
 
   &.global {
+    right: auto;
+    bottom: auto;
     z-index: 9999;
   }
 }

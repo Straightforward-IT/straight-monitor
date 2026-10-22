@@ -1,5 +1,5 @@
 <template>
-  <div class="calendar-controls">
+  <div class="calendar-controls" :class="{ 'calendar-controls--compact': compact }">
     <CustomTooltip :text="previousLabel">
       <AppIconButton
         variant="secondary"
@@ -22,9 +22,11 @@
           size="sm"
           class="calendar-controls__picker"
           :aria-label="pickerLabel"
+          :title="label"
           @click="toggle"
         >
-          {{ label }}
+          <span class="calendar-controls__picker-label">{{ label }}</span>
+          <FontAwesomeIcon :icon="faCalendar" class="calendar-controls__picker-icon" aria-hidden="true" />
         </AppButton>
       </template>
     </DatePicker>
@@ -45,7 +47,7 @@
 <script setup>
 import { computed } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faCalendar, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import CustomTooltip from '@/components/CustomTooltip.vue';
 import DatePicker from '@/components/ui-elements/DatePicker.vue';
 import AppButton from '@/components/ui-elements/AppButton.vue';
@@ -54,6 +56,7 @@ import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 const props = defineProps({
   modelValue: { type: Date, default: () => new Date() },
   type: { type: String, default: 'day', validator: value => ['day', 'week', 'month', 'year'].includes(value) },
+  compact: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 const selectedDate = computed({ get: () => props.modelValue || new Date(), set: value => emit('update:modelValue', value) });
@@ -96,7 +99,16 @@ function shift(amount) {
 .calendar-controls { position: absolute; top: 100%; right: 12px; z-index: 5; display: flex; align-items: center; gap: 4px; height: 24px; white-space: nowrap; }
 .calendar-controls .calendar-controls__picker, .calendar-controls .calendar-controls__nav { min-height: 24px; height: 24px; border-radius: 0 0 5px 5px; font-size: 0.72rem; }
 .calendar-controls .calendar-controls__picker { width: 150px; padding: 0 6px; }
+.calendar-controls__picker-icon { display: none; }
+.calendar-controls--compact .calendar-controls__picker { width: 28px; padding: 0; }
+.calendar-controls--compact .calendar-controls__picker-label { display: none; }
+.calendar-controls--compact .calendar-controls__picker-icon { display: inline-block; }
 .calendar-controls :deep(.dp-layer--inline) { right: -44px; left: auto; }
 .calendar-controls .calendar-controls__nav { --app-button-icon-size: 28px; padding: 0; }
+@container (max-width: 400px) {
+  .calendar-controls .calendar-controls__picker { width: 28px; padding: 0; }
+  .calendar-controls .calendar-controls__picker-label { display: none; }
+  .calendar-controls .calendar-controls__picker-icon { display: inline-block; }
+}
 @media (max-width: 720px) { .calendar-controls { right: 6px; gap: 3px; } }
 </style>

@@ -74,7 +74,8 @@ import api from '@/utils/api';
 const props = defineProps({
   inputId: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
-  modelValue: { type: Array, default: () => [] },
+  multiple: { type: Boolean, default: true },
+  modelValue: { type: [Array, String, Number], default: () => [] },
   placeholder: { type: String, default: 'Beruf suchen...' },
 });
 const emit = defineEmits(['update:modelValue']);
@@ -96,6 +97,10 @@ function updatePosition() {
   dropdownStyle.value = { position: 'fixed', top: `${rect.bottom + 3}px`, left: `${rect.left}px`, width: `${rect.width}px` };
 }
 
+function sortByJobKey(items) {
+  return [...(items || [])].sort((a, b) => Number(a.jobKey) - Number(b.jobKey));
+}
+
 async function fetchResults() {
   if (props.disabled) return;
   const currentRequest = ++request;
@@ -103,7 +108,7 @@ async function fetchResults() {
   try {
     const { data } = await api.get('/api/auftraege/berufe/search', { params: { q: query.value.trim() } });
     if (currentRequest !== request) return;
-    results.value = data || [];
+    results.value = sortByJobKey(data);
     highlighted.value = 0;
     updatePosition();
     open.value = results.value.length > 0;
@@ -119,20 +124,35 @@ function onInput() {
   clearTimeout(timer);
   timer = setTimeout(fetchResults, 220);
 }
-function isSelected(jobKey) { return selected.value.some(beruf => beruf.jobKey === jobKey); }
+function isSelected(jobKey) { return selected.value.some(beruf => Number(beruf.jobKey) === Number(jobKey)); }
+function emitSelection() {
+  if (!props.multiple) {
+    const first = selected.value[0];
+    emit('update:modelValue', first ? String(first.jobKey) : '');
+    return;
+  }
+  emit('update:modelValue', selected.value.map(item => item.jobKey));
+}
 function toggle(beruf) {
   if (props.disabled) return;
+  if (!props.multiple) {
+    selected.value = isSelected(beruf.jobKey) ? [] : [beruf];
+    emitSelection();
+    query.value = '';
+    close();
+    return;
+  }
   selected.value = isSelected(beruf.jobKey)
     ? selected.value.filter(item => item.jobKey !== beruf.jobKey)
     : [...selected.value, beruf];
-  emit('update:modelValue', selected.value.map(item => item.jobKey));
+  emitSelection();
   query.value = '';
   fetchResults();
 }
 function remove(jobKey) {
   if (props.disabled) return;
-  selected.value = selected.value.filter(beruf => beruf.jobKey !== jobKey);
-  emit('update:modelValue', selected.value.map(item => item.jobKey));
+  selected.value = selected.value.filter(beruf => Number(beruf.jobKey) !== Number(jobKey));
+  emitSelection();
 }
 function move(direction) { highlighted.value = Math.max(0, Math.min(results.value.length - 1, highlighted.value + direction)); }
 function selectHighlighted() { if (results.value[highlighted.value]) toggle(results.value[highlighted.value]); }
@@ -146,11 +166,12 @@ watch(() => props.disabled, disabled => {
 });
 function onClickOutside(event) { if (container.value && !container.value.contains(event.target)) close(); }
 
-watch(() => props.modelValue, async (keys) => {
-  const jobKeys = [...new Set((keys || []).map(Number).filter(Number.isInteger))];
-  if (jobKeys.length && (!selected.value.length || selected.value.some(beruf => !jobKeys.includes(beruf.jobKey)))) {
+watch(() => props.modelValue, async (val) => {
+  const rawList = Array.isArray(val) ? val : val !== null && val !== undefined && val !== '' ? [val] : [];
+  const jobKeys = [...new Set(rawList.map(Number).filter(Number.isInteger))];
+  if (jobKeys.length && (!selected.value.length || selected.value.some(beruf => !jobKeys.includes(Number(beruf.jobKey))))) {
     const { data } = await api.get('/api/auftraege/berufe/search');
-    selected.value = (data || []).filter(beruf => jobKeys.includes(beruf.jobKey));
+    selected.value = (data || []).filter(beruf => jobKeys.includes(Number(beruf.jobKey)));
   } else if (!jobKeys.length) selected.value = [];
 }, { immediate: true });
 onMounted(() => { document.addEventListener('mousedown', onClickOutside); window.addEventListener('resize', updatePosition); window.addEventListener('scroll', updatePosition, true); });

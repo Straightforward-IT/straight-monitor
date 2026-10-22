@@ -1435,11 +1435,26 @@
                 </span>
               </dd>
             </div>
-            <div v-if="fuehrerscheinAnzeige.length" class="stammdaten-field stammdaten-field--full-row">
-              <dt>Führerscheine</dt>
-              <dd class="stammdaten-detail-list">
-                <span v-for="(license, index) in fuehrerscheinAnzeige" :key="index">
-                  {{ license }}
+            <div class="stammdaten-field stammdaten-field--full-row" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'fuehrerschein' }">
+              <dt>Führerscheine <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Führerscheine bearbeiten" @click.stop="startEditStammdaten('fuehrerschein')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'fuehrerschein'" class="stammdaten-detail-list">
+                <template v-if="fuehrerscheinAnzeige.length">
+                  <span v-for="(license, index) in fuehrerscheinAnzeige" :key="index">
+                    {{ license }}
+                  </span>
+                </template>
+                <span v-else>—</span>
+                <span>Auto: {{ resolvedMa.fuehrerschein?.hatAuto ? 'Ja' : 'Nein' }}</span>
+              </dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model="stammdatenDraft.klassen" aria-label="Führerscheinklassen" placeholder="Klassen, durch Komma getrennt (z. B. B, BE)" :disabled="savingStammdatenField" />
+                <label class="stammdaten-checkbox">
+                  <input v-model="stammdatenDraft.hatAuto" type="checkbox" aria-label="Auto vorhanden" :disabled="savingStammdatenField" />
+                  <span>Auto vorhanden</span>
+                </label>
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Führerscheine speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Führerschein-Bearbeitung abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
                 </span>
               </dd>
             </div>
@@ -2550,6 +2565,10 @@ export default {
           konfektionsgroesse: employee.konfektionsgroesse || '',
           schuhgroesse: employee.schuhgroesse || '',
         },
+        fuehrerschein: {
+          klassen: this.fuehrerscheinAnzeige.join(', '),
+          hatAuto: Boolean(employee.fuehrerschein?.hatAuto),
+        },
         nationalitaet: {
           nationalitaet: employee.nationalitaet != null ? String(employee.nationalitaet) : '',
         },
@@ -2618,6 +2637,36 @@ export default {
         update = {
           konfektionsgroesse: this.stammdatenDraft.konfektionsgroesse?.trim() || '',
           schuhgroesse: this.stammdatenDraft.schuhgroesse?.trim() || '',
+        };
+      } else if (field === 'fuehrerschein') {
+        const existingList = Array.isArray(employee.fuehrerscheine) ? employee.fuehrerscheine : [];
+        const existingByClass = new Map(
+          existingList
+            .filter((item) => item && typeof item === 'object' && item.klasse)
+            .map((item) => [String(item.klasse).trim().toUpperCase(), item])
+        );
+        const parsedClasses = (this.stammdatenDraft.klassen || '')
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean);
+        const fuehrerscheine = parsedClasses.map((klasse) => {
+          const existing = existingByClass.get(klasse.toUpperCase());
+          return {
+            klasse,
+            gueltigVon: existing?.gueltigVon || null,
+            gueltigBis: existing?.gueltigBis || null,
+            source: existing?.source === 'import' ? 'import' : 'manual',
+          };
+        });
+        const firstLicense = fuehrerscheine[0] || null;
+        update = {
+          fuehrerscheine,
+          fuehrerschein: {
+            klasse: firstLicense ? firstLicense.klasse : null,
+            gueltigVon: firstLicense ? firstLicense.gueltigVon : null,
+            gueltigBis: firstLicense ? firstLicense.gueltigBis : null,
+            hatAuto: Boolean(this.stammdatenDraft.hatAuto),
+          },
         };
       } else if (field === 'nationalitaet') {
         update = { nationalitaet: this.stammdatenDraft.nationalitaet || '' };
@@ -4555,7 +4604,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 12px 12px 14px;
+  padding: 16px 14px;
   background: var(--surface);
   cursor: pointer;
 }
@@ -4565,11 +4614,28 @@ export default {
   z-index: 11;
 }
 
-.employee-card-header-action {
+.employee-card-header-action.app-button {
   --app-button-icon-size: 32px;
-  --action-ghost-text: var(--muted);
+  --action-ghost-text: var(--muted, #666);
   flex: 0 0 auto;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
   min-height: 32px;
+  padding: 0;
+  font-size: 1rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--muted, #666);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    color: var(--action-accent-text, var(--text));
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
 }
 
 /* Linke Seite (Avatar + Titel) füllt, damit Actions rechts andocken */
@@ -4636,6 +4702,8 @@ export default {
   font-size: 12px;
   padding: 4px 8px;
   border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
   border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
@@ -6112,8 +6180,8 @@ export default {
 /* Mobile Optimierungen */
 @media (max-width: 768px) {
   .card-header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: flex-start;
     gap: 12px;
   }
 
@@ -6213,13 +6281,6 @@ export default {
 
   .card[data-expanded="true"] .title .meta {
     row-gap: 5px;
-  }
-
-  .card[data-expanded="true"] .meta-break {
-    display: block;
-    flex-basis: 100%;
-    width: 0;
-    height: 0;
   }
 
   .hero-panel {
@@ -7582,6 +7643,18 @@ export default {
 
 .stammdaten-inline-editor .app-text-input,
 .stammdaten-inline-editor .app-select { min-height: 30px; padding: 4px 6px; font-size: 12px; }
+
+.stammdaten-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
 
 .stammdaten-edit-actions {
   display: inline-flex;

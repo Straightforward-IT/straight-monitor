@@ -1,5 +1,9 @@
+const crypto = require('node:crypto');
 const fs = require('fs');
 const path = require('path');
+// node-forge is only used to unpack the server-configured PKCS#12 (.p12) container
+// (Node.js crypto has no native PKCS#12 parser). No RSA signature verification
+// (CVE-2026-85393 / GHSA-86w9-cpqp-85rv) is performed here or in passkit-generator.
 const forge = require('node-forge');
 const sharp = require('sharp');
 const { PKPass } = require('passkit-generator');
@@ -171,12 +175,8 @@ function configuredBuffer({ base64Name, pathName, label }) {
 }
 
 function certificateBufferToPem(buffer, label) {
-  const text = buffer.toString('utf8').trim();
-  if (text.includes('-----BEGIN CERTIFICATE-----')) return text;
-
   try {
-    const asn1 = forge.asn1.fromDer(buffer.toString('binary'));
-    return forge.pki.certificateToPem(forge.pki.certificateFromAsn1(asn1));
+    return new crypto.X509Certificate(buffer).toString();
   } catch (_error) {
     throw configurationError(`${label} ist weder ein gültiges DER- noch PEM-Zertifikat.`);
   }
@@ -203,9 +203,15 @@ function extractPkcs12Credentials(p12Buffer, password) {
     const signerBag = matchingBags.find((bag) => bag.cert) || passTypeBag || certBags.find((bag) => bag.cert);
     if (!signerBag?.cert) throw new Error('Kein Signaturzertifikat in PKCS#12 gefunden.');
 
+    const signerCert = new crypto.X509Certificate(forge.pki.certificateToPem(signerBag.cert)).toString();
+    const signerKey = crypto.createPrivateKey(forge.pki.privateKeyToPem(keyBag.key)).export({
+      type: 'pkcs1',
+      format: 'pem',
+    });
+
     return {
-      signerCert: forge.pki.certificateToPem(signerBag.cert),
-      signerKey: forge.pki.privateKeyToPem(keyBag.key),
+      signerCert,
+      signerKey,
     };
   } catch (_error) {
     throw configurationError('Die Apple-Wallet-PKCS#12-Datei konnte nicht geöffnet werden. Prüfe Datei und Passwort.');

@@ -74,6 +74,7 @@
         <CalendarControls
           v-model="referenceDateModel"
           :type="period"
+          :compact="compactControls"
         />
       </template>
     </Toolbar>
@@ -197,6 +198,7 @@ const props = defineProps({
     validator: (value) => CURRENT_PERIOD_OPTIONS.some((option) => option.value === value),
   },
   referenceDate: { type: Date, default: () => new Date() },
+  compactControls: { type: Boolean, default: false },
   statusClass: { type: Function, required: true },
   statusText: { type: Function, required: true },
 });
@@ -368,7 +370,7 @@ watch(sortedOrders, queueScrollToCurrentPeriod);
 </script>
 
 <style scoped lang="scss">
-.order-list-view { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.order-list-view { display: flex; min-width: 0; min-height: 0; flex-direction: column; container-type: inline-size; }
 .order-list-toolbar { margin-bottom: 29px; overflow: visible; }
 .order-count { flex: 0 0 auto; color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
 .order-list-view .toolbar-period-controls {
