@@ -69,7 +69,6 @@
           <div class="detail-row"><span>Freie Plätze</span><strong>{{ selectedJob.openPlaces }}</strong></div>
         </section>
         <PublicEinsatzinformation :html="selectedJob.einsatzinformationHtml" />
-        <div v-if="selectedJob.isFixture" class="fixture-note">Beispieldaten für die Layout-Erprobung</div>
         <div class="sticky-action">
           <div v-if="!applicationStatus(selectedJob.id)" class="job-decision-actions">
             <button
@@ -144,12 +143,6 @@
               >
                 Zu Jobangeboten
               </button>
-            </div>
-            <div class="scenario-actions">
-              <span>Status simulieren</span>
-              <button type="button" @click="setApplication(selectedJob.id, 'scheduled')">Bestätigt</button>
-              <button type="button" @click="setApplication(selectedJob.id, 'rejected')">Abgesagt</button>
-              <button type="button" @click="setApplication(selectedJob.id, null)">Zurücksetzen</button>
             </div>
           </template>
         </div>
@@ -331,7 +324,6 @@
         :qualifications="jobQualifications"
         :job-time="jobTime"
         :jobs="allowedJobs"
-        :jobs-are-fixtures="jobsAreFixtures"
         :jobs-error="jobsError"
         :jobs-loading="jobsLoading"
         :short-date="shortDate"
@@ -484,7 +476,7 @@ import CalendarTab from '../monitor/pages/CalendarTab.vue';
 import ProfileTab from '../monitor/pages/ProfileTab.vue';
 import AppearanceSettingsPage from '../monitor/pages/AppearanceSettingsPage.vue';
 import '../monitor/assets/public-monitor.css';
-import { createDemoJobs, usePublicDevDemo } from './usePublicDevDemo';
+import { usePublicDevDemo } from './usePublicDevDemo';
 
 library.add(
   faArrowRightFromBracket, faAddressBook, faBriefcase, faCalendarDays, faCar, faCheck, faChevronRight,
@@ -519,7 +511,6 @@ const qualFilter = ref('all');
 const jobs = ref([]);
 const jobsLoading = ref(true);
 const jobsError = ref('');
-const jobsAreFixtures = ref(false);
 const newsItems = ref([]);
 const newsLoading = ref(true);
 const newsError = ref('');
@@ -555,6 +546,11 @@ const personalDataError = ref('');
 const addressCopied = ref(false);
 let addressCopyTimer = null;
 let timer = null;
+let newsRefreshInterval = null;
+let newsRequestInFlight = false;
+let lastNewsFetchAt = 0;
+const NEWS_POLL_INTERVAL_MS = 30000;
+const NEWS_TAB_REFRESH_COOLDOWN_MS = 5000;
 
 async function copyJobAddress(address) {
   if (!address) return;
@@ -688,9 +684,81 @@ const CONFIRMATION_STEPS = [
     text: 'Ich bestätige, dass ich einen Puffer einplane, um mind. eine Viertelstunde vor Beginn am Treffpunkt sein werde.',
   },
 ];
+function findMatchingRealEinsatzForJob(job) {
+  if (!job) return null;
+  const jobIdStr = String(job.id || '');
+  const schichtIdStr = job.schichtId ? String(job.schichtId) : '';
+  const legacyIdStr = job.legacySchichtId != null ? String(job.legacySchichtId) : '';
+  return (
+    props.einsaetze.find((e) => {
+      if (String(e._id) === jobIdStr) return true;
+      const eSchichtId = String(e.stabileSchichtId || e.schicht?._id || e.schicht || '');
+      if (eSchichtId && (eSchichtId === jobIdStr || (schichtIdStr && eSchichtId === schichtIdStr))) {
+        return true;
+      }
+      if (
+        legacyIdStr &&
+        e.idAuftragArbeitsschichten != null &&
+        String(e.idAuftragArbeitsschichten) === legacyIdStr &&
+        Number(e.auftragNr) === Number(job.auftragNr)
+      ) {
+        return true;
+      }
+      if (
+        job.auftragNr != null &&
+        Number(e.auftragNr) === Number(job.auftragNr) &&
+        normalizedTime(e.uhrzeitVon) === normalizedTime(job.timeFrom) &&
+        normalizedTime(e.uhrzeitBis) === normalizedTime(job.timeTo)
+      ) {
+        return true;
+      }
+      return false;
+    }) || null
+  );
+}
+function findBackendNewsItemForJob(job) {
+  if (!job) return null;
+  const matchingEinsatz = findMatchingRealEinsatzForJob(job);
+  const jobIdStr = String(job.id || '');
+  const schichtIdStr = job.schichtId ? String(job.schichtId) : '';
+  const legacyIdStr = job.legacySchichtId != null ? String(job.legacySchichtId) : '';
+  return (
+    newsItems.value.find((item) => {
+      if (matchingEinsatz && String(item.einsatz?.id) === String(matchingEinsatz._id)) {
+        return true;
+      }
+      const itemSchichtId = String(item.einsatz?.schichtId || '');
+      if (itemSchichtId && (itemSchichtId === jobIdStr || (schichtIdStr && itemSchichtId === schichtIdStr))) {
+        return true;
+      }
+      if (
+        legacyIdStr &&
+        item.einsatz?.idAuftragArbeitsschichten != null &&
+        String(item.einsatz.idAuftragArbeitsschichten) === legacyIdStr &&
+        Number(item.einsatz?.auftragNr) === Number(job.auftragNr)
+      ) {
+        return true;
+      }
+      if (
+        job.auftragNr != null &&
+        Number(item.einsatz?.auftragNr) === Number(job.auftragNr) &&
+        normalizedTime(item.einsatz?.timeFrom) === normalizedTime(job.timeFrom) &&
+        normalizedTime(item.einsatz?.timeTo) === normalizedTime(job.timeTo)
+      ) {
+        return true;
+      }
+      return false;
+    }) || null
+  );
+}
 const scheduledJobNewsItems = computed(() =>
   jobs.value
-    .filter((job) => demoState.applications[job.id] === 'scheduled')
+    .filter(
+      (job) =>
+        demoState.applications[job.id] === 'scheduled' &&
+        !findBackendNewsItemForJob(job) &&
+        !findMatchingRealEinsatzForJob(job)
+    )
     .map((job) => {
       const stepIdx = Math.min(Number(demoState.applicationSteps?.[job.id] || 0), CONFIRMATION_STEPS.length - 1);
       const step = CONFIRMATION_STEPS[stepIdx];
@@ -728,9 +796,12 @@ const activeConfirmationItem = computed(() =>
   combinedNewsItems.value.find((item) => item.id === activeConfirmationItemId.value) || null
 );
 const calendarEinsaetze = computed(() => {
-  const existingIds = new Set(props.einsaetze.map((e) => String(e._id)));
   const jobEntries = jobs.value
-    .filter((job) => ['scheduled', 'confirmed'].includes(demoState.applications[job.id]) && !existingIds.has(String(job.id)))
+    .filter(
+      (job) =>
+        ['scheduled', 'confirmed'].includes(demoState.applications[job.id]) &&
+        !findMatchingRealEinsatzForJob(job)
+    )
     .map((job) => {
       const status = demoState.applications[job.id];
       return {
@@ -738,6 +809,7 @@ const calendarEinsaetze = computed(() => {
         jobId: job.id,
         sourceJob: job,
         auftragNr: job.auftragNr,
+        isReserve: Boolean(job.isReserve || demoState.applicationReserves?.[job.id]),
         bezeichnung: job.role || job.title,
         schichtBezeichnung: job.role || null,
         datumVon: job.dateFrom,
@@ -773,8 +845,26 @@ const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.s
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
 
-function selectTab(tab) { activeTab.value = tab; detailView.value = null; window.scrollTo({ top: 0, behavior: 'smooth' }); }
-function closeDetail() { const returnView = returnDetailView.value; returnDetailView.value = null; detailView.value = returnView; selectedJob.value = null; selectedCalendarJob.value = null; selectedDocument.value = null; selectedPayroll.value = null; previewMessage.value = ''; showCorrection.value = false; }
+function selectTab(tab) {
+  activeTab.value = tab;
+  detailView.value = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  refreshPortalNews({ throttle: true });
+}
+function closeDetail() {
+  const returnView = returnDetailView.value;
+  returnDetailView.value = null;
+  detailView.value = returnView;
+  selectedJob.value = null;
+  selectedCalendarJob.value = null;
+  selectedDocument.value = null;
+  selectedPayroll.value = null;
+  previewMessage.value = '';
+  showCorrection.value = false;
+  if (!returnView && activeTab.value === 'home') {
+    refreshPortalNews({ throttle: true });
+  }
+}
 function openJob(job) { selectedJob.value = job; detailView.value = 'job'; window.scrollTo(0, 0); }
 function openCalendarJob(einsatz) {
   if (einsatz?.sourceJob) {
@@ -802,7 +892,9 @@ function openConfirmationModal(item) {
 }
 function openJobConfirmationModal(job) {
   if (!job) return;
-  const item = scheduledJobNewsItems.value.find((entry) => entry.jobId === job.id);
+  const item =
+    findBackendNewsItemForJob(job) ||
+    scheduledJobNewsItems.value.find((entry) => entry.jobId === job.id);
   if (item) openConfirmationModal(item);
 }
 function closeConfirmationModal() {
@@ -1054,8 +1146,10 @@ function payrollTitle(payroll) {
 }
 function payrollTypeLabel(type) { return type === 'LST' ? 'Lohnsteuerbescheid' : 'Lohnabrechnung'; }
 function payrollDescription(payroll) { return payroll.lastModified ? `Zuletzt aktualisiert ${formatLongDate(payroll.lastModified)}` : 'PDF-Abrechnung'; }
-async function loadJobs() {
-  jobsLoading.value = true;
+async function loadJobs({ silent = false } = {}) {
+  if (!silent) {
+    jobsLoading.value = true;
+  }
   try {
     const response = await props.api.get('/api/public/prototype/jobs', { params: { email: props.email } });
     jobs.value = response.data.jobs || [];
@@ -1068,30 +1162,49 @@ async function loadJobs() {
     if (response.data.applicationReserves && typeof response.data.applicationReserves === 'object') {
       demoState.applicationReserves = { ...(demoState.applicationReserves || {}), ...response.data.applicationReserves };
     }
-    if (!jobs.value.length && response.data?.source !== 'database' && import.meta.env.DEV) {
-      jobs.value = createDemoJobs();
-      jobsAreFixtures.value = true;
-    }
   } catch (error) {
-    jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.';
-    if (import.meta.env.DEV) {
-      jobs.value = createDemoJobs();
-      jobsAreFixtures.value = true;
+    if (!silent) {
+      jobsError.value = error.response?.data?.msg || 'Jobs konnten nicht geladen werden.';
     }
   } finally {
-    jobsLoading.value = false;
+    if (!silent) {
+      jobsLoading.value = false;
+    }
   }
 }
-async function loadNews() {
-  newsLoading.value = true;
-  newsError.value = '';
+async function loadNews({ silent = false } = {}) {
+  if (newsRequestInFlight) return;
+  newsRequestInFlight = true;
+  lastNewsFetchAt = Date.now();
+  if (!silent) {
+    newsLoading.value = true;
+    newsError.value = '';
+  }
   try {
     const response = await props.api.get('/api/public/neuigkeiten', { params: { email: props.email } });
     newsItems.value = response.data.items || [];
+    if (silent) newsError.value = '';
   } catch (error) {
-    newsError.value = error.response?.data?.msg || 'Neuigkeiten konnten nicht geladen werden.';
+    if (!silent) {
+      newsError.value = error.response?.data?.msg || 'Neuigkeiten konnten nicht geladen werden.';
+    }
   } finally {
-    newsLoading.value = false;
+    newsRequestInFlight = false;
+    if (!silent) {
+      newsLoading.value = false;
+    }
+  }
+}
+function refreshPortalNews({ throttle = false } = {}) {
+  if (document.visibilityState === 'hidden') return;
+  if (confirmingNewsId.value) return;
+  if (throttle && Date.now() - lastNewsFetchAt < NEWS_TAB_REFRESH_COOLDOWN_MS) return;
+  void loadNews({ silent: true });
+  void loadJobs({ silent: true });
+}
+function handleVisibilityOrFocusChange() {
+  if (document.visibilityState === 'visible') {
+    refreshPortalNews({ throttle: true });
   }
 }
 async function confirmNewsItem(item) {
@@ -1118,6 +1231,16 @@ async function confirmNewsItem(item) {
     const res = await props.api.post(`/api/public/neuigkeiten/einsatzbestaetigungen/${einsatzId}/${stepKey}`, null, { params: { email: props.email } });
     await loadNews();
     if (res.data?.completed) {
+      const matchingEinsatz = props.einsaetze.find((e) => String(e._id) === String(einsatzId));
+      if (matchingEinsatz) matchingEinsatz.bestaetigt = true;
+      const matchingJob = jobs.value.find((j) => {
+        const real = findMatchingRealEinsatzForJob(j);
+        return real && String(real._id) === String(einsatzId);
+      });
+      if (matchingJob) {
+        demoState.applications[matchingJob.id] = 'confirmed';
+        if (demoState.applicationSteps) delete demoState.applicationSteps[matchingJob.id];
+      }
       closeConfirmationModal();
     }
   } catch (error) {
@@ -1143,8 +1266,25 @@ async function loadProfileImage() {
   }
 }
 
-onMounted(() => { loadJobs(); loadNews(); loadEmployeeDocuments(); loadPayrollDocuments(); loadProfileImage(); timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000); });
-onBeforeUnmount(() => { window.clearInterval(timer); if (addressCopyTimer) window.clearTimeout(addressCopyTimer); if (profileImageUrl.value) URL.revokeObjectURL(profileImageUrl.value); });
+onMounted(() => {
+  loadJobs();
+  loadNews();
+  loadEmployeeDocuments();
+  loadPayrollDocuments();
+  loadProfileImage();
+  timer = window.setInterval(() => { nowTick.value = Date.now(); }, 1000);
+  newsRefreshInterval = window.setInterval(() => { refreshPortalNews(); }, NEWS_POLL_INTERVAL_MS);
+  document.addEventListener('visibilitychange', handleVisibilityOrFocusChange);
+  window.addEventListener('focus', handleVisibilityOrFocusChange);
+});
+onBeforeUnmount(() => {
+  window.clearInterval(timer);
+  if (newsRefreshInterval) window.clearInterval(newsRefreshInterval);
+  if (addressCopyTimer) window.clearTimeout(addressCopyTimer);
+  document.removeEventListener('visibilitychange', handleVisibilityOrFocusChange);
+  window.removeEventListener('focus', handleVisibilityOrFocusChange);
+  if (profileImageUrl.value) URL.revokeObjectURL(profileImageUrl.value);
+});
 </script>
 
 <style scoped>

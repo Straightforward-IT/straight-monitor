@@ -1,6 +1,6 @@
 <template>
   <section class="public-monitor-page public-monitor-jobs-tab">
-    <div class="intro-row"><div><h2>Jobangebote</h2><p>Finde deinen nächsten Einsatz.</p></div><span v-if="jobsAreFixtures" class="source-badge">Demo</span></div>
+    <div class="intro-row"><div><h2>Jobangebote</h2><p>Finde deinen nächsten Einsatz.</p></div></div>
     <div class="filter-row">
       <button type="button" :class="{ active: jobFilter === 'new' }" @click="$emit('filter', 'new')">
         Neu <template v-if="newCount > 0">({{ newCount }})</template>
@@ -125,7 +125,6 @@ const props = defineProps({
   qualifications: { type: Array, default: () => [] },
   jobTime: { type: Function, required: true },
   jobs: { type: Array, default: () => [] },
-  jobsAreFixtures: { type: Boolean, default: false },
   jobsError: { type: String, default: '' },
   jobsLoading: { type: Boolean, default: false },
   shortDate: { type: Function, required: true },

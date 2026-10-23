@@ -1483,6 +1483,40 @@ async function deleteJobBewerbungenHandler(req, res) {
   res.json({ ok: true, deletedCount: result.deletedCount || 0 });
 }
 
+async function deleteSingleJobBewerbungHandler(req, res) {
+  const { bewerbungId } = req.params;
+  if (!mongoose.isValidObjectId(bewerbungId)) {
+    return res.status(400).json({ message: 'Ungültige Bewerbungs-ID' });
+  }
+
+  const bewerbung = await JobBewerbung.findByIdAndDelete(bewerbungId).lean();
+  if (!bewerbung) {
+    return res.status(404).json({ message: 'Bewerbung nicht gefunden' });
+  }
+
+  if (bewerbung.einsatz && mongoose.isValidObjectId(bewerbung.einsatz)) {
+    const deletedEinsatz = await Einsatz.findOneAndDelete({
+      _id: bewerbung.einsatz,
+      isPseudo: true,
+    }).lean();
+    if (deletedEinsatz) {
+      await DispoEintrag.deleteMany({
+        typ: 'einsatz',
+        'referenz.einsatzId': deletedEinsatz._id,
+      });
+      await completeEinsatzFlipTask({ einsatz: deletedEinsatz });
+      if (deletedEinsatz.auftragNr != null) {
+        await Auftrag.updateOne(
+          { auftragNr: deletedEinsatz.auftragNr },
+          { $inc: { planningVersion: 1 } }
+        );
+      }
+    }
+  }
+
+  res.json({ ok: true, deletedId: String(bewerbung._id) });
+}
+
 async function decideJobBewerbungHandler(req, res) {
   const { bewerbungId } = req.params;
   if (!mongoose.isValidObjectId(bewerbungId)) {
@@ -1686,6 +1720,8 @@ router.get('/bewerbungen', auth, requireAdmin, asyncHandler(listJobBewerbungenHa
 router.get('/:auftragNr/bewerbungen', auth, requireAdmin, asyncHandler(listJobBewerbungenHandler));
 router.delete('/bewerbungen', auth, requireAdmin, asyncHandler(deleteJobBewerbungenHandler));
 router.delete('/:auftragNr/bewerbungen', auth, requireAdmin, asyncHandler(deleteJobBewerbungenHandler));
+router.delete('/bewerbungen/:bewerbungId', auth, requireAdmin, asyncHandler(deleteSingleJobBewerbungHandler));
+router.delete('/:auftragNr/bewerbungen/:bewerbungId', auth, requireAdmin, asyncHandler(deleteSingleJobBewerbungHandler));
 router.patch('/bewerbungen/:bewerbungId', auth, requireAdmin, asyncHandler(decideJobBewerbungHandler));
 router.patch('/:auftragNr/bewerbungen/:bewerbungId', auth, requireAdmin, withAuftragChronik('Einsatz.created', decideJobBewerbungHandler));
 
@@ -3045,6 +3081,71 @@ router.patch('/:auftragNr/einsaetze/:einsatzId/reserve', auth, requireAdmin, asy
       });
     }
   }
+
+  await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
+
+  res.json({
+    ok: true,
+    einsatz: einsatz.toObject(),
+  });
+}));
+
+// PATCH /api/auftraege/:auftragNr/einsaetze/:einsatzId/bestaetigung – Confirm or reset confirmation on an Einsatz
+router.patch('/:auftragNr/einsaetze/:einsatzId/bestaetigung', auth, requireAdmin, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const { einsatzId } = req.params;
+  if (!mongoose.isValidObjectId(einsatzId)) {
+    return res.status(400).json({ message: 'Ungültige Einsatz-ID' });
+  }
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  if (auftrag.locationV2 || !auftrag.isPseudo) {
+    await assertOrderHasLocation(req, auftrag);
+  }
+
+  const einsatz = await Einsatz.findOne({ _id: einsatzId, auftragNr });
+  if (!einsatz) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
+
+  const nextConfirmed =
+    typeof req.body?.bestaetigt === 'boolean' ? req.body.bestaetigt : !einsatz.bestaetigt;
+
+  if (nextConfirmed) {
+    const now = new Date();
+    await completeEinsatzFlipTask({ einsatz });
+    einsatz.bestaetigt = true;
+    einsatz.bestaetigung = {
+      ...(einsatz.bestaetigung?.toObject?.() || einsatz.bestaetigung || {}),
+      version: 'einsatz-confirmation-v1',
+      einsatzzeitenGelesenAt: einsatz.bestaetigung?.einsatzzeitenGelesenAt || now,
+      einsatzkleidungAt: einsatz.bestaetigung?.einsatzkleidungAt || now,
+      ankunftspufferAt: einsatz.bestaetigung?.ankunftspufferAt || now,
+      completedAt: now,
+    };
+  } else {
+    einsatz.bestaetigungErforderlich = true;
+    einsatz.bestaetigt = false;
+    einsatz.bestaetigung = {
+      version: null,
+      flipTaskId: null,
+      einsatzzeitenGelesenAt: null,
+      einsatzkleidungAt: null,
+      ankunftspufferAt: null,
+      completedAt: null,
+    };
+  }
+
+  await einsatz.save();
+
+  await JobBewerbung.updateMany(
+    { einsatz: einsatz._id },
+    {
+      $set: {
+        status: nextConfirmed ? 'confirmed' : 'scheduled',
+        confirmationStep: nextConfirmed ? 3 : 0,
+      },
+    }
+  );
 
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
 

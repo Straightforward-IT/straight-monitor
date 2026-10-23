@@ -3,6 +3,10 @@ const router = express.Router();
 const auth = require("../../middleware/auth");
 const asyncHandler = require("../../middleware/AsyncHandler");
 const { flipAxios } = require("../../services/integrations/flipAxios");
+const {
+  completeFlipTask,
+  markAssignmentAsCompleted,
+} = require("../../services/integrations/FlipService");
 const FlipTask = require("../../models/Classes/FlipTask");
 const logger = require("../../utils/logger");
 
@@ -75,19 +79,35 @@ router.post(
   })
 );
 
-// Route zum Markieren eines Tasks als abgeschlossen
+// Route zum Markieren eines Task-Assignments als abgeschlossen (Flip API v4: POST /api/tasks/v4/tasks/assignments/{assignment_id}/finish)
+router.post(
+  "/assignments/:assignmentId/finish",
+  auth,
+  asyncHandler(async (req, res) => {
+    const { assignmentId } = req.params;
+    const bearerToken = req.body?.bearerToken || req.headers["x-flip-access-token"] || null;
+
+    const result = await markAssignmentAsCompleted(assignmentId, { bearerToken });
+    if (!result) {
+      return res.status(500).json({ message: "Fehler beim Abschließen des Task-Assignments" });
+    }
+    res.json(result);
+  })
+);
+
+// Route zum Abschließen (Löschen) eines Tasks
 router.post(
   "/:taskId/complete",
   auth,
   asyncHandler(async (req, res) => {
     const taskId = req.params.taskId;
-    
+
     try {
-      const response = await flipAxios.post(`/api/tasks/v4/tasks/${taskId}/complete`);
-      res.json(response.data);
+      const result = await completeFlipTask(taskId);
+      res.json(result);
     } catch (error) {
-      console.error(`Fehler beim Abschließen des Tasks ${taskId}:`, error);
-      res.status(500).json({ message: "Fehler beim Abschließen des Tasks" });
+      console.error(`Fehler beim Löschen des Tasks ${taskId}:`, error);
+      res.status(500).json({ message: "Fehler beim Löschen des Tasks" });
     }
   })
 );

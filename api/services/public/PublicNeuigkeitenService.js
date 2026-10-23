@@ -64,6 +64,8 @@ function serializeNewsItem(einsatz, auftrag) {
     einsatz: {
       id: String(einsatz._id),
       auftragNr: einsatz.auftragNr,
+      schichtId: einsatz.schicht ? String(einsatz.schicht) : null,
+      idAuftragArbeitsschichten: einsatz.idAuftragArbeitsschichten ?? null,
       isReserve: Boolean(einsatz.isReserve),
       title: auftrag?.eventTitel || einsatz.bezeichnung || einsatz.schichtBezeichnung || `Auftrag #${einsatz.auftragNr}`,
       dateFrom: einsatz.datumVon,
@@ -85,7 +87,7 @@ function serializeNewsItem(einsatz, auftrag) {
 
 async function resolveEmployee(mitarbeiterId) {
   return Mitarbeiter.findById(mitarbeiterId)
-    .select('_id flip_id personalnr personalnrHistory')
+    .select('_id email flip_id personalnr personalnrHistory')
     .lean();
 }
 
@@ -94,7 +96,7 @@ async function listOpenEinsatzBestaetigungen(mitarbeiter) {
   if (!personalNumbers.length) return [];
 
   const einsaetze = await Einsatz.find(openAssignmentFilter(personalNumbers))
-    .select('auftragNr bezeichnung schichtBezeichnung isReserve datumVon datumBis uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt bestaetigung createdAt')
+    .select('auftragNr schicht idAuftragArbeitsschichten bezeichnung schichtBezeichnung isReserve datumVon datumBis uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt bestaetigung createdAt')
     .sort({ datumVon: 1, uhrzeitVon: 1, createdAt: 1 })
     .lean();
   const auftragNrs = [...new Set(einsaetze.map((einsatz) => einsatz.auftragNr))];
@@ -120,7 +122,7 @@ async function listForMitarbeiter(mitarbeiterId) {
     .sort((left, right) => new Date(left.einsatz?.dateFrom || left.createdAt) - new Date(right.einsatz?.dateFrom || right.createdAt));
 }
 
-async function confirmStep({ mitarbeiterId, einsatzId, stepKey }) {
+async function confirmStep({ mitarbeiterId, einsatzId, stepKey, bearerToken = null }) {
   if (!mongoose.isValidObjectId(einsatzId)) {
     const error = new Error('Ungültiger Einsatz.');
     error.statusCode = 400;
@@ -168,7 +170,7 @@ async function confirmStep({ mitarbeiterId, einsatzId, stepKey }) {
       await JobBewerbung.updateMany(bewerbungMatch, {
         $set: { status: 'confirmed', confirmationStep: CONFIRMATION_STEPS.length },
       });
-      await completeEinsatzFlipTask({ einsatz, mitarbeiter });
+      await completeEinsatzFlipTask({ einsatz, mitarbeiter, bearerToken });
     } else {
       await JobBewerbung.updateMany(bewerbungMatch, {
         $set: { confirmationStep: stepIndex + 1 },

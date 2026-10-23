@@ -884,6 +884,7 @@ router.post('/neuigkeiten/einsatzbestaetigungen/:einsatzId/:stepKey', asyncHandl
     mitarbeiterId: mitarbeiter._id,
     einsatzId: req.params.einsatzId,
     stepKey: req.params.stepKey,
+    bearerToken: req.oidcUser?.flip_access_token || null,
   });
   if (!result) return res.status(404).json({ msg: 'Offene Einsatzbestätigung nicht gefunden' });
   res.json(result);

@@ -1438,8 +1438,15 @@ async function assignFlipTask(req) {
 
 async function completeFlipTask(taskId) {
   if (!taskId) return null;
-  const response = await flipAxios.post(`/api/tasks/v4/tasks/${taskId}/complete`);
-  return response.data;
+  try {
+    await flipAxios.delete(`/api/tasks/v4/tasks/${taskId}`);
+    return { id: taskId, deleted: true };
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return { id: taskId, deleted: true };
+    }
+    throw error;
+  }
 }
 // ✅ Holt alle Assignments für eine bestimmte Task
 async function getFlipTaskAssignments(taskId) {
@@ -1447,7 +1454,6 @@ async function getFlipTaskAssignments(taskId) {
     const response = await flipAxios.get(
       `/api/tasks/v4/tasks/${taskId}/assignments`
     );
-    console.log(response.data.assignments);
     return response.data?.assignments || [];
   } catch (error) {
     console.error(
@@ -1477,18 +1483,27 @@ async function getFlipAssignments() {
 }
 
 // ✅ Markiert ein bestimmtes Assignment als abgeschlossen
-async function markAssignmentAsCompleted(assignmentId) {
+// Flip API: POST /api/tasks/v4/tasks/assignments/{assignment_id}/finish
+async function markAssignmentAsCompleted(assignmentId, options = {}) {
+  if (!assignmentId) return false;
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (options.bearerToken) {
+      headers.Authorization = `Bearer ${options.bearerToken}`;
+    }
     const response = await flipAxios.post(
       `/api/tasks/v4/tasks/assignments/${assignmentId}/finish`,
-      { headers: { "Content-Type": "application/json" } }
+      null,
+      { headers }
     );
     return response.data;
   } catch (error) {
-    console.error(
-      `❌ Fehler beim Abschließen des Assignments auf ID: ${assignmentId}`,
-      error.response?.data || error.message
-    );
+    if (!options.silentForbidden || error.response?.status !== 403) {
+      console.error(
+        `❌ Fehler beim Abschließen des Assignments auf ID: ${assignmentId}`,
+        error.response?.data || error.message
+      );
+    }
     return false;
   }
 }

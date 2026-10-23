@@ -47,6 +47,54 @@ let _jwksCache = null;
 let _jwksCacheTime = 0;
 const JWKS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
+// ── Per-user Flip OIDC token cache (for user-scoped Flip API calls such as finishing own task assignments) ─
+const _flipUserTokens = new Map();
+
+function storeFlipUserTokenSet({ flipId, email, tokenSet }) {
+  if (!tokenSet?.access_token) return;
+  const expiresInSec = Number(tokenSet.expires_in) || 300;
+  const entry = {
+    accessToken: tokenSet.access_token,
+    refreshToken: tokenSet.refresh_token || null,
+    expiresAt: Date.now() + Math.max(30, expiresInSec - 30) * 1000,
+  };
+  if (flipId) _flipUserTokens.set(`id:${String(flipId).trim()}`, entry);
+  if (email) _flipUserTokens.set(`email:${String(email).trim().toLowerCase()}`, entry);
+}
+
+async function getValidFlipUserAccessToken({ flipId = null, email = null } = {}) {
+  const idKey = flipId ? `id:${String(flipId).trim()}` : null;
+  const emailKey = email ? `email:${String(email).trim().toLowerCase()}` : null;
+  const entry = (idKey && _flipUserTokens.get(idKey)) || (emailKey && _flipUserTokens.get(emailKey)) || null;
+  if (!entry) return null;
+
+  if (entry.accessToken && Date.now() < entry.expiresAt) {
+    return entry.accessToken;
+  }
+
+  const clientId = getFlipOidcClientId();
+  if (!entry.refreshToken || !clientId) return null;
+
+  try {
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token: entry.refreshToken,
+    });
+    const tokenRes = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    if (!tokenRes.ok) return null;
+    const refreshed = await tokenRes.json();
+    storeFlipUserTokenSet({ flipId, email, tokenSet: refreshed });
+    return refreshed.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchJwks() {
   const now = Date.now();
   if (_jwksCache && now - _jwksCacheTime < JWKS_CACHE_TTL) return _jwksCache;
@@ -132,8 +180,15 @@ async function exchangePublicOidcCode(req, res, clientId, logContext) {
     return res.status(400).json({ msg: 'Kein E-Mail-Anspruch im Token gefunden' });
   }
 
+  storeFlipUserTokenSet({ flipId: claims.sub, email, tokenSet });
+
   const sessionToken = jwt.sign(
-    { email, flip_id: claims.sub, source: 'oidc' },
+    {
+      email,
+      flip_id: claims.sub,
+      flip_access_token: tokenSet.access_token || null,
+      source: 'oidc',
+    },
     process.env.JWT_SECRET,
     { expiresIn: '12h', issuer: 'straight-monitor' }
   );
@@ -279,4 +334,5 @@ router.get(
   })
 );
 
+router.getValidFlipUserAccessToken = getValidFlipUserAccessToken;
 module.exports = router;

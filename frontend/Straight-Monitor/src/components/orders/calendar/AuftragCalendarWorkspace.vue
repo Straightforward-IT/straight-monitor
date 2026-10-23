@@ -424,7 +424,7 @@
                     <span v-if="
                       filters.displayLevels.schicht ||
                       filters.displayLevels.einsatz
-                    " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}<span v-if="s.reserveCount" class="shift-reserve-count">+{{ s.reserveCount }}</span>/{{ s.bedarf }}</span>
+                    " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}{{ s.reserveCount ? ` (+${s.reserveCount}) ` : "" }}/{{ s.bedarf }}</span>
                     <ul v-if="
                       filters.displayLevels.einsatz && s.einsaetze?.length
                     " class="shift-einsaetze">
@@ -681,11 +681,11 @@
                       </span>
                     </div>
                     <span class="team-coverage" :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'">
-                      {{ schichtRegularCount(schichtData) }}<span
-                        v-if="schichtReserveCount(schichtData) > 0"
-                        class="team-coverage__reserve"
-                        title="Reserve-Einsätze"
-                      >+{{ schichtReserveCount(schichtData) }}</span>/{{
+                      {{ schichtRegularCount(schichtData) }}{{
+                        schichtReserveCount(schichtData) > 0
+                          ? ` (+${schichtReserveCount(schichtData)}) `
+                          : ""
+                      }}/{{
                         schichtData.meta.bedarf || "?"
                       }}
                     </span>
@@ -715,6 +715,11 @@
                         : null
                       ">
                     <div class="ma-info">
+                      <CustomTooltip v-if="einsatz.bestaetigt" text="Einsatz bestätigt">
+                        <span class="einsatz-confirmed-icon" aria-label="Einsatz bestätigt">
+                          <font-awesome-icon icon="fa-solid fa-check" />
+                        </span>
+                      </CustomTooltip>
                       <template v-if="einsatz.mitarbeiterData">
                         <a href="#" class="ma-name" @click.prevent.stop="
                           openMitarbeiterCard(einsatz.mitarbeiterData)
@@ -761,11 +766,6 @@
                       </span>
                     </div>
                     <div class="ma-badges ma-badges--right">
-                      <CustomTooltip v-if="einsatz.bestaetigt" text="Einsatz bestätigt">
-                        <span class="einsatz-confirmed-icon" aria-label="Einsatz bestätigt">
-                          <font-awesome-icon icon="fa-solid fa-check" />
-                        </span>
-                      </CustomTooltip>
                       <span v-if="
                         einsatz.qualifikationData &&
                         !getCommonQualifikation(schichtData.einsaetze)
@@ -1510,14 +1510,26 @@ export default {
       const included = einsatz.stundenlisteIncluded !== false;
       const items = [];
       if (this.isAdmin) {
-        items.push({
-          label: einsatz.isReserve
-            ? "Reserve zu regulärem Einsatz umwandeln"
-            : "Einsatz zu Reserve umwandeln",
-          action: "toggle-reserve",
-          icon: einsatz.isReserve ? "fa-solid fa-user-plus" : "fa-solid fa-user-clock",
-          variant: "primary",
-        });
+        items.push(
+          {
+            label: einsatz.bestaetigt
+              ? "Bestätigung zurücksetzen"
+              : "Einsatz bestätigen",
+            action: "toggle-bestaetigung",
+            icon: einsatz.bestaetigt
+              ? "fa-solid fa-rotate-right"
+              : "fa-solid fa-check",
+            variant: einsatz.bestaetigt ? undefined : "primary",
+          },
+          {
+            label: einsatz.isReserve
+              ? "Reserve zu regulärem Einsatz umwandeln"
+              : "Einsatz zu Reserve umwandeln",
+            action: "toggle-reserve",
+            icon: einsatz.isReserve ? "fa-solid fa-user-plus" : "fa-solid fa-user-clock",
+            variant: "primary",
+          },
+        );
       }
       items.push({
         label: included
@@ -2271,7 +2283,9 @@ export default {
       const { einsatz, schichtData } = this.einsatzContextMenu;
       this.closeEinsatzContextMenu();
       if (!einsatz || !action) return;
-      if (action === "toggle-reserve") {
+      if (action === "toggle-bestaetigung") {
+        void this.toggleEinsatzBestaetigung(einsatz);
+      } else if (action === "toggle-reserve") {
         this.promptToggleEinsatzReserve(einsatz, schichtData);
       } else if (action === "toggle-stundenliste") {
         void this.toggleEinsatzStundenlisteInclusion(einsatz);
@@ -2279,6 +2293,25 @@ export default {
         this.openMitarbeiterCard(einsatz.mitarbeiterData);
       } else if (action === "remove-einsatz" && einsatz.isPseudo) {
         void this.removePseudoEinsatz(einsatz._id);
+      }
+    },
+    async toggleEinsatzBestaetigung(einsatz) {
+      if (!einsatz?._id || !this.selectedEvent?.auftragNr) return;
+      try {
+        await api.patch(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatz._id}/bestaetigung`,
+          { bestaetigt: !einsatz.bestaetigt },
+        );
+        await this.reloadSelectedEventDetails();
+        await Promise.all([
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Bestätigungsstatus konnte nicht geändert werden.",
+        );
       }
     },
     promptToggleEinsatzReserve(einsatz, schichtData = null) {
@@ -5694,6 +5727,36 @@ export default {
   display: flex;
   align-items: flex-start;
   min-width: 0;
+
+  &:hover .schicht-docked-actions,
+  &:focus-within .schicht-docked-actions {
+    pointer-events: auto;
+
+    > * {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    > *:nth-child(1) {
+      transition-delay: 0ms;
+    }
+
+    > *:nth-child(2) {
+      transition-delay: 35ms;
+    }
+
+    > *:nth-child(3) {
+      transition-delay: 70ms;
+    }
+
+    > *:nth-child(4) {
+      transition-delay: 105ms;
+    }
+
+    > *:nth-child(5) {
+      transition-delay: 140ms;
+    }
+  }
 }
 
 .schicht-card {
@@ -5716,6 +5779,16 @@ export default {
   width: 26px;
   flex: 0 0 26px;
   margin-top: 9px;
+  pointer-events: none;
+
+  > * {
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: 0ms;
+  }
 
   :deep(.tooltip-container),
   :deep(.tooltip-trigger) {
@@ -5961,26 +6034,6 @@ export default {
     background: #fef3c7;
     color: #92400e;
   }
-
-  &__reserve {
-    display: inline-block;
-    margin: 0 1px;
-    padding: 0 3px;
-    border-radius: 3px;
-    background: rgba(107, 114, 128, 0.22);
-    color: #4b5563;
-    font-weight: 750;
-  }
-}
-
-.shift-reserve-count {
-  display: inline-block;
-  margin: 0 1px;
-  padding: 0 3px;
-  border-radius: 3px;
-  background: rgba(107, 114, 128, 0.24);
-  color: #4b5563;
-  font-weight: 750;
 }
 
 .shift-einsatz--reserve {

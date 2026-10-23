@@ -117,11 +117,13 @@ const flipAxios = axios.create({
 flipAxios.interceptors.request.use(
   async (config) => {
     await paceFlipRequest();
-    try {
-      const token = await getFlipAuthToken(); // ✅ Get cached or fresh token
-      config.headers.Authorization = `Bearer ${token}`;
-    } catch (error) {
-      console.error("❌ Error fetching Flip API token:", error.message);
+    if (!config.headers?.Authorization && !config.headers?.authorization) {
+      try {
+        const token = await getFlipAuthToken(); // ✅ Get cached or fresh token
+        config.headers.Authorization = `Bearer ${token}`;
+      } catch (error) {
+        console.error("❌ Error fetching Flip API token:", error.message);
+      }
     }
     return config;
   },

@@ -7,11 +7,26 @@
       :class="{
         'admin-staffing-panel--embedded': embedded,
         'admin-staffing-panel--resizing': isResizingPanelWidth,
+        'admin-staffing-panel--unassign-ready': Boolean(draggingAssignedEinsatz),
       }"
       :style="panelWidthStyle"
       role="complementary"
       aria-label="Personal & Bewerbungen"
+      @dragenter.prevent="onUnassignDragEnter"
+      @dragover.prevent="onUnassignDragOver"
+      @dragleave="onUnassignDragLeave"
+      @drop.prevent="onUnassignDrop"
     >
+      <div
+        v-if="draggingAssignedEinsatz"
+        class="staffing-unassign-overlay"
+        :class="{ 'is-over': unassignDragOver }"
+        aria-label="Aus Schicht entfernen"
+      >
+        <span class="staffing-unassign-overlay__icon">
+          <font-awesome-icon icon="fa-solid fa-xmark" />
+        </span>
+      </div>
       <div
         class="admin-staffing-panel__width-resizer"
         :class="{ 'is-resizing': isResizingPanelWidth }"
@@ -23,10 +38,6 @@
       />
       <header
         class="staffing-tabs-header"
-        @dragenter.prevent="onUnassignDragEnter"
-        @dragover.prevent="onUnassignDragOver"
-        @dragleave="onUnassignDragLeave"
-        @drop.prevent="onUnassignDrop"
       >
         <span
           class="pseudo-tag pseudo-tag--border"
@@ -52,25 +63,28 @@
             <button
               type="button"
               role="tab"
-              class="staffing-tab"
+              class="staffing-tab staffing-tab--all"
               :class="{ active: activeTab === 'all' }"
               :aria-selected="activeTab === 'all'"
+              title="Alle Mitarbeiter"
               @click="activeTab = 'all'"
             >
               <font-awesome-icon icon="fa-solid fa-users" />
-              <span>Alle</span>
+              <span class="staffing-tab__label">Alle</span>
               <span class="staffing-tab__count">{{ filteredAllMitarbeiter.length }}</span>
             </button>
             <button
               type="button"
               role="tab"
-              class="staffing-tab"
+              class="staffing-tab staffing-tab--bewerbungen"
               :class="{ active: activeTab === 'bewerbungen' }"
               :aria-selected="activeTab === 'bewerbungen'"
+              aria-label="Bewerbungen"
+              title="Bewerbungen"
               @click="activeTab = 'bewerbungen'"
             >
               <font-awesome-icon icon="fa-solid fa-inbox" />
-              <span>Bewerbungen</span>
+              <span class="staffing-tab__label">Bewerbungen</span>
               <span
                 v-if="bewerbungen.length"
                 class="staffing-tab__count"
@@ -84,6 +98,7 @@
         <AppIconButton
           variant="ghost"
           size="sm"
+          class="staffing-minimize-btn"
           label="Personal & Bewerbungen ausblenden"
           title="Ausblenden"
           @click="emit('minimize')"
@@ -95,27 +110,8 @@
       <section
         ref="listSectionRef"
         class="staffing-part staffing-part--list"
-        :class="{
-          'staffing-part--unassign-ready': Boolean(draggingAssignedEinsatz),
-          'staffing-part--unassign-over': Boolean(draggingAssignedEinsatz) && unassignDragOver,
-        }"
         :style="sectionStyle('list')"
-        @dragenter.prevent="onUnassignDragEnter"
-        @dragover.prevent="onUnassignDragOver"
-        @dragleave="onUnassignDragLeave"
-        @drop.prevent="onUnassignDrop"
       >
-        <div
-          v-if="draggingAssignedEinsatz"
-          class="staffing-unassign-drop-banner"
-          :class="{ 'is-over': unassignDragOver }"
-        >
-          <font-awesome-icon icon="fa-solid fa-trash" />
-          <span>
-            Hier ablegen, um {{ draggingAssignedEinsatz.name || 'Mitarbeiter' }} aus der Schicht zu entfernen
-          </span>
-        </div>
-
         <!-- Controls for "Alle" tab -->
         <div v-if="activeTab === 'all'" class="staffing-controls staffing-controls--with-bottom">
           <MitarbeiterSearch
@@ -1803,7 +1799,7 @@ const bewerbungMenuOptions = computed(() => {
           const bedarf = s.meta?.bedarf;
           const coverageBadge =
             reserveCount > 0
-              ? `${regularCount}+${reserveCount}/${bedarf ?? '?'}`
+              ? `${regularCount} (+${reserveCount}) /${bedarf ?? '?'}`
               : `${regularCount}/${bedarf ?? '?'}`;
           const isMet = bedarf != null && Number(bedarf) > 0 && regularCount >= Number(bedarf);
           const isApplied = isAppliedShiftForBewerbung(bew, s);
@@ -1843,6 +1839,12 @@ const bewerbungMenuOptions = computed(() => {
       icon: 'fa-solid fa-xmark',
       variant: 'danger',
       disabled: bew.status === 'rejected',
+    },
+    {
+      label: 'Löschen',
+      action: 'delete',
+      icon: 'fa-solid fa-xmark',
+      variant: 'danger',
     },
     { type: 'divider' },
     {
@@ -2671,6 +2673,10 @@ async function handleBewerbungMenuAction(action) {
     openMitarbeiterInDispo(bew.mitarbeiter);
     return;
   }
+  if (action === 'delete') {
+    await deleteSingleBewerbung(bew);
+    return;
+  }
 
   let parsedAction = action;
   let targetSchichtId = null;
@@ -2767,6 +2773,35 @@ async function executeBewerbungDecision(bew, parsedAction, targetSchichtId, noti
     emit('bewerbung-updated', { bewerbung: data?.bewerbung || bew, action: parsedAction });
   } catch (err) {
     alert(err.response?.data?.message || 'Bewerbung konnte nicht aktualisiert werden.');
+  } finally {
+    decidingBewerbungId.value = '';
+  }
+}
+
+async function deleteSingleBewerbung(bew) {
+  if (!bew || decidingBewerbungId.value) return;
+  decidingBewerbungId.value = String(bew._id);
+  try {
+    if (bew.isLocalDemo) {
+      updateLocalDemoApplication(bew.localEmail, bew.jobId, null);
+      bewerbungen.value = bewerbungen.value.filter((item) => String(item._id) !== String(bew._id));
+      emit('bewerbung-updated', { bewerbung: bew, action: 'delete' });
+      return;
+    }
+
+    const auftragNr = props.event?.auftragNr || bew.auftragNr;
+    const endpoint = auftragNr
+      ? `/api/auftraege/${auftragNr}/bewerbungen/${bew._id}`
+      : `/api/auftraege/bewerbungen/${bew._id}`;
+
+    await api.delete(endpoint);
+    bewerbungen.value = bewerbungen.value.filter((item) => String(item._id) !== String(bew._id));
+    if (bew.mitarbeiter?.email) {
+      updateLocalDemoApplication(bew.mitarbeiter.email, bew.jobId, null);
+    }
+    emit('bewerbung-updated', { bewerbung: bew, action: 'delete' });
+  } catch (err) {
+    alert(err.response?.data?.message || 'Bewerbung konnte nicht gelöscht werden.');
   } finally {
     decidingBewerbungId.value = '';
   }
@@ -2925,6 +2960,56 @@ defineExpose({
     border-radius: 0;
     box-shadow: none;
   }
+
+  &--unassign-ready {
+    overflow: hidden;
+  }
+}
+
+.staffing-unassign-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: color-mix(in srgb, #ef4444 12%, color-mix(in srgb, var(--panel) 84%, transparent));
+  border-radius: inherit;
+  pointer-events: none;
+  transition: background 0.16s ease;
+
+  &.is-over {
+    background: color-mix(in srgb, #ef4444 22%, color-mix(in srgb, var(--panel) 80%, transparent));
+
+    .staffing-unassign-overlay__icon {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #fff;
+      transform: scale(1.08);
+      box-shadow: 0 10px 24px rgba(239, 68, 68, 0.28);
+    }
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, #ef4444 45%, transparent);
+    background: #fff;
+    color: #ef4444;
+    font-size: 1.75rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    transition:
+      background 0.16s ease,
+      border-color 0.16s ease,
+      color 0.16s ease,
+      transform 0.16s ease,
+      box-shadow 0.16s ease;
+  }
 }
 
 .admin-staffing-panel__width-resizer {
@@ -3028,46 +3113,10 @@ defineExpose({
   flex: 0 0 260px;
   min-height: 130px;
   overflow: hidden;
-  transition:
-    outline-color 0.15s ease,
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-
-  &.staffing-part--unassign-ready {
-    outline: 1.5px dotted color-mix(in srgb, #ef4444 55%, var(--border));
-    outline-offset: -2px;
-    border-bottom-color: color-mix(in srgb, #ef4444 45%, var(--border));
-  }
-
-  &.staffing-part--unassign-over {
-    outline: 1.5px dotted color-mix(in srgb, #ef4444 80%, var(--border));
-    outline-offset: -2px;
-    background: rgba(239, 68, 68, 0.04);
-  }
-}
-
-.staffing-unassign-drop-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: rgba(239, 68, 68, 0.07);
-  border-bottom: 1px dotted color-mix(in srgb, #ef4444 45%, var(--border));
-  color: color-mix(in srgb, #dc2626 80%, var(--text));
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-align: center;
-  pointer-events: none;
-  transition: background 0.15s ease, color 0.15s ease;
-
-  &.is-over {
-    background: rgba(239, 68, 68, 0.15);
-    color: #dc2626;
-  }
 }
 
 .staffing-tabs-header {
+  container-type: inline-size;
   position: sticky;
   top: 0;
   z-index: 20;
@@ -3107,21 +3156,31 @@ defineExpose({
 
 .staffing-tabs-left {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  overflow: hidden;
+}
+
+.staffing-minimize-btn {
+  flex: 0 0 auto;
 }
 
 .staffing-tabs {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .staffing-tab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
   padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -3129,6 +3188,7 @@ defineExpose({
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
 
@@ -3141,6 +3201,17 @@ defineExpose({
     border-color: var(--primary);
     color: var(--primary);
     background: transparent;
+  }
+}
+
+.staffing-tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container (max-width: 345px) {
+  .staffing-tab--bewerbungen .staffing-tab__label {
+    display: none;
   }
 }
 

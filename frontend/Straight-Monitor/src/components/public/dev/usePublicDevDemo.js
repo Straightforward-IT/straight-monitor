@@ -41,23 +41,6 @@ function storageKey(email) {
   return `public_dev_portal:${String(email || 'debug').trim().toLowerCase()}`;
 }
 
-export function createDemoJobs() {
-  return [
-    {
-      id: 'demo-hamburg-messe', title: 'Hamburg Messe', role: 'Service', dateFrom: isoDay(3), dateTo: isoDay(4),
-      timeFrom: '17:00', timeTo: '02:00', locationName: 'Hamburg Messe', city: 'Hamburg',
-      address: 'Messeplatz 1, 20357 Hamburg', meetingTime: '16:30', meetingPlace: 'Eingang Ost', openPlaces: 6,
-      surcharges: 'Mögliche Nachtzuschläge', isFixture: true,
-    },
-    {
-      id: 'demo-hotel-atlantic', title: 'Hotel Atlantic', role: 'Service', dateFrom: isoDay(6), dateTo: isoDay(7),
-      timeFrom: '18:00', timeTo: '01:00', locationName: 'Hotel Atlantic', city: 'Hamburg',
-      address: 'An der Alster 72, 20099 Hamburg', meetingTime: '17:30', meetingPlace: 'Personaleingang', openPlaces: 3,
-      surcharges: null, isFixture: true,
-    },
-  ];
-}
-
 export function usePublicDevDemo(email) {
   const fallback = createInitialState();
   let stored = null;

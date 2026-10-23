@@ -35,6 +35,7 @@ const storage = multer.memoryStorage();
 const { flipAxios } = require("../../services/integrations/flipAxios");
 const {
   assignFlipTask,
+  completeFlipTask,
   assignFlipUserGroups,
   getFlipUsers,
   getFlipUserGroups,
@@ -1257,8 +1258,8 @@ router.post(
   asyncHandler(async (req, res) => {
     const taskId = req.params.taskId;
     try {
-      const response = await flipAxios.post(`/api/tasks/v4/tasks/${taskId}/complete`);
-      res.json(response.data);
+      const result = await completeFlipTask(taskId);
+      res.json(result);
     } catch (err) {
       console.error(`Error completing task ${taskId}:`, err.response?.data || err.message);
       res.status(500).json({ message: "Error completing task" });

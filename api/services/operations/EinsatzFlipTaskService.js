@@ -3,8 +3,6 @@ const Einsatz = require('../../models/Event/Einsatz');
 const {
   assignFlipTask,
   completeFlipTask,
-  getFlipTaskAssignments,
-  markAssignmentAsCompleted,
 } = require('../integrations/FlipService');
 
 function escapeHtml(value) {
@@ -129,27 +127,16 @@ async function notifyEinsatzAssignment({ einsatz, auftrag, mitarbeiter, isReserv
   }
 }
 
-async function completeEinsatzFlipTask({ einsatz, mitarbeiter = null }) {
+async function completeEinsatzFlipTask({ einsatz }) {
   const flipTaskId = einsatz?.bestaetigung?.flipTaskId;
   if (!flipTaskId) return false;
 
   try {
-    if (mitarbeiter?.flip_id) {
-      const assignments = await getFlipTaskAssignments(flipTaskId);
-      const userAssignment = (assignments || []).find((a) => a.user_id === mitarbeiter.flip_id);
-      if (userAssignment?.id) {
-        await markAssignmentAsCompleted(userAssignment.id);
-      }
-    }
-  } catch (err) {
-    logger.warn(`FlipTask Assignment Abschluss fehlgeschlagen (${flipTaskId}): ${err.message}`);
-  }
-
-  try {
     await completeFlipTask(flipTaskId);
+    logger.info(`FlipTask ${flipTaskId} nach Einsatzbestätigung gelöscht.`);
     return true;
   } catch (err) {
-    logger.warn(`FlipTask Abschluss fehlgeschlagen (${flipTaskId}): ${err.message}`);
+    logger.warn(`FlipTask Löschen fehlgeschlagen (${flipTaskId}): ${err.message}`);
     return false;
   }
 }

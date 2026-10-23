@@ -369,7 +369,11 @@ router.put('/applications/:jobId', requirePrototypeOidc, asyncHandler(async (req
       { new: true }
     );
     if (updatedEinsatz) {
-      await completeEinsatzFlipTask({ einsatz: updatedEinsatz, mitarbeiter });
+      await completeEinsatzFlipTask({
+        einsatz: updatedEinsatz,
+        mitarbeiter,
+        bearerToken: req.oidcUser?.flip_access_token || null,
+      });
     }
   }
 
