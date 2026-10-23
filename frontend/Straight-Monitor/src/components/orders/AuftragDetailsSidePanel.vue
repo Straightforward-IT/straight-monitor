@@ -51,13 +51,13 @@
           <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
         </AppIconButton>
         <AppIconButton
-          v-if="showStaffingExpand && event"
+          v-if="showStaffingExpand && event && presentation === 'modal'"
           variant="ghost"
           size="sm"
           label="Personal & Bewerbungen einblenden"
           @click.stop="$emit('expand-staffing')"
         >
-          <font-awesome-icon :icon="faAnglesRight" />
+          <font-awesome-icon :icon="faAnglesLeft" />
         </AppIconButton>
       </div>
     </template>
@@ -81,7 +81,7 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faAnglesRight, faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faAnglesLeft, faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import SidePanelFrame from "@/components/frames/SidePanelFrame.vue";
 import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
 

@@ -362,4 +362,64 @@ describe('pseudo-assignment integration', () => {
     expect(priceInput.element.value).toContain('28,50');
     expect(priceInput.element.value).toContain('/ Std.');
   });
+
+  it('preserves Umplanen (replanFromEinsatzIds) across subsequent warning steps such as bedarf-exceeded', async () => {
+    const oldEinsatzId = '65f1a2b3c4d5e6f7a8b9c0d1';
+    const sourceShift = {
+      key: 'shift-source',
+      meta: { schichtBezeichnung: 'Henric', uhrzeitVon: '10:00', uhrzeitBis: '18:00', bedarf: 1 },
+      einsaetze: [
+        {
+          _id: oldEinsatzId,
+          personalNr: 2000638,
+          isPseudo: true,
+          mitarbeiterData: { _id: employee._id, vorname: 'Anna', nachname: 'Muster' },
+        },
+      ],
+    };
+    const targetShift = {
+      key: 'shift-target',
+      meta: { schichtId: 'shift-target-id', schichtBezeichnung: 'Alex', uhrzeitVon: '10:00', uhrzeitBis: '18:00', bedarf: 1 },
+      einsaetze: [
+        {
+          _id: '65f1a2b3c4d5e6f7a8b9c0d2',
+          personalNr: 2000012,
+          mitarbeiterData: { _id: otherEmployee._id, vorname: 'Tom', nachname: 'Beispiel' },
+        },
+      ],
+    };
+
+    const wrapper = workspace({
+      preparedSchichten: [sourceShift, targetShift],
+    });
+
+    await wrapper.vm.startDropValidationFlow(
+      {
+        ...employee,
+        personalnr: '2000638',
+        sourceSchichtKey: 'shift-source',
+        sourceEinsatzId: oldEinsatzId,
+      },
+      targetShift,
+      'shift-target-id',
+    );
+
+    expect(wrapper.vm.dropWarningFlow.steps.map(s => s.type)).toEqual(['already-planned', 'bedarf-exceeded']);
+
+    // Step 1: Choose "Umplanen"
+    await wrapper.vm.handleDropWarningDecision('replan');
+    expect(wrapper.vm.dropWarningFlow.stepIndex).toBe(1);
+    expect(wrapper.vm.dropWarningFlow.decisionMode).toBe('replan');
+    expect(wrapper.vm.dropWarningFlow.replanFromEinsatzIds).toEqual([oldEinsatzId]);
+
+    // Step 2: Confirm "bedarf-exceeded" -> must forward replanFromEinsatzIds
+    await wrapper.vm.handleDropWarningDecision('confirm');
+    await flushPromises();
+
+    expect(api.post).toHaveBeenCalledWith('/api/auftraege/42/pseudo-einsatz', {
+      mitarbeiterId: employee._id,
+      schichtId: 'shift-target-id',
+      replanFromEinsatzIds: [oldEinsatzId],
+    });
+  });
 });

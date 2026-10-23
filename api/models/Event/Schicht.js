@@ -30,6 +30,10 @@ const SchichtSchema = new mongoose.Schema({
     default: 'zvoove',
     index: true,
   },
+  isPseudo: {
+    type: Boolean,
+    default: false,
+  },
   day: { type: String },
   endDayOffset: { type: Number, min: 0 },
   groupShiftKey: { type: String },

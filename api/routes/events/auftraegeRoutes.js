@@ -709,7 +709,16 @@ router.get('/', async (req, res) => {
     }
 
     if (pseudoEinsatz === 'true') {
-      query.auftragNr = { $in: await Einsatz.distinct('auftragNr', { isPseudo: true }) };
+      const [pseudoEinsatzAuftragNrs, pseudoSchichtAuftragNrs] = await Promise.all([
+        Einsatz.distinct('auftragNr', { isPseudo: true }),
+        Schicht.distinct('auftragNr', {
+          $or: [
+            { isPseudo: true },
+            { source: 'monitor', idAuftragArbeitsschichten: null, clientId: null, day: null, groupShiftKey: null },
+          ],
+        }),
+      ]);
+      query.auftragNr = { $in: [...new Set([...pseudoEinsatzAuftragNrs, ...pseudoSchichtAuftragNrs])] };
     }
     
     // Only get active/confirmed auftraege (auftStatus = 2 based on import query)
@@ -745,7 +754,7 @@ router.get('/', async (req, res) => {
     // Fetch mitarbeiter names per Auftrag for search
     const allEinsaetze = await Einsatz.find(
       { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } },
-      { auftragNr: 1, schicht: 1, idAuftragArbeitsschichten: 1, personalNr: 1, updatedAt: 1 }
+      { auftragNr: 1, schicht: 1, idAuftragArbeitsschichten: 1, personalNr: 1, isPseudo: 1, updatedAt: 1 }
     ).lean();
     const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
     const maList = allPersonalNrs.length
@@ -776,7 +785,12 @@ router.get('/', async (req, res) => {
         if (e.schicht || e.idAuftragArbeitsschichten) {
           const key = e.schicht ? `id_${e.schicht}` : `legacy_${e.auftragNr}_${e.idAuftragArbeitsschichten}`;
           if (!mitarbeiterBySchichtMap[key]) mitarbeiterBySchichtMap[key] = [];
-          if (!mitarbeiterBySchichtMap[key].includes(name)) mitarbeiterBySchichtMap[key].push(name);
+          const existing = mitarbeiterBySchichtMap[key].find(item => item.name === name);
+          if (!existing) {
+            mitarbeiterBySchichtMap[key].push({ name, isPseudo: Boolean(e.isPseudo) });
+          } else if (e.isPseudo) {
+            existing.isPseudo = true;
+          }
         }
       }
     });
@@ -785,19 +799,55 @@ router.get('/', async (req, res) => {
     // besetzt is not stored reliably — compute from actual Einsatz records
     const schichten = await Schicht.find(
       { auftragNr: { $in: auftragNrs }, bedarf: { $gt: 0 } },
-      { auftragNr: 1, idAuftragArbeitsschichten: 1, bedarf: 1, bezeichnung: 1, uhrzeitVon: 1, uhrzeitBis: 1, datumVon: 1 }
+      {
+        auftragNr: 1,
+        idAuftragArbeitsschichten: 1,
+        bedarf: 1,
+        bezeichnung: 1,
+        uhrzeitVon: 1,
+        uhrzeitBis: 1,
+        datumVon: 1,
+        qualSchl: 1,
+        berufSchl: 1,
+        source: 1,
+        isPseudo: 1,
+        clientId: 1,
+        day: 1,
+        groupShiftKey: 1,
+      }
     ).lean();
 
     // Count actual Einsätze per (auftragNr, idAuftragArbeitsschichten)
     const einsatzBySchicht = await Einsatz.aggregate([
       { $match: { auftragNr: { $in: auftragNrs } } },
-      { $group: { _id: { auftragNr: '$auftragNr', schicht: '$schicht', legacy: '$idAuftragArbeitsschichten' }, besetzt: { $sum: 1 } } }
+      {
+        $group: {
+          _id: { auftragNr: '$auftragNr', schicht: '$schicht', legacy: '$idAuftragArbeitsschichten' },
+          besetzt: { $sum: 1 },
+          pseudoCount: { $sum: { $cond: [{ $eq: ['$isPseudo', true] }, 1, 0] } },
+        },
+      }
     ]);
     const einsatzSchichtMap = {};
-    einsatzBySchicht.forEach(({ _id, besetzt }) => {
+    const pseudoSchichtMap = {};
+    einsatzBySchicht.forEach(({ _id, besetzt, pseudoCount }) => {
       const key = _id.schicht ? `id_${_id.schicht}` : `legacy_${_id.auftragNr}_${_id.legacy}`;
-      einsatzSchichtMap[key] = besetzt;
+      einsatzSchichtMap[key] = (einsatzSchichtMap[key] || 0) + besetzt;
+      pseudoSchichtMap[key] = (pseudoSchichtMap[key] || 0) + (pseudoCount || 0);
     });
+
+    function mergeShiftMitarbeiter(listA = [], listB = []) {
+      const merged = [];
+      for (const item of [...listA, ...listB]) {
+        const name = typeof item === 'object' ? item.name : item;
+        const isPseudo = Boolean(typeof item === 'object' && item.isPseudo);
+        if (!name) continue;
+        const existing = merged.find(entry => entry.name === name);
+        if (!existing) merged.push({ name, isPseudo });
+        else if (isPseudo) existing.isPseudo = true;
+      }
+      return merged;
+    }
 
     // Compute status per auftrag
     const schichtStatusMap = {};
@@ -810,8 +860,8 @@ router.get('/', async (req, res) => {
       let empty = 0, underbooked = 0, overbooked = 0, full = 0;
       group.forEach(s => {
         const key = `id_${s._id}`;
-        const legacyKey = `legacy_${s.auftragNr}_${s.idAuftragArbeitsschichten}`;
-        const besetzt = einsatzSchichtMap[key] || einsatzSchichtMap[legacyKey] || 0;
+        const legacyKey = s.idAuftragArbeitsschichten != null ? `legacy_${s.auftragNr}_${s.idAuftragArbeitsschichten}` : null;
+        const besetzt = (einsatzSchichtMap[key] || 0) + (legacyKey ? (einsatzSchichtMap[legacyKey] || 0) : 0);
         if (besetzt === 0)             empty++;
         else if (besetzt < s.bedarf)   underbooked++;
         else if (besetzt > s.bedarf)   overbooked++;
@@ -854,18 +904,33 @@ router.get('/', async (req, res) => {
     const schichtenDisplayMap = {};
     schichten.forEach(s => {
       const key = `id_${s._id}`;
-      const legacyKey = `legacy_${s.auftragNr}_${s.idAuftragArbeitsschichten}`;
-      const besetzt = einsatzSchichtMap[key] || einsatzSchichtMap[legacyKey] || 0;
+      const legacyKey = s.idAuftragArbeitsschichten != null ? `legacy_${s.auftragNr}_${s.idAuftragArbeitsschichten}` : null;
+      const besetzt = (einsatzSchichtMap[key] || 0) + (legacyKey ? (einsatzSchichtMap[legacyKey] || 0) : 0);
+      const pseudoCount = (pseudoSchichtMap[key] || 0) + (legacyKey ? (pseudoSchichtMap[legacyKey] || 0) : 0);
+      const isPseudo = Boolean(
+        s.isPseudo ||
+        (s.source === 'monitor' && !s.idAuftragArbeitsschichten && !s.clientId && !s.day && !s.groupShiftKey)
+      );
       if (!schichtenDisplayMap[s.auftragNr]) schichtenDisplayMap[s.auftragNr] = [];
       schichtenDisplayMap[s.auftragNr].push({
         id: s.idAuftragArbeitsschichten || s._id,
+        _id: s._id,
+        idAuftragArbeitsschichten: s.idAuftragArbeitsschichten || null,
         bezeichnung: s.bezeichnung || null,
         uhrzeitVon: s.uhrzeitVon || null,
         uhrzeitBis: s.uhrzeitBis || null,
         datumVon: s.datumVon || null,
+        qualSchl: s.qualSchl || null,
+        berufSchl: s.berufSchl || null,
         bedarf: s.bedarf,
         besetzt,
-        einsaetze: mitarbeiterBySchichtMap[key] || mitarbeiterBySchichtMap[legacyKey] || []
+        isPseudo,
+        hasPseudoEinsatz: pseudoCount > 0,
+        pseudoCount,
+        einsaetze: mergeShiftMitarbeiter(
+          legacyKey ? mitarbeiterBySchichtMap[legacyKey] : [],
+          mitarbeiterBySchichtMap[key]
+        ),
       });
     });
 
@@ -1299,7 +1364,7 @@ router.get('/sync', async (req, res) => {
 // JOB BEWERBUNGEN (PublicDevPortal -> Admin Auftrags-Workspace)
 // ─────────────────────────────────────────────────────────────
 
-const BEWERBUNG_MITARBEITER_SELECT = '_id vorname nachname personalnr email telefon profilbild flip_id persgruppe arbeitsverhaeltnis lohnStammdaten qualifikationen berufe locationV2 isActive isBewerberstatus kundenwuensche dispoNotiz vorarbeitgebertage';
+const BEWERBUNG_MITARBEITER_SELECT = '_id vorname nachname personalnr email telefon profilbild flip_id persgruppe arbeitsverhaeltnis lohnStammdaten qualifikationen berufe locationV2 isActive isBewerberstatus kundenwuensche fuehrerschein fuehrerscheine dispoNotiz vorarbeitgebertage';
 
 async function listJobBewerbungenHandler(req, res) {
   const rawAuftragNr = req.params.auftragNr ?? req.query.auftragNr;
@@ -1308,6 +1373,10 @@ async function listJobBewerbungenHandler(req, res) {
     : null;
   const statusFilter = req.query.status && req.query.status !== 'all' ? String(req.query.status).trim() : null;
   const includeAll = req.query.scope === 'all';
+  const rawLocationFilter = String(req.query.locationV2 || '').trim();
+  const requestedLocationIds = rawLocationFilter
+    ? new Set(rawLocationFilter.split(',').map((s) => s.trim()).filter(Boolean))
+    : null;
 
   const query = {};
   if (statusFilter) {
@@ -1328,11 +1397,42 @@ async function listJobBewerbungenHandler(req, res) {
         { path: 'locationV2', select: 'nameFull shortName color externalId' },
       ],
     })
-    .populate('schicht', '_id bezeichnung uhrzeitVon uhrzeitBis datumVon datumBis idAuftragArbeitsschichten auftragNr bedarf')
+    .populate('schicht', '_id bezeichnung uhrzeitVon uhrzeitBis datumVon datumBis idAuftragArbeitsschichten auftragNr bedarf locationV2')
     .sort({ createdAt: -1 })
     .lean();
 
-  const validDocs = docs.filter((doc) => doc.mitarbeiter != null);
+  let validDocs = docs.filter((doc) => doc.mitarbeiter != null);
+
+  const auftragNrs = [...new Set(validDocs.map((d) => Number(d.auftragNr)).filter(Number.isInteger))];
+  const auftraege = auftragNrs.length
+    ? await Auftrag.find({ auftragNr: { $in: auftragNrs } })
+        .select('auftragNr eventTitel vonDatum bisDatum locationV2 kundenNr')
+        .lean()
+    : [];
+  const auftragMap = new Map(auftraege.map((a) => [Number(a.auftragNr), a]));
+
+  validDocs = validDocs.map((doc) => {
+    const orderDoc = doc.auftragNr != null ? (auftragMap.get(Number(doc.auftragNr)) || null) : null;
+    return {
+      ...doc,
+      auftragData: orderDoc,
+    };
+  });
+
+  if (requestedLocationIds && requestedLocationIds.size > 0 && !Number.isInteger(parsedAuftragNr)) {
+    validDocs = validDocs.filter((doc) => {
+      const orderLoc = doc.auftragData?.locationV2 ? String(doc.auftragData.locationV2) : '';
+      const schichtLoc = doc.schicht?.locationV2 ? String(doc.schicht.locationV2) : '';
+      const maLocRaw = doc.mitarbeiter?.locationV2;
+      const maLoc = maLocRaw ? String(typeof maLocRaw === 'object' ? maLocRaw._id : maLocRaw) : '';
+      const effectiveOrderLoc = orderLoc || schichtLoc;
+      if (effectiveOrderLoc) {
+        return requestedLocationIds.has(effectiveOrderLoc);
+      }
+      return Boolean(maLoc && requestedLocationIds.has(maLoc));
+    });
+  }
+
   res.json({ bewerbungen: validDocs });
 }
 
@@ -1689,6 +1789,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
     newAnsprechpartnerTelefon,
     newAnsprechpartnerEmail,
     replanFromEinsatzIds,
+    replanFromDispoIds,
   } = req.body;
   if (!mitarbeiterId && !isNewPseudoSchicht) {
     return res.status(400).json({ message: 'mitarbeiterId oder neue Pseudo-Schicht erforderlich' });
@@ -1708,13 +1809,32 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
 
   // Optional replanning: remove previous shift assignments before creating the new one
   if (Array.isArray(replanFromEinsatzIds) && replanFromEinsatzIds.length) {
-    const validIds = replanFromEinsatzIds.filter(
-      (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id.trim())
-    );
+    const validIds = replanFromEinsatzIds
+      .map((id) => String(id || '').trim())
+      .filter((id) => /^[0-9a-fA-F]{24}$/.test(id));
     if (validIds.length) {
+      await DispoEintrag.deleteMany({
+        typ: 'einsatz',
+        'referenz.einsatzId': { $in: validIds },
+      });
+      await JobBewerbung.updateMany(
+        { einsatz: { $in: validIds } },
+        { $set: { einsatz: null } }
+      );
       await Einsatz.deleteMany({
         _id: { $in: validIds },
-        ...(personalnrInt != null ? { personalNr: personalnrInt } : {}),
+      });
+    }
+  }
+
+  if (Array.isArray(replanFromDispoIds) && replanFromDispoIds.length && mitarbeiter?._id) {
+    const validDispoIds = replanFromDispoIds
+      .map((id) => String(id || '').trim())
+      .filter((id) => /^[0-9a-fA-F]{24}$/.test(id));
+    if (validDispoIds.length) {
+      await DispoEintrag.deleteMany({
+        _id: { $in: validDispoIds },
+        mitarbeiter: mitarbeiter._id,
       });
     }
   }
@@ -1745,6 +1865,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
         ...(schichtMonitorId ? { monitorId: schichtMonitorId } : {}),
         creationOrigin: 'manual',
         source: 'monitor',
+        isPseudo: true,
         createdBy: userId(req),
         auftragNr: parsedAuftragNr,
         locationV2: auftrag.locationV2 || null,

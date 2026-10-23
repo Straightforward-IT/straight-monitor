@@ -66,7 +66,7 @@
           <span>{{ step.note }}</span>
         </div>
         <p class="drop-warn-question">
-          Wirklich in <strong>{{ step.shiftName }}</strong> einplanen?
+          Wirklich in <strong>{{ step.shiftName }}</strong> {{ decisionMode === 'replan' ? 'umplanen' : 'einplanen' }}?
         </p>
       </template>
 
@@ -80,7 +80,7 @@
           <span>Aktuell besetzt: <strong>{{ step.currentCount }} / {{ step.bedarf }}</strong></span>
         </div>
         <p class="drop-warn-question">
-          Möchtest du <strong>{{ step.employeeName }}</strong> trotzdem einplanen?
+          Möchtest du <strong>{{ step.employeeName }}</strong> trotzdem {{ decisionMode === 'replan' ? 'umplanen' : 'einplanen' }}?
         </p>
       </template>
     </div>
@@ -111,7 +111,7 @@
           </CustomTooltip>
 
           <CustomTooltip
-            text="Plant den Mitarbeiter in die Zielschicht als Pseudo-Einsatz ein (der bisherige Einsatz bleibt im Pseudo-Modus bestehen)."
+            text="Alten Einsatz löschen und Mitarbeiter in diese Schicht umplanen."
             position="top"
           >
             <AppButton
@@ -142,10 +142,10 @@
             variant="primary"
             :disabled="busy"
             :loading="busy"
-            @click="onSelect('confirm')"
+            @click="onSelect(decisionMode === 'replan' ? 'replan' : 'confirm')"
           >
             <font-awesome-icon icon="fa-solid fa-check" />
-            Trotzdem Einplanen
+            {{ decisionMode === 'replan' ? 'Trotzdem Umplanen' : 'Trotzdem Einplanen' }}
           </AppButton>
         </template>
 
@@ -154,10 +154,10 @@
             variant="primary"
             :disabled="busy"
             :loading="busy"
-            @click="onSelect('confirm')"
+            @click="onSelect(decisionMode === 'replan' ? 'replan' : 'confirm')"
           >
             <font-awesome-icon icon="fa-solid fa-check" />
-            Bestätigen
+            {{ decisionMode === 'replan' ? 'Umplanen bestätigen' : 'Bestätigen' }}
           </AppButton>
         </template>
       </div>
@@ -175,6 +175,7 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   step: { type: Object, default: null },
   busy: { type: Boolean, default: false },
+  decisionMode: { type: String, default: 'plan' },
 });
 
 const emit = defineEmits(['cancel', 'decide']);

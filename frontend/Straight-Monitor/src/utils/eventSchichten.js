@@ -1,3 +1,16 @@
+export function isPseudoSchichtDoc(schicht, event = null) {
+  if (!schicht) return Boolean(event?.isPseudo);
+  return Boolean(
+    schicht.isPseudo ||
+    event?.isPseudo ||
+    (schicht.source === 'monitor' &&
+      !schicht.idAuftragArbeitsschichten &&
+      !schicht.clientId &&
+      !schicht.day &&
+      !schicht.groupShiftKey)
+  );
+}
+
 export function buildEventSchichten(event) {
   if (!event?.einsaetze && !event?.schichten) return [];
 
@@ -23,6 +36,7 @@ export function buildEventSchichten(event) {
         bedarf: schicht.bedarf ?? null,
         qualSchl: schicht.qualSchl || null,
         berufSchl: schicht.berufSchl || null,
+        isPseudo: isPseudoSchichtDoc(schicht, event),
         bedarfMet: false,
       },
     };
@@ -54,6 +68,7 @@ export function buildEventSchichten(event) {
           bedarf: einsatz.bedarf ?? null,
           qualSchl: einsatz.qualSchl || null,
           berufSchl: einsatz.berufSchl || null,
+          isPseudo: Boolean(einsatz.isPseudo || event?.isPseudo),
           bedarfMet: false,
         },
       };

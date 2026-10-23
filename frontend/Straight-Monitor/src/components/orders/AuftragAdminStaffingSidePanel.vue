@@ -21,6 +21,76 @@
         @mousedown.prevent="startPanelWidthResize"
         @dblclick="resetPanelWidth"
       />
+      <header
+        class="staffing-tabs-header"
+        @dragenter.prevent="onUnassignDragEnter"
+        @dragover.prevent="onUnassignDragOver"
+        @dragleave="onUnassignDragLeave"
+        @drop.prevent="onUnassignDrop"
+      >
+        <span
+          class="pseudo-tag pseudo-tag--border"
+          title="Einplanungen über dieses Panel erstellen Pseudo-Einsätze"
+        >
+          Pseudo
+        </span>
+        <div class="staffing-tabs-left">
+          <AppIconButton
+            variant="ghost"
+            size="sm"
+            label="Liste aktualisieren"
+            title="Aktualisieren"
+            :disabled="bewerbungenLoading || mitarbeiterLoading"
+            @click="refreshActiveList"
+          >
+            <font-awesome-icon
+              icon="fa-solid fa-rotate-right"
+              :spin="bewerbungenLoading || mitarbeiterLoading"
+            />
+          </AppIconButton>
+          <div class="staffing-tabs" role="tablist" aria-label="Personal-Ansicht">
+            <button
+              type="button"
+              role="tab"
+              class="staffing-tab"
+              :class="{ active: activeTab === 'all' }"
+              :aria-selected="activeTab === 'all'"
+              @click="activeTab = 'all'"
+            >
+              <font-awesome-icon icon="fa-solid fa-users" />
+              <span>Alle</span>
+              <span class="staffing-tab__count">{{ filteredAllMitarbeiter.length }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="staffing-tab"
+              :class="{ active: activeTab === 'bewerbungen' }"
+              :aria-selected="activeTab === 'bewerbungen'"
+              @click="activeTab = 'bewerbungen'"
+            >
+              <font-awesome-icon icon="fa-solid fa-inbox" />
+              <span>Bewerbungen</span>
+              <span
+                v-if="bewerbungen.length"
+                class="staffing-tab__count"
+                :class="{ 'staffing-tab__count--highlight': openBewerbungenCount > 0 }"
+              >
+                {{ openBewerbungenCount || bewerbungen.length }}
+              </span>
+            </button>
+          </div>
+        </div>
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          label="Personal & Bewerbungen ausblenden"
+          title="Ausblenden"
+          @click="emit('minimize')"
+        >
+          <font-awesome-icon icon="fa-solid fa-angles-right" />
+        </AppIconButton>
+      </header>
       <!-- ─── PART 1 (TOP): MITARBEITER & BEWERBUNGEN TABS ─── -->
       <section
         ref="listSectionRef"
@@ -45,69 +115,6 @@
             Hier ablegen, um {{ draggingAssignedEinsatz.name || 'Mitarbeiter' }} aus der Schicht zu entfernen
           </span>
         </div>
-        <header class="staffing-tabs-header">
-          <span
-            class="pseudo-tag pseudo-tag--border"
-            title="Einplanungen über dieses Panel erstellen Pseudo-Einsätze"
-          >
-            Pseudo
-          </span>
-          <div class="staffing-tabs-left">
-            <AppIconButton
-              variant="ghost"
-              size="sm"
-              label="Personal & Bewerbungen ausblenden"
-              @click="emit('minimize')"
-            >
-              <font-awesome-icon icon="fa-solid fa-angles-left" />
-            </AppIconButton>
-            <div class="staffing-tabs" role="tablist" aria-label="Personal-Ansicht">
-              <button
-                type="button"
-                role="tab"
-                class="staffing-tab"
-                :class="{ active: activeTab === 'all' }"
-                :aria-selected="activeTab === 'all'"
-                @click="activeTab = 'all'"
-              >
-                <font-awesome-icon icon="fa-solid fa-users" />
-                <span>Alle</span>
-                <span class="staffing-tab__count">{{ filteredAllMitarbeiter.length }}</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                class="staffing-tab"
-                :class="{ active: activeTab === 'bewerbungen' }"
-                :aria-selected="activeTab === 'bewerbungen'"
-                @click="activeTab = 'bewerbungen'"
-              >
-                <font-awesome-icon icon="fa-solid fa-inbox" />
-                <span>Bewerbungen</span>
-                <span
-                  v-if="bewerbungen.length"
-                  class="staffing-tab__count"
-                  :class="{ 'staffing-tab__count--highlight': openBewerbungenCount > 0 }"
-                >
-                  {{ openBewerbungenCount || bewerbungen.length }}
-                </span>
-              </button>
-            </div>
-          </div>
-          <AppIconButton
-            variant="ghost"
-            size="sm"
-            label="Liste aktualisieren"
-            title="Aktualisieren"
-            :disabled="bewerbungenLoading || mitarbeiterLoading"
-            @click="refreshActiveList"
-          >
-            <font-awesome-icon
-              icon="fa-solid fa-rotate-right"
-              :spin="bewerbungenLoading || mitarbeiterLoading"
-            />
-          </AppIconButton>
-        </header>
 
         <!-- Controls for "Alle" tab -->
         <div v-if="activeTab === 'all'" class="staffing-controls staffing-controls--with-bottom">
@@ -410,7 +417,7 @@
                     · {{ formatShortTime(bew.schicht.uhrzeitVon) }}<template v-if="bew.schicht?.uhrzeitBis">–{{ formatShortTime(bew.schicht.uhrzeitBis) }}</template>
                   </span>
                   <span v-if="bew.auftragNr && Number(bew.auftragNr) !== Number(event?.auftragNr)" class="staffing-row__order-ref">
-                    · #{{ bew.auftragNr }}
+                    · {{ bew.auftragData?.eventTitel ? `${bew.auftragData.eventTitel} (#${bew.auftragNr})` : `#${bew.auftragNr}` }}
                   </span>
                 </div>
               </div>
@@ -697,6 +704,21 @@
               </div>
 
               <div class="zvoove-info-row">
+                <span class="zvoove-info-icon-group">
+                  <span
+                    class="zvoove-icon-box"
+                    :class="{ 'zvoove-icon-box--muted': !fuehrerscheinClasses(activeMitarbeiter).length && !activeMitarbeiter.fuehrerschein?.hatAuto }"
+                    title="Führerschein &amp; Auto"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-car" />
+                  </span>
+                </span>
+                <span class="zvoove-info-value zvoove-info-value--truncate" :title="fuehrerscheinSummary(activeMitarbeiter)">
+                  {{ fuehrerscheinSummary(activeMitarbeiter) }}
+                </span>
+              </div>
+
+              <div class="zvoove-info-row">
                 <CustomTooltip position="left" :delay-in="80">
                   <button type="button" class="zvoove-skills-btn">
                     <font-awesome-icon icon="fa-solid fa-graduation-cap" />
@@ -802,7 +824,38 @@
                 <font-awesome-icon icon="fa-solid fa-calendar-check" />
                 <span>Dispo-Verfügbarkeit</span>
               </div>
-              <span class="dispo-part-header__range">{{ dispoRangeLabel }}</span>
+              <div class="dispo-part-header__controls" role="group" aria-label="Dispo-Woche wechseln">
+                <button
+                  type="button"
+                  class="dispo-week-btn"
+                  title="Vorherige Woche"
+                  aria-label="Vorherige Woche"
+                  :disabled="dispoLoading"
+                  @click="shiftDispoWeek(-1)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-chevron-left" />
+                </button>
+                <button
+                  type="button"
+                  class="dispo-part-header__range"
+                  :class="{ 'is-offset': dispoWeekOffset !== 0 }"
+                  :title="dispoWeekOffset !== 0 ? 'Zurück zur Ausgangswoche' : 'Aktuelle Woche'"
+                  :disabled="dispoLoading || dispoWeekOffset === 0"
+                  @click="resetDispoWeek"
+                >
+                  {{ dispoRangeLabel }}
+                </button>
+                <button
+                  type="button"
+                  class="dispo-week-btn"
+                  title="Nächste Woche"
+                  aria-label="Nächste Woche"
+                  :disabled="dispoLoading"
+                  @click="shiftDispoWeek(1)"
+                >
+                  <font-awesome-icon icon="fa-solid fa-chevron-right" />
+                </button>
+              </div>
             </header>
 
             <div v-if="dispoLoading" class="dispo-part-loading">
@@ -914,12 +967,16 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faAddressCard,
   faAnglesLeft,
+  faAnglesRight,
   faArrowDownWideShort,
   faArrowUpWideShort,
   faBriefcase,
   faBriefcaseMedical,
   faCalendarCheck,
+  faCar,
   faCheck,
+  faChevronLeft,
+  faChevronRight,
   faCircleHalfStroke,
   faClipboardList,
   faEllipsisVertical,
@@ -952,6 +1009,7 @@ import { useAuth } from '@/stores/auth';
 import { useDataCache } from '@/stores/dataCache';
 import { useFlipAll } from '@/stores/flipAll';
 import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
+import { attachMitarbeiterDragPreview } from '@/utils/mitarbeiterDragPreview';
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
 import { personGroupForMonth, currentPayrollMonth } from '@/utils/employeePayrollMasterData';
@@ -967,12 +1025,16 @@ import SortMenu from '@/components/ui-elements/SortMenu.vue';
 library.add(
   faAddressCard,
   faAnglesLeft,
+  faAnglesRight,
   faArrowDownWideShort,
   faArrowUpWideShort,
   faBriefcase,
   faBriefcaseMedical,
   faCalendarCheck,
+  faCar,
   faCheck,
+  faChevronLeft,
+  faChevronRight,
   faCircleHalfStroke,
   faClipboardList,
   faCommentDots,
@@ -1067,6 +1129,7 @@ let detailRequestSeq = 0;
 const dispoEntries = ref([]);
 const dispoComments = ref([]);
 const dispoLoading = ref(false);
+const dispoWeekOffset = ref(0);
 const selectedDispoNotiz = ref('');
 const unassignDragOver = ref(false);
 
@@ -1550,11 +1613,28 @@ const dispoWindow = computed(() => {
   const dayOfWeek = base.getDay();
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const start = new Date(base);
-  start.setDate(base.getDate() + diffToMonday);
+  start.setDate(base.getDate() + diffToMonday + dispoWeekOffset.value * 7);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return { start, end };
 });
+
+function shiftDispoWeek(delta) {
+  dispoWeekOffset.value += delta;
+  if (activeMitarbeiter.value?._id) {
+    const reqId = ++detailRequestSeq;
+    void loadDispoForMitarbeiter(String(activeMitarbeiter.value._id), reqId);
+  }
+}
+
+function resetDispoWeek() {
+  if (dispoWeekOffset.value === 0) return;
+  dispoWeekOffset.value = 0;
+  if (activeMitarbeiter.value?._id) {
+    const reqId = ++detailRequestSeq;
+    void loadDispoForMitarbeiter(String(activeMitarbeiter.value._id), reqId);
+  }
+}
 
 const dispoRangeLabel = computed(() => {
   const { start, end } = dispoWindow.value;
@@ -1812,6 +1892,9 @@ function onEmployeeSearchSelect(employee) {
 function onEmployeeSearchFiltersChange(activeFilters) {
   employeeSearchFilters.value = activeFilters;
   void fetchStaffingMitarbeiter();
+  if (!props.event?.auftragNr) {
+    void loadBewerbungen();
+  }
 }
 
 function toggleOnlyAvailableOnOrderDay() {
@@ -2146,6 +2229,28 @@ function qualiItems(ma) {
   return (ma?.qualifikationen || []).filter((q) => q?.designation && q.designation !== 'Unbekannt');
 }
 
+function fuehrerscheinClasses(ma) {
+  if (!ma) return [];
+  const plural = ma.fuehrerscheine;
+  const singular = ma.fuehrerschein;
+  const licenses = Array.isArray(plural) && plural.length === 0 && singular
+    ? singular
+    : plural ?? singular;
+  if (!licenses) return [];
+  return (Array.isArray(licenses) ? licenses : [licenses])
+    .map((license) => (typeof license === 'string' ? license : license?.klasse))
+    .map((k) => String(k || '').trim())
+    .filter(Boolean);
+}
+
+function fuehrerscheinSummary(ma) {
+  const classes = fuehrerscheinClasses(ma);
+  const fsLabel = classes.length ? `FS: ${classes.join(', ')}` : 'Kein FS';
+  const hatAuto = ma?.fuehrerschein?.hatAuto;
+  const autoLabel = `Auto: ${hatAuto === true ? 'Ja' : hatAuto === false ? 'Nein' : '—'}`;
+  return `${fsLabel} · ${autoLabel}`;
+}
+
 function bewerbungStatusLabel(status) {
   return (
     {
@@ -2184,6 +2289,7 @@ function onMitarbeiterDragStart(event, ma, bewerbung = null) {
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('application/x-straight-monitor-mitarbeiter', payload);
   event.dataTransfer.setData('application/json', payload);
+  attachMitarbeiterDragPreview(event, formatName(ma));
 }
 
 const LEGACY_DEMO_APPS_PURGED_KEY = 'auftraege.legacyDemoBewerbungenPurged_v1';
@@ -2229,17 +2335,25 @@ async function clearAllBewerbungen() {
 async function loadBewerbungen() {
   await purgeLegacyDemoApplicationsOnce();
   const auftragNr = props.event?.auftragNr;
-  if (!auftragNr) {
-    bewerbungen.value = [];
-    return;
-  }
   bewerbungenLoading.value = true;
   try {
-    const { data } = await api.get(`/api/auftraege/${auftragNr}/bewerbungen`);
-    const serverItems = Array.isArray(data?.bewerbungen) ? data.bewerbungen : [];
-    bewerbungen.value = serverItems.filter(
-      (item) => Number(item.auftragNr) === Number(auftragNr)
-    );
+    if (auftragNr) {
+      const { data } = await api.get(`/api/auftraege/${auftragNr}/bewerbungen`);
+      const serverItems = Array.isArray(data?.bewerbungen) ? data.bewerbungen : [];
+      bewerbungen.value = serverItems.filter(
+        (item) => Number(item.auftragNr) === Number(auftragNr)
+      );
+    } else {
+      const standorte = employeeSearchFilters.value
+        .filter((f) => f.category === 'standorte')
+        .map((f) => String(f.value))
+        .filter(Boolean);
+      const locParam = standorte.length ? standorte.join(',') : (orderLocationId.value || '');
+      const { data } = await api.get('/api/auftraege/bewerbungen', {
+        params: locParam ? { locationV2: locParam } : {},
+      });
+      bewerbungen.value = Array.isArray(data?.bewerbungen) ? data.bewerbungen : [];
+    }
   } catch (err) {
     console.warn('Bewerbungen konnten nicht geladen werden:', err);
   } finally {
@@ -2487,9 +2601,13 @@ async function copyValue(value, field) {
 
 watch(
   orderLocationId,
-  (locId) => {
+  (locId, oldLocId) => {
     if (locId) {
       syncDefaultLocationFilter(locId);
+    }
+    if (props.modelValue && locId !== oldLocId && !props.event?.auftragNr) {
+      void fetchStaffingMitarbeiter();
+      void loadBewerbungen();
     }
   },
   { immediate: true }
@@ -2497,11 +2615,12 @@ watch(
 
 watch(
   () => props.event?.auftragNr,
-  async (newNr) => {
+  async (newNr, oldNr) => {
+    dispoWeekOffset.value = 0;
     if (orderLocationId.value) {
       syncDefaultLocationFilter(orderLocationId.value);
     }
-    if (props.modelValue && newNr) {
+    if (props.modelValue && (newNr || oldNr !== undefined)) {
       await Promise.all([
         fetchStaffingMitarbeiter(),
         loadBewerbungen(),
@@ -2571,10 +2690,18 @@ defineExpose({
   margin-left: 12px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   background: var(--tile-bg);
   border: 1px solid color-mix(in oklab, var(--border) 88%, var(--text));
   border-radius: 10px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 
   &--embedded {
     position: relative;
@@ -2628,12 +2755,28 @@ defineExpose({
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 .staffing-part--profile.staffing-part--custom-height .zvoove-profile-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 .staffing-part__resizer {
@@ -2714,7 +2857,10 @@ defineExpose({
 }
 
 .staffing-tabs-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2938,6 +3084,14 @@ defineExpose({
   min-height: 0;
   overflow-y: auto;
   divide-y: 1px solid var(--border);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 .staffing-empty {
@@ -3751,10 +3905,63 @@ defineExpose({
   }
 }
 
-.dispo-part-header__range {
+.dispo-part-header__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 1px 2px;
+}
+
+.dispo-week-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: var(--muted);
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+.dispo-part-header__range {
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+
+  &.is-offset {
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--primary) 10%, transparent);
+    }
+  }
 }
 
 .dispo-part-loading {

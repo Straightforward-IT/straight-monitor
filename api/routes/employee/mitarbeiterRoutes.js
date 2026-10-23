@@ -391,7 +391,7 @@ router.get(
 
     const maxResults = Math.min(300, Math.max(1, Number.parseInt(limit, 10) || 20));
     const results = await Mitarbeiter.find(filter)
-      .select('_id vorname nachname email telefon personalnr flip_id profilbild persgruppe arbeitsverhaeltnis lohnStammdaten berufe qualifikationen kundenwuensche isActive isBewerberstatus locationV2 dispoNotiz einsatzCount eintrittsdatum austrittsdatum createdAt dateCreated')
+      .select('_id vorname nachname email telefon personalnr flip_id profilbild persgruppe arbeitsverhaeltnis lohnStammdaten berufe qualifikationen kundenwuensche fuehrerschein fuehrerscheine isActive isBewerberstatus locationV2 dispoNotiz einsatzCount eintrittsdatum austrittsdatum createdAt dateCreated')
       .populate('locationV2', 'nameFull shortName color externalId')
       .populate('berufe', 'jobKey designation')
       .populate('qualifikationen', 'qualificationKey designation')

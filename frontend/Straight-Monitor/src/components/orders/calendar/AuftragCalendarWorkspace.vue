@@ -1,363 +1,430 @@
 <template>
-  <div class="auftraege-page" :class="{ 'sidebar-open': selectedEvent, 'auftraege-page--detail-only': isHostedDetail }">
-      <div v-if="!isHostedDetail" ref="mainContent" class="main-content">
-        <Toolbar
-          v-if="viewMode === 'calendar'"
-          class="calendar-navigation"
-        >
-          <ToolbarFilter
-            v-model="filterExpanded"
-            :active-count="activeFilterCount"
-            @reset="resetAllFilters"
-          >
-            <FilterGroup label="Standort">
-              <FilterChip
-                v-for="location in locations"
-                :key="location._id"
-                class="location-filter-chip"
-                :active="filters.locationV2 === String(location._id)"
-                :style="{ '--location-color': location.color || '#6b7280' }"
-                @click="setLocationFilter(String(location._id))"
-                >{{ location.shortName || location.nameFull }}</FilterChip
-              >
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Anzeige">
-              <FilterChip
-                :active="filters.displayLevels.kunde"
-                @click="toggleDisplayLevel('kunde')"
-                >Kunde</FilterChip
-              >
-              <FilterChip
-                :active="filters.displayLevels.auftrag"
-                @click="toggleDisplayLevel('auftrag')"
-                >Auftrag</FilterChip
-              >
-              <FilterChip
-                :active="filters.displayLevels.schicht"
-                @click="toggleDisplayLevel('schicht')"
-                >Schicht</FilterChip
-              >
-              <FilterChip
-                :active="filters.displayLevels.einsatz"
-                @click="toggleDisplayLevel('einsatz')"
-                >Einsatz</FilterChip
-              >
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Einsätze">
-              <FilterChip
-                :active="filters.bedarfStatus.includes('voll')"
-                @click="toggleBedarfStatusFilter('voll')"
-                >Voll</FilterChip
-              >
-              <FilterChip
-                :active="filters.bedarfStatus.includes('offen')"
-                @click="toggleBedarfStatusFilter('offen')"
-                >Offen</FilterChip
-              >
-              <FilterChip
-                :active="filters.pseudoEinsatz"
-                @click="togglePseudoEinsatzFilter"
-                >Pseudo</FilterChip
-              >
-            </FilterGroup>
-            <FilterDivider />
-            <FilterGroup label="Kunden">
-              <PillMultiSelect
-                v-model="filters.kunden"
-                :options="filterOptions.kunden"
-                value-key="kundenNr"
-                label-key="kundName"
-                meta-key="kuerzel"
-                placeholder="Kunden suchen..."
-                @change="onKundenFilterChange"
-              />
-            </FilterGroup>
-          </ToolbarFilter>
-          <div class="nav-inner">
-            <div
-              v-if="!isMobile"
-              class="search-wrapper desktop-search"
-              @focusin="onSearchFocusIn"
-              @focusout="onSearchFocusOut"
-            >
-              <SearchBar
-                class="nav-search"
-                v-model="searchQuery"
-                placeholder="Mitarbeiter, Events, Kunden..."
-                aria-label="Aufträge suchen"
-              />
-            </div>
-            <!-- Mobile day nav — lives inside the toolbar -->
-            <template v-if="isMobile">
-              <AuftragMobileDateNavigation
-                :model-value="mobileDayDate"
-                @previous-week="previousWeek"
-                @previous-day="prevDay"
-                @next-day="nextDay"
-                @next-week="nextWeek"
-                @update:model-value="setDateFromPicker"
-              />
-              <div
-                class="search-wrapper mdn-search"
-                @focusin="onSearchFocusIn"
-                @focusout="onSearchFocusOut"
-              >
-                <SearchBar
-                  class="nav-search"
-                  v-model="searchQuery"
-                  placeholder="Suchen..."
-                  aria-label="Aufträge suchen"
-                />
-              </div>
-            </template>
+  <div class="auftraege-page" :class="{
+    'sidebar-open': selectedEvent,
+    'auftraege-page--detail-only': isHostedDetail,
+  }">
+    <div v-if="!isHostedDetail" ref="mainContent" class="main-content">
+      <Toolbar v-if="viewMode === 'calendar'" class="calendar-navigation">
+        <ToolbarFilter v-model="filterExpanded" :active-count="activeFilterCount" @reset="resetAllFilters">
+          <FilterGroup label="Standort">
+            <FilterChip v-for="location in locations" :key="location._id" class="location-filter-chip"
+              :active="filters.locationV2 === String(location._id)"
+              :style="{ '--location-color': location.color || '#6b7280' }"
+              @click="setLocationFilter(String(location._id))">{{ location.shortName || location.nameFull }}
+            </FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Anzeige">
+            <FilterChip :active="filters.displayLevels.kunde" @click="toggleDisplayLevel('kunde')">Kunde</FilterChip>
+            <FilterChip :active="filters.displayLevels.auftrag" @click="toggleDisplayLevel('auftrag')">Auftrag
+            </FilterChip>
+            <FilterChip :active="filters.displayLevels.schicht" @click="toggleDisplayLevel('schicht')">Schicht
+            </FilterChip>
+            <FilterChip :active="filters.displayLevels.einsatz" @click="toggleDisplayLevel('einsatz')">Einsatz
+            </FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Einsätze">
+            <FilterChip :active="filters.bedarfStatus.includes('voll')" @click="toggleBedarfStatusFilter('voll')">Voll
+            </FilterChip>
+            <FilterChip :active="filters.bedarfStatus.includes('offen')" @click="toggleBedarfStatusFilter('offen')">
+              Offen</FilterChip>
+            <FilterChip :active="filters.pseudoEinsatz" @click="togglePseudoEinsatzFilter">Pseudo</FilterChip>
+          </FilterGroup>
+          <FilterDivider />
+          <FilterGroup label="Kunden">
+            <PillMultiSelect v-model="filters.kunden" :options="filterOptions.kunden" value-key="kundenNr"
+              label-key="kundName" meta-key="kuerzel" placeholder="Kunden suchen..." @change="onKundenFilterChange" />
+          </FilterGroup>
+        </ToolbarFilter>
+        <div class="nav-inner">
+          <div v-if="!isMobile" class="search-wrapper desktop-search" @focusin="onSearchFocusIn"
+            @focusout="onSearchFocusOut">
+            <SearchBar class="nav-search" v-model="searchQuery" placeholder="Mitarbeiter, Events, Kunden..."
+              aria-label="Aufträge suchen" />
           </div>
-          <template v-if="isAdmin" #actions>
-            <ToolbarButton
-              :aria-expanded="createMenuOpen"
-              aria-haspopup="menu"
-              @click="toggleCreateMenu"
-            >Anlegen</ToolbarButton>
+          <!-- Mobile day nav — lives inside the toolbar -->
+          <template v-if="isMobile">
+            <AuftragMobileDateNavigation :model-value="mobileDayDate" @previous-week="previousWeek"
+              @previous-day="prevDay" @next-day="nextDay" @next-week="nextWeek"
+              @update:model-value="setDateFromPicker" />
+            <div class="search-wrapper mdn-search" @focusin="onSearchFocusIn" @focusout="onSearchFocusOut">
+              <SearchBar class="nav-search" v-model="searchQuery" placeholder="Suchen..."
+                aria-label="Aufträge suchen" />
+            </div>
           </template>
-          <template #bottom-actions>
-            <RouterLink
-              v-if="dataStatus && !isMobile"
-              class="data-status-badge"
-              :class="{ 'data-status-badge--compact': isCompactToolbar }"
-              to="/daten-import"
-              :title="'Stand der Daten: ' + formatDataStatus(dataStatus)"
-              :aria-label="'Stand der Daten: ' + formatDataStatus(dataStatus)"
-            >
-              <font-awesome-icon icon="fa-solid fa-clock" />
-              <span class="data-status-badge__label">{{ formatDataStatus(dataStatus) }}</span>
-            </RouterLink>
-            <CalendarControls
-              v-if="!isMobile"
-              v-model="calendarDayDate"
-              type="day"
-              :compact="isCompactToolbar"
-            />
-          </template>
-        </Toolbar>
+        </div>
+        <template v-if="isAdmin" #actions>
+          <ToolbarButton :aria-expanded="createMenuOpen" aria-haspopup="menu" @click="toggleCreateMenu">Anlegen
+          </ToolbarButton>
+        </template>
+        <template #bottom-actions>
+          <RouterLink v-if="dataStatus && !isMobile" class="data-status-badge"
+            :class="{ 'data-status-badge--compact': isCompactToolbar }" to="/daten-import"
+            :title="'Stand der Daten: ' + formatDataStatus(dataStatus)"
+            :aria-label="'Stand der Daten: ' + formatDataStatus(dataStatus)">
+            <font-awesome-icon icon="fa-solid fa-clock" />
+            <span class="data-status-badge__label">{{
+              formatDataStatus(dataStatus)
+              }}</span>
+          </RouterLink>
+          <CalendarControls v-if="!isMobile" v-model="calendarDayDate" type="day" :compact="isCompactToolbar" />
+        </template>
+      </Toolbar>
 
-        <!-- Mobile View -->
-        <div
-          v-if="viewMode === 'calendar' && isMobile"
-          class="mobile-calendar-view"
-        >
-          <!-- Day title -->
-          <div class="mobile-day-title" v-if="weekDays[mobileDayIndex]">
-            <div class="mobile-day-title__row">
-              <span class="mobile-day-title__name">{{
-                weekDays[mobileDayIndex].name
+      <!-- Mobile View -->
+      <div v-if="viewMode === 'calendar' && isMobile" class="mobile-calendar-view">
+        <!-- Day title -->
+        <div class="mobile-day-title" v-if="weekDays[mobileDayIndex]">
+          <div class="mobile-day-title__row">
+            <span class="mobile-day-title__name">{{
+              weekDays[mobileDayIndex].name
               }}</span>
-              <span class="mobile-day-title__date">{{
-                formatDayDateFull(weekDays[mobileDayIndex].date)
+            <span class="mobile-day-title__date">{{
+              formatDayDateFull(weekDays[mobileDayIndex].date)
               }}</span>
-              <span
-                v-if="getHolidayForDate(weekDays[mobileDayIndex].date)"
-                class="mobile-holiday-chip"
-                :class="{
-                  'mobile-holiday-chip--relevant': isHolidayRelevant(
-                    getHolidayForDate(weekDays[mobileDayIndex].date),
-                  ),
-                }"
-                >{{
-                  getHolidayForDate(weekDays[mobileDayIndex].date).name
-                }}</span
-              >
-            </div>
-            <div class="mobile-day-title__stats">
-              {{
-                getEventsForDay(weekDays[mobileDayIndex].date).length
-              }}
-              Aufträge &bull;
-              {{ getTotalPositionsForDay(weekDays[mobileDayIndex].date) }} Pos.
-            </div>
+            <span v-if="getHolidayForDate(weekDays[mobileDayIndex].date)" class="mobile-holiday-chip" :class="{
+              'mobile-holiday-chip--relevant': isHolidayRelevant(
+                getHolidayForDate(weekDays[mobileDayIndex].date),
+              ),
+            }">{{ getHolidayForDate(weekDays[mobileDayIndex].date).name }}</span>
+          </div>
+          <div class="mobile-day-title__stats">
+            {{ getEventsForDay(weekDays[mobileDayIndex].date).length }}
+            Aufträge &bull;
+            {{ getTotalPositionsForDay(weekDays[mobileDayIndex].date) }} Pos.
+          </div>
+        </div>
+
+        <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
+          <div v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0" class="empty-day-state">
+            Keine Aufträge heute
           </div>
 
-          <div class="mobile-day-content" v-if="weekDays[mobileDayIndex]">
-            <div
-              v-if="getEventsForDay(weekDays[mobileDayIndex].date).length === 0"
-              class="empty-day-state"
-            >
-              Keine Aufträge heute
-            </div>
-
-            <div
-              v-for="customerGroup in getEventGroupsForDay(
+          <div v-for="customerGroup in getEventGroupsForDay(
+            weekDays[mobileDayIndex].date,
+          )" :key="customerGroup.key" class="customer-event-group">
+            <div class="customer-event-group__header" role="button" tabindex="0" @click="
+              toggleCustomerGroup(
                 weekDays[mobileDayIndex].date,
-              )"
-              :key="customerGroup.key"
-              class="customer-event-group"
-            >
-              <div
-                class="customer-event-group__header"
-                role="button"
-                tabindex="0"
-                @click="
-                  toggleCustomerGroup(
+                customerGroup.key,
+              )
+              " @keydown.enter.prevent="
+                toggleCustomerGroup(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                )
+                " @keydown.space.prevent="
+                toggleCustomerGroup(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                )
+                " v-if="filters.displayLevels.kunde">
+              {{ customerGroup.label }}
+            </div>
+            <div v-for="event in customerGroup.events" :key="event._id" v-if="shouldDisplayEventCards()"
+              class="event-card-mobile" :class="[
+                getEventStatusClass(event),
+                getBedarfClass(event),
+                {
+                  'event-card--compact': isCustomerGroupCollapsed(
                     weekDays[mobileDayIndex].date,
                     customerGroup.key,
-                  )
-                "
-                @keydown.enter.prevent="
-                  toggleCustomerGroup(
+                  ),
+                },
+              ]" @click="selectEvent(event)" @contextmenu.prevent="openOrderContextMenu($event, event)">
+              <img v-if="
+                !isCustomerGroupCollapsed(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                ) && event.stundenlisteSignaturStatus === 'completed'
+              " :src="docusealLogo" class="event-signature-complete" alt="Stundenliste vollständig signiert"
+                title="Stundenliste vollständig signiert" />
+              <img v-else-if="
+                !isCustomerGroupCollapsed(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                ) && event.stundenlisteSignaturStatus === 'open'
+              " :src="docusealPendingIcon" class="event-signature-pending" alt="Stundenliste zur Signatur ausstehend"
+                title="Stundenliste zur Signatur ausstehend" />
+              <img v-else-if="
+                !isCustomerGroupCollapsed(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                ) && event.stundenlisteSignaturStatus === 'draft'
+              " :src="docusealPendingIcon" class="event-signature-draft" alt="Stundenliste als Entwurf"
+                title="Stundenliste als Entwurf" />
+              <div v-if="
+                !isCustomerGroupCollapsed(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                )
+              " class="event-header">
+                <span v-if="event.auftStatus !== 2" class="event-status">{{
+                  getStatusText(event.auftStatus)
+                  }}</span>
+                <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
+              </div>
+
+              <div class="event-title-row">
+                <div v-if="filters.displayLevels.auftrag" class="event-title">
+                  {{ event.eventTitel || "Kein Titel" }}
+                </div>
+                <div v-if="
+                  !isCustomerGroupCollapsed(
                     weekDays[mobileDayIndex].date,
                     customerGroup.key,
-                  )
-                "
-                @keydown.space.prevent="
-                  toggleCustomerGroup(
+                  ) &&
+                  event.labels &&
+                  event.labels.length
+                " class="event-labels">
+                  <span v-for="label in event.labels" :key="label._id" class="event-label-chip" :style="{
+                    background: label.color + '33',
+                    borderColor: label.color,
+                    color: label.color,
+                  }">{{ label.name }}</span>
+                </div>
+              </div>
+
+              <div class="event-shifts" v-if="
+                filters.displayLevels.schicht &&
+                !isCustomerGroupCollapsed(
+                  weekDays[mobileDayIndex].date,
+                  customerGroup.key,
+                ) &&
+                getSchichtenForDay(event, weekDays[mobileDayIndex].date)
+                  .length
+              ">
+                <div
+                  v-for="s in getSchichtenForDay(
+                    event,
                     weekDays[mobileDayIndex].date,
-                    customerGroup.key,
-                  )
-                "
-                v-if="filters.displayLevels.kunde"
-              >
+                  )"
+                  :key="s.id"
+                  class="shift-row"
+                  :class="{
+                    'shift-row--drag-over':
+                      calendarShiftDragOverKey === calendarShiftKey(event, s),
+                  }"
+                  @dragenter.prevent="handleCalendarShiftDragEnter($event, event, s)"
+                  @dragover.prevent="handleCalendarShiftDragOver($event, event, s)"
+                  @dragleave="handleCalendarShiftDragLeave($event, event, s)"
+                  @drop.prevent.stop="handleCalendarShiftDrop($event, event, s)"
+                >
+                  <span class="shift-time">{{ s.uhrzeitVon || "?"
+                  }}{{ s.uhrzeitBis ? "–" + s.uhrzeitBis : "" }}</span>
+                  <div class="shift-name-row" v-if="s.bezeichnung || s.isPseudo || s.hasPseudoEinsatz">
+                    <span class="shift-name" v-if="s.bezeichnung">{{
+                      s.bezeichnung
+                      }}</span>
+                    <span v-if="
+                      s.isPseudo ||
+                      (!filters.displayLevels.einsatz && s.hasPseudoEinsatz)
+                    " class="pseudo-tag pseudo-tag--shift" :title="s.isPseudo ? 'Pseudo-Schicht' : 'Enthält Pseudo-Einsatz'
+                        ">Pseudo</span>
+                  </div>
+                  <span v-if="
+                    filters.displayLevels.schicht ||
+                    filters.displayLevels.einsatz
+                  " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                  <ul v-if="filters.displayLevels.einsatz && s.einsaetze?.length" class="shift-einsaetze">
+                    <li v-for="emp in normalizeShiftEinsaetze(s.einsaetze)" :key="emp.name">
+                      <span class="shift-einsatz-name">{{ emp.name }}</span>
+                      <span v-if="emp.isPseudo" class="pseudo-tag pseudo-tag--inline"
+                        title="Pseudo-Einsatz">Pseudo</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="viewMode === 'calendar'" ref="calendarGrid" class="calendar-grid" :style="{
+        '--visible-days': visibleDays.length || 7,
+        '--day-min-width': `${minDayColumnWidth}px`,
+      }">
+        <div class="calendar-header">
+          <label class="kw-cell" style="cursor: pointer; cursor: hand">
+            KW
+            <input type="date" class="hidden-date-input" @change="handleDatePick" @input="handleDatePick" />
+          </label>
+          <div v-for="day in visibleDays" :key="day.key" class="day-header" role="button" tabindex="0" :class="{
+            'is-today': isToday(day.date),
+            'is-holiday': !!getHolidayForDate(day.date),
+            'is-holiday-relevant':
+              getHolidayForDate(day.date) &&
+              isHolidayRelevant(getHolidayForDate(day.date)),
+          }" @click="toggleCustomerGroupsForDay(day.date)"
+            @keydown.enter.prevent="toggleCustomerGroupsForDay(day.date)"
+            @keydown.space.prevent="toggleCustomerGroupsForDay(day.date)"
+            @contextmenu.prevent="openDayContextMenu($event, day)">
+            <div class="day-name">{{ day.name }}</div>
+            <div class="day-date">{{ formatDayDate(day.date) }}</div>
+            <div v-if="getHolidayForDate(day.date)" class="holiday-label" :class="{
+              'holiday-label--relevant': isHolidayRelevant(
+                getHolidayForDate(day.date),
+              ),
+            }">
+              <span class="holiday-name">{{
+                getHolidayForDate(day.date).name
+                }}</span>
+              <span class="holiday-states-badge" :class="{
+                'holiday-states-badge--relevant': isHolidayRelevant(
+                  getHolidayForDate(day.date),
+                ),
+              }">
+                {{
+                  getHolidayForDate(day.date).isNational
+                    ? "Bundesweit"
+                    : getHolidayForDate(day.date).states.slice(0, 4).join(", ")
+                }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="loading" class="loading-body">
+          <span>Lade Aufträge...</span>
+        </div>
+
+        <div v-else class="calendar-body">
+          <div class="kw-cell kw-number">
+            <div ref="kwScroller" class="kw-scroller" @mouseleave="delayedScrollKwToActive"
+              @mouseenter="clearKwScrollTimer">
+              <template v-for="week in weekScrollList" :key="week.key">
+                <div v-if="week.showYear" class="kw-year-sep">
+                  {{ week.year }}
+                </div>
+                <AppButton variant="ghost" size="sm" class="kw-week-btn" :class="{
+                  'is-active': week.isActive,
+                  'is-today-week': week.isTodayWeek,
+                }" :title="`KW ${week.kw} \u00b7 ${week.year}`"
+                  :aria-label="`Kalenderwoche ${week.kw} ${week.year} wählen`"
+                  :aria-current="week.isActive ? 'date' : undefined" @click="jumpToWeek(week.date)">
+                  <span class="kw-num-value">{{ week.kw }}</span>
+                </AppButton>
+              </template>
+            </div>
+          </div>
+          <div v-for="day in visibleDays" :key="day.key" class="day-column" :class="{
+            'is-today': isToday(day.date),
+            'is-holiday-relevant':
+              getHolidayForDate(day.date) &&
+              isHolidayRelevant(getHolidayForDate(day.date)),
+          }">
+            <div class="day-stats">
+              {{ getEventsForDay(day.date).length }} Aufträge •
+              {{ getTotalPositionsForDay(day.date) }} Pos.
+            </div>
+            <div v-for="customerGroup in getEventGroupsForDay(day.date)" :key="customerGroup.key"
+              class="customer-event-group">
+              <div class="customer-event-group__header" role="button" tabindex="0"
+                @click="toggleCustomerGroup(day.date, customerGroup.key)" @keydown.enter.prevent="
+                  toggleCustomerGroup(day.date, customerGroup.key)
+                  " @keydown.space.prevent="
+                  toggleCustomerGroup(day.date, customerGroup.key)
+                  " v-if="filters.displayLevels.kunde">
                 {{ customerGroup.label }}
               </div>
-              <div
-                v-for="event in customerGroup.events"
-                :key="event._id"
-                v-if="shouldDisplayEventCards()"
-                class="event-card-mobile"
-                :class="[
+              <div v-for="event in customerGroup.events" :key="event._id" v-if="shouldDisplayEventCards()"
+                class="event-card" :class="[
                   getEventStatusClass(event),
                   getBedarfClass(event),
                   {
                     'event-card--compact': isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
+                      day.date,
                       customerGroup.key,
                     ),
                   },
-                ]"
-                @click="selectEvent(event)"
-                @contextmenu.prevent="openOrderContextMenu($event, event)"
-              >
-                <img
-                  v-if="
-                    !isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
-                      customerGroup.key,
-                    ) && event.stundenlisteSignaturStatus === 'completed'
-                  "
-                  :src="docusealLogo"
-                  class="event-signature-complete"
-                  alt="Stundenliste vollständig signiert"
-                  title="Stundenliste vollständig signiert"
-                />
-                <img
-                  v-else-if="
-                    !isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
-                      customerGroup.key,
-                    ) && event.stundenlisteSignaturStatus === 'open'
-                  "
-                  :src="docusealPendingIcon"
-                  class="event-signature-pending"
-                  alt="Stundenliste zur Signatur ausstehend"
-                  title="Stundenliste zur Signatur ausstehend"
-                />
-                <img
-                  v-else-if="
-                    !isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
-                      customerGroup.key,
-                    ) && event.stundenlisteSignaturStatus === 'draft'
-                  "
-                  :src="docusealPendingIcon"
-                  class="event-signature-draft"
-                  alt="Stundenliste als Entwurf"
-                  title="Stundenliste als Entwurf"
-                />
-                <div
-                  v-if="
-                    !isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
-                      customerGroup.key,
-                    )
-                  "
-                  class="event-header"
-                >
-                  <span v-if="event.auftStatus !== 2" class="event-status">{{
+                ]" @click="selectEvent(event)" @contextmenu.prevent="openOrderContextMenu($event, event)">
+                <img v-if="
+                  !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                  event.stundenlisteSignaturStatus === 'completed'
+                " :src="docusealLogo" class="event-signature-complete" alt="Stundenliste vollständig signiert"
+                  title="Stundenliste vollständig signiert" />
+                <img v-else-if="
+                  !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                  event.stundenlisteSignaturStatus === 'open'
+                " :src="docusealPendingIcon" class="event-signature-pending"
+                  alt="Stundenliste zur Signatur ausstehend" title="Stundenliste zur Signatur ausstehend" />
+                <img v-else-if="
+                  !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                  event.stundenlisteSignaturStatus === 'draft'
+                " :src="docusealPendingIcon" class="event-signature-draft" alt="Stundenliste als Entwurf"
+                  title="Stundenliste als Entwurf" />
+                <div class="event-header" v-if="
+                  !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                  (event.auftStatus !== 2 || event.isPseudo)
+                ">
+                  <span class="event-status">{{
                     getStatusText(event.auftStatus)
-                  }}</span>
-                  <span
-                    v-if="event.isPseudo"
-                    class="pseudo-tag pseudo-tag--event"
-                    >Pseudo</span
-                  >
+                    }}</span>
+                  <span v-if="event.isPseudo" class="pseudo-tag pseudo-tag--event">Pseudo</span>
                 </div>
-
                 <div class="event-title-row">
                   <div v-if="filters.displayLevels.auftrag" class="event-title">
                     {{ event.eventTitel || "Kein Titel" }}
                   </div>
-                  <div
-                    v-if="
-                      !isCustomerGroupCollapsed(
-                        weekDays[mobileDayIndex].date,
-                        customerGroup.key,
-                      ) &&
-                      event.labels &&
-                      event.labels.length
-                    "
-                    class="event-labels"
-                  >
-                    <span
-                      v-for="label in event.labels"
-                      :key="label._id"
-                      class="event-label-chip"
-                      :style="{
-                        background: label.color + '33',
-                        borderColor: label.color,
-                        color: label.color,
-                      }"
-                      >{{ label.name }}</span
-                    >
+                  <div v-if="
+                    !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                    event.labels &&
+                    event.labels.length
+                  " class="event-labels">
+                    <span v-for="label in event.labels" :key="label._id" class="event-label-chip" :style="{
+                      background: label.color + '33',
+                      borderColor: label.color,
+                      color: label.color,
+                    }">{{ label.name }}</span>
                   </div>
                 </div>
-
-                <div
-                  class="event-shifts"
-                  v-if="
-                    filters.displayLevels.schicht &&
-                    !isCustomerGroupCollapsed(
-                      weekDays[mobileDayIndex].date,
-                      customerGroup.key,
-                    ) &&
-                    getSchichtenForDay(event, weekDays[mobileDayIndex].date)
-                      .length
-                  "
-                >
+                <div class="event-shifts" v-if="
+                  filters.displayLevels.schicht &&
+                  !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
+                  getSchichtenForDay(event, day.date).length
+                ">
                   <div
-                    v-for="s in getSchichtenForDay(
-                      event,
-                      weekDays[mobileDayIndex].date,
-                    )"
+                    v-for="s in getSchichtenForDay(event, day.date)"
                     :key="s.id"
-                    class="shift-row"
+                    class="shift-row shift-row--stacked"
+                    :class="{
+                      'shift-row--drag-over':
+                        calendarShiftDragOverKey === calendarShiftKey(event, s),
+                    }"
+                    @dragenter.prevent="handleCalendarShiftDragEnter($event, event, s)"
+                    @dragover.prevent="handleCalendarShiftDragOver($event, event, s)"
+                    @dragleave="handleCalendarShiftDragLeave($event, event, s)"
+                    @drop.prevent.stop="handleCalendarShiftDrop($event, event, s)"
                   >
-                    <span class="shift-time"
-                      >{{ s.uhrzeitVon || "?"
-                      }}{{ s.uhrzeitBis ? "–" + s.uhrzeitBis : "" }}</span
-                    >
-                    <span class="shift-name" v-if="s.bezeichnung">{{
-                      s.bezeichnung
-                    }}</span>
-                    <span v-if="filters.displayLevels.schicht || filters.displayLevels.einsatz" class="shift-pos" :class="getShiftBedarfClass(s)"
-                      >{{ s.besetzt }}/{{ s.bedarf }}</span
-                    >
-                    <ul
-                      v-if="
-                        filters.displayLevels.einsatz && s.einsaetze?.length
-                      "
-                      class="shift-einsaetze"
-                    >
-                      <li v-for="name in s.einsaetze" :key="name">
-                        {{ name }}
+                    <div class="shift-details">
+                      <span class="shift-time">{{ s.uhrzeitVon || "?"
+                      }}{{ s.uhrzeitBis ? "–" + s.uhrzeitBis : "" }}</span>
+                      <div class="shift-name-row">
+                        <span class="shift-name">{{
+                          s.bezeichnung || "Schicht"
+                          }}</span>
+                        <span v-if="
+                          s.isPseudo ||
+                          (!filters.displayLevels.einsatz &&
+                            s.hasPseudoEinsatz)
+                        " class="pseudo-tag pseudo-tag--shift" :title="s.isPseudo
+                              ? 'Pseudo-Schicht'
+                              : 'Enthält Pseudo-Einsatz'
+                            ">Pseudo</span>
+                      </div>
+                    </div>
+                    <span v-if="
+                      filters.displayLevels.schicht ||
+                      filters.displayLevels.einsatz
+                    " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                    <ul v-if="
+                      filters.displayLevels.einsatz && s.einsaetze?.length
+                    " class="shift-einsaetze">
+                      <li v-for="emp in normalizeShiftEinsaetze(s.einsaetze)" :key="emp.name">
+                        <span class="shift-einsatz-name">{{ emp.name }}</span>
+                        <span v-if="emp.isPseudo" class="pseudo-tag pseudo-tag--inline"
+                          title="Pseudo-Einsatz">Pseudo</span>
                       </li>
                     </ul>
                   </div>
@@ -366,395 +433,56 @@
             </div>
           </div>
         </div>
-
-        <div
-          v-else-if="viewMode === 'calendar'"
-          ref="calendarGrid"
-          class="calendar-grid"
-          :style="{
-            '--visible-days': visibleDays.length || 7,
-            '--day-min-width': `${minDayColumnWidth}px`,
-          }"
-        >
-          <div class="calendar-header">
-            <label class="kw-cell" style="cursor: pointer; cursor: hand">
-              KW
-              <input
-                type="date"
-                class="hidden-date-input"
-                @change="handleDatePick"
-                @input="handleDatePick"
-              />
-            </label>
-            <div
-              v-for="day in visibleDays"
-              :key="day.key"
-              class="day-header"
-              role="button"
-              tabindex="0"
-              :class="{
-                'is-today': isToday(day.date),
-                'is-holiday': !!getHolidayForDate(day.date),
-                'is-holiday-relevant':
-                  getHolidayForDate(day.date) &&
-                  isHolidayRelevant(getHolidayForDate(day.date)),
-              }"
-              @click="toggleCustomerGroupsForDay(day.date)"
-              @keydown.enter.prevent="toggleCustomerGroupsForDay(day.date)"
-              @keydown.space.prevent="toggleCustomerGroupsForDay(day.date)"
-              @contextmenu.prevent="openDayContextMenu($event, day)"
-            >
-              <div class="day-name">{{ day.name }}</div>
-              <div class="day-date">{{ formatDayDate(day.date) }}</div>
-              <div
-                v-if="getHolidayForDate(day.date)"
-                class="holiday-label"
-                :class="{
-                  'holiday-label--relevant': isHolidayRelevant(
-                    getHolidayForDate(day.date),
-                  ),
-                }"
-              >
-                <span class="holiday-name">{{
-                  getHolidayForDate(day.date).name
-                }}</span>
-                <span
-                  class="holiday-states-badge"
-                  :class="{
-                    'holiday-states-badge--relevant': isHolidayRelevant(
-                      getHolidayForDate(day.date),
-                    ),
-                  }"
-                >
-                  {{
-                    getHolidayForDate(day.date).isNational
-                      ? "Bundesweit"
-                      : getHolidayForDate(day.date)
-                          .states.slice(0, 4)
-                          .join(", ")
-                  }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="loading" class="loading-body">
-            <span>Lade Aufträge...</span>
-          </div>
-
-          <div v-else class="calendar-body">
-            <div class="kw-cell kw-number">
-              <div
-                ref="kwScroller"
-                class="kw-scroller"
-                @mouseleave="delayedScrollKwToActive"
-                @mouseenter="clearKwScrollTimer"
-              >
-                <template v-for="week in weekScrollList" :key="week.key">
-                  <div v-if="week.showYear" class="kw-year-sep">
-                    {{ week.year }}
-                  </div>
-                  <AppButton
-                    variant="ghost"
-                    size="sm"
-                    class="kw-week-btn"
-                    :class="{
-                      'is-active': week.isActive,
-                      'is-today-week': week.isTodayWeek,
-                    }"
-                    :title="`KW ${week.kw} \u00b7 ${week.year}`"
-                    :aria-label="`Kalenderwoche ${week.kw} ${week.year} wählen`"
-                    :aria-current="week.isActive ? 'date' : undefined"
-                    @click="jumpToWeek(week.date)"
-                  >
-                    <span class="kw-num-value">{{ week.kw }}</span>
-                  </AppButton>
-                </template>
-              </div>
-            </div>
-            <div
-              v-for="day in visibleDays"
-              :key="day.key"
-              class="day-column"
-              :class="{
-                'is-today': isToday(day.date),
-                'is-holiday-relevant':
-                  getHolidayForDate(day.date) &&
-                  isHolidayRelevant(getHolidayForDate(day.date)),
-              }"
-            >
-              <div class="day-stats">
-                {{ getEventsForDay(day.date).length }} Aufträge •
-                {{ getTotalPositionsForDay(day.date) }} Pos.
-              </div>
-              <div
-                v-for="customerGroup in getEventGroupsForDay(day.date)"
-                :key="customerGroup.key"
-                class="customer-event-group"
-              >
-                <div
-                  class="customer-event-group__header"
-                  role="button"
-                  tabindex="0"
-                  @click="toggleCustomerGroup(day.date, customerGroup.key)"
-                  @keydown.enter.prevent="
-                    toggleCustomerGroup(day.date, customerGroup.key)
-                  "
-                  @keydown.space.prevent="
-                    toggleCustomerGroup(day.date, customerGroup.key)
-                  "
-                  v-if="filters.displayLevels.kunde"
-                >
-                  {{ customerGroup.label }}
-                </div>
-                <div
-                  v-for="event in customerGroup.events"
-                  :key="event._id"
-                  v-if="shouldDisplayEventCards()"
-                  class="event-card"
-                  :class="[
-                    getEventStatusClass(event),
-                    getBedarfClass(event),
-                    {
-                      'event-card--compact': isCustomerGroupCollapsed(
-                        day.date,
-                        customerGroup.key,
-                      ),
-                    },
-                  ]"
-                  @click="selectEvent(event)"
-                  @contextmenu.prevent="openOrderContextMenu($event, event)"
-                >
-                  <img
-                    v-if="
-                      !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
-                      event.stundenlisteSignaturStatus === 'completed'
-                    "
-                    :src="docusealLogo"
-                    class="event-signature-complete"
-                    alt="Stundenliste vollständig signiert"
-                    title="Stundenliste vollständig signiert"
-                  />
-                  <img
-                    v-else-if="
-                      !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
-                      event.stundenlisteSignaturStatus === 'open'
-                    "
-                    :src="docusealPendingIcon"
-                    class="event-signature-pending"
-                    alt="Stundenliste zur Signatur ausstehend"
-                    title="Stundenliste zur Signatur ausstehend"
-                  />
-                  <img
-                    v-else-if="
-                      !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
-                      event.stundenlisteSignaturStatus === 'draft'
-                    "
-                    :src="docusealPendingIcon"
-                    class="event-signature-draft"
-                    alt="Stundenliste als Entwurf"
-                    title="Stundenliste als Entwurf"
-                  />
-                  <div
-                    class="event-header"
-                    v-if="
-                      !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
-                      (event.auftStatus !== 2 || event.isPseudo)
-                    "
-                  >
-                    <span class="event-status">{{
-                      getStatusText(event.auftStatus)
-                    }}</span>
-                    <span
-                      v-if="event.isPseudo"
-                      class="pseudo-tag pseudo-tag--event"
-                      >Pseudo</span
-                    >
-                  </div>
-                  <div class="event-title-row">
-                    <div
-                      v-if="filters.displayLevels.auftrag"
-                      class="event-title"
-                    >
-                      {{ event.eventTitel || "Kein Titel" }}
-                    </div>
-                    <div
-                      v-if="
-                        !isCustomerGroupCollapsed(
-                          day.date,
-                          customerGroup.key,
-                        ) &&
-                        event.labels &&
-                        event.labels.length
-                      "
-                      class="event-labels"
-                    >
-                      <span
-                        v-for="label in event.labels"
-                        :key="label._id"
-                        class="event-label-chip"
-                        :style="{
-                          background: label.color + '33',
-                          borderColor: label.color,
-                          color: label.color,
-                        }"
-                        >{{ label.name }}</span
-                      >
-                    </div>
-                  </div>
-                  <div
-                    class="event-shifts"
-                    v-if="
-                      filters.displayLevels.schicht &&
-                      !isCustomerGroupCollapsed(day.date, customerGroup.key) &&
-                      getSchichtenForDay(event, day.date).length
-                    "
-                  >
-                    <div
-                      v-for="s in getSchichtenForDay(event, day.date)"
-                      :key="s.id"
-                      class="shift-row shift-row--stacked"
-                    >
-                      <div class="shift-details">
-                        <span class="shift-time"
-                          >{{ s.uhrzeitVon || "?"
-                          }}{{ s.uhrzeitBis ? "–" + s.uhrzeitBis : "" }}</span
-                        >
-                        <span class="shift-name">{{
-                          s.bezeichnung || "Schicht"
-                        }}</span>
-                      </div>
-                      <span
-                        v-if="filters.displayLevels.schicht || filters.displayLevels.einsatz"
-                        class="shift-pos"
-                        :class="getShiftBedarfClass(s)"
-                        >{{ s.besetzt }}/{{ s.bedarf }}</span
-                      >
-                      <ul
-                        v-if="
-                          filters.displayLevels.einsatz && s.einsaetze?.length
-                        "
-                        class="shift-einsaetze"
-                      >
-                        <li v-for="name in s.einsaetze" :key="name">
-                          {{ name }}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <AuftragListView
-          v-if="viewMode === 'list'"
-          :orders="filteredAuftraege"
-          :loading="loading"
-          :locations="locations"
-          :location-v2="filters.locationV2"
-          :search-query="searchQuery"
-          :selected-order-number="selectedEvent?.auftragNr"
-          :filter-expanded="filterExpanded"
-          :active-filter-count="listActiveFilterCount"
-          :kunden="filters.kunden"
-          :kunden-options="filterOptions.kunden"
-          :bedarf-status="filters.bedarfStatus"
-          :pseudo-einsatz="filters.pseudoEinsatz"
-          :period="listPeriod"
-          :reference-date="listReferenceDate"
-          :compact-controls="isCompactToolbar"
-          :status-class="getEventStatusClass"
-          :status-text="getStatusText"
-          @select="selectEvent"
-          @update:location-v2="setLocationFilter"
-          @update:search-query="searchQuery = $event"
-          @update:filter-expanded="filterExpanded = $event"
-          @update:kunden="setKundenFilter"
-          @update:period="setListPeriod"
-          @update:reference-date="setListReferenceDate"
-          @toggle-bedarf-status="toggleBedarfStatusFilter"
-          @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
-          @reset-filters="resetListFilters"
-        >
-          <template v-if="isAdmin" #actions>
-            <ToolbarButton
-              :aria-expanded="createMenuOpen"
-              aria-haspopup="menu"
-              @click="toggleCreateMenu"
-            >Anlegen</ToolbarButton>
-          </template>
-        </AuftragListView>
       </div>
-      <!-- End main-content -->
 
-      <ContextMenu
-        v-if="createMenuOpen && isAdmin"
-        :x="createMenuPosition.x"
-        :y="createMenuPosition.y"
-        :anchor="createMenuAnchor"
-        :follow-anchor="Boolean(createMenuAnchor)"
-        :options="createMenuItems"
-        @close="closeCreateMenu"
-        @select="handleCreateMenuAction"
-      />
+      <AuftragListView v-if="viewMode === 'list'" :orders="filteredAuftraege" :loading="loading" :locations="locations"
+        :location-v2="filters.locationV2" :search-query="searchQuery" :selected-order-number="selectedEvent?.auftragNr"
+        :filter-expanded="filterExpanded" :active-filter-count="listActiveFilterCount" :kunden="filters.kunden"
+        :kunden-options="filterOptions.kunden" :bedarf-status="filters.bedarfStatus"
+        :pseudo-einsatz="filters.pseudoEinsatz" :period="listPeriod" :reference-date="listReferenceDate"
+        :compact-controls="isCompactToolbar" :status-class="getEventStatusClass" :status-text="getStatusText"
+        @select="selectEvent" @update:location-v2="setLocationFilter" @update:search-query="searchQuery = $event"
+        @update:filter-expanded="filterExpanded = $event" @update:kunden="setKundenFilter"
+        @update:period="setListPeriod" @update:reference-date="setListReferenceDate"
+        @toggle-bedarf-status="toggleBedarfStatusFilter" @toggle-pseudo-einsatz="togglePseudoEinsatzFilter"
+        @reset-filters="resetListFilters">
+        <template v-if="isAdmin" #actions>
+          <ToolbarButton :aria-expanded="createMenuOpen" aria-haspopup="menu" @click="toggleCreateMenu">Anlegen
+          </ToolbarButton>
+        </template>
+      </AuftragListView>
+    </div>
+    <!-- End main-content -->
 
-      <ContextMenu
-        v-if="contextMenu.open"
-        :x="contextMenu.x"
-        :y="contextMenu.y"
-        :width="200"
-        :options="contextMenu.day ? dayContextMenuItems : orderContextMenuItems"
-        @close="closeOrderContextMenu"
-        @select="handleOrderContextMenuAction"
-      />
+    <ContextMenu v-if="createMenuOpen && isAdmin" :x="createMenuPosition.x" :y="createMenuPosition.y"
+      :anchor="createMenuAnchor" :follow-anchor="Boolean(createMenuAnchor)" :options="createMenuItems"
+      @close="closeCreateMenu" @select="handleCreateMenuAction" />
 
-      <ContextMenu
-        v-if="showQuickActions"
-        :x="quickActionsPosition.x"
-        :y="quickActionsPosition.y"
-        :width="230"
-        :options="headerActionMenuItems"
-        @close="showQuickActions = false"
-        @select="handleHeaderActionMenuAction"
-      />
+    <ContextMenu v-if="contextMenu.open" :x="contextMenu.x" :y="contextMenu.y" :width="200"
+      :options="contextMenu.day ? dayContextMenuItems : orderContextMenuItems" @close="closeOrderContextMenu"
+      @select="handleOrderContextMenuAction" />
 
-      <ContextMenu
-        v-if="showNeuMenu"
-        :x="neuMenuPosition.x"
-        :y="neuMenuPosition.y"
-        :width="220"
-        :options="documentMenuItems"
-        @close="showNeuMenu = false"
-        @select="handleDocumentMenuAction"
-      />
+    <ContextMenu v-if="showQuickActions" :x="quickActionsPosition.x" :y="quickActionsPosition.y" :width="230"
+      :options="headerActionMenuItems" @close="showQuickActions = false" @select="handleHeaderActionMenuAction" />
 
+    <ContextMenu v-if="showNeuMenu" :x="neuMenuPosition.x" :y="neuMenuPosition.y" :width="220"
+      :options="documentMenuItems" @close="showNeuMenu = false" @select="handleDocumentMenuAction" />
 
-      <!-- Sidebar for Event Details -->
-      <AuftragDetailsSidePanel
-        v-model="hasSelectedEvent"
-        :event="selectedEvent"
-        :auftrag-nr="hostedAuftragNr"
-        :presentation="isHostedDetail ? 'modal' : 'panel'"
-        :minimizable="detailMinimizable"
-        :minimize-id="detailMinimizeId"
-        :show-staffing-expand="isAdmin && staffingPanelHidden"
-        :show-modal-side="isAdmin && isHostedDetail && Boolean(selectedEvent) && !staffingPanelHidden"
-        :format-range="formatDateRange"
-        :status-class="getEventStatusClass"
-        :status-text="getStatusText"
-        @actions="toggleQuickActionsMenu"
-        @undock="undockSelectedOrder"
-        @expand-staffing="setStaffingPanelHidden(false)"
-      >
-        <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
-        <div v-else-if="detailError" class="order-detail-error" role="alert">
-          <p>{{ detailError }}</p>
-          <AppButton variant="secondary" size="sm" @click="loadHostedOrder">Erneut laden</AppButton>
-        </div>
-        <template v-if="selectedEvent">
-
+    <!-- Sidebar for Event Details -->
+    <AuftragDetailsSidePanel v-model="hasSelectedEvent" :event="selectedEvent" :auftrag-nr="hostedAuftragNr"
+      :presentation="isHostedDetail ? 'modal' : 'panel'" :minimizable="detailMinimizable"
+      :minimize-id="detailMinimizeId" :show-staffing-expand="isAdmin && isHostedDetail && staffingPanelHidden" :show-modal-side="isAdmin &&
+        isHostedDetail &&
+        Boolean(selectedEvent) &&
+        !staffingPanelHidden
+        " :format-range="formatDateRange" :status-class="getEventStatusClass" :status-text="getStatusText"
+      @actions="toggleQuickActionsMenu" @undock="undockSelectedOrder" @expand-staffing="setStaffingPanelHidden(false)">
+      <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
+      <div v-else-if="detailError" class="order-detail-error" role="alert">
+        <p>{{ detailError }}</p>
+        <AppButton variant="secondary" size="sm" @click="loadHostedOrder">Erneut laden</AppButton>
+      </div>
+      <template v-if="selectedEvent">
         <!-- Compact Info Grid -->
         <div class="info-grid">
           <div class="info-item">
@@ -764,22 +492,16 @@
           <div class="info-item">
             <span class="info-label">Kunde</span>
             <span class="info-value highlight">
-              <a
-                v-if="selectedEvent.kundeData"
-                href="#"
-                class="kunde-link"
-                @click.prevent="openKundeCard(selectedEvent.kundeData)"
-                >{{ selectedEvent.kundeData.kundName || "-" }}</a
-              >
+              <a v-if="selectedEvent.kundeData" href="#" class="kunde-link"
+                @click.prevent="openKundeCard(selectedEvent.kundeData)">{{ selectedEvent.kundeData.kundName || "-"
+                }}</a>
               <template v-else>-</template>
             </span>
           </div>
           <div class="info-item full-width">
             <span class="info-label">Adresse</span>
             <span class="info-value">
-              <template v-if="selectedEvent.eventLocation"
-                >{{ selectedEvent.eventLocation }}<br
-              /></template>
+              <template v-if="selectedEvent.eventLocation">{{ selectedEvent.eventLocation }}<br /></template>
               {{ selectedEvent.eventStrasse || "" }}
               {{ selectedEvent.eventPlz || "" }}
               {{ selectedEvent.eventOrt || "" }}
@@ -790,22 +512,14 @@
             <span class="info-value">{{ selectedEvent.referenz }}</span>
           </div>
           <!-- Label badges -->
-          <div
-            v-if="selectedEvent.labels && selectedEvent.labels.length"
-            class="info-item full-width"
-          >
+          <div v-if="selectedEvent.labels && selectedEvent.labels.length" class="info-item full-width">
             <span class="info-label">Labels</span>
             <div class="label-chips-row">
-              <span
-                v-for="label in selectedEvent.labels"
-                :key="label._id"
-                class="label-chip"
-                :style="{
-                  background: `color-mix(in srgb, ${label.color} 13%, var(--surface))`,
-                  borderColor: label.color,
-                  color: 'var(--text)',
-                }"
-              >
+              <span v-for="label in selectedEvent.labels" :key="label._id" class="label-chip" :style="{
+                background: `color-mix(in srgb, ${label.color} 13%, var(--surface))`,
+                borderColor: label.color,
+                color: 'var(--text)',
+              }">
                 {{ label.name }}
               </span>
             </div>
@@ -821,19 +535,25 @@
 
           <div class="schichten-list">
             <!-- Neue Schicht Button / Dropzone (Pseudo-Schicht) -->
-            <button
-              type="button"
-              class="neue-schicht-dropzone"
-              :class="{
-                'neue-schicht-dropzone--drag-over':
-                  schichtDragOverKey === 'new-pseudo-schicht',
-              }"
-              @click="openNewPseudoSchichtDialog()"
-              @dragenter.prevent="handleSchichtDragEnter($event, { key: 'new-pseudo-schicht', meta: {} })"
-              @dragover.prevent="handleSchichtDragOver($event, { key: 'new-pseudo-schicht', meta: {} })"
-              @dragleave="handleSchichtDragLeave($event, { key: 'new-pseudo-schicht', meta: {} })"
-              @drop.prevent="handleNewPseudoSchichtDrop($event)"
-            >
+            <button type="button" class="neue-schicht-dropzone" :class="{
+              'neue-schicht-dropzone--drag-over':
+                schichtDragOverKey === 'new-pseudo-schicht',
+            }" @click="openNewPseudoSchichtDialog()" @dragenter.prevent="
+                handleSchichtDragEnter($event, {
+                  key: 'new-pseudo-schicht',
+                  meta: {},
+                })
+                " @dragover.prevent="
+                handleSchichtDragOver($event, {
+                  key: 'new-pseudo-schicht',
+                  meta: {},
+                })
+                " @dragleave="
+                handleSchichtDragLeave($event, {
+                  key: 'new-pseudo-schicht',
+                  meta: {},
+                })
+                " @drop.prevent="handleNewPseudoSchichtDrop($event)">
               <font-awesome-icon icon="fa-solid fa-plus" />
               <span>Neue Schicht</span>
               <small v-if="schichtDragOverKey === 'new-pseudo-schicht'">
@@ -841,30 +561,35 @@
               </small>
             </button>
 
-            <div
-              v-for="schichtData in preparedSchichten"
-              :key="schichtData.key"
-              class="schicht-card-row"
-            >
-              <div
-                class="schicht-card"
-                :class="{
-                  'schicht-card--drag-over':
-                    schichtDragOverKey === schichtData.key,
-                }"
-                @dragenter.prevent="handleSchichtDragEnter($event, schichtData)"
+            <div v-for="schichtData in preparedSchichten" :key="schichtData.key" class="schicht-card-row">
+              <div class="schicht-card" :class="{
+                'schicht-card--drag-over':
+                  schichtDragOverKey === schichtData.key,
+              }" @dragenter.prevent="handleSchichtDragEnter($event, schichtData)"
                 @dragover.prevent="handleSchichtDragOver($event, schichtData)"
                 @dragleave="handleSchichtDragLeave($event, schichtData)"
-                @drop.prevent="handleMitarbeiterDrop($event, schichtData)"
-              >
+                @drop.prevent="handleMitarbeiterDrop($event, schichtData)">
                 <div class="schicht-header-compact">
                   <div class="schicht-summary">
                     <div class="schicht-title-line">
                       <span class="schicht-name">{{
                         schichtData.meta.schichtBezeichnung || "Schicht"
-                      }}</span>
+                        }}</span>
                     </div>
-                    <div class="schicht-detail-line">
+                    <div
+                      v-if="
+                        schichtData.meta.isPseudo ||
+                        getCommonQualifikation(schichtData.einsaetze) ||
+                        resolveRequiredShiftQualification(schichtData)
+                      "
+                      class="schicht-detail-line"
+                    >
+                      <span
+                        v-if="schichtData.meta.isPseudo"
+                        class="pseudo-tag"
+                        title="Pseudo-Schicht"
+                        >Pseudo</span
+                      >
                       <span
                         v-if="
                           getCommonQualifikation(schichtData.einsaetze) ||
@@ -882,277 +607,177 @@
                       </span>
                     </div>
                   </div>
-                  <OrderHoursVisibilityButton
-                    :included="schichtStundenlisteIncluded(schichtData)"
-                    :pending="isStundenlisteTogglePending(schichtData.einsaetze)"
-                    :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
-                    @toggle="toggleSchichtStundenlisteInclusion(schichtData)"
-                  />
+                  <OrderHoursVisibilityButton :included="schichtStundenlisteIncluded(schichtData)" :pending="isStundenlisteTogglePending(schichtData.einsaetze)
+                    " :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
+                    @toggle="toggleSchichtStundenlisteInclusion(schichtData)" />
                 </div>
 
-              <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
-              <div
-                class="schicht-meta"
-                v-if="
+                <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
+                <div class="schicht-meta" v-if="
                   schichtData.meta.treffpunkt ||
                   schichtData.meta.treffpunktOrt ||
                   schichtData.meta.ansprechpartnerName
-                "
-              >
-                <span
-                  class="meta-item"
-                  v-if="
+                ">
+                  <span class="meta-item" v-if="
                     schichtData.meta.treffpunkt ||
                     schichtData.meta.treffpunktOrt
-                  "
-                >
-                  <font-awesome-icon icon="fa-solid fa-location-dot" />
-                  Treffpunkt:
-                  <template v-if="schichtData.meta.treffpunkt">{{
-                    formatTime(schichtData.meta.treffpunkt)
-                  }}</template>
-                  <template
-                    v-if="
+                  ">
+                    <font-awesome-icon icon="fa-solid fa-location-dot" />
+                    Treffpunkt:
+                    <template v-if="schichtData.meta.treffpunkt">{{
+                      formatTime(schichtData.meta.treffpunkt)
+                      }}</template>
+                    <template v-if="
                       schichtData.meta.treffpunkt &&
                       schichtData.meta.treffpunktOrt
-                    "
-                  >
-                    |
-                  </template>
-                  <template v-if="schichtData.meta.treffpunktOrt">{{
-                    schichtData.meta.treffpunktOrt
-                  }}</template>
-                </span>
-                <span
-                  class="meta-item ansprechpartner"
-                  v-if="schichtData.meta.ansprechpartnerName"
-                >
-                  <font-awesome-icon icon="fa-solid fa-user-tie" />
-                  {{ schichtData.meta.ansprechpartnerName }}
-                  <template v-if="schichtData.meta.ansprechpartnerTelefon">
-                    <a
-                      :href="'tel:' + schichtData.meta.ansprechpartnerTelefon"
-                      class="contact-link"
-                      >{{ schichtData.meta.ansprechpartnerTelefon }}</a
-                    >
-                  </template>
-                </span>
-              </div>
-
-              <div class="mitarbeiter-list">
-                <div class="mitarbeiter-list-head">
-                  <div class="team-head-label">
-                    <span>Team</span>
-                    <span class="team-time" v-if="schichtData.meta.uhrzeitVon">
-                      <font-awesome-icon icon="fa-solid fa-clock" />
-                      {{ formatTime(schichtData.meta.uhrzeitVon)
-                      }}<template v-if="schichtData.meta.uhrzeitBis">
-                        -
-                        {{ formatTime(schichtData.meta.uhrzeitBis) }}</template
-                      >
-                    </span>
-                  </div>
-                  <span
-                    class="team-coverage"
-                    :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'"
-                  >
-                    {{ schichtData.einsaetze.length }}/{{
-                      schichtData.meta.bedarf || "?"
-                    }}
+                    ">
+                      |
+                    </template>
+                    <template v-if="schichtData.meta.treffpunktOrt">{{
+                      schichtData.meta.treffpunktOrt
+                      }}</template>
+                  </span>
+                  <span class="meta-item ansprechpartner" v-if="schichtData.meta.ansprechpartnerName">
+                    <font-awesome-icon icon="fa-solid fa-user-tie" />
+                    {{ schichtData.meta.ansprechpartnerName }}
+                    <template v-if="schichtData.meta.ansprechpartnerTelefon">
+                      <a :href="'tel:' + schichtData.meta.ansprechpartnerTelefon" class="contact-link">{{
+                        schichtData.meta.ansprechpartnerTelefon }}</a>
+                    </template>
                   </span>
                 </div>
-                <div
-                  v-for="einsatz in schichtData.einsaetze"
-                  :key="einsatz._id"
-                  class="mitarbeiter-row"
-                  :class="{
+
+                <div class="mitarbeiter-list">
+                  <div class="mitarbeiter-list-head">
+                    <div class="team-head-label">
+                      <span>Team</span>
+                      <span class="team-time" v-if="schichtData.meta.uhrzeitVon">
+                        <font-awesome-icon icon="fa-solid fa-clock" />
+                        {{ formatTime(schichtData.meta.uhrzeitVon)
+                        }}<template v-if="schichtData.meta.uhrzeitBis">
+                          -
+                          {{
+                            formatTime(schichtData.meta.uhrzeitBis)
+                          }}</template>
+                      </span>
+                    </div>
+                    <span class="team-coverage" :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'">
+                      {{ schichtData.einsaetze.length }}/{{
+                        schichtData.meta.bedarf || "?"
+                      }}
+                    </span>
+                  </div>
+                  <div v-for="einsatz in schichtData.einsaetze" :key="einsatz._id" class="mitarbeiter-row" :class="{
                     'mitarbeiter-row--selected':
                       isAdmin &&
                       selectedStaffingMitarbeiter?._id &&
                       String(selectedStaffingMitarbeiter._id) ===
-                        String(einsatz.mitarbeiterData?._id),
+                      String(einsatz.mitarbeiterData?._id),
                     'mitarbeiter-row--draggable':
                       isAdmin && Boolean(einsatz.mitarbeiterData?._id),
-                  }"
-                  :draggable="isAdmin && Boolean(einsatz.mitarbeiterData?._id)"
-                  @dragstart="handleSchichtMitarbeiterDragStart($event, einsatz, schichtData)"
-                  @dragend="handleSchichtMitarbeiterDragEnd"
-                  @click="
-                    isAdmin && einsatz.mitarbeiterData
-                      ? (selectedStaffingMitarbeiter = einsatz.mitarbeiterData)
-                      : null
-                  "
-                >
-                  <div class="ma-info">
-                    <template v-if="einsatz.mitarbeiterData">
-                      <a
-                        href="#"
-                        class="ma-name"
-                        @click.prevent.stop="
+                  }" :draggable="isAdmin && Boolean(einsatz.mitarbeiterData?._id)
+                      " @dragstart="
+                      handleSchichtMitarbeiterDragStart(
+                        $event,
+                        einsatz,
+                        schichtData,
+                      )
+                      " @dragend="handleSchichtMitarbeiterDragEnd" @click="
+                      isAdmin && einsatz.mitarbeiterData
+                        ? (selectedStaffingMitarbeiter =
+                          einsatz.mitarbeiterData)
+                        : null
+                      ">
+                    <div class="ma-info">
+                      <template v-if="einsatz.mitarbeiterData">
+                        <a href="#" class="ma-name" @click.prevent.stop="
                           openMitarbeiterCard(einsatz.mitarbeiterData)
-                        "
-                      >
-                        {{ formatEmployeeName(einsatz.mitarbeiterData) }}
-                      </a>
-                      <TlBadge v-if="isTeamleiter(einsatz.mitarbeiterData)" />
-                      <span
-                        v-else-if="einsatz.mitarbeiterData.isBewerberstatus"
-                        class="bew-tag"
-                        >Bew.</span
-                      >
-                      <CustomTooltip
-                        v-for="doc in getDocsForMitarbeiter(
+                          ">
+                          {{ formatEmployeeName(einsatz.mitarbeiterData) }}
+                        </a>
+                        <TlBadge v-if="isTeamleiter(einsatz.mitarbeiterData)" />
+                        <span v-else-if="einsatz.mitarbeiterData.isBewerberstatus" class="bew-tag">Bew.</span>
+                        <CustomTooltip v-for="doc in getDocsForMitarbeiter(
                           einsatz.mitarbeiterData._id,
-                        )"
-                        :key="doc._id"
-                        :text="
-                          doc.docType +
-                          (doc.datum
-                            ? ' — ' + formatDayDateFull(doc.datum)
-                            : '')
-                        "
-                      >
-                        <AppIconButton
-                          variant="secondary"
-                          size="sm"
-                          class="doc-icon-btn"
-                          :label="`${doc.docType} für ${formatEmployeeName(einsatz.mitarbeiterData)} öffnen`"
-                          title=""
-                          @click.stop="openDocCard(doc)"
-                        >
-                          <img
-                            :src="
-                              doc.docType === 'Event-Bericht'
+                        )" :key="doc._id" :text="doc.docType +
+                            (doc.datum
+                              ? ' — ' + formatDayDateFull(doc.datum)
+                              : '')
+                            ">
+                          <AppIconButton variant="secondary" size="sm" class="doc-icon-btn"
+                            :label="`${doc.docType} für ${formatEmployeeName(einsatz.mitarbeiterData)} öffnen`" title=""
+                            @click.stop="openDocCard(doc)">
+                            <img :src="doc.docType === 'Event-Bericht'
                                 ? eventreportImg
                                 : laufzettelImg
-                            "
-                            class="doc-icon-img"
-                            alt=""
-                          />
-                        </AppIconButton>
+                              " class="doc-icon-img" alt="" />
+                          </AppIconButton>
+                        </CustomTooltip>
+                        <span v-if="einsatz.isPseudo" class="pseudo-tag"
+                          title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
+                      </template>
+                      <template v-else>
+                        <span class="ma-placeholder">Personalnr: {{ einsatz.personalNr || "-" }}</span>
+                        <span v-if="einsatz.isPseudo" class="pseudo-tag"
+                          title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
+                      </template>
+                    </div>
+                    <div class="ma-badges ma-badges--right">
+                      <CustomTooltip v-if="einsatz.bestaetigt" text="Einsatz bestätigt">
+                        <span class="einsatz-confirmed-icon" aria-label="Einsatz bestätigt">
+                          <font-awesome-icon icon="fa-solid fa-check" />
+                        </span>
                       </CustomTooltip>
-                      <span
-                        v-if="einsatz.isPseudo"
-                        class="pseudo-tag"
-                        title="Manuell eingeplant (Pseudo-Einsatz)"
-                        >Pseudo</span
-                      >
-                    </template>
-                    <template v-else>
-                      <span class="ma-placeholder"
-                        >Personalnr: {{ einsatz.personalNr || "-" }}</span
-                      >
-                      <span
-                        v-if="einsatz.isPseudo"
-                        class="pseudo-tag"
-                        title="Manuell eingeplant (Pseudo-Einsatz)"
-                        >Pseudo</span
-                      >
-                    </template>
-                  </div>
-                  <div class="ma-badges ma-badges--right">
-                    <CustomTooltip
-                      v-if="einsatz.bestaetigt"
-                      text="Einsatz bestätigt"
-                    >
-                      <span class="einsatz-confirmed-icon" aria-label="Einsatz bestätigt">
-                        <font-awesome-icon icon="fa-solid fa-check" />
-                      </span>
-                    </CustomTooltip>
-                    <span
-                      v-if="
+                      <span v-if="
                         einsatz.qualifikationData &&
                         !getCommonQualifikation(schichtData.einsaetze)
-                      "
-                      class="badge quali small"
-                    >
-                      {{ einsatz.qualifikationData.designation }}
-                    </span>
-                    <OrderHoursVisibilityButton
-                      :included="einsatz.stundenlisteIncluded !== false"
-                      :pending="isStundenlisteTogglePending([einsatz])"
-                      :subject="einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')"
-                      @toggle="toggleEinsatzStundenlisteInclusion(einsatz)"
-                    />
-                    <AppIconButton
-                      v-if="einsatz.isPseudo"
-                      variant="ghost"
-                      size="sm"
-                      class="pseudo-remove-btn"
-                      :label="`Pseudo-Einsatz für ${einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')} entfernen`"
-                      @click.stop="removePseudoEinsatz(einsatz._id)"
-                    >
-                      <font-awesome-icon icon="fa-solid fa-times" />
-                    </AppIconButton>
+                      " class="badge quali small">
+                        {{ einsatz.qualifikationData.designation }}
+                      </span>
+                      <OrderHoursVisibilityButton :included="einsatz.stundenlisteIncluded !== false"
+                        :pending="isStundenlisteTogglePending([einsatz])" :subject="einsatz.mitarbeiterData
+                            ? formatEmployeeName(einsatz.mitarbeiterData)
+                            : 'Personalnr. ' + (einsatz.personalNr || '-')
+                          " @toggle="toggleEinsatzStundenlisteInclusion(einsatz)" />
+                      <AppIconButton v-if="einsatz.isPseudo" variant="ghost" size="sm" class="pseudo-remove-btn"
+                        :label="`Pseudo-Einsatz für ${einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')} entfernen`"
+                        @click.stop="removePseudoEinsatz(einsatz._id)">
+                        <font-awesome-icon icon="fa-solid fa-times" />
+                      </AppIconButton>
+                    </div>
+                  </div>
+
+                  <div v-if="schichtData.einsaetze.length === 0" class="no-mitarbeiter">
+                    <font-awesome-icon icon="fa-solid fa-user-plus" />
+                    <span>Keine Mitarbeiter geplant</span>
                   </div>
                 </div>
-
-                <div
-                  v-if="schichtData.einsaetze.length === 0"
-                  class="no-mitarbeiter"
-                >
-                  <font-awesome-icon icon="fa-solid fa-user-plus" />
-                  <span>Keine Mitarbeiter geplant</span>
-                </div>
-              </div>
-                <div
-                  class="schicht-drop-hint"
-                  :class="{
-                    'is-visible': schichtDragOverKey === schichtData.key,
-                  }"
-                >
+                <div class="schicht-drop-hint" :class="{
+                  'is-visible': schichtDragOverKey === schichtData.key,
+                }">
                   <font-awesome-icon icon="fa-solid fa-arrow-down" />
                   Als Pseudo-Einsatz dieser Schicht zuordnen
                 </div>
               </div>
               <div v-if="isAdmin" class="schicht-docked-actions">
-                <button
-                  type="button"
-                  class="schicht-docked-btn schicht-docked-duplicate-btn"
+                <button type="button" class="schicht-docked-btn schicht-docked-duplicate-btn"
                   :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} als Pseudo-Schicht duplizieren`"
-                  title="Als Pseudo-Schicht nach unten duplizieren"
-                  :disabled="
-                    duplicatingSchichtKey === schichtData.key ||
+                  title="Als Pseudo-Schicht nach unten duplizieren" :disabled="duplicatingSchichtKey === schichtData.key ||
                     deletingSchichtKey === schichtData.key
-                  "
-                  @click.stop="duplicateSchichtAsPseudo(schichtData)"
-                >
-                  <font-awesome-icon
-                    v-if="duplicatingSchichtKey === schichtData.key"
-                    icon="fa-solid fa-spinner"
-                    spin
-                  />
+                    " @click.stop="duplicateSchichtAsPseudo(schichtData)">
+                  <font-awesome-icon v-if="duplicatingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
                   <template v-else>
-                    <font-awesome-icon
-                      icon="fa-solid fa-copy"
-                      class="schicht-duplicate-icon-copy"
-                    />
-                    <font-awesome-icon
-                      icon="fa-solid fa-arrow-turn-down"
-                      class="schicht-duplicate-icon-arrow"
-                    />
+                    <font-awesome-icon icon="fa-solid fa-copy" class="schicht-duplicate-icon-copy" />
+                    <font-awesome-icon icon="fa-solid fa-arrow-turn-down" class="schicht-duplicate-icon-arrow" />
                   </template>
                 </button>
-                <button
-                  type="button"
-                  class="schicht-docked-btn schicht-docked-delete-btn"
+                <button type="button" class="schicht-docked-btn schicht-docked-delete-btn"
                   :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} löschen`"
-                  title="Schicht löschen"
-                  :disabled="
-                    deletingSchichtKey === schichtData.key ||
+                  title="Schicht löschen" :disabled="deletingSchichtKey === schichtData.key ||
                     duplicatingSchichtKey === schichtData.key
-                  "
-                  @click.stop="deleteSchichtCard(schichtData)"
-                >
-                  <font-awesome-icon
-                    v-if="deletingSchichtKey === schichtData.key"
-                    icon="fa-solid fa-spinner"
-                    spin
-                  />
-                  <font-awesome-icon
-                    v-else
-                    icon="fa-solid fa-trash"
-                  />
+                    " @click.stop="deleteSchichtCard(schichtData)">
+                  <font-awesome-icon v-if="deletingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
+                  <font-awesome-icon v-else icon="fa-solid fa-trash" />
                 </button>
               </div>
             </div>
@@ -1160,37 +785,25 @@
         </div>
 
         <!-- No Einsätze State -->
-        <div
-          v-else
-          class="no-einsaetze"
-          :class="{
-            'schicht-card--drag-over': schichtDragOverKey === 'none',
-          }"
-          @dragenter.prevent="handleSchichtDragEnter($event, { key: 'none', meta: {} })"
-          @dragover.prevent="handleSchichtDragOver($event, { key: 'none', meta: {} })"
-          @dragleave="handleSchichtDragLeave($event, { key: 'none', meta: {} })"
-          @drop.prevent="handleNewPseudoSchichtDrop($event)"
-        >
+        <div v-else class="no-einsaetze" :class="{
+          'schicht-card--drag-over': schichtDragOverKey === 'none',
+        }" @dragenter.prevent="
+            handleSchichtDragEnter($event, { key: 'none', meta: {} })
+            " @dragover.prevent="
+            handleSchichtDragOver($event, { key: 'none', meta: {} })
+            " @dragleave="handleSchichtDragLeave($event, { key: 'none', meta: {} })"
+          @drop.prevent="handleNewPseudoSchichtDrop($event)">
           <font-awesome-icon icon="fa-solid fa-calendar-xmark" />
           <span>Keine Schichten/Einsätze vorhanden</span>
           <div class="no-einsaetze__actions">
-            <AppButton
-              variant="secondary"
-              size="sm"
-              @click="openNewPseudoSchichtDialog()"
-            >
+            <AppButton variant="secondary" size="sm" @click="openNewPseudoSchichtDialog()">
               <template #leading>
                 <font-awesome-icon icon="fa-solid fa-plus" />
               </template>
               Neue Schicht
             </AppButton>
-            <AppButton
-              variant="secondary"
-              size="sm"
-              :loading="detailReloading"
-              :disabled="detailReloading"
-              @click="reloadSelectedEventDetails"
-            >
+            <AppButton variant="secondary" size="sm" :loading="detailReloading" :disabled="detailReloading"
+              @click="reloadSelectedEventDetails">
               <template #leading>
                 <font-awesome-icon icon="fa-solid fa-rotate-right" />
               </template>
@@ -1199,159 +812,89 @@
           </div>
         </div>
 
-        <OrderDocumentsPanel
-          :hours-status="stundenlisteStatus"
-          :hours-loading="stundenlisteStatusLoading"
-          :documents="einsatzDoks"
-          :documents-loading="einsatzDoksLoading"
-          :expenses="reisekostenListe"
-          :uploading="einsatzDokUploading"
-          :can-sign="canSignaturen"
-          :menu-open="showNeuMenu"
-          :expense-name="reisekostenName"
-          :format-size="formatFileSize"
-          @toggle-menu="toggleNeuMenu"
-          @open-signature="openSignaturVorgang"
-          @refresh-hours="loadStundenlisteStatus(selectedEvent.auftragNr, { refresh: true })"
-          @preview-hours="previewStundenliste"
-          @download-hours="downloadStundenliste"
-          @edit-hours="openSignatureDialog"
-          @sign-hours="signStundenlisteInApp"
-          @delete-hours="deleteStundenlisteDraft"
-          @open-expense-pdf="openReisekostenPdf"
-          @edit-expense="openReisekostenModal"
-          @sign-expense="openReisekostenSignatur"
-          @delete-expense="deleteReisekosten"
-          @preview-document="previewEinsatzDok"
-          @download-document="downloadEinsatzDok"
-          @delete-document="deleteEinsatzDok"
-          @upload="onEinsatzDokUpload"
-        />
-        </template>
-        <template
-          v-if="isAdmin && isHostedDetail"
-          #modal-side
+        <OrderDocumentsPanel :hours-status="stundenlisteStatus" :hours-loading="stundenlisteStatusLoading"
+          :documents="einsatzDoks" :documents-loading="einsatzDoksLoading" :expenses="reisekostenListe"
+          :uploading="einsatzDokUploading" :can-sign="canSignaturen" :menu-open="showNeuMenu"
+          :expense-name="reisekostenName" :format-size="formatFileSize" @toggle-menu="toggleNeuMenu"
+          @open-signature="openSignaturVorgang" @refresh-hours="
+            loadStundenlisteStatus(selectedEvent.auftragNr, { refresh: true })
+            " @preview-hours="previewStundenliste" @download-hours="downloadStundenliste"
+          @edit-hours="openSignatureDialog" @sign-hours="signStundenlisteInApp" @delete-hours="deleteStundenlisteDraft"
+          @open-expense-pdf="openReisekostenPdf" @edit-expense="openReisekostenModal"
+          @sign-expense="openReisekostenSignatur" @delete-expense="deleteReisekosten"
+          @preview-document="previewEinsatzDok" @download-document="downloadEinsatzDok"
+          @delete-document="deleteEinsatzDok" @upload="onEinsatzDokUpload" />
+      </template>
+      <template v-if="isAdmin && isHostedDetail" #modal-side>
+        <AuftragAdminStaffingSidePanel ref="adminStaffingPanel" embedded
+          :model-value="Boolean(selectedEvent) && !staffingPanelHidden" :event="selectedEvent"
+          :shifts="preparedSchichten" :default-location-id="filters.locationV2"
+          :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
+          :dragging-assigned-einsatz="draggingSchichtEinsatz" @open-employee-card="openMitarbeiterCard"
+          @select-mitarbeiter="selectedStaffingMitarbeiter = $event" @bewerbung-updated="onBewerbungUpdated"
+          @unassign-einsatz="handleUnassignDroppedEinsatz" @minimize="setStaffingPanelHidden(true)" />
+      </template>
+    </AuftragDetailsSidePanel>
+
+    <!-- Second Right Side Panel (Admin Only): Mitarbeiter, Bewerbungen, Profile, HoverDataCard & Dispo -->
+    <AuftragAdminStaffingSidePanel v-if="isAdmin && !isHostedDetail" ref="adminStaffingPanel"
+      :model-value="!staffingPanelHidden" :event="selectedEvent" :shifts="preparedSchichten"
+      :default-location-id="filters.locationV2" :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
+      :dragging-assigned-einsatz="draggingSchichtEinsatz" @open-employee-card="openMitarbeiterCard"
+      @select-mitarbeiter="selectedStaffingMitarbeiter = $event" @bewerbung-updated="onBewerbungUpdated"
+      @unassign-einsatz="handleUnassignDroppedEinsatz" @minimize="setStaffingPanelHidden(true)" />
+
+    <aside
+      v-if="isAdmin && !isHostedDetail && staffingPanelHidden"
+      class="admin-staffing-expand-rail"
+      aria-label="Personal & Bewerbungen einblenden"
+    >
+      <CustomTooltip text="Personal & Bewerbungen einblenden" position="left">
+        <AppIconButton
+          variant="ghost"
+          size="sm"
+          class="admin-staffing-expand-btn"
+          label="Personal & Bewerbungen einblenden"
+          @click="setStaffingPanelHidden(false)"
         >
-          <AuftragAdminStaffingSidePanel
-            ref="adminStaffingPanel"
-            embedded
-            :model-value="Boolean(selectedEvent) && !staffingPanelHidden"
-            :event="selectedEvent"
-            :shifts="preparedSchichten"
-            :default-location-id="filters.locationV2"
-            :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
-            :dragging-assigned-einsatz="draggingSchichtEinsatz"
-            @open-employee-card="openMitarbeiterCard"
-            @select-mitarbeiter="selectedStaffingMitarbeiter = $event"
-            @bewerbung-updated="onBewerbungUpdated"
-            @unassign-einsatz="handleUnassignDroppedEinsatz"
-            @minimize="setStaffingPanelHidden(true)"
-          />
-        </template>
-      </AuftragDetailsSidePanel>
+          <font-awesome-icon icon="fa-solid fa-angles-left" />
+        </AppIconButton>
+      </CustomTooltip>
+    </aside>
 
-      <!-- Second Right Side Panel (Admin Only): Mitarbeiter, Bewerbungen, Profile, HoverDataCard & Dispo -->
-      <AuftragAdminStaffingSidePanel
-        v-if="isAdmin && !isHostedDetail"
-        ref="adminStaffingPanel"
-        :model-value="Boolean(selectedEvent) && !staffingPanelHidden"
-        :event="selectedEvent"
-        :shifts="preparedSchichten"
-        :default-location-id="filters.locationV2"
-        :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
-        :dragging-assigned-einsatz="draggingSchichtEinsatz"
-        @open-employee-card="openMitarbeiterCard"
-        @select-mitarbeiter="selectedStaffingMitarbeiter = $event"
-        @bewerbung-updated="onBewerbungUpdated"
-        @unassign-einsatz="handleUnassignDroppedEinsatz"
-        @minimize="setStaffingPanelHidden(true)"
-      />
+    <OrderDocumentUploadDialog v-if="showEinsatzDokDialog" :model-value="showEinsatzDokDialog"
+      v-model:title="einsatzDokTitle" v-model:scope="einsatzDokScope" v-model:type="einsatzDokType"
+      v-model:public-einsatz-ids="einsatzDokPublicEinsatzIds" v-model:public-schicht-ids="einsatzDokPublicSchichtIds"
+      v-model:public-recipient-filter="einsatzDokPublicRecipientFilter"
+      v-model:public-recipient-rule="einsatzDokPublicRecipientRule" :assignments="selectedEventEinsaetze"
+      :file="pendingEinsatzDokFile" :uploading="einsatzDokUploading" :error="einsatzDokUploadError"
+      @close="cancelEinsatzDokUpload" @submit="confirmEinsatzDokUpload" />
 
-      <OrderDocumentUploadDialog
-        v-if="showEinsatzDokDialog"
-        :model-value="showEinsatzDokDialog"
-        v-model:title="einsatzDokTitle"
-        v-model:scope="einsatzDokScope"
-        v-model:type="einsatzDokType"
-        v-model:public-einsatz-ids="einsatzDokPublicEinsatzIds"
-        v-model:public-schicht-ids="einsatzDokPublicSchichtIds"
-        v-model:public-recipient-filter="einsatzDokPublicRecipientFilter"
-        v-model:public-recipient-rule="einsatzDokPublicRecipientRule"
-        :assignments="selectedEventEinsaetze"
-        :file="pendingEinsatzDokFile"
-        :uploading="einsatzDokUploading"
-        :error="einsatzDokUploadError"
-        @close="cancelEinsatzDokUpload"
-        @submit="confirmEinsatzDokUpload"
-      />
+    <!-- Mitarbeiter Card Modal -->
+    <EmployeeCardModal :mitarbeiterId="selectedMitarbeiter?._id ||
+      (typeof selectedMitarbeiter === 'string' ? selectedMitarbeiter : null)
+      " @close="selectedMitarbeiter = null" />
 
+    <OrderLabelDialog v-model="showLabelDialog" v-model:name="newLabelName" v-model:color="newLabelColor"
+      :labels="selectedEvent?.labels || []" :available-labels="availableGlobalLabels" :preset-colors="labelPresetColors"
+      :saving="labelSaving" :removing-id="labelRemovingId" @create="saveLabel($event.name, $event.color)"
+      @quick-add="quickAddLabel" @remove="removeLabel" />
+    <PseudoOrderCreateDialog v-model="showNewAuftragDialog" v-model:form="newAuftrag" :locations="locations"
+      :saving="newAuftragSaving" @submit="saveNewPseudoAuftrag" />
+    <PseudoAssignmentDialog v-model="showPseudoDialog" v-model:mode="pseudoSchichtMode"
+      v-model:new-shift="pseudoNewSchicht" v-model:shift-key="pseudoSelectedSchicht"
+      :kunden-nr="selectedEvent?.kundenNr || null" :order-date="selectedEvent?.vonDatum || null"
+      :shifts="preparedSchichten" :search="pseudoSearch" :results="pseudoSearchResults" :selected="pseudoSelectedMas"
+      :searching="pseudoSearching" :saving="pseudoSaving" :format-name="formatEmployeeName"
+      @update:search="updatePseudoSearch" @toggle="togglePseudoMa" @submit="savePseudoEinsatz" />
+    <SchichtDropWarningDialog :model-value="Boolean(dropWarningFlow.steps.length)" :step="currentDropWarningStep"
+      :busy="dropWarningFlow.busy" :decision-mode="dropWarningFlow.decisionMode" @cancel="cancelDropWarningFlow"
+      @decide="handleDropWarningDecision" />
+  </div>
 
-      <!-- Mitarbeiter Card Modal -->
-      <EmployeeCardModal
-        :mitarbeiterId="
-          selectedMitarbeiter?._id ||
-          (typeof selectedMitarbeiter === 'string' ? selectedMitarbeiter : null)
-        "
-        @close="selectedMitarbeiter = null"
-      />
-
-      <OrderLabelDialog
-        v-model="showLabelDialog"
-        v-model:name="newLabelName"
-        v-model:color="newLabelColor"
-        :labels="selectedEvent?.labels || []"
-        :available-labels="availableGlobalLabels"
-        :preset-colors="labelPresetColors"
-        :saving="labelSaving"
-        :removing-id="labelRemovingId"
-        @create="saveLabel($event.name, $event.color)"
-        @quick-add="quickAddLabel"
-        @remove="removeLabel"
-      />
-      <PseudoOrderCreateDialog
-        v-model="showNewAuftragDialog"
-        v-model:form="newAuftrag"
-        :locations="locations"
-        :saving="newAuftragSaving"
-        @submit="saveNewPseudoAuftrag"
-      />
-      <PseudoAssignmentDialog
-        v-model="showPseudoDialog"
-        v-model:mode="pseudoSchichtMode"
-        v-model:new-shift="pseudoNewSchicht"
-        v-model:shift-key="pseudoSelectedSchicht"
-        :kunden-nr="selectedEvent?.kundenNr || null"
-        :order-date="selectedEvent?.vonDatum || null"
-        :shifts="preparedSchichten"
-        :search="pseudoSearch"
-        :results="pseudoSearchResults"
-        :selected="pseudoSelectedMas"
-        :searching="pseudoSearching"
-        :saving="pseudoSaving"
-        :format-name="formatEmployeeName"
-        @update:search="updatePseudoSearch"
-        @toggle="togglePseudoMa"
-        @submit="savePseudoEinsatz"
-      />
-      <SchichtDropWarningDialog
-        :model-value="Boolean(dropWarningFlow.steps.length)"
-        :step="currentDropWarningStep"
-        :busy="dropWarningFlow.busy"
-        @cancel="cancelDropWarningFlow"
-        @decide="handleDropWarningDecision"
-      />
-
-    </div>
-
-  <AuftragCalendarSearchDropdown
-    v-if="!isHostedDetail"
-    :visible="showSearchDropdown"
-    :style="dropdownStyle"
-    :results="searchDropdownResults"
-    :loading="searchLoading"
-    :format-date="formatDropdownDate"
-    @select="selectSearchResult"
-  />
+  <AuftragCalendarSearchDropdown v-if="!isHostedDetail" :visible="showSearchDropdown" :style="dropdownStyle"
+    :results="searchDropdownResults" :loading="searchLoading" :format-date="formatDropdownDate"
+    @select="selectSearchResult" />
 </template>
 
 <script>
@@ -1461,14 +1004,12 @@ import { useUi } from "@/stores/ui";
 import { useTheme } from "@/stores/theme";
 import { useSignaturModal } from "@/stores/signaturModal";
 import { useDockedModals } from "@bleck-it/vue-modal-dock";
-import FilterPanel from "@/components/FilterPanel.vue";
-import ThinScrollContainer from "@/components/ThinScrollContainer.vue";
 import FilterGroup from "@/components/FilterGroup.vue";
 import FilterChip from "@/components/ui-elements/FilterChip.vue";
 import FilterDivider from "@/components/ui-elements/FilterDivider.vue";
 import EmployeeCardModal from "@/components/Modals/EmployeeCardModal.vue";
-import { useAdditionalModals } from '@/composables/useAdditionalModals';
-import { useDocumentPreviewModals } from '@/composables/useDocumentPreviewModals';
+import { useAdditionalModals } from "@/composables/useAdditionalModals";
+import { useDocumentPreviewModals } from "@/composables/useDocumentPreviewModals";
 import OrderDocumentsPanel from "@/components/orders/OrderDocumentsPanel.vue";
 import OrderHoursVisibilityButton from "@/components/orders/OrderHoursVisibilityButton.vue";
 import AppButton from "@/components/ui-elements/AppButton.vue";
@@ -1500,9 +1041,10 @@ import CustomTooltip from "@/components/CustomTooltip.vue";
 import AuftragCalendarSearchDropdown from "@/components/orders/calendar/AuftragCalendarSearchDropdown.vue";
 import { loadHolidaysForYear } from "@/utils/holidays.js";
 import { buildEventSchichten } from "@/utils/eventSchichten";
+import { attachMitarbeiterDragPreview } from "@/utils/mitarbeiterDragPreview";
 import { getPeriodRange } from "@/utils/orderListPeriods";
-import { useAuftragModals } from '@/composables/useAuftragModals';
-import { useMitarbeiterNameFormatter } from '@/utils/mitarbeiterName';
+import { useAuftragModals } from "@/composables/useAuftragModals";
+import { useMitarbeiterNameFormatter } from "@/utils/mitarbeiterName";
 import laufzettelIcon from "@/assets/laufzettel.png";
 import laufzettelDarkIcon from "@/assets/laufzettel-dark.png";
 import eventreportIcon from "@/assets/eventreport.png";
@@ -1516,7 +1058,7 @@ export default {
   props: {
     hostedAuftragNr: { type: [String, Number], default: null },
     detailMinimizable: { type: Boolean, default: false },
-    detailMinimizeId: { type: String, default: '' },
+    detailMinimizeId: { type: String, default: "" },
     viewMode: {
       type: String,
       default: "calendar",
@@ -1532,8 +1074,6 @@ export default {
     AppButton,
     AppIconButton,
     OrderDocumentUploadDialog,
-    FilterPanel,
-    ThinScrollContainer,
     FilterGroup,
     FilterChip,
     FilterDivider,
@@ -1653,7 +1193,7 @@ export default {
       selectedEvent: null,
       detailLoading: false,
       detailReloading: false,
-      detailError: '',
+      detailError: "",
       detailRevision: 0,
       detailController: null,
       detailDisposed: false,
@@ -1695,6 +1235,7 @@ export default {
       })(),
       preparedSchichten: [], // Lazy loaded schichten data
       schichtDragOverKey: null,
+      calendarShiftDragOverKey: null,
       draggingSchichtEinsatz: null,
       duplicatingSchichtKey: null,
       deletingSchichtKey: null,
@@ -1754,7 +1295,9 @@ export default {
         mitarbeiter: null,
         schichtData: null,
         schichtId: null,
+        decisionMode: "plan",
         replanFromEinsatzIds: [],
+        replanFromDispoIds: [],
       },
       // Three-dots dropdown
       showQuickActions: false,
@@ -1796,7 +1339,10 @@ export default {
   },
   computed: {
     isHostedDetail() {
-      return this.hostedAuftragNr != null && String(this.hostedAuftragNr).trim() !== '';
+      return (
+        this.hostedAuftragNr != null &&
+        String(this.hostedAuftragNr).trim() !== ""
+      );
     },
     currentDropWarningStep() {
       return this.dropWarningFlow.steps[this.dropWarningFlow.stepIndex] || null;
@@ -1807,7 +1353,7 @@ export default {
       },
       set(open) {
         if (!open) {
-          if (this.isHostedDetail) this.$emit('close');
+          if (this.isHostedDetail) this.$emit("close");
           else this.selectedEvent = null;
         }
       },
@@ -1866,7 +1412,11 @@ export default {
     },
     calendarDayDate: {
       get() {
-        return this.visibleDays[0]?.date || this.calendarStartDate || this.currentWeekStart;
+        return (
+          this.visibleDays[0]?.date ||
+          this.calendarStartDate ||
+          this.currentWeekStart
+        );
       },
       set(date) {
         this.setCalendarStartDate(date);
@@ -1936,7 +1486,11 @@ export default {
         const kw = this.getWeekNumber(d);
         const year = d.getFullYear();
         const isActive =
-          !!currentStart && d.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === currentStart.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+          !!currentStart &&
+          d.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" }) ===
+          currentStart.toLocaleDateString("en-CA", {
+            timeZone: "Europe/Berlin",
+          });
         const isTodayWeek =
           today >= d && today < new Date(d.getTime() + 7 * 86400000);
         const showYear = year !== prevYear;
@@ -2087,37 +1641,45 @@ export default {
     },
     headerActionMenuItems() {
       const items = [
-        ...(!this.selectedEvent?.isPseudo ? [{
-          label: "Event-Editor",
-          action: "open-editor",
-          icon: "fa-solid fa-pencil",
-        }] : []),
+        ...(!this.selectedEvent?.isPseudo
+          ? [
+            {
+              label: "Event-Editor",
+              action: "open-editor",
+              icon: "fa-solid fa-pencil",
+            },
+          ]
+          : []),
         {
           label: "Pseudo-MA einplanen",
           action: "plan-pseudo",
           icon: "fa-solid fa-user-plus",
         },
-        ...(this.selectedEvent?.auftragNr ? [{
-          label: "Report nachpflegen",
-          icon: "fa-solid fa-pen-clip",
-          children: [
+        ...(this.selectedEvent?.auftragNr
+          ? [
             {
-              label: "EventReport",
-              action: "nachpflegen:eventreport",
-              icon: "fa-solid fa-clipboard-list",
+              label: "Report nachpflegen",
+              icon: "fa-solid fa-pen-clip",
+              children: [
+                {
+                  label: "EventReport",
+                  action: "nachpflegen:eventreport",
+                  icon: "fa-solid fa-clipboard-list",
+                },
+                {
+                  label: "Laufzettel",
+                  action: "nachpflegen:laufzettel",
+                  icon: "fa-solid fa-file-lines",
+                },
+                {
+                  label: "Evaluierung",
+                  action: "nachpflegen:evaluierung",
+                  icon: "fa-solid fa-star-half-stroke",
+                },
+              ],
             },
-            {
-              label: "Laufzettel",
-              action: "nachpflegen:laufzettel",
-              icon: "fa-solid fa-file-lines",
-            },
-            {
-              label: "Evaluierung",
-              action: "nachpflegen:evaluierung",
-              icon: "fa-solid fa-star-half-stroke",
-            },
-          ],
-        }] : []),
+          ]
+          : []),
       ];
       if (this.isAdmin) {
         items.push({
@@ -2215,7 +1777,10 @@ export default {
         .trim()
         .replace(/[^a-z0-9_-]+/gi, "-")
         .replace(/^-+|-+$/g, "");
-      return ["Mitarbeiterliste", auftragNr, eventTitle].filter(Boolean).join("-") + ".xlsx";
+      return (
+        ["Mitarbeiterliste", auftragNr, eventTitle].filter(Boolean).join("-") +
+        ".xlsx"
+      );
     },
     // Maps the active Location v2 filter to its Bundesland code.
     activeStateLand() {
@@ -2233,7 +1798,8 @@ export default {
     viewMode(value) {
       if (this.isHostedDetail) return;
       this.closeCreateMenu();
-      if (value === "list") this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+      if (value === "list")
+        this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
       if (value === "calendar") {
         this.$nextTick(() => this.setupCalendarResizeObserver());
       }
@@ -2242,7 +1808,9 @@ export default {
       if (newCount < 7 && oldCount === 7 && !this.hasCustomStartDay) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const weekStart = this.currentWeekStart ? new Date(this.currentWeekStart) : null;
+        const weekStart = this.currentWeekStart
+          ? new Date(this.currentWeekStart)
+          : null;
         if (weekStart) {
           weekStart.setHours(0, 0, 0, 0);
           const weekEnd = new Date(weekStart);
@@ -2281,13 +1849,17 @@ export default {
       await this.loadOrderDirectly(auftragNr, this.$route.query.focusDate);
     },
     selectedEvent(event, previous) {
-      if (this.isHostedDetail && event) this.$emit('order-loaded', event);
-      if (this.isHostedDetail && !event && previous && !this.detailLoading) this.$emit('close');
+      if (this.isHostedDetail && event) this.$emit("order-loaded", event);
+      if (this.isHostedDetail && !event && previous && !this.detailLoading)
+        this.$emit("close");
       // Remember the open sidebar so a page refresh reopens it.
       if (!this.isHostedDetail) {
         try {
           if (event && event.auftragNr)
-            sessionStorage.setItem("auftraege_selected", String(event.auftragNr));
+            sessionStorage.setItem(
+              "auftraege_selected",
+              String(event.auftragNr),
+            );
           else sessionStorage.removeItem("auftraege_selected");
         } catch (e) {
           /* storage unavailable */
@@ -2404,7 +1976,8 @@ export default {
     },
     formatDataStatus(dateStr) {
       if (!dateStr) return "";
-      return new Date(dateStr).toLocaleString("de-DE", { timeZone: 'Europe/Berlin',
+      return new Date(dateStr).toLocaleString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -2490,7 +2063,7 @@ export default {
       } catch (err) {
         alert(
           err.response?.data?.message ||
-            "Schicht konnte nicht dupliziert werden",
+          "Schicht konnte nicht dupliziert werden",
         );
       } finally {
         this.duplicatingSchichtKey = null;
@@ -2514,7 +2087,10 @@ export default {
           await api.delete(
             `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-schicht/${targetId}`,
           );
-        } else if (Array.isArray(schichtData?.einsaetze) && schichtData.einsaetze.length) {
+        } else if (
+          Array.isArray(schichtData?.einsaetze) &&
+          schichtData.einsaetze.length
+        ) {
           await Promise.all(
             schichtData.einsaetze
               .filter((e) => e?._id)
@@ -2526,10 +2102,13 @@ export default {
           );
         }
         await this.reloadSelectedEventDetails();
+        await Promise.all([
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
       } catch (err) {
         alert(
-          err.response?.data?.message ||
-            "Schicht konnte nicht gelöscht werden",
+          err.response?.data?.message || "Schicht konnte nicht gelöscht werden",
         );
       } finally {
         this.deletingSchichtKey = null;
@@ -2562,7 +2141,7 @@ export default {
         );
         alert(
           error.response?.data?.message ||
-            "Stundenlisten-Einbindung konnte nicht aktualisiert werden",
+          "Stundenlisten-Einbindung konnte nicht aktualisiert werden",
         );
       } finally {
         delete this.stundenlisteTogglePending[einsatz._id];
@@ -2591,6 +2170,8 @@ export default {
         qualifikationen: ma.qualifikationen || [],
         sourceSchichtKey: schichtData?.key || null,
         sourceEinsatzId: einsatz._id || null,
+        sourceAuftragNr: this.selectedEvent?.auftragNr || null,
+        sourceOrderTitle: this.selectedEvent?.eventTitel || null,
         isPseudo: Boolean(einsatz.isPseudo),
         schichtBezeichnung: schichtData?.meta?.schichtBezeichnung || "Schicht",
         name: this.formatEmployeeName(ma),
@@ -2607,6 +2188,7 @@ export default {
         payload,
       );
       event.dataTransfer.setData("application/json", payload);
+      attachMitarbeiterDragPreview(event, dragInfo.name);
     },
     handleSchichtMitarbeiterDragEnd() {
       this.draggingSchichtEinsatz = null;
@@ -2621,11 +2203,118 @@ export default {
           : `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatzId}`;
         await api.delete(endpoint);
         await this.reloadSelectedEventDetails();
+        await Promise.all([
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
       } catch (err) {
         alert(
-          err.response?.data?.message ||
-            "Einsatz konnte nicht entfernt werden",
+          err.response?.data?.message || "Einsatz konnte nicht entfernt werden",
         );
+      }
+    },
+    calendarShiftKey(order, shift) {
+      return `${order?.auftragNr ?? ""}:${shift?.id ?? shift?._id ?? ""}`;
+    },
+    handleCalendarShiftDragEnter(event, order, shift) {
+      if (this.isAdmin && this.hasMitarbeiterDragPayload(event)) {
+        this.calendarShiftDragOverKey = this.calendarShiftKey(order, shift);
+      }
+    },
+    handleCalendarShiftDragOver(event, order, shift) {
+      if (!this.isAdmin || !this.hasMitarbeiterDragPayload(event)) return;
+      event.dataTransfer.dropEffect = "move";
+      this.calendarShiftDragOverKey = this.calendarShiftKey(order, shift);
+    },
+    handleCalendarShiftDragLeave(event, order, shift) {
+      if (event.currentTarget?.contains(event.relatedTarget)) return;
+      if (this.calendarShiftDragOverKey === this.calendarShiftKey(order, shift)) {
+        this.calendarShiftDragOverKey = null;
+      }
+    },
+    async handleCalendarShiftDrop(event, order, shift) {
+      this.calendarShiftDragOverKey = null;
+      if (!this.isAdmin || !order?.auftragNr) return;
+      const rawPayload =
+        event.dataTransfer?.getData(
+          "application/x-straight-monitor-mitarbeiter",
+        ) || event.dataTransfer?.getData("application/json");
+      if (!rawPayload) return;
+
+      try {
+        const mitarbeiter = JSON.parse(rawPayload);
+        const mitarbeiterId = mitarbeiter?._id || mitarbeiter?.mitarbeiterId;
+        if (!mitarbeiterId) return;
+
+        // Open the Auftrags Side Panel and load full order details so preparedSchichten is populated
+        await this.selectEvent(order);
+        await this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.();
+
+        const targetIdCandidates = new Set(
+          [shift?.id, shift?._id, shift?.idAuftragArbeitsschichten]
+            .filter((v) => v !== null && v !== undefined && v !== "")
+            .map(String),
+        );
+
+        const schichtData =
+          (this.preparedSchichten || []).find((sd) => {
+            const keys = [
+              sd.key,
+              sd.meta?.schichtId,
+              sd.meta?.idAuftragArbeitsschichten,
+            ]
+              .filter((v) => v !== null && v !== undefined && v !== "")
+              .map(String);
+            return keys.some((k) => targetIdCandidates.has(k));
+          }) || {
+            key: shift?.id || "none",
+            einsaetze: [],
+            meta: {
+              schichtBezeichnung: shift?.bezeichnung || "Schicht",
+              schichtId:
+                shift?._id ||
+                (typeof shift?.id === "string" &&
+                /^[0-9a-fA-F]{24}$/.test(shift.id)
+                  ? shift.id
+                  : null),
+              idAuftragArbeitsschichten:
+                shift?.idAuftragArbeitsschichten ??
+                (Number.isInteger(Number(shift?.id)) ? Number(shift.id) : null),
+              datumVon:
+                shift?.datumVon ||
+                this.selectedEvent?.vonDatum ||
+                order?.vonDatum ||
+                null,
+              uhrzeitVon: shift?.uhrzeitVon || null,
+              uhrzeitBis: shift?.uhrzeitBis || null,
+              bedarf: shift?.bedarf ?? null,
+              qualSchl: shift?.qualSchl || null,
+              berufSchl: shift?.berufSchl || null,
+            },
+          };
+
+        const schichtId =
+          schichtData?.meta?.idAuftragArbeitsschichten ??
+          schichtData?.meta?.schichtId ??
+          schichtData?.key ??
+          shift?.id ??
+          null;
+
+        this.$emit("mitarbeiter-drop", {
+          mitarbeiter,
+          auftragNr: this.selectedEvent?.auftragNr || order.auftragNr,
+          schichtId: schichtData?.meta?.schichtId || null,
+          idAuftragArbeitsschichten:
+            schichtData?.meta?.idAuftragArbeitsschichten || schichtData?.key,
+          datumVon: schichtData?.meta?.datumVon,
+        });
+
+        await this.startDropValidationFlow(mitarbeiter, schichtData, schichtId);
+      } catch (error) {
+        console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
+        if (error.response?.data?.message) {
+          alert(error.response.data.message);
+        }
       }
     },
     handleSchichtDragEnter(event, schichtData) {
@@ -2669,7 +2358,11 @@ export default {
         });
 
         if (this.isAdmin && this.selectedEvent?.auftragNr) {
-          await this.startDropValidationFlow(mitarbeiter, schichtData, schichtId);
+          await this.startDropValidationFlow(
+            mitarbeiter,
+            schichtData,
+            schichtId,
+          );
         }
       } catch (error) {
         console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
@@ -2679,22 +2372,33 @@ export default {
       }
     },
     resolveRequiredShiftQualification(schichtData) {
-      const commonQuali = this.getCommonQualifikation(schichtData?.einsaetze || []);
+      const commonQuali = this.getCommonQualifikation(
+        schichtData?.einsaetze || [],
+      );
       if (commonQuali) return commonQuali;
       const qualSchl = schichtData?.meta?.qualSchl;
       if (!qualSchl) return null;
       const numericKey = Number.parseInt(qualSchl, 10);
       if (!Number.isInteger(numericKey)) return null;
-      const found = (this.dataCache.qualifikationen || []).find(
+      const found = (this.dataCache?.qualifikationen || []).find(
         (q) => Number(q.qualificationKey) === numericKey,
       );
-      return found || { qualificationKey: numericKey, designation: `Qualifikation #${numericKey}` };
+      return (
+        found || {
+          qualificationKey: numericKey,
+          designation: `Qualifikation #${numericKey}`,
+        }
+      );
     },
     employeeHasQualification(mitarbeiter, requiredQuali) {
       if (!requiredQuali) return true;
       const list = mitarbeiter?.qualifikationen || [];
       return list.some((q) => {
-        if (requiredQuali._id && String(q?._id || q) === String(requiredQuali._id)) return true;
+        if (
+          requiredQuali._id &&
+          String(q?._id || q) === String(requiredQuali._id)
+        )
+          return true;
         if (
           requiredQuali.qualificationKey != null &&
           Number(q?.qualificationKey) === Number(requiredQuali.qualificationKey)
@@ -2705,23 +2409,38 @@ export default {
       });
     },
     async startDropValidationFlow(mitarbeiter, schichtData, schichtId) {
-      const mitarbeiterId = String(mitarbeiter._id || mitarbeiter.mitarbeiterId);
+      const mitarbeiterId = String(
+        mitarbeiter._id || mitarbeiter.mitarbeiterId,
+      );
       const employeeName = this.formatEmployeeName(mitarbeiter);
       const shiftName = schichtData?.meta?.schichtBezeichnung || "Schicht";
+
+      if (
+        mitarbeiter.sourceSchichtKey &&
+        (!mitarbeiter.sourceAuftragNr ||
+          Number(mitarbeiter.sourceAuftragNr) ===
+            Number(this.selectedEvent?.auftragNr)) &&
+        String(mitarbeiter.sourceSchichtKey) === String(schichtData?.key)
+      ) {
+        return;
+      }
 
       // Duplicate check in the exact same target shift
       const alreadyInTargetShift = (schichtData?.einsaetze || []).some(
         (e) =>
           String(e.mitarbeiterData?._id || "") === mitarbeiterId ||
-          (mitarbeiter.personalnr && String(e.personalNr || "") === String(mitarbeiter.personalnr)),
+          (mitarbeiter.personalnr &&
+            String(e.personalNr || "") === String(mitarbeiter.personalnr)),
       );
       if (alreadyInTargetShift) {
-        alert(`${employeeName} ist bereits in der Schicht "${shiftName}" eingeplant.`);
+        alert(
+          `${employeeName} ist bereits in der Schicht "${shiftName}" eingeplant.`,
+        );
         return;
       }
 
-      if (!this.dataCache.qualifikationen?.length) {
-        await this.dataCache.loadQualifikationen().catch(() => {});
+      if (!this.dataCache?.qualifikationen?.length) {
+        await this.dataCache?.loadQualifikationen?.().catch(() => { });
       }
 
       const dispoInfo =
@@ -2733,7 +2452,10 @@ export default {
 
       // 1. Missing Qualification check
       const requiredQuali = this.resolveRequiredShiftQualification(schichtData);
-      if (requiredQuali && !this.employeeHasQualification(mitarbeiter, requiredQuali)) {
+      if (
+        requiredQuali &&
+        !this.employeeHasQualification(mitarbeiter, requiredQuali)
+      ) {
         steps.push({
           type: "missing-qualification",
           employeeName,
@@ -2754,7 +2476,8 @@ export default {
               (e) =>
                 String(e.mitarbeiterData?._id || "") === mitarbeiterId ||
                 (mitarbeiter.personalnr &&
-                  String(e.personalNr || "") === String(mitarbeiter.personalnr)),
+                  String(e.personalNr || "") ===
+                  String(mitarbeiter.personalnr)),
             )
             .map((e) => ({
               einsatzId: String(e._id),
@@ -2771,12 +2494,44 @@ export default {
             })),
         );
 
-      const dispoPlannedJobs = (dispoInfo?.plannedJobs || []).filter(
-        (job) => !job.einsatzId || !targetEinsatzIds.has(String(job.einsatzId)),
-      );
+      if (
+        mitarbeiter.sourceEinsatzId &&
+        !targetEinsatzIds.has(String(mitarbeiter.sourceEinsatzId)) &&
+        !sameOrderOtherShifts.some(
+          (job) =>
+            String(job.einsatzId) === String(mitarbeiter.sourceEinsatzId),
+        )
+      ) {
+        const srcNr = mitarbeiter.sourceAuftragNr || this.selectedEvent?.auftragNr;
+        const srcTitle =
+          mitarbeiter.sourceOrderTitle ||
+          this.selectedEvent?.eventTitel ||
+          (srcNr ? `Auftrag #${srcNr}` : "Auftrag");
+        sameOrderOtherShifts.unshift({
+          einsatzId: String(mitarbeiter.sourceEinsatzId),
+          auftragNr: srcNr,
+          title: srcTitle,
+          subtitle: mitarbeiter.schichtBezeichnung || "Schicht",
+        });
+      }
+
+      const currentAuftragNr = Number(this.selectedEvent?.auftragNr);
+      const dispoPlannedJobs = (dispoInfo?.plannedJobs || []).filter((job) => {
+        if (job.einsatzId && targetEinsatzIds.has(String(job.einsatzId)))
+          return false;
+        // Same-order shifts are already authoritatively represented by sameOrderOtherShifts
+        if (job.auftragNr && Number(job.auftragNr) === currentAuftragNr)
+          return false;
+        return true;
+      });
       const seenJobKeys = new Set();
-      const existingJobs = [...sameOrderOtherShifts, ...dispoPlannedJobs].filter((job) => {
-        const key = job.einsatzId ? `e:${job.einsatzId}` : `${job.title}:${job.subtitle}`;
+      const existingJobs = [
+        ...sameOrderOtherShifts,
+        ...dispoPlannedJobs,
+      ].filter((job) => {
+        const key = job.einsatzId
+          ? `e:${job.einsatzId}`
+          : `${job.title}:${job.subtitle}`;
         if (seenJobKeys.has(key)) return false;
         seenJobKeys.add(key);
         return true;
@@ -2804,7 +2559,10 @@ export default {
           employeeName,
           shiftName,
           statusLabel: dispoInfo.statusLabel || "Nicht verfügbar",
-          note: (dispoInfo.notes || [])[0] || (dispoInfo.comments || [])[0]?.text || "",
+          note:
+            (dispoInfo.notes || [])[0] ||
+            (dispoInfo.comments || [])[0]?.text ||
+            "",
         });
       }
 
@@ -2825,7 +2583,9 @@ export default {
         await this.executePseudoDropAssignment({
           mitarbeiter,
           schichtId,
+          decisionMode: "plan",
           replanFromEinsatzIds: [],
+          replanFromDispoIds: [],
         });
         return;
       }
@@ -2837,7 +2597,9 @@ export default {
         mitarbeiter,
         schichtData,
         schichtId,
+        decisionMode: "plan",
         replanFromEinsatzIds: [],
+        replanFromDispoIds: [],
       };
     },
     cancelDropWarningFlow() {
@@ -2849,7 +2611,9 @@ export default {
         mitarbeiter: null,
         schichtData: null,
         schichtId: null,
+        decisionMode: "plan",
         replanFromEinsatzIds: [],
+        replanFromDispoIds: [],
       };
     },
     async handleDropWarningDecision(action) {
@@ -2859,34 +2623,69 @@ export default {
 
       flow.busy = true;
       try {
-        if (step.type === "missing-qualification" && action === "assign-qualification") {
-          const maId = String(flow.mitarbeiter._id || flow.mitarbeiter.mitarbeiterId);
+        if (
+          step.type === "missing-qualification" &&
+          action === "assign-qualification"
+        ) {
+          const maId = String(
+            flow.mitarbeiter._id || flow.mitarbeiter.mitarbeiterId,
+          );
           let qualiDoc = step.qualification;
           if (!qualiDoc._id) {
-            await this.dataCache.loadQualifikationen(true);
-            qualiDoc = (this.dataCache.qualifikationen || []).find(
-              (q) => Number(q.qualificationKey) === Number(step.qualification.qualificationKey),
+            await this.dataCache?.loadQualifikationen?.(true);
+            qualiDoc = (this.dataCache?.qualifikationen || []).find(
+              (q) =>
+                Number(q.qualificationKey) ===
+                Number(step.qualification.qualificationKey),
             );
           }
           if (qualiDoc?._id) {
             const currentIds = (flow.mitarbeiter.qualifikationen || [])
               .map((q) => q?._id || q)
               .filter(Boolean);
-            const nextIds = [...new Set([...currentIds.map(String), String(qualiDoc._id)])];
+            const nextIds = [
+              ...new Set([...currentIds.map(String), String(qualiDoc._id)]),
+            ];
             const res = await api.patch(`/api/personal/mitarbeiter/${maId}`, {
               qualifikationen: nextIds,
             });
             if (res.data?.data) {
-              this.dataCache.updateOneMitarbeiter(res.data.data);
+              this.dataCache?.updateOneMitarbeiter?.(res.data.data);
               flow.mitarbeiter = {
                 ...flow.mitarbeiter,
-                qualifikationen: [...(flow.mitarbeiter.qualifikationen || []), qualiDoc],
+                qualifikationen: [
+                  ...(flow.mitarbeiter.qualifikationen || []),
+                  qualiDoc,
+                ],
               };
             }
           }
-        } else if (step.type === "already-planned" && action === "replan") {
-          // Pseudo mode: keep existing shift assignment intact and only create the new Pseudo-Einsatz
-          flow.replanFromEinsatzIds = [];
+        } else if (step.type === "already-planned") {
+          if (action === "replan") {
+            const idsToRemove = [
+              ...(flow.mitarbeiter?.sourceEinsatzId
+                ? [String(flow.mitarbeiter.sourceEinsatzId)]
+                : []),
+              ...(step.existingJobs || [])
+                .map((j) => j.einsatzId)
+                .filter(Boolean)
+                .map(String),
+            ];
+            flow.decisionMode = "replan";
+            flow.replanFromEinsatzIds = [...new Set(idsToRemove)];
+            flow.replanFromDispoIds = [
+              ...new Set(
+                (step.existingJobs || [])
+                  .map((j) => j.dispoEntryId)
+                  .filter(Boolean)
+                  .map(String),
+              ),
+            ];
+          } else if (action === "plan-anyway") {
+            flow.decisionMode = "plan-anyway";
+            flow.replanFromEinsatzIds = [];
+            flow.replanFromDispoIds = [];
+          }
         }
 
         if (flow.stepIndex + 1 < flow.steps.length) {
@@ -2898,16 +2697,27 @@ export default {
         await this.executePseudoDropAssignment({
           mitarbeiter: flow.mitarbeiter,
           schichtId: flow.schichtId,
+          decisionMode: flow.decisionMode,
           replanFromEinsatzIds: flow.replanFromEinsatzIds,
+          replanFromDispoIds: flow.replanFromDispoIds,
         });
         flow.busy = false;
         this.cancelDropWarningFlow();
       } catch (err) {
         flow.busy = false;
-        alert(err.response?.data?.message || err.message || "Fehler bei der Einplanung");
+        alert(
+          err.response?.data?.message ||
+          err.message ||
+          "Fehler bei der Einplanung",
+        );
       }
     },
-    async executePseudoDropAssignment({ mitarbeiter, schichtId, replanFromEinsatzIds = [] }) {
+    async executePseudoDropAssignment({
+      mitarbeiter,
+      schichtId,
+      replanFromEinsatzIds = [],
+      replanFromDispoIds = [],
+    }) {
       const mitarbeiterId = mitarbeiter?._id || mitarbeiter?.mitarbeiterId;
       if (!mitarbeiterId || !this.selectedEvent?.auftragNr) return;
       await api.post(
@@ -2916,9 +2726,25 @@ export default {
           mitarbeiterId,
           ...(schichtId ? { schichtId } : {}),
           ...(replanFromEinsatzIds.length ? { replanFromEinsatzIds } : {}),
+          ...(replanFromDispoIds.length ? { replanFromDispoIds } : {}),
         },
       );
       await this.reloadSelectedEventDetails();
+      if (
+        replanFromEinsatzIds.length &&
+        mitarbeiter?.sourceAuftragNr &&
+        Number(mitarbeiter.sourceAuftragNr) !==
+          Number(this.selectedEvent?.auftragNr)
+      ) {
+        await api
+          .get(`/api/auftraege/${mitarbeiter.sourceAuftragNr}/details`)
+          .then((res) => {
+            if (res?.data?.auftragNr) {
+              this.syncCalendarOrderFromDetails(res.data);
+            }
+          })
+          .catch(() => {});
+      }
       await Promise.all([
         this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
         this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
@@ -2954,8 +2780,12 @@ export default {
         console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
       }
     },
-    async onBewerbungUpdated() {
-      await this.reloadSelectedEventDetails();
+    async onBewerbungUpdated(payload) {
+      if (this.selectedEvent?.auftragNr) {
+        await this.reloadSelectedEventDetails();
+      } else if (payload?.action === "accept" && payload?.bewerbung?.auftragNr) {
+        await this.selectEvent({ auftragNr: payload.bewerbung.auftragNr });
+      }
     },
     setStaffingPanelHidden(value) {
       this.staffingPanelHidden = Boolean(value);
@@ -3028,7 +2858,10 @@ export default {
       if (this.$refs.mainContent) {
         this.calendarResizeObserver.observe(this.$refs.mainContent);
       }
-      if (this.$refs.calendarGrid && this.$refs.calendarGrid !== this.$refs.mainContent) {
+      if (
+        this.$refs.calendarGrid &&
+        this.$refs.calendarGrid !== this.$refs.mainContent
+      ) {
         this.calendarResizeObserver.observe(this.$refs.calendarGrid);
       }
     },
@@ -3056,18 +2889,6 @@ export default {
     openMobileDatePicker() {
       this.$refs.mobileDatePicker?.showPicker?.() ??
         this.$refs.mobileDatePicker?.click();
-    },
-    async jumpToDate(event) {
-      const selected = new Date(event.target.value + "T00:00:00");
-      if (isNaN(selected)) return;
-      const day = selected.getDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      const monday = new Date(selected);
-      monday.setDate(selected.getDate() + diff);
-      monday.setHours(0, 0, 0, 0);
-      this.currentWeekStart = monday;
-      await this.ensureMonthLoaded(monday);
-      this.mobileDayIndex = day === 0 ? 6 : day - 1;
     },
     async setDateFromPicker(date) {
       if (!date) return;
@@ -3172,7 +2993,11 @@ export default {
     },
     async handleHeaderActionMenuAction(action) {
       this.showQuickActions = false;
-      if (typeof action === "string" && action.startsWith("nachpflegen:") && this.selectedEvent?.auftragNr) {
+      if (
+        typeof action === "string" &&
+        action.startsWith("nachpflegen:") &&
+        this.selectedEvent?.auftragNr
+      ) {
         const tab = action.slice("nachpflegen:".length);
         const query = {
           ...(tab !== "laufzettel" ? { tab } : {}),
@@ -3181,8 +3006,14 @@ export default {
         await this.$router.push({ path: "/dokumente-nachpflegen", query });
         return;
       }
-      if (action === "open-time-entry" && this.isAdmin && this.selectedEvent?.auftragNr) {
-        this.openTimeCapture({ auftragNr: String(this.selectedEvent.auftragNr) });
+      if (
+        action === "open-time-entry" &&
+        this.isAdmin &&
+        this.selectedEvent?.auftragNr
+      ) {
+        this.openTimeCapture({
+          auftragNr: String(this.selectedEvent.auftragNr),
+        });
       }
       if (action === "open-editor") await this.openEventEditor();
       if (action === "manage-labels") await this.openLabelDialog();
@@ -3211,9 +3042,13 @@ export default {
       if (!dateStr) return "";
       const d = new Date(dateStr);
       const weekday = d
-        .toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin', weekday: "short" })
+        .toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
+          weekday: "short",
+        })
         .replace(/\.$/, "");
-      const date = d.toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin',
+      const date = d.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -3489,7 +3324,10 @@ export default {
       this.loadedMonths.clear(); // Reset cache
 
       if (this.viewMode === "list") {
-        await this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+        await this.ensureListPeriodLoaded(
+          this.listPeriod,
+          this.listReferenceDate,
+        );
         return;
       }
 
@@ -3513,9 +3351,15 @@ export default {
     async setListReferenceDate(date) {
       if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
       this.listReferenceDate = new Date(date);
-      await this.ensureListPeriodLoaded(this.listPeriod, this.listReferenceDate);
+      await this.ensureListPeriodLoaded(
+        this.listPeriod,
+        this.listReferenceDate,
+      );
     },
-    async ensureListPeriodLoaded(period, referenceDate = this.listReferenceDate) {
+    async ensureListPeriodLoaded(
+      period,
+      referenceDate = this.listReferenceDate,
+    ) {
       const { start, end } = getPeriodRange(period, referenceDate);
       const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
       let firstMissing = null;
@@ -3546,7 +3390,9 @@ export default {
 
       const loadedMonth = new Date(firstMissing);
       while (loadedMonth <= loadEnd) {
-        this.loadedMonths.add(`${loadedMonth.getFullYear()}-${loadedMonth.getMonth()}`);
+        this.loadedMonths.add(
+          `${loadedMonth.getFullYear()}-${loadedMonth.getMonth()}`,
+        );
         loadedMonth.setMonth(loadedMonth.getMonth() + 1);
       }
     },
@@ -3753,7 +3599,7 @@ export default {
     isCustomerGroupCollapsed(date, customerKey) {
       return Boolean(
         this.collapsedCustomerGroups[
-          this.getCustomerGroupStateKey(date, customerKey)
+        this.getCustomerGroupStateKey(date, customerKey)
         ],
       );
     },
@@ -3783,7 +3629,7 @@ export default {
       this.detailController?.abort();
       const controller = new AbortController();
       this.detailController = controller;
-      this.detailError = '';
+      this.detailError = "";
       this.detailLoading = this.isHostedDetail && !this.detailReloading;
       if (this.isHostedDetail && !this.detailReloading) {
         this.selectedEvent = null;
@@ -3798,13 +3644,23 @@ export default {
           { signal: controller.signal },
         );
         if (revision !== this.detailRevision || this.detailDisposed) return;
-        if (!response.data?.auftragNr) throw new Error('Auftragsdetails fehlen.');
+        if (!response.data?.auftragNr)
+          throw new Error("Auftragsdetails fehlen.");
         this.selectedEvent = response.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+        this.syncCalendarOrderFromDetails(this.selectedEvent);
         this.fetchAuftragDocs(event.auftragNr);
       } catch (error) {
-        if (revision !== this.detailRevision || controller.signal.aborted || this.detailDisposed) return;
-        if (this.isHostedDetail) this.detailError = error.response?.data?.message || 'Auftragsdetails konnten nicht geladen werden.';
+        if (
+          revision !== this.detailRevision ||
+          controller.signal.aborted ||
+          this.detailDisposed
+        )
+          return;
+        if (this.isHostedDetail)
+          this.detailError =
+            error.response?.data?.message ||
+            "Auftragsdetails konnten nicht geladen werden.";
         else {
           console.error("Error loading event details:", error);
           this.selectedEvent = event; // fallback to basic data
@@ -3852,8 +3708,8 @@ export default {
       const rect = anchor?.getBoundingClientRect();
       this.createMenuAnchor = anchor;
       this.createMenuPosition = {
-        x: rect ? rect.right - 164 : (event?.clientX || 0),
-        y: rect ? rect.bottom + 4 : (event?.clientY || 0),
+        x: rect ? rect.right - 164 : event?.clientX || 0,
+        y: rect ? rect.bottom + 4 : event?.clientY || 0,
       };
       this.createMenuOpen = true;
     },
@@ -3875,10 +3731,18 @@ export default {
       });
     },
     applyEditorOrder(updatedEvent) {
-      const index = this.auftraege.findIndex(item => String(item.auftragNr) === String(updatedEvent.auftragNr));
+      const index = this.auftraege.findIndex(
+        (item) => String(item.auftragNr) === String(updatedEvent.auftragNr),
+      );
       if (index === -1) this.auftraege.push(updatedEvent);
-      else this.auftraege.splice(index, 1, { ...this.auftraege[index], ...updatedEvent });
-      if (String(this.selectedEvent?.auftragNr) === String(updatedEvent.auftragNr)) {
+      else
+        this.auftraege.splice(index, 1, {
+          ...this.auftraege[index],
+          ...updatedEvent,
+        });
+      if (
+        String(this.selectedEvent?.auftragNr) === String(updatedEvent.auftragNr)
+      ) {
         this.selectedEvent = updatedEvent;
         this.preparedSchichten = this.calculateSchichten(updatedEvent);
       }
@@ -3928,7 +3792,8 @@ export default {
     },
     formatDayDateFull(dateStr) {
       if (!dateStr) return "";
-      return new Date(dateStr).toLocaleDateString("de-DE", { timeZone: 'Europe/Berlin',
+      return new Date(dateStr).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -3944,9 +3809,106 @@ export default {
       const assigned = Number(shift?.besetzt || 0);
       if (!required) return "bedarf-none";
       if (!assigned) return "bedarf-all-empty";
-      if (assigned < required) return assigned === 1 ? "bedarf-some-empty" : "bedarf-underbooked";
+      if (assigned < required)
+        return assigned === 1 ? "bedarf-some-empty" : "bedarf-underbooked";
       if (assigned === required) return "bedarf-full";
       return "bedarf-overbooked";
+    },
+    normalizeShiftEinsaetze(einsaetze) {
+      if (!Array.isArray(einsaetze)) return [];
+      return einsaetze
+        .map((entry) => {
+          if (typeof entry === "string") {
+            return { name: entry, isPseudo: false };
+          }
+          if (entry && typeof entry === "object") {
+            return {
+              name: String(entry.name || "").trim(),
+              isPseudo: Boolean(entry.isPseudo),
+            };
+          }
+          return null;
+        })
+        .filter((item) => item && item.name);
+    },
+    syncCalendarOrderFromDetails(fullOrder) {
+      if (!fullOrder?.auftragNr || !Array.isArray(this.auftraege)) return;
+      const idx = this.auftraege.findIndex(
+        (item) => String(item.auftragNr) === String(fullOrder.auftragNr),
+      );
+      if (idx === -1) return;
+      const current = this.auftraege[idx];
+      const hasDetailsShiftsOrAssignments =
+        (Array.isArray(fullOrder.schichten) &&
+          fullOrder.schichten.length > 0) ||
+        (Array.isArray(fullOrder.einsaetze) &&
+          fullOrder.einsaetze.length > 0) ||
+        (Array.isArray(current.schichten) && current.schichten.length > 0);
+      if (!hasDetailsShiftsOrAssignments) return;
+
+      const builtSchichten = this.calculateSchichten(fullOrder);
+      const calendarSchichten = builtSchichten
+        .filter(
+          (s) => Number(s.meta?.bedarf || 0) > 0 || s.einsaetze.length > 0,
+        )
+        .map((s) => {
+          const einsaetzeItems = s.einsaetze
+            .map((e) => {
+              const m = e.mitarbeiterData;
+              const name = m
+                ? `${m.vorname || ""} ${m.nachname || ""}`.trim()
+                : "";
+              return name ? { name, isPseudo: Boolean(e.isPseudo) } : null;
+            })
+            .filter(Boolean);
+          const pseudoCount = s.einsaetze.filter((e) => e.isPseudo).length;
+          return {
+            id: s.meta.idAuftragArbeitsschichten || s.meta.schichtId || s.key,
+            _id: s.meta.schichtId || null,
+            idAuftragArbeitsschichten: s.meta.idAuftragArbeitsschichten || null,
+            bezeichnung: s.meta.schichtBezeichnung || null,
+            uhrzeitVon: s.meta.uhrzeitVon || null,
+            uhrzeitBis: s.meta.uhrzeitBis || null,
+            datumVon: s.meta.datumVon || fullOrder.vonDatum || null,
+            qualSchl: s.meta.qualSchl || null,
+            berufSchl: s.meta.berufSchl || null,
+            bedarf: s.meta.bedarf || s.einsaetze.length || 1,
+            besetzt: s.einsaetze.length,
+            isPseudo: Boolean(s.meta.isPseudo),
+            hasPseudoEinsatz: pseudoCount > 0,
+            pseudoCount,
+            einsaetze: einsaetzeItems,
+          };
+        });
+
+      let empty = 0,
+        underbooked = 0,
+        overbooked = 0,
+        full = 0;
+      calendarSchichten.forEach((s) => {
+        const bedarf = Number(s.bedarf || 0);
+        if (s.besetzt === 0) empty++;
+        else if (s.besetzt < bedarf) underbooked++;
+        else if (s.besetzt > bedarf) overbooked++;
+        else full++;
+      });
+      let schichtStatus = "none";
+      if (calendarSchichten.length > 0) {
+        if (empty === calendarSchichten.length) schichtStatus = "all-empty";
+        else if (empty > 0) schichtStatus = "some-empty";
+        else if (underbooked > 0) schichtStatus = "underbooked";
+        else if (overbooked > 0) schichtStatus = "overbooked";
+        else schichtStatus = "full";
+      }
+
+      this.auftraege.splice(idx, 1, {
+        ...current,
+        schichten: calendarSchichten,
+        schichtStatus,
+        einsaetzeCount: Array.isArray(fullOrder.einsaetze)
+          ? fullOrder.einsaetze.length
+          : current.einsaetzeCount,
+      });
     },
     getSchichtenForDay(event, date) {
       if (!event.schichten?.length || !date) return [];
@@ -3983,18 +3945,31 @@ export default {
     },
     isToday(date) {
       const today = new Date();
-      return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+      return (
+        date.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" }) ===
+        today.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" })
+      );
     },
     formatDateRange(start, end) {
       if (!start || !end) return "";
       const opts = { day: "numeric", month: "short", year: "numeric" };
-      const startDate = start.toLocaleDateString("de-DE", { ...opts, timeZone: "Europe/Berlin" });
-      const endDate = end.toLocaleDateString("de-DE", { ...opts, timeZone: "Europe/Berlin" });
+      const startDate = start.toLocaleDateString("de-DE", {
+        ...opts,
+        timeZone: "Europe/Berlin",
+      });
+      const endDate = end.toLocaleDateString("de-DE", {
+        ...opts,
+        timeZone: "Europe/Berlin",
+      });
       return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
     },
     formatDayDate(date) {
       const today = new Date();
-      if (date.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === today.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return "Heute";
+      if (
+        date.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" }) ===
+        today.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" })
+      )
+        return "Heute";
       return date.toLocaleDateString("de-DE", {
         day: "2-digit",
         month: "2-digit",
@@ -4130,7 +4105,8 @@ export default {
       await this.saveLabel(gl.name, gl.color);
     },
     async saveLabel(nameArg, colorArg) {
-      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent) return;
+      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent)
+        return;
       const selectedEvent = this.selectedEvent;
       const name =
         typeof nameArg === "string" ? nameArg : this.newLabelName.trim();
@@ -4160,7 +4136,8 @@ export default {
       }
     },
     async removeLabel(labelId) {
-      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent) return;
+      if (this.labelSaving || this.labelRemovingId || !this.selectedEvent)
+        return;
       const selectedEvent = this.selectedEvent;
       this.labelRemovingId = labelId;
       try {
@@ -4179,7 +4156,12 @@ export default {
       }
     },
     openNewAuftragDialog() {
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format();
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Berlin",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format();
       this.newAuftrag = {
         eventTitel: "",
         vonDatum: today,
@@ -4279,29 +4261,36 @@ export default {
         if (missingPersonalNrEinsaetze.length) {
           const count = missingPersonalNrEinsaetze.length;
           const noun = count === 1 ? "Einsatz enthält" : "Einsätze enthalten";
-          if (!confirm(
-            `${count} ${noun} keine Personalnummer. Die Namen dieser Mitarbeiter können in der Stundenliste nicht ausgegeben werden. Trotzdem erstellen?`,
-          )) return null;
+          if (
+            !confirm(
+              `${count} ${noun} keine Personalnummer. Die Namen dieser Mitarbeiter können in der Stundenliste nicht ausgegeben werden. Trotzdem erstellen?`,
+            )
+          )
+            return null;
         }
       } catch (err) {
         console.error("Stundenlisten-Prüfung fehlgeschlagen", err);
         alert(
           err.response?.data?.message ||
-            "Stundenliste konnte nicht auf fehlende Personalnummern geprüft werden",
+          "Stundenliste konnte nicht auf fehlende Personalnummern geprüft werden",
         );
         return null;
       }
 
       const eventTitle = String(this.selectedEvent.eventTitel || "").trim();
       const eventDate = this.selectedEvent.vonDatum
-        ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
+        ? new Date(this.selectedEvent.vonDatum).toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
+        })
         : "";
       this.isGeneratingHoursList = true;
       try {
         const { data } = await api.post(
           `/api/signaturen/stundenliste/${auftragNr}/draft`,
           {
-            name: ["Stundenliste", eventTitle || auftragNr, eventDate].filter(Boolean).join(" "),
+            name: ["Stundenliste", eventTitle || auftragNr, eventDate]
+              .filter(Boolean)
+              .join(" "),
             locationId:
               typeof this.selectedEvent.locationV2 === "object"
                 ? this.selectedEvent.locationV2?._id
@@ -4314,7 +4303,7 @@ export default {
         console.error("Stundenlisten-Entwurf erstellen fehlgeschlagen", err);
         alert(
           err.response?.data?.message ||
-            "Stundenlisten-Entwurf konnte nicht erstellt werden",
+          "Stundenlisten-Entwurf konnte nicht erstellt werden",
         );
         return null;
       } finally {
@@ -4345,14 +4334,15 @@ export default {
       } catch (err) {
         alert(
           err.response?.data?.message ||
-            "Fehler beim Erstellen der Telefonliste",
+          "Fehler beim Erstellen der Telefonliste",
         );
       } finally {
         this.isGeneratingTelefonliste = false;
       }
     },
     async openMitarbeiterExport() {
-      if (!this.selectedEvent?.auftragNr || this.isLoadingMitarbeiterExport) return;
+      if (!this.selectedEvent?.auftragNr || this.isLoadingMitarbeiterExport)
+        return;
       this.isLoadingMitarbeiterExport = true;
       try {
         const { data } = await api.get(
@@ -4368,7 +4358,7 @@ export default {
       } catch (err) {
         alert(
           err.response?.data?.message ||
-            "Mitarbeiterliste konnte nicht geladen werden",
+          "Mitarbeiterliste konnte nicht geladen werden",
         );
       } finally {
         this.isLoadingMitarbeiterExport = false;
@@ -4377,14 +4367,23 @@ export default {
     mitarbeiterExportExtraInformation() {
       const event = this.selectedEvent || {};
       return {
-        Auftrag: event.eventTitel || `Auftrag #${event.auftragNr || ''}`,
-        Kunde: event.kundeData?.kundName || '',
-        Datum: event.vonDatum && event.bisDatum
-          ? this.formatDateRange(new Date(event.vonDatum), new Date(event.bisDatum))
-          : '',
-        Einsatzort: [event.eventLocation, event.eventStrasse, event.eventPlz, event.eventOrt]
+        Auftrag: event.eventTitel || `Auftrag #${event.auftragNr || ""}`,
+        Kunde: event.kundeData?.kundName || "",
+        Datum:
+          event.vonDatum && event.bisDatum
+            ? this.formatDateRange(
+              new Date(event.vonDatum),
+              new Date(event.bisDatum),
+            )
+            : "",
+        Einsatzort: [
+          event.eventLocation,
+          event.eventStrasse,
+          event.eventPlz,
+          event.eventOrt,
+        ]
           .filter(Boolean)
-          .join(', '),
+          .join(", "),
       };
     },
     closeMitarbeiterExport() {
@@ -4410,7 +4409,10 @@ export default {
         console.error("Stundenliste-Status laden fehlgeschlagen", e);
         if (this.selectedEvent?.auftragNr === auftragNr) {
           if (refresh) {
-            alert(e?.response?.data?.message || "Stundenliste aktualisieren fehlgeschlagen.");
+            alert(
+              e?.response?.data?.message ||
+              "Stundenliste aktualisieren fehlgeschlagen.",
+            );
           } else {
             this.stundenlisteStatus = null;
           }
@@ -4438,19 +4440,23 @@ export default {
       const url = signed
         ? this.stundenlisteStatus?.signedPdfUrl
         : this.stundenlisteStatus?.unsignedPdfUrl;
-      if (url) return this.downloadFile(url, this.stundenlistePdfFilename(signed));
+      if (url)
+        return this.downloadFile(url, this.stundenlistePdfFilename(signed));
     },
     previewStundenliste(signed = false) {
       const url = signed
         ? this.stundenlisteStatus?.signedPdfUrl
         : this.stundenlisteStatus?.unsignedPdfUrl;
       if (!url) return;
-      this.openDocumentPreview({
-        id: `order-${this.selectedEvent?.auftragNr}-hours-${signed ? "signed" : "draft"}`,
-        url,
-        filename: this.stundenlistePdfFilename(signed),
-        mimeType: "application/pdf",
-      }, { minimizable: false });
+      this.openDocumentPreview(
+        {
+          id: `order-${this.selectedEvent?.auftragNr}-hours-${signed ? "signed" : "draft"}`,
+          url,
+          filename: this.stundenlistePdfFilename(signed),
+          mimeType: "application/pdf",
+        },
+        { minimizable: false },
+      );
     },
     async loadEinsatzDoks(auftragNr) {
       this.einsatzDoksLoading = true;
@@ -4469,7 +4475,8 @@ export default {
     async onEinsatzDokUpload(event) {
       const [file] = Array.from(event.target.files || []);
       event.target.value = "";
-      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr) return;
+      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr)
+        return;
       this.pendingEinsatzDokFile = file;
       this.einsatzDokTitle = "";
       this.einsatzDokScope = "public";
@@ -4489,7 +4496,8 @@ export default {
     },
     async confirmEinsatzDokUpload() {
       const file = this.pendingEinsatzDokFile;
-      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr) return;
+      if (this.einsatzDokUploading || !file || !this.selectedEvent?.auftragNr)
+        return;
       this.einsatzDokUploading = true;
       this.einsatzDokUploadError = "";
       try {
@@ -4497,14 +4505,30 @@ export default {
         form.append("file", file);
         form.append("title", this.einsatzDokTitle);
         form.append("scope", this.einsatzDokScope);
-        if (this.einsatzDokScope === "monitor") form.append("type", this.einsatzDokType);
-        form.append("publicEinsatzIds", this.einsatzDokPublicEinsatzIds.join(","));
-        form.append("publicRecipientFilter", String(this.einsatzDokPublicRecipientFilter));
-        if (this.einsatzDokScope === "public" && this.einsatzDokPublicRecipientRule === "teamleiter") {
+        if (this.einsatzDokScope === "monitor")
+          form.append("type", this.einsatzDokType);
+        form.append(
+          "publicEinsatzIds",
+          this.einsatzDokPublicEinsatzIds.join(","),
+        );
+        form.append(
+          "publicRecipientFilter",
+          String(this.einsatzDokPublicRecipientFilter),
+        );
+        if (
+          this.einsatzDokScope === "public" &&
+          this.einsatzDokPublicRecipientRule === "teamleiter"
+        ) {
           form.append("publicRecipientRule", "teamleiter");
         }
-        if (this.einsatzDokScope === "public" && this.einsatzDokPublicSchichtIds?.length) {
-          form.append("publicSchichtIds", this.einsatzDokPublicSchichtIds.join(","));
+        if (
+          this.einsatzDokScope === "public" &&
+          this.einsatzDokPublicSchichtIds?.length
+        ) {
+          form.append(
+            "publicSchichtIds",
+            this.einsatzDokPublicSchichtIds.join(","),
+          );
         }
         const { data } = await api.post(
           `/api/auftraege/${this.selectedEvent.auftragNr}/einsatzdokumente`,
@@ -4515,7 +4539,9 @@ export default {
         this.showEinsatzDokDialog = false;
         this.pendingEinsatzDokFile = null;
       } catch (e) {
-        this.einsatzDokUploadError = e.response?.data?.message || "Dokument konnte nicht hochgeladen werden. Bitte erneut versuchen.";
+        this.einsatzDokUploadError =
+          e.response?.data?.message ||
+          "Dokument konnte nicht hochgeladen werden. Bitte erneut versuchen.";
         console.error("Upload fehlgeschlagen", e);
       } finally {
         this.einsatzDokUploading = false;
@@ -4523,15 +4549,20 @@ export default {
     },
     previewEinsatzDok(dok) {
       const auftragNr = this.selectedEvent?.auftragNr;
-      this.openDocumentPreview({
-        id: `order-${auftragNr}-${dok._id}`,
-        filename: dok.filename,
-        mimeType: dok.mimeType,
-        resolveUrl: async () => {
-          const { data } = await api.get(`/api/auftraege/${auftragNr}/einsatzdokumente/${dok._id}/download`);
-          return data.data.url;
+      this.openDocumentPreview(
+        {
+          id: `order-${auftragNr}-${dok._id}`,
+          filename: dok.filename,
+          mimeType: dok.mimeType,
+          resolveUrl: async () => {
+            const { data } = await api.get(
+              `/api/auftraege/${auftragNr}/einsatzdokumente/${dok._id}/download`,
+            );
+            return data.data.url;
+          },
         },
-      }, { minimizable: false });
+        { minimizable: false },
+      );
     },
     async resolveEinsatzDokPreviewUrl() {
       const dok = this.previewEinsatzDokument;
@@ -4565,9 +4596,9 @@ export default {
       } catch (err) {
         alert(
           err.response?.data?.message ||
-            (isDraft
-              ? "Fehler beim Löschen des Signaturentwurfs"
-              : "Fehler beim Stornieren der Stundenliste"),
+          (isDraft
+            ? "Fehler beim Löschen des Signaturentwurfs"
+            : "Fehler beim Stornieren der Stundenliste"),
         );
       }
     },
@@ -4580,7 +4611,11 @@ export default {
         const signingSrc =
           submitter.embedSrc ||
           (submitter.slug ? `https://docuseal.eu/s/${submitter.slug}` : "");
-        if (submitter.embedded && signingSrc && submitter.status !== "completed") {
+        if (
+          submitter.embedded &&
+          signingSrc &&
+          submitter.status !== "completed"
+        ) {
           signersBySrc.set(signingSrc, {
             src: signingSrc,
             role: submitter.role || "",
@@ -4816,10 +4851,7 @@ export default {
         !this.pseudoNewSchicht.bezeichnung.trim()
       )
         return;
-      if (
-        this.pseudoSchichtMode !== "new" &&
-        !this.pseudoSelectedMas.length
-      )
+      if (this.pseudoSchichtMode !== "new" && !this.pseudoSelectedMas.length)
         return;
       this.pseudoSaving = true;
       const errors = [];
@@ -4860,11 +4892,16 @@ export default {
                   if (this.pseudoNewSchicht.uhrzeitBis)
                     payload.newUhrzeitBis = this.pseudoNewSchicht.uhrzeitBis;
                   if (this.pseudoNewSchicht.berufSchl)
-                    payload.newBerufSchl = String(this.pseudoNewSchicht.berufSchl);
+                    payload.newBerufSchl = String(
+                      this.pseudoNewSchicht.berufSchl,
+                    );
                   if (this.pseudoNewSchicht.qualSchl)
-                    payload.newQualSchl = String(this.pseudoNewSchicht.qualSchl);
+                    payload.newQualSchl = String(
+                      this.pseudoNewSchicht.qualSchl,
+                    );
                   if (this.pseudoNewSchicht.bedarf)
-                    payload.newBedarf = Number(this.pseudoNewSchicht.bedarf) || 1;
+                    payload.newBedarf =
+                      Number(this.pseudoNewSchicht.bedarf) || 1;
                 } else {
                   // null = auto (first shift), 'none' = explicitly the no-id group, anything else = real schichtId
                   if (this.pseudoSelectedSchicht !== null)
@@ -4888,6 +4925,7 @@ export default {
         );
         this.selectedEvent = detailsRes.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+        this.syncCalendarOrderFromDetails(this.selectedEvent);
         this.showPseudoDialog = false;
         if (errors.length)
           alert(
@@ -4910,6 +4948,11 @@ export default {
         );
         this.selectedEvent = res.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
+        this.syncCalendarOrderFromDetails(this.selectedEvent);
+        await Promise.all([
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
       } catch (err) {
         alert(err.response?.data?.message || "Fehler beim Entfernen");
       }
@@ -4938,9 +4981,15 @@ export default {
       // Shared frames own Escape, including their loading and topmost guards.
       // Never close the workspace detail behind an open dialog.
       if (
-        this.showLabelDialog || this.showNewAuftragDialog || this.showPseudoDialog || this.showEinsatzDokDialog ||
-        Array.from(document.querySelectorAll('.mf-overlay')).some(overlay => overlay.getClientRects().length)
-      ) return;
+        this.showLabelDialog ||
+        this.showNewAuftragDialog ||
+        this.showPseudoDialog ||
+        this.showEinsatzDokDialog ||
+        Array.from(document.querySelectorAll(".mf-overlay")).some(
+          (overlay) => overlay.getClientRects().length,
+        )
+      )
+        return;
 
       // Close modals in order of priority (topmost = last opened)
       if (this.createMenuOpen) {
@@ -4997,7 +5046,8 @@ export default {
     const queryLocationId =
       locationV2 || this.getLocationIdForExternalId(geschSt);
     if (queryLocationId) {
-      if (String(this.filters.locationV2) !== String(queryLocationId)) this.setLocationFilter(String(queryLocationId));
+      if (String(this.filters.locationV2) !== String(queryLocationId))
+        this.setLocationFilter(String(queryLocationId));
       if (!locationV2 && geschSt) {
         const nextQuery = { ...this.$route.query, locationV2: queryLocationId };
         delete nextQuery.geschSt;
@@ -5076,7 +5126,9 @@ export default {
   color: var(--location-color);
 }
 
-.auftraege-page--detail-only { display: contents; }
+.auftraege-page--detail-only {
+  display: contents;
+}
 
 .auftraege-page :deep(.location-filter-chip.active) {
   background: color-mix(in srgb, var(--location-color) 12%, transparent);
@@ -5256,7 +5308,6 @@ export default {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
-
 .schicht-header-compact {
   display: flex;
   justify-content: space-between;
@@ -5279,9 +5330,14 @@ export default {
     .schicht-detail-line {
       display: flex;
       align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      gap: 6px;
+      flex-wrap: nowrap;
       min-width: 0;
+
+      .pseudo-tag {
+        margin-left: 0;
+        flex-shrink: 0;
+      }
     }
 
     .schicht-name {
@@ -5309,6 +5365,7 @@ export default {
   font-size: 0.62rem;
   font-weight: 650;
   line-height: 1.25;
+  white-space: nowrap;
 
   svg {
     flex: 0 0 auto;
@@ -5829,6 +5886,7 @@ export default {
   overflow-x: auto;
   padding: 0;
   scrollbar-width: none;
+
   &::-webkit-scrollbar {
     display: none;
   }
@@ -5917,6 +5975,9 @@ export default {
 
 .calendar-grid {
   --kw-col-width: 58px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--header-h, 56px) - 190px);
   background: var(--tile-bg);
   border: 1px solid color-mix(in oklab, var(--border) 82%, var(--primary));
   border-radius: 16px;
@@ -5927,8 +5988,10 @@ export default {
 }
 
 .calendar-header {
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7), minmax(0, 1fr));
+  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7),
+      minmax(0, 1fr));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   box-sizing: border-box;
@@ -5948,11 +6011,9 @@ export default {
   overflow: hidden;
   padding: 0;
   position: relative;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklab, var(--primary) 5%, var(--panel)),
-    color-mix(in oklab, var(--primary) 2%, var(--tile-bg))
-  );
+  background: linear-gradient(to bottom,
+      color-mix(in oklab, var(--primary) 5%, var(--panel)),
+      color-mix(in oklab, var(--primary) 2%, var(--tile-bg)));
 }
 
 .kw-scroller {
@@ -5972,10 +6033,12 @@ export default {
   &::-webkit-scrollbar {
     width: 3px;
   }
+
   &::-webkit-scrollbar-thumb {
     background: var(--primary);
     border-radius: 999px;
   }
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
@@ -6028,6 +6091,7 @@ export default {
   }
 
   &.is-active {
+
     .kw-num-label,
     .kw-num-value {
       color: var(--action-accent-text);
@@ -6079,7 +6143,9 @@ export default {
     background: color-mix(in oklab, var(--primary) 7%, transparent);
     box-shadow: inset 0 3px 0 var(--primary);
 
-    .day-name { color: var(--primary); }
+    .day-name {
+      color: var(--primary);
+    }
   }
 
   .day-name {
@@ -6099,23 +6165,34 @@ export default {
 }
 
 .calendar-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7), minmax(0, 1fr));
-  min-height: 500px;
+  grid-template-columns: var(--kw-col-width, 58px) repeat(var(--visible-days, 7),
+      minmax(0, 1fr));
   box-sizing: border-box;
 }
 
 .day-column {
   box-sizing: border-box;
   min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--border);
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 
   &:last-child {
     border-right: none;
@@ -6194,18 +6271,23 @@ export default {
   &.bedarf-none {
     border-left: 3px solid var(--muted);
   }
+
   &.bedarf-all-empty {
     border-left: 3px solid #ef4444;
   }
+
   &.bedarf-some-empty {
     border-left: 3px solid #f97316;
   }
+
   &.bedarf-underbooked {
     border-left: 3px solid #eab308;
   }
+
   &.bedarf-full {
     border-left: 3px solid #22c55e;
   }
+
   &.bedarf-overbooked {
     border-left: 3px solid #15803d;
   }
@@ -6246,24 +6328,15 @@ export default {
   opacity: 0.65;
 }
 
-.event-card:has(
-    .event-signature-complete,
-    .event-signature-pending,
-    .event-signature-draft
-  )
-  .event-title-row,
-.event-card-mobile:has(
-    .event-signature-complete,
-    .event-signature-pending,
-    .event-signature-draft
-  )
-  .event-header,
-.event-card-mobile:has(
-    .event-signature-complete,
-    .event-signature-pending,
-    .event-signature-draft
-  )
-  .event-title-row {
+.event-card:has(.event-signature-complete,
+  .event-signature-pending,
+  .event-signature-draft) .event-title-row,
+.event-card-mobile:has(.event-signature-complete,
+  .event-signature-pending,
+  .event-signature-draft) .event-header,
+.event-card-mobile:has(.event-signature-complete,
+  .event-signature-pending,
+  .event-signature-draft) .event-title-row {
   padding-right: 21px;
 }
 
@@ -6303,7 +6376,7 @@ export default {
   border-radius: 50%;
   background: #d1fae5;
   color: #047857;
-  font-size: .72rem;
+  font-size: 0.72rem;
 }
 
 .event-einsaetze {
@@ -6315,7 +6388,6 @@ export default {
   border-radius: 4px;
   display: inline-block;
 }
-
 
 .detail-grid {
   display: grid;
@@ -6562,9 +6634,11 @@ export default {
 .mdn-center {
   display: none;
 }
+
 .mdn-dayname {
   display: none;
 }
+
 .mdn-date {
   display: none;
 }
@@ -6727,18 +6801,23 @@ export default {
   &.bedarf-none {
     border-left: 4px solid var(--muted);
   }
+
   &.bedarf-all-empty {
     border-left: 4px solid #ef4444;
   }
+
   &.bedarf-some-empty {
     border-left: 4px solid #f97316;
   }
+
   &.bedarf-underbooked {
     border-left: 4px solid #eab308;
   }
+
   &.bedarf-full {
     border-left: 4px solid #22c55e;
   }
+
   &.bedarf-overbooked {
     border-left: 4px solid #15803d;
   }
@@ -6799,6 +6878,26 @@ export default {
   align-items: center;
   gap: 6px;
   font-size: 0.75rem;
+  border-radius: 5px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+
+  &.shift-row--drag-over {
+    background: color-mix(in srgb, var(--primary) 14%, var(--tile-bg));
+    box-shadow: inset 0 0 0 1.5px var(--primary);
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
+.admin-staffing-expand-rail {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  flex-shrink: 0;
+  margin-left: 6px;
 }
 
 .shift-row--stacked {
@@ -6806,7 +6905,7 @@ export default {
   padding: 3px 0;
 }
 
-.shift-row--stacked + .shift-row--stacked {
+.shift-row--stacked+.shift-row--stacked {
   border-top: 1px solid var(--border);
 }
 
@@ -6822,6 +6921,14 @@ export default {
   min-width: 0;
 }
 
+.shift-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
 .shift-time {
   color: var(--text);
   font-weight: 650;
@@ -6834,7 +6941,7 @@ export default {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 400;
-  flex: 1;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6852,12 +6959,34 @@ export default {
   color: var(--text);
   flex-shrink: 0;
 
-  &.bedarf-none { background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg)); }
-  &.bedarf-all-empty { border-color: #ef4444; background: color-mix(in srgb, #ef4444 13%, var(--tile-bg)); }
-  &.bedarf-some-empty { border-color: #f97316; background: color-mix(in srgb, #f97316 13%, var(--tile-bg)); }
-  &.bedarf-underbooked { border-color: #eab308; background: color-mix(in srgb, #eab308 13%, var(--tile-bg)); }
-  &.bedarf-full { border-color: #22c55e; background: color-mix(in srgb, #22c55e 13%, var(--tile-bg)); }
-  &.bedarf-overbooked { border-color: #15803d; background: color-mix(in srgb, #15803d 13%, var(--tile-bg)); }
+  &.bedarf-none {
+    background: color-mix(in srgb, var(--muted) 10%, var(--tile-bg));
+  }
+
+  &.bedarf-all-empty {
+    border-color: #ef4444;
+    background: color-mix(in srgb, #ef4444 13%, var(--tile-bg));
+  }
+
+  &.bedarf-some-empty {
+    border-color: #f97316;
+    background: color-mix(in srgb, #f97316 13%, var(--tile-bg));
+  }
+
+  &.bedarf-underbooked {
+    border-color: #eab308;
+    background: color-mix(in srgb, #eab308 13%, var(--tile-bg));
+  }
+
+  &.bedarf-full {
+    border-color: #22c55e;
+    background: color-mix(in srgb, #22c55e 13%, var(--tile-bg));
+  }
+
+  &.bedarf-overbooked {
+    border-color: #15803d;
+    background: color-mix(in srgb, #15803d 13%, var(--tile-bg));
+  }
 }
 
 .shift-einsaetze {
@@ -6909,7 +7038,6 @@ export default {
   overflow: hidden;
 }
 
-
 /* ── Label chips ────────────────────────────────────────────────────── */
 .label-chips-row {
   display: flex;
@@ -6928,7 +7056,6 @@ export default {
   border: 1.5px solid;
   white-space: nowrap;
 }
-
 
 /* Event card labels */
 .event-labels {
@@ -6965,6 +7092,21 @@ export default {
     margin-left: 0;
     font-size: 0.6rem;
   }
+
+  &.pseudo-tag--shift {
+    margin-left: 0;
+    flex-shrink: 0;
+    font-size: 0.56rem;
+    padding: 0 4px;
+    line-height: 1.35;
+  }
+
+  &.pseudo-tag--inline {
+    font-size: 0.54rem;
+    padding: 0 4px;
+    line-height: 1.3;
+    margin-left: 4px;
+  }
 }
 
 .ma-badges--right {
@@ -6976,10 +7118,10 @@ export default {
 .pseudo-remove-btn {
   --action-ghost-text: var(--status-danger-text);
   --action-accent-text: var(--status-danger-text);
-  --action-ghost-hover: color-mix(in srgb, var(--status-danger-text) 12%, transparent);
+  --action-ghost-hover: color-mix(in srgb,
+      var(--status-danger-text) 12%,
+      transparent);
 }
-
-
 
 // ── Feiertage Highlighting ─────────────────────────────────────────────────
 

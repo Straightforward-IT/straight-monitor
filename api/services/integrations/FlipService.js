@@ -13,6 +13,7 @@ const {
   VerlosungEintrag,
 } = require("../../models/Classes/FlipDocs");
 const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
+const Location = require("../../models/System/Location");
 const Einsatz = require("../../models/Event/Einsatz");
 const Auftrag = require("../../models/Event/Auftrag");
 const Qualifikation = require("../../models/Event/Qualifikation");
@@ -1797,6 +1798,20 @@ async function syncRankGroups(mitarbeiterList) {
     )
   );
 
+  const locationIds = [
+    ...new Set(
+      eligible
+        .map(ma => String(ma.locationV2?._id || ma.locationV2 || ""))
+        .filter(Boolean)
+    ),
+  ];
+  const locations = locationIds.length > 0
+    ? await Location.find({ _id: { $in: locationIds } })
+        .select("_id flipOfficeUserId nameFull shortName")
+        .lean()
+    : [];
+  const locationMap = new Map(locations.map(loc => [String(loc._id), loc]));
+
   logs.push(`🏅 Rank sync: ${eligible.length} Mitarbeiter mit Flip-Account und Personalnr`);
 
   // Process in chunks to avoid hitting Flip rate limit (600 req/min)
@@ -1824,7 +1839,7 @@ async function syncRankGroups(mitarbeiterList) {
             new Date(ma.geburtsdatum).getMonth() === today.getMonth()
           : false;
 
-        const flipUser = new (require("../../models/Classes/FlipUser"))({ id: ma.flip_id });
+        const flipUser = new FlipUser({ id: ma.flip_id });
 
         if (isBirthday) {
           if (!ma.birthdayGroupActive) {
@@ -1839,6 +1854,39 @@ async function syncRankGroups(mitarbeiterList) {
             }
             await Mitarbeiter.updateOne({ _id: ma._id }, { birthdayGroupActive: true });
             logs.push(`🎂 ${ma.vorname} ${ma.nachname}: Geburtstag! Geburtstags-Gruppe als Primary gesetzt (Rang: ${tier.key})`);
+
+            const locId = String(ma.locationV2?._id || ma.locationV2 || "");
+            const loc = locId ? locationMap.get(locId) : null;
+            const officeFlipUserId = (loc?.flipOfficeUserId || ma.locationV2?.flipOfficeUserId || "").trim();
+
+            if (officeFlipUserId) {
+              try {
+                const officeFlipUser = new FlipUser({ id: officeFlipUserId });
+                const formattedDueDate = [
+                  today.getFullYear(),
+                  String(today.getMonth() + 1).padStart(2, "0"),
+                  String(today.getDate()).padStart(2, "0"),
+                ].join("-");
+
+                await assignFlipTask({
+                  body: {
+                    external_id: `birthday:${ma._id}:${formattedDueDate}`,
+                    title: `🎂 Geburtstag: ${ma.vorname} ${ma.nachname}`,
+                    recipients: [{ id: officeFlipUser.id, type: "USER" }],
+                    due_at: {
+                      date: formattedDueDate,
+                      type: "DATE",
+                      due_at_type: "DATE",
+                    },
+                    description: `Heute hat <strong>${ma.vorname} ${ma.nachname}</strong> Geburtstag! Vergiss nicht zu gratulieren.`,
+                  },
+                });
+                logs.push(`📋 Geburtstags-Task für ${ma.vorname} ${ma.nachname} an Office (${loc?.shortName || loc?.nameFull || officeFlipUser.id}) zugewiesen`);
+              } catch (taskErr) {
+                logs.push(`⚠️ Geburtstags-Task für ${ma.vorname} ${ma.nachname} konnte nicht erstellt werden: ${taskErr.message}`);
+              }
+            }
+
             promoted++;
           } else {
             unchanged++;

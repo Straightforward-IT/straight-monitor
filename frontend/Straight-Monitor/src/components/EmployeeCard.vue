@@ -1444,7 +1444,7 @@
                   </span>
                 </template>
                 <span v-else>—</span>
-                <span>Auto: {{ resolvedMa.fuehrerschein?.hatAuto ? 'Ja' : 'Nein' }}</span>
+                <span>Auto: {{ resolvedMa.fuehrerschein?.hatAuto === true ? 'Ja' : resolvedMa.fuehrerschein?.hatAuto === false ? 'Nein' : '—' }}</span>
               </dd>
               <dd v-else class="stammdaten-inline-editor">
                 <AppTextInput v-model="stammdatenDraft.klassen" aria-label="Führerscheinklassen" placeholder="Klassen, durch Komma getrennt (z. B. B, BE)" :disabled="savingStammdatenField" />

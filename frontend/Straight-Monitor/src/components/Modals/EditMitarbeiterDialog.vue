@@ -420,7 +420,7 @@ const form = ref({
   adresse: { strasse: "", plz: "", ort: "", land: "" },
   adresse2: { strasse: "", plz: "", ort: "", land: "", telefon: "", email: "" },
   fuehrerscheine: [],
-  hatAuto: false,
+  hatAuto: null,
 });
 
 // yyyy-MM-dd for <input type="date">
@@ -482,7 +482,7 @@ watch(
           gueltigBis: toDateInput(license.gueltigBis),
           source: license.source || "manual",
         })),
-        hatAuto: Boolean(newVal.fuehrerschein?.hatAuto),
+        hatAuto: typeof newVal.fuehrerschein?.hatAuto === 'boolean' ? newVal.fuehrerschein.hatAuto : null,
       };
     }
   },

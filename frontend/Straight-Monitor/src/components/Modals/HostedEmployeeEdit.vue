@@ -59,7 +59,7 @@ async function save(form, force = false) {
     klasse: firstLicense?.klasse || props.mitarbeiter?.fuehrerschein?.klasse || null,
     gueltigVon: firstLicense?.gueltigVon || props.mitarbeiter?.fuehrerschein?.gueltigVon || null,
     gueltigBis: firstLicense?.gueltigBis || props.mitarbeiter?.fuehrerschein?.gueltigBis || null,
-    hatAuto: Boolean(form.hatAuto),
+    hatAuto: typeof form.hatAuto === 'boolean' ? form.hatAuto : null,
   };
   payload.geburtsdatum = form.geburtsdatum || null;
   if (force) payload.forcePersonalnr = true;

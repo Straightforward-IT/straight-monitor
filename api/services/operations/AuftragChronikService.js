@@ -138,7 +138,10 @@ function summary(action, changes) {
   const verb = { created: 'angelegt', updated: 'geändert', deleted: 'gelöscht', released: 'freigegeben' };
   if (action === 'planning.updated') return `Personalplanung geändert · ${changes.filter(item => item.entity === 'Einsatz').length} Einsätze`;
   const [entity, event] = action.split('.');
-  const primary = changes.find(item => item.entity === entity) || (changes.length === 1 ? changes[0] : null);
+  const primary =
+    changes.find(item => item.entity === entity && item.action === event) ||
+    changes.find(item => item.entity === entity) ||
+    (changes.length === 1 ? changes[0] : null);
   const effectiveEntity = primary?.entity || entity;
   const effectiveEvent = primary && primary.entity !== entity ? primary.action : event;
   const affected = changes.filter(item => item !== primary).length;
