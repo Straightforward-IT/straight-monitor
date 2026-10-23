@@ -34,6 +34,11 @@ const SchichtSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  istAusgeschrieben: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
   day: { type: String },
   endDayOffset: { type: Number, min: 0 },
   groupShiftKey: { type: String },

@@ -3,7 +3,7 @@
     v-if="modelValue && item"
     :model-value="Boolean(modelValue && item)"
     :title="item.einsatz?.title || 'Einsatz bestätigen'"
-    subtitle="Einsatz bestätigen"
+    :subtitle="item.isReserve || item.einsatz?.isReserve ? 'Reserve-Schicht bestätigen' : 'Einsatz bestätigen'"
     size="sm"
     :close-on-backdrop="!confirming"
     :close-on-escape="!confirming"

@@ -46,7 +46,7 @@ async function save(form, force = false) {
   const fields = ['vorname', 'nachname', 'personalnr', 'email', 'telefon', 'iban',
     'konfektionsgroesse', 'schuhgroesse', 'geburtsname', 'geburtsort', 'nationalitaet',
     'additionalEmails', 'adresse', 'adresse2', 'vorarbeitgebertage',
-    'fuehrerscheine'];
+    'fuehrerscheine', 'persgruppe', 'persgruppeMonth', 'persgruppe_set_explicitly'];
   const payload = Object.fromEntries(fields.map(field => [field, form[field]]));
   if (Array.isArray(payload.fuehrerscheine)) {
     payload.fuehrerscheine = payload.fuehrerscheine.map((license) => ({

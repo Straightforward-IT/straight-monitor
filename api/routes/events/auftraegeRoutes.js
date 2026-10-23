@@ -38,6 +38,7 @@ const { validateAuftragRelease } = require('../../services/operations/AuftragRel
 const { withAuftragChronik } = require('../../services/operations/AuftragChronikService');
 const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
 const { invalidateForTimeChange } = require('../../services/operations/EinsatzBestaetigungService');
+const { notifyEinsatzAssignment } = require('../../services/operations/EinsatzFlipTaskService');
 const resolveQueries = require('../../utils/resolveQueries');
 const { canAccess } = require('../../services/TimeCaptureService');
 const { resolveGroupOrderDefaults, resolveOrderView } = require('../../services/operations/AuftragsgruppeOrderService');
@@ -123,7 +124,7 @@ const SCHICHT_EDITABLE_FIELDS = new Set([
   'ansprechpartnerTelefon', 'ansprechpartnerEmail', 'letzteAusschreibung',
   'datumVon', 'datumBis', 'uhrzeitVon', 'uhrzeitBis', 'typ', 'bedarf',
   'garantiestundenLohn', 'endeOffen',
-  'berufSchl', 'qualSchl',
+  'berufSchl', 'qualSchl', 'istAusgeschrieben',
 ]);
 const EINSATZ_EDITABLE_FIELDS = new Set([
   'mitarbeiterId', 'personalNr', 'berufSchl', 'qualSchl', 'bezeichnung', 'datumVon',
@@ -132,7 +133,7 @@ const EINSATZ_EDITABLE_FIELDS = new Set([
   'ansprechpartnerName', 'ansprechpartnerTelefon', 'ansprechpartnerEmail',
   'letzteAusschreibung', 'detailDatumVon', 'detailDatumBis', 'uhrzeitVon',
   'uhrzeitBis', 'typ', 'bedarf', 'garantiestundenLohn', 'endeOffen',
-  'stundenlisteIncluded',
+  'stundenlisteIncluded', 'isReserve',
 ]);
 const DATE_FIELDS = new Set([
   'dtAngelegtAm', 'bestDatum', 'vonDatum', 'bisDatum', 'letzteAusschreibung',
@@ -754,7 +755,7 @@ router.get('/', async (req, res) => {
     // Fetch mitarbeiter names per Auftrag for search
     const allEinsaetze = await Einsatz.find(
       { auftragNr: { $in: auftragNrs }, personalNr: { $ne: null } },
-      { auftragNr: 1, schicht: 1, idAuftragArbeitsschichten: 1, personalNr: 1, isPseudo: 1, updatedAt: 1 }
+      { auftragNr: 1, schicht: 1, idAuftragArbeitsschichten: 1, personalNr: 1, isPseudo: 1, isReserve: 1, updatedAt: 1 }
     ).lean();
     const allPersonalNrs = [...new Set(allEinsaetze.map(e => String(e.personalNr)).filter(Boolean))];
     const maList = allPersonalNrs.length
@@ -787,9 +788,14 @@ router.get('/', async (req, res) => {
           if (!mitarbeiterBySchichtMap[key]) mitarbeiterBySchichtMap[key] = [];
           const existing = mitarbeiterBySchichtMap[key].find(item => item.name === name);
           if (!existing) {
-            mitarbeiterBySchichtMap[key].push({ name, isPseudo: Boolean(e.isPseudo) });
-          } else if (e.isPseudo) {
-            existing.isPseudo = true;
+            mitarbeiterBySchichtMap[key].push({
+              name,
+              isPseudo: Boolean(e.isPseudo),
+              isReserve: Boolean(e.isReserve),
+            });
+          } else {
+            if (e.isPseudo) existing.isPseudo = true;
+            if (e.isReserve) existing.isReserve = true;
           }
         }
       }
@@ -811,6 +817,7 @@ router.get('/', async (req, res) => {
         berufSchl: 1,
         source: 1,
         isPseudo: 1,
+        istAusgeschrieben: 1,
         clientId: 1,
         day: 1,
         groupShiftKey: 1,
@@ -823,16 +830,19 @@ router.get('/', async (req, res) => {
       {
         $group: {
           _id: { auftragNr: '$auftragNr', schicht: '$schicht', legacy: '$idAuftragArbeitsschichten' },
-          besetzt: { $sum: 1 },
+          besetzt: { $sum: { $cond: [{ $eq: ['$isReserve', true] }, 0, 1] } },
+          reserveCount: { $sum: { $cond: [{ $eq: ['$isReserve', true] }, 1, 0] } },
           pseudoCount: { $sum: { $cond: [{ $eq: ['$isPseudo', true] }, 1, 0] } },
         },
       }
     ]);
     const einsatzSchichtMap = {};
+    const reserveSchichtMap = {};
     const pseudoSchichtMap = {};
-    einsatzBySchicht.forEach(({ _id, besetzt, pseudoCount }) => {
+    einsatzBySchicht.forEach(({ _id, besetzt, reserveCount, pseudoCount }) => {
       const key = _id.schicht ? `id_${_id.schicht}` : `legacy_${_id.auftragNr}_${_id.legacy}`;
       einsatzSchichtMap[key] = (einsatzSchichtMap[key] || 0) + besetzt;
+      reserveSchichtMap[key] = (reserveSchichtMap[key] || 0) + (reserveCount || 0);
       pseudoSchichtMap[key] = (pseudoSchichtMap[key] || 0) + (pseudoCount || 0);
     });
 
@@ -841,10 +851,14 @@ router.get('/', async (req, res) => {
       for (const item of [...listA, ...listB]) {
         const name = typeof item === 'object' ? item.name : item;
         const isPseudo = Boolean(typeof item === 'object' && item.isPseudo);
+        const isReserve = Boolean(typeof item === 'object' && item.isReserve);
         if (!name) continue;
         const existing = merged.find(entry => entry.name === name);
-        if (!existing) merged.push({ name, isPseudo });
-        else if (isPseudo) existing.isPseudo = true;
+        if (!existing) merged.push({ name, isPseudo, isReserve });
+        else {
+          if (isPseudo) existing.isPseudo = true;
+          if (isReserve) existing.isReserve = true;
+        }
       }
       return merged;
     }
@@ -924,7 +938,9 @@ router.get('/', async (req, res) => {
         berufSchl: s.berufSchl || null,
         bedarf: s.bedarf,
         besetzt,
+        reserveCount: (reserveSchichtMap[key] || 0) + (legacyKey ? (reserveSchichtMap[legacyKey] || 0) : 0),
         isPseudo,
+        istAusgeschrieben: Boolean(s.istAusgeschrieben),
         hasPseudoEinsatz: pseudoCount > 0,
         pseudoCount,
         einsaetze: mergeShiftMitarbeiter(
@@ -1005,8 +1021,14 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
     
     // -- Optimization: Batch fetch related data --
     const personalNrs = [...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String))];
-    const berufKeys = [...new Set(einsaetze.map(e => parseInt(e.berufSchl)).filter(k => !isNaN(k)))];
-    const qualiKeys = [...new Set(einsaetze.map(e => parseInt(e.qualSchl)).filter(k => !isNaN(k)))];
+    const berufKeys = [...new Set([
+      ...einsaetze.map(e => parseInt(e.berufSchl, 10)),
+      ...schichten.map(s => parseInt(s.berufSchl, 10)),
+    ].filter(k => !isNaN(k)))];
+    const qualiKeys = [...new Set([
+      ...einsaetze.map(e => parseInt(e.qualSchl, 10)),
+      ...schichten.map(s => parseInt(s.qualSchl, 10)),
+    ].filter(k => !isNaN(k)))];
 
     const [mitarbeiterList, berufList, qualiList] = await Promise.all([
       personalNrs.length ? Mitarbeiter.find({ personalnr: { $in: personalNrs } })
@@ -1034,15 +1056,28 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
       }
       
       if (einsatz.berufSchl) {
-        const key = parseInt(einsatz.berufSchl);
+        const key = parseInt(einsatz.berufSchl, 10);
         result.berufData = berufMap.get(key) || null;
       }
       
       if (einsatz.qualSchl) {
-        const key = parseInt(einsatz.qualSchl);
+        const key = parseInt(einsatz.qualSchl, 10);
         result.qualifikationData = qualiMap.get(key) || null;
       }
       
+      return result;
+    });
+
+    const schichtenWithRefs = schichten.map(schicht => {
+      const result = { ...schicht };
+      if (schicht.berufSchl) {
+        const key = parseInt(schicht.berufSchl, 10);
+        result.berufData = berufMap.get(key) || null;
+      }
+      if (schicht.qualSchl) {
+        const key = parseInt(schicht.qualSchl, 10);
+        result.qualifikationData = qualiMap.get(key) || null;
+      }
       return result;
     });
     
@@ -1050,7 +1085,7 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
       ...auftrag,
       kundeData,
       einsaetze: einsaetzeWithMitarbeiter,
-      schichten
+      schichten: schichtenWithRefs
     });
     
   } catch (error) {
@@ -1461,8 +1496,10 @@ async function decideJobBewerbungHandler(req, res) {
 
   const action = String(req.body?.action || '').trim().toLowerCase();
   const explicitStatus = String(req.body?.status || '').trim().toLowerCase();
+  const isReserveAssignment = action === 'reserve' || Boolean(req.body?.isReserve);
+  const notifyEmployee = Boolean(req.body?.notifyEmployee);
   let nextStatus = explicitStatus;
-  if (action === 'accept') nextStatus = 'scheduled';
+  if (action === 'accept' || action === 'reserve') nextStatus = 'scheduled';
   else if (action === 'deny' || action === 'reject') nextStatus = 'rejected';
 
   if (!['submitted', 'scheduled', 'confirmed', 'rejected'].includes(nextStatus)) {
@@ -1475,6 +1512,7 @@ async function decideJobBewerbungHandler(req, res) {
   }
 
   let createdOrExistingEinsatz = null;
+  let loadedAuftrag = null;
   const rawAuftragNr = req.params.auftragNr ?? req.body?.auftragNr ?? bewerbung.auftragNr;
   const parsedAuftragNr = rawAuftragNr !== undefined && rawAuftragNr !== null && rawAuftragNr !== ''
     ? parseInt(rawAuftragNr, 10)
@@ -1482,6 +1520,7 @@ async function decideJobBewerbungHandler(req, res) {
 
   if (nextStatus === 'scheduled' && Number.isInteger(parsedAuftragNr)) {
     const auftrag = await Auftrag.findOne({ auftragNr: parsedAuftragNr });
+    loadedAuftrag = auftrag;
     if (auftrag) {
       await assertOrderHasLocation(req, auftrag);
       const personalnrInt = mitarbeiter.personalnr ? parseInt(mitarbeiter.personalnr, 10) : null;
@@ -1567,9 +1606,33 @@ async function decideJobBewerbungHandler(req, res) {
           qualSchl: schichtTemplate?.qualSchl || tpl?.qualSchl,
           bedarf: schichtTemplate?.bedarf ?? tpl?.bedarf,
           isPseudo: true,
-          stundenlisteIncluded: false,
+          isReserve: isReserveAssignment,
+          stundenlisteIncluded: !isReserveAssignment,
           bestaetigungErforderlich: true,
           bestaetigt: false,
+        });
+      } else if (Boolean(createdOrExistingEinsatz.isReserve) !== isReserveAssignment) {
+        createdOrExistingEinsatz.isReserve = isReserveAssignment;
+        createdOrExistingEinsatz.stundenlisteIncluded = !isReserveAssignment;
+        createdOrExistingEinsatz.bestaetigungErforderlich = true;
+        createdOrExistingEinsatz.bestaetigt = false;
+        createdOrExistingEinsatz.bestaetigung = {
+          version: null,
+          flipTaskId: null,
+          einsatzzeitenGelesenAt: null,
+          einsatzkleidungAt: null,
+          ankunftspufferAt: null,
+          completedAt: null,
+        };
+        await createdOrExistingEinsatz.save();
+      }
+
+      if (notifyEmployee && createdOrExistingEinsatz) {
+        await notifyEinsatzAssignment({
+          einsatz: createdOrExistingEinsatz,
+          auftrag: loadedAuftrag,
+          mitarbeiter,
+          isReserve: isReserveAssignment,
         });
       }
 
@@ -1582,10 +1645,12 @@ async function decideJobBewerbungHandler(req, res) {
         bewerbung.schichtBezeichnung = schichtTemplate.bezeichnung;
       }
       bewerbung.einsatz = createdOrExistingEinsatz._id;
+      bewerbung.isReserve = isReserveAssignment;
     }
   } else if (nextStatus === 'rejected' && bewerbung.einsatz) {
     await Einsatz.findOneAndDelete({ _id: bewerbung.einsatz, isPseudo: true });
     bewerbung.einsatz = null;
+    bewerbung.isReserve = false;
   }
 
   bewerbung.status = nextStatus;
@@ -1788,6 +1853,9 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
     newAnsprechpartnerName,
     newAnsprechpartnerTelefon,
     newAnsprechpartnerEmail,
+    istAusgeschrieben,
+    isReserve,
+    notifyEmployee,
     replanFromEinsatzIds,
     replanFromDispoIds,
   } = req.body;
@@ -1866,6 +1934,8 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
         creationOrigin: 'manual',
         source: 'monitor',
         isPseudo: true,
+        istAusgeschrieben: Boolean(istAusgeschrieben),
+        ...(istAusgeschrieben ? { letzteAusschreibung: new Date() } : {}),
         createdBy: userId(req),
         auftragNr: parsedAuftragNr,
         locationV2: auftrag.locationV2 || null,
@@ -2023,11 +2093,21 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
       ? (Number.isInteger(Number(newBedarf)) && Number(newBedarf) > 0 ? Number(newBedarf) : 1)
       : (schichtTemplate?.bedarf ?? tpl?.bedarf),
     isPseudo: true,
+    isReserve: Boolean(isReserve),
     stundenlisteIncluded: false,
-    bestaetigungErforderlich: false,
+    bestaetigungErforderlich: true,
     bestaetigt: false,
   });
   await newEinsatz.save();
+
+  if (notifyEmployee) {
+    await notifyEinsatzAssignment({
+      einsatz: newEinsatz,
+      auftrag,
+      mitarbeiter,
+      isReserve: Boolean(isReserve),
+    });
+  }
 
   // Sync any matching JobBewerbung for this employee
   await JobBewerbung.updateMany(
@@ -2042,6 +2122,7 @@ router.post('/:auftragNr/pseudo-einsatz', auth, withAuftragChronik('Einsatz.crea
     {
       $set: {
         status: 'scheduled',
+        isReserve: Boolean(isReserve),
         confirmationStep: 0,
         einsatz: newEinsatz._id,
         decidedBy: userId(req),
@@ -2242,7 +2323,9 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
   ]);
   if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
   if (!current) return res.status(404).json({ message: 'Schicht nicht gefunden' });
-  await assertOrderHasLocation(req, auftrag);
+  if (auftrag.locationV2 || (!current.isPseudo && !auftrag.isPseudo)) {
+    await assertOrderHasLocation(req, auftrag);
+  }
   if (auftrag.day && Object.hasOwn(patch, 'datumVon')
     && require('../../utils/orderDay').dayKey(patch.datumVon) !== auftrag.day) {
     throw validationError('Die Schicht muss am Starttag des Auftrags beginnen');
@@ -2255,6 +2338,9 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
     || ['datumVon', 'datumBis'].some(key => Object.hasOwn(patch, key) && editableValueChanged(key, patch[key], current[key]));
   const beforeShift = current.toObject();
   Object.assign(current, patch);
+  if (patch.istAusgeschrieben === true && !beforeShift.istAusgeschrieben) {
+    current.letzteAusschreibung = new Date();
+  }
   current.einsatzinformation = await renderShiftInformation({
     auftrag,
     schicht: current.toObject(),
@@ -2276,6 +2362,7 @@ router.patch('/:auftragNr/schichten/:schichtId', auth, withAuftragChronik('Schic
   });
   if (Object.prototype.hasOwnProperty.call(patch, 'bezeichnung')) {
     einsatzPatch.schichtBezeichnung = patch.bezeichnung;
+    einsatzPatch.bezeichnung = patch.bezeichnung;
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'datumVon')) {
     einsatzPatch.datumVon = patch.datumVon;
@@ -2837,6 +2924,134 @@ router.delete('/:auftragNr/pseudo-schicht/:schichtId', auth, withAuftragChronik(
 
   await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
   res.json({ ok: true });
+}));
+
+// PATCH /api/auftraege/:auftragNr/schichten/:schichtId/ausschreibung – Toggle istAusgeschrieben on a shift
+router.patch('/:auftragNr/schichten/:schichtId/ausschreibung', auth, requireAdmin, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const rawSchichtId = String(req.params.schichtId || '').trim();
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(rawSchichtId);
+  const numericSchichtId = !isObjectId && Number.isFinite(Number(rawSchichtId)) ? Number(rawSchichtId) : null;
+  if (!isObjectId && numericSchichtId === null) {
+    return res.status(400).json({ message: 'Ungültige Schicht-ID' });
+  }
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  await assertOrderHasLocation(req, auftrag);
+
+  const schicht = await Schicht.findOne(
+    isObjectId
+      ? { _id: rawSchichtId, auftragNr }
+      : { idAuftragArbeitsschichten: numericSchichtId, auftragNr }
+  );
+  if (!schicht) return res.status(404).json({ message: 'Schicht nicht gefunden' });
+
+  const nextValue =
+    typeof req.body?.istAusgeschrieben === 'boolean'
+      ? req.body.istAusgeschrieben
+      : !schicht.istAusgeschrieben;
+
+  // Ensure qualSchl is copied from existing Einsatz on the shift if missing on Schicht
+  if (nextValue && !schicht.qualSchl) {
+    const sampleEinsatz = await Einsatz.findOne({
+      auftragNr,
+      qualSchl: { $nin: [null, ''] },
+      $or: [
+        { schicht: schicht._id },
+        ...(schicht.idAuftragArbeitsschichten != null
+          ? [{ idAuftragArbeitsschichten: schicht.idAuftragArbeitsschichten }]
+          : []),
+      ],
+    })
+      .select('qualSchl berufSchl')
+      .lean();
+    if (sampleEinsatz?.qualSchl) schicht.qualSchl = String(sampleEinsatz.qualSchl).trim();
+    if (!schicht.berufSchl && sampleEinsatz?.berufSchl) {
+      schicht.berufSchl = String(sampleEinsatz.berufSchl).trim();
+    }
+  }
+
+  schicht.istAusgeschrieben = nextValue;
+  if (nextValue) {
+    schicht.letzteAusschreibung = new Date();
+  }
+  await schicht.save();
+  await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
+
+  res.json({
+    ok: true,
+    schicht: schicht.toObject(),
+  });
+}));
+
+// PATCH /api/auftraege/:auftragNr/einsaetze/:einsatzId/reserve – Convert Reserve <-> Regular Einsatz
+router.patch('/:auftragNr/einsaetze/:einsatzId/reserve', auth, requireAdmin, asyncHandler(async (req, res) => {
+  const auftragNr = parseAuftragNr(req.params.auftragNr);
+  const { einsatzId } = req.params;
+  if (!mongoose.isValidObjectId(einsatzId)) {
+    return res.status(400).json({ message: 'Ungültige Einsatz-ID' });
+  }
+
+  const auftrag = await Auftrag.findOne({ auftragNr }).lean();
+  if (!auftrag) return res.status(404).json({ message: 'Auftrag nicht gefunden' });
+  await assertOrderHasLocation(req, auftrag);
+
+  const einsatz = await Einsatz.findOne({ _id: einsatzId, auftragNr });
+  if (!einsatz) return res.status(404).json({ message: 'Einsatz nicht gefunden' });
+
+  const nextIsReserve =
+    typeof req.body?.isReserve === 'boolean' ? req.body.isReserve : !einsatz.isReserve;
+  const notifyEmployee = Boolean(req.body?.notifyEmployee);
+
+  einsatz.isReserve = nextIsReserve;
+  einsatz.stundenlisteIncluded = !nextIsReserve && !einsatz.isPseudo;
+  einsatz.bestaetigungErforderlich = true;
+  einsatz.bestaetigt = false;
+  einsatz.bestaetigung = {
+    version: null,
+    flipTaskId: null,
+    einsatzzeitenGelesenAt: null,
+    einsatzkleidungAt: null,
+    ankunftspufferAt: null,
+    completedAt: null,
+  };
+  await einsatz.save();
+
+  await JobBewerbung.updateMany(
+    { einsatz: einsatz._id },
+    {
+      $set: {
+        isReserve: nextIsReserve,
+        status: 'scheduled',
+        confirmationStep: 0,
+      },
+    }
+  );
+
+  if (notifyEmployee && einsatz.personalNr != null) {
+    const mitarbeiter = await Mitarbeiter.findOne({
+      $or: [
+        { personalnr: String(einsatz.personalNr) },
+        { 'personalnrHistory.value': String(einsatz.personalNr) },
+      ],
+    }).lean();
+    if (mitarbeiter) {
+      await notifyEinsatzAssignment({
+        einsatz,
+        auftrag,
+        mitarbeiter,
+        isReserve: nextIsReserve,
+      });
+    }
+  }
+
+  await Auftrag.updateOne({ auftragNr }, { $inc: { planningVersion: 1 } });
+
+  res.json({
+    ok: true,
+    einsatz: einsatz.toObject(),
+  });
 }));
 
 // DELETE /api/auftraege/:auftragNr/pseudo-einsatz/:einsatzId – Remove a pseudo-Einsatz

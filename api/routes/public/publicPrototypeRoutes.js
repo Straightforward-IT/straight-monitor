@@ -4,9 +4,11 @@ const publicAuth = require('../../middleware/publicAuth');
 const Auftrag = require('../../models/Event/Auftrag');
 const Schicht = require('../../models/Event/Schicht');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
+const Qualifikation = require('../../models/Event/Qualifikation');
 const Einsatz = require('../../models/Event/Einsatz');
 const JobBewerbung = require('../../models/Event/JobBewerbung');
 const mongoose = require('mongoose');
+const { completeEinsatzFlipTask } = require('../../services/operations/EinsatzFlipTaskService');
 const { createTomorrowConfirmationFixture, deleteTomorrowConfirmationFixture } = require('../../services/public/PublicNeuigkeitenFixtureService');
 
 const router = express.Router();
@@ -52,8 +54,9 @@ async function resolveMitarbeiter(req) {
   if (!conditions.length) return null;
 
   return Mitarbeiter.findOne({ $or: conditions })
-    .select('_id locationV2 kundenwuensche')
+    .select('_id flip_id locationV2 kundenwuensche qualifikationen')
     .populate('kundenwuensche.kunde', 'kundenNr kundName kuerzel')
+    .populate('qualifikationen', 'qualificationKey designation')
     .lean();
 }
 
@@ -67,21 +70,36 @@ function getBlockedKundenNrs(mitarbeiter) {
   return blocked;
 }
 
+function getMitarbeiterQualKeys(mitarbeiter) {
+  const set = new Set();
+  for (const q of mitarbeiter?.qualifikationen || []) {
+    const key = q?.qualificationKey ?? q;
+    if (key !== null && key !== undefined && String(key).trim() !== '') {
+      set.add(String(key).trim());
+    }
+  }
+  return set;
+}
+
 router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
   const mitarbeiter = await resolveMitarbeiter(req);
   if (!mitarbeiter) {
     return res.status(404).json({ msg: 'Mitarbeiter für diesen Flip-Account nicht gefunden' });
   }
   if (!mitarbeiter.locationV2) {
-    return res.json({ jobs: [], applications: {}, applicationSteps: {}, reason: 'missing_location' });
+    return res.json({ jobs: [], applications: {}, applicationSteps: {}, applicationReserves: {}, reason: 'missing_location' });
   }
 
   const existingBewerbungen = await JobBewerbung.find({ mitarbeiter: mitarbeiter._id }).lean();
   const applications = {};
   const applicationSteps = {};
+  const applicationReserves = {};
   const appliedSchichtIds = [];
   for (const bew of existingBewerbungen) {
     applications[bew.jobId] = bew.status;
+    if (bew.isReserve) {
+      applicationReserves[bew.jobId] = true;
+    }
     if (bew.status === 'scheduled') {
       applicationSteps[bew.jobId] = Number(bew.confirmationStep || 0);
     }
@@ -98,7 +116,7 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
   const schichtQuery = appliedSchichtIds.length
     ? {
         $or: [
-          { locationV2: mitarbeiter.locationV2, datumBis: { $gte: today }, bedarf: { $gt: 0 } },
+          { locationV2: mitarbeiter.locationV2, datumBis: { $gte: today }, bedarf: { $gt: 0 }, istAusgeschrieben: true },
           { _id: { $in: appliedSchichtIds } },
         ],
       }
@@ -106,15 +124,17 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
         locationV2: mitarbeiter.locationV2,
         datumBis: { $gte: today },
         bedarf: { $gt: 0 },
+        istAusgeschrieben: true,
       };
 
   const schichten = await Schicht.find(schichtQuery)
-    .select('auftragNr idAuftragArbeitsschichten bezeichnung treffpunkt treffpunktOrt datumVon datumBis uhrzeitVon uhrzeitBis bedarf besetzt offen endeOffen einsatzinformation')
+    .select('auftragNr idAuftragArbeitsschichten bezeichnung treffpunkt treffpunktOrt datumVon datumBis uhrzeitVon uhrzeitBis bedarf besetzt offen endeOffen qualSchl berufSchl istAusgeschrieben einsatzinformation')
     .sort({ datumVon: 1, uhrzeitVon: 1 })
     .limit(100)
     .lean();
 
   const blockedKundenNrs = getBlockedKundenNrs(mitarbeiter);
+  const employeeQualKeys = getMitarbeiterQualKeys(mitarbeiter);
 
   const auftragNrs = [...new Set(schichten.map((schicht) => schicht.auftragNr))];
   const auftraege = auftragNrs.length
@@ -143,33 +163,99 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
         ],
       },
     },
-    { $group: { _id: { schicht: '$schicht', auftragNr: '$auftragNr', legacy: '$idAuftragArbeitsschichten' }, count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: { schicht: '$schicht', auftragNr: '$auftragNr', legacy: '$idAuftragArbeitsschichten' },
+        regularCount: { $sum: { $cond: [{ $eq: ['$isReserve', true] }, 0, 1] } },
+        reserveCount: { $sum: { $cond: [{ $eq: ['$isReserve', true] }, 1, 0] } },
+        qualSchl: { $first: '$qualSchl' },
+      },
+    },
   ]);
   const occupiedById = new Map();
   const occupiedByLegacy = new Map();
+  const reserveById = new Map();
+  const reserveByLegacy = new Map();
+  const fallbackQualById = new Map();
+  const fallbackQualByLegacy = new Map();
   assignmentCounts.forEach(item => {
-    if (item._id.schicht) occupiedById.set(String(item._id.schicht), item.count);
-    else occupiedByLegacy.set(`${item._id.auftragNr}:${item._id.legacy}`, item.count);
+    if (item._id.schicht) {
+      const k = String(item._id.schicht);
+      occupiedById.set(k, (occupiedById.get(k) || 0) + item.regularCount);
+      reserveById.set(k, (reserveById.get(k) || 0) + item.reserveCount);
+      if (item.qualSchl) fallbackQualById.set(k, String(item.qualSchl).trim());
+    } else {
+      const k = `${item._id.auftragNr}:${item._id.legacy}`;
+      occupiedByLegacy.set(k, (occupiedByLegacy.get(k) || 0) + item.regularCount);
+      reserveByLegacy.set(k, (reserveByLegacy.get(k) || 0) + item.reserveCount);
+      if (item.qualSchl) fallbackQualByLegacy.set(k, String(item.qualSchl).trim());
+    }
   });
+
+  const allQualKeys = new Set();
+  for (const s of schichten) {
+    const q = s.qualSchl
+      || fallbackQualById.get(String(s._id))
+      || fallbackQualByLegacy.get(`${s.auftragNr}:${s.idAuftragArbeitsschichten}`);
+    if (q) allQualKeys.add(String(q).trim());
+  }
+  const qualDocs = allQualKeys.size
+    ? await Qualifikation.find({
+        qualificationKey: {
+          $in: [...allQualKeys].flatMap((k) => {
+            const n = Number(k);
+            return Number.isFinite(n) ? [k, n] : [k];
+          }),
+        },
+      })
+        .select('qualificationKey designation')
+        .lean()
+    : [];
+  const qualDesignationMap = new Map(
+    qualDocs.map((q) => [String(q.qualificationKey).trim(), q.designation])
+  );
 
   const jobs = schichten.flatMap((schicht) => {
     const auftrag = auftragByNr.get(schicht.auftragNr);
     if (!auftrag) return [];
-    const occupiedPlaces = occupiedById.get(String(schicht._id))
-      ?? occupiedByLegacy.get(`${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`)
+    const schichtIdStr = String(schicht._id);
+    const legacyKeyStr = `${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`;
+    const occupiedPlaces = occupiedById.get(schichtIdStr)
+      ?? occupiedByLegacy.get(legacyKeyStr)
+      ?? 0;
+    const reservePlaces = reserveById.get(schichtIdStr)
+      ?? reserveByLegacy.get(legacyKeyStr)
       ?? 0;
     const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
-    const hasApplication = Boolean(applications[String(schicht._id)]);
-    if (!openPlaces && !hasApplication) return [];
+    const hasApplication = Boolean(applications[schichtIdStr]);
+
+    const resolvedQualSchl = String(
+      schicht.qualSchl ||
+      fallbackQualById.get(schichtIdStr) ||
+      fallbackQualByLegacy.get(legacyKeyStr) ||
+      ''
+    ).trim();
+
+    if (!hasApplication) {
+      if (!schicht.istAusgeschrieben) return [];
+      if (!openPlaces) return [];
+      if (!resolvedQualSchl || !employeeQualKeys.has(resolvedQualSchl)) return [];
+    }
+
+    const qualificationDesignation = resolvedQualSchl
+      ? qualDesignationMap.get(resolvedQualSchl) || schicht.bezeichnung || `Quali ${resolvedQualSchl}`
+      : null;
 
     return [{
-      id: String(schicht._id),
+      id: schichtIdStr,
       auftragNr: schicht.auftragNr,
       kundenNr: auftrag.kundenNr || null,
       schichtId: schicht._id,
       legacySchichtId: schicht.idAuftragArbeitsschichten,
       title: auftrag.eventTitel || auftrag.eventLocation || `Auftrag ${schicht.auftragNr}`,
       role: schicht.bezeichnung || null,
+      qualSchl: resolvedQualSchl || null,
+      qualificationDesignation,
       dateFrom: schicht.datumVon || auftrag.vonDatum || null,
       dateTo: schicht.datumBis || auftrag.bisDatum || null,
       timeFrom: schicht.uhrzeitVon || null,
@@ -182,13 +268,15 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
       meetingPlace: schicht.treffpunktOrt || null,
       capacity: schicht.bedarf || null,
       occupiedPlaces,
+      reservePlaces,
       openPlaces,
+      isReserve: Boolean(applicationReserves[schichtIdStr]),
       einsatzinformationHtml: schicht.einsatzinformation?.renderedHtml || '',
       surcharges: null,
     }];
   });
 
-  return res.json({ jobs, applications, applicationSteps, source: 'database' });
+  return res.json({ jobs, applications, applicationSteps, applicationReserves, source: 'database' });
 }));
 
 router.get('/applications', requirePrototypeOidc, asyncHandler(async (req, res) => {
@@ -266,16 +354,23 @@ router.put('/applications/:jobId', requirePrototypeOidc, asyncHandler(async (req
 
   if (status === 'confirmed' && bewerbung.einsatz) {
     const now = new Date();
-    await Einsatz.findByIdAndUpdate(bewerbung.einsatz, {
-      $set: {
-        bestaetigt: true,
-        'bestaetigung.version': 'einsatz-confirmation-v1',
-        'bestaetigung.einsatzzeitenGelesenAt': now,
-        'bestaetigung.einsatzkleidungAt': now,
-        'bestaetigung.ankunftspufferAt': now,
-        'bestaetigung.completedAt': now,
+    const updatedEinsatz = await Einsatz.findByIdAndUpdate(
+      bewerbung.einsatz,
+      {
+        $set: {
+          bestaetigt: true,
+          'bestaetigung.version': 'einsatz-confirmation-v1',
+          'bestaetigung.einsatzzeitenGelesenAt': now,
+          'bestaetigung.einsatzkleidungAt': now,
+          'bestaetigung.ankunftspufferAt': now,
+          'bestaetigung.completedAt': now,
+        },
       },
-    });
+      { new: true }
+    );
+    if (updatedEinsatz) {
+      await completeEinsatzFlipTask({ einsatz: updatedEinsatz, mitarbeiter });
+    }
   }
 
   return res.json({ ok: true, bewerbung });

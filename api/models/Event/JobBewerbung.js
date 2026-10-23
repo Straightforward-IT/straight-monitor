@@ -45,6 +45,10 @@ const JobBewerbungSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  isReserve: {
+    type: Boolean,
+    default: false,
+  },
   confirmationStep: {
     type: Number,
     default: 0,

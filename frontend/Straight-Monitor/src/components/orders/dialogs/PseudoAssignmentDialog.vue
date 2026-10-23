@@ -1,17 +1,20 @@
 <template>
   <OrderActionDialog
     :model-value="modelValue"
-    :title="mode === 'new' && !selected.length ? 'Pseudo-Schicht anlegen' : 'Pseudo-Mitarbeiter einplanen'"
-    icon="fa-solid fa-user-plus"
+    :title="mode === 'edit' ? 'Pseudo-Schicht bearbeiten' : (mode === 'new' && !selected.length ? 'Pseudo-Schicht anlegen' : 'Pseudo-Mitarbeiter einplanen')"
+    :icon="mode === 'edit' ? 'fa-solid fa-pencil' : 'fa-solid fa-user-plus'"
     max-width="540px"
     :saving="saving"
-    :can-submit="mode === 'new' ? !!newShift.bezeichnung.trim() : !!selected.length"
+    :can-submit="(mode === 'new' || mode === 'edit') ? !!newShift.bezeichnung.trim() : !!selected.length"
     :submit-label="submitLabel"
     @close="emit('update:modelValue', false)"
     @submit="emit('submit')"
   >
     <template #default="{ formId }">
-      <div class="order-dialog-field">
+      <div
+        v-if="mode !== 'edit'"
+        class="order-dialog-field"
+      >
         <span class="order-dialog-label">Schicht-Modus</span>
         <AppSegmentedControl
           :model-value="mode"
@@ -116,6 +119,14 @@
               @input="updateShift('bedarf', Math.max(1, Number.parseInt($event.target.value, 10) || 1))"
             >
           </div>
+          <label class="pseudo-checkbox-row">
+            <input
+              type="checkbox"
+              :checked="Boolean(newShift.istAusgeschrieben)"
+              @change="updateShift('istAusgeschrieben', $event.target.checked)"
+            >
+            <span>Schicht ausschreiben (für passende Qualifikation im Mitarbeiter-Portal sichtbar)</span>
+          </label>
         </section>
 
         <!-- Section 2: Beruf, Qualifikation & Preis -->
@@ -179,7 +190,10 @@
       </template>
 
       <!-- Section 3: Personal einplanen -->
-      <section class="pseudo-dialog-section">
+      <section
+        v-if="mode !== 'edit'"
+        class="pseudo-dialog-section"
+      >
         <header class="pseudo-dialog-section__header">
           <h3 class="pseudo-dialog-section__title">Personal einplanen</h3>
           <span
@@ -240,6 +254,24 @@
                 >×</AppIconButton>
               </span>
             </div>
+            <div class="pseudo-assignment-options">
+              <label class="pseudo-checkbox-row">
+                <input
+                  type="checkbox"
+                  :checked="isReserve"
+                  @change="emit('update:isReserve', $event.target.checked)"
+                >
+                <span>Als Reserve-Einsatz einplanen</span>
+              </label>
+              <label class="pseudo-checkbox-row">
+                <input
+                  type="checkbox"
+                  :checked="notifyEmployee"
+                  @change="emit('update:notifyEmployee', $event.target.checked)"
+                >
+                <span>Mitarbeiter via Flip-Task benachrichtigen</span>
+              </label>
+            </div>
           </template>
         </div>
       </section>
@@ -249,6 +281,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { faPencil, faUserPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
 import OrderActionDialog from './OrderActionDialog.vue';
 import AppTextInput from '@/components/ui-elements/AppTextInput.vue';
@@ -256,6 +290,8 @@ import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import AppSegmentedControl from '@/components/ui-elements/AppSegmentedControl.vue';
 import BerufSearch from '@/components/ui-elements/BerufSearch.vue';
 import QualifikationSearch from '@/components/ui-elements/QualifikationSearch.vue';
+
+library.add(faPencil, faUserPlus);
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -268,14 +304,17 @@ const props = defineProps({
   search: { type: String, default: '' },
   results: { type: Array, default: () => [] },
   selected: { type: Array, default: () => [] },
+  isReserve: { type: Boolean, default: false },
+  notifyEmployee: { type: Boolean, default: true },
   searching: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
   formatName: { type: Function, required: true },
 });
-const emit = defineEmits(['update:modelValue', 'update:mode', 'update:newShift', 'update:shiftKey', 'update:search', 'toggle', 'submit']);
+const emit = defineEmits(['update:modelValue', 'update:mode', 'update:newShift', 'update:shiftKey', 'update:search', 'update:isReserve', 'update:notifyEmployee', 'toggle', 'submit']);
 const shiftModes = [{ value: 'existing', label: 'Bestehende Schicht' }, { value: 'new', label: 'Neue Pseudo-Schicht' }];
 const shiftModel = computed({ get: () => props.shiftKey, set: value => emit('update:shiftKey', value) });
 const submitLabel = computed(() => {
+  if (props.mode === 'edit') return 'Speichern';
   if (props.mode === 'new' && !props.selected.length) return 'Schicht anlegen';
   if (props.selected.length > 1) return `${props.selected.length} Mitarbeiter einplanen`;
   return 'Einplanen';
@@ -288,7 +327,7 @@ let priceRequestSeq = 0;
 
 async function loadCustomerPrices() {
   const kNr = Number(props.kundenNr);
-  if (!props.modelValue || props.mode !== 'new' || !Number.isInteger(kNr) || kNr <= 0) {
+  if (!props.modelValue || (props.mode !== 'new' && props.mode !== 'edit') || !Number.isInteger(kNr) || kNr <= 0) {
     return;
   }
   if (loadedKundenNr.value === kNr) return;
@@ -318,7 +357,7 @@ watch(
       kundenpreise.value = [];
       loadedKundenNr.value = null;
     }
-    if (open && currentMode === 'new' && kNr) {
+    if (open && (currentMode === 'new' || currentMode === 'edit') && kNr) {
       void loadCustomerPrices();
     }
   },
@@ -387,6 +426,21 @@ function isSelected(employee) { return props.selected.some(item => item._id === 
 
 <style scoped>
 .pseudo-assignment-mode { width: fit-content; max-width: 100%; }
+.pseudo-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.pseudo-assignment-options {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
 .pseudo-dialog-section {
   display: grid;
   gap: 12px;

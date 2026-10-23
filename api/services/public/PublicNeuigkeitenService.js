@@ -4,6 +4,7 @@ const Auftrag = require('../../models/Event/Auftrag');
 const Mitarbeiter = require('../../models/Employee/Mitarbeiter');
 const JobBewerbung = require('../../models/Event/JobBewerbung');
 const { resolvePersonalNumbers } = require('../operations/EinsatzCountingService');
+const { completeEinsatzFlipTask } = require('../operations/EinsatzFlipTaskService');
 
 const CONFIRMATION_VERSION = 'einsatz-confirmation-v1';
 const CONFIRMATION_STEPS = Object.freeze([
@@ -35,7 +36,6 @@ function openAssignmentFilter(personalNumbers) {
   return {
     personalNr: { $in: personalNumbers },
     source: 'monitor',
-    isPseudo: { $ne: true },
     bestaetigungErforderlich: true,
     bestaetigt: { $ne: true },
     $or: [
@@ -60,9 +60,11 @@ function serializeNewsItem(einsatz, auftrag) {
     type: 'einsatz-bestaetigung',
     source: 'monitor-einsatz',
     createdAt: einsatz.createdAt,
+    isReserve: Boolean(einsatz.isReserve),
     einsatz: {
       id: String(einsatz._id),
       auftragNr: einsatz.auftragNr,
+      isReserve: Boolean(einsatz.isReserve),
       title: auftrag?.eventTitel || einsatz.bezeichnung || einsatz.schichtBezeichnung || `Auftrag #${einsatz.auftragNr}`,
       dateFrom: einsatz.datumVon,
       dateTo: einsatz.datumBis || einsatz.datumVon,
@@ -83,7 +85,7 @@ function serializeNewsItem(einsatz, auftrag) {
 
 async function resolveEmployee(mitarbeiterId) {
   return Mitarbeiter.findById(mitarbeiterId)
-    .select('_id personalnr personalnrHistory')
+    .select('_id flip_id personalnr personalnrHistory')
     .lean();
 }
 
@@ -92,7 +94,7 @@ async function listOpenEinsatzBestaetigungen(mitarbeiter) {
   if (!personalNumbers.length) return [];
 
   const einsaetze = await Einsatz.find(openAssignmentFilter(personalNumbers))
-    .select('auftragNr bezeichnung schichtBezeichnung datumVon datumBis uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt bestaetigung createdAt')
+    .select('auftragNr bezeichnung schichtBezeichnung isReserve datumVon datumBis uhrzeitVon uhrzeitBis treffpunkt treffpunktOrt bestaetigung createdAt')
     .sort({ datumVon: 1, uhrzeitVon: 1, createdAt: 1 })
     .lean();
   const auftragNrs = [...new Set(einsaetze.map((einsatz) => einsatz.auftragNr))];
@@ -166,6 +168,7 @@ async function confirmStep({ mitarbeiterId, einsatzId, stepKey }) {
       await JobBewerbung.updateMany(bewerbungMatch, {
         $set: { status: 'confirmed', confirmationStep: CONFIRMATION_STEPS.length },
       });
+      await completeEinsatzFlipTask({ einsatz, mitarbeiter });
     } else {
       await JobBewerbung.updateMany(bewerbungMatch, {
         $set: { confirmationStep: stepIndex + 1 },

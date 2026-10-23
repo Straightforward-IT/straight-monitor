@@ -412,17 +412,30 @@
                               ? 'Pseudo-Schicht'
                               : 'Enthält Pseudo-Einsatz'
                             ">Pseudo</span>
+                        <span
+                          v-if="s.istAusgeschrieben"
+                          class="ausgeschrieben-tag ausgeschrieben-tag--shift"
+                          title="Ausschreibung offen"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-bullhorn" />
+                        </span>
                       </div>
                     </div>
                     <span v-if="
                       filters.displayLevels.schicht ||
                       filters.displayLevels.einsatz
-                    " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}/{{ s.bedarf }}</span>
+                    " class="shift-pos" :class="getShiftBedarfClass(s)">{{ s.besetzt }}<span v-if="s.reserveCount" class="shift-reserve-count">+{{ s.reserveCount }}</span>/{{ s.bedarf }}</span>
                     <ul v-if="
                       filters.displayLevels.einsatz && s.einsaetze?.length
                     " class="shift-einsaetze">
-                      <li v-for="emp in normalizeShiftEinsaetze(s.einsaetze)" :key="emp.name">
+                      <li
+                        v-for="emp in normalizeShiftEinsaetze(s.einsaetze)"
+                        :key="emp.name"
+                        :class="{ 'shift-einsatz--reserve': emp.isReserve }"
+                      >
                         <span class="shift-einsatz-name">{{ emp.name }}</span>
+                        <span v-if="emp.isReserve" class="reserve-tag reserve-tag--inline"
+                          title="Reserve-Einsatz">Reserve</span>
                         <span v-if="emp.isPseudo" class="pseudo-tag pseudo-tag--inline"
                           title="Pseudo-Einsatz">Pseudo</span>
                       </li>
@@ -579,6 +592,7 @@
                     <div
                       v-if="
                         schichtData.meta.isPseudo ||
+                        schichtData.meta.istAusgeschrieben ||
                         getCommonQualifikation(schichtData.einsaetze) ||
                         resolveRequiredShiftQualification(schichtData)
                       "
@@ -590,6 +604,14 @@
                         title="Pseudo-Schicht"
                         >Pseudo</span
                       >
+                      <span
+                        v-if="schichtData.meta.istAusgeschrieben"
+                        class="ausgeschrieben-tag"
+                        title="Schicht ist im Mitarbeiter-Portal ausgeschrieben"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-bullhorn" />
+                        Ausgeschrieben
+                      </span>
                       <span
                         v-if="
                           getCommonQualifikation(schichtData.einsaetze) ||
@@ -607,9 +629,6 @@
                       </span>
                     </div>
                   </div>
-                  <OrderHoursVisibilityButton :included="schichtStundenlisteIncluded(schichtData)" :pending="isStundenlisteTogglePending(schichtData.einsaetze)
-                    " :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
-                    @toggle="toggleSchichtStundenlisteInclusion(schichtData)" />
                 </div>
 
                 <!-- Schicht Meta Row (Treffpunkt, Ansprechpartner) -->
@@ -662,7 +681,11 @@
                       </span>
                     </div>
                     <span class="team-coverage" :class="schichtData.meta.bedarfMet ? 'met' : 'unmet'">
-                      {{ schichtData.einsaetze.length }}/{{
+                      {{ schichtRegularCount(schichtData) }}<span
+                        v-if="schichtReserveCount(schichtData) > 0"
+                        class="team-coverage__reserve"
+                        title="Reserve-Einsätze"
+                      >+{{ schichtReserveCount(schichtData) }}</span>/{{
                         schichtData.meta.bedarf || "?"
                       }}
                     </span>
@@ -675,6 +698,7 @@
                       String(einsatz.mitarbeiterData?._id),
                     'mitarbeiter-row--draggable':
                       isAdmin && Boolean(einsatz.mitarbeiterData?._id),
+                    'mitarbeiter-row--reserve': Boolean(einsatz.isReserve),
                   }" :draggable="isAdmin && Boolean(einsatz.mitarbeiterData?._id)
                       " @dragstart="
                       handleSchichtMitarbeiterDragStart(
@@ -682,7 +706,9 @@
                         einsatz,
                         schichtData,
                       )
-                      " @dragend="handleSchichtMitarbeiterDragEnd" @click="
+                      " @dragend="handleSchichtMitarbeiterDragEnd"
+                      @contextmenu.prevent="openEinsatzContextMenu($event, einsatz, schichtData)"
+                      @click="
                       isAdmin && einsatz.mitarbeiterData
                         ? (selectedStaffingMitarbeiter =
                           einsatz.mitarbeiterData)
@@ -713,14 +739,26 @@
                               " class="doc-icon-img" alt="" />
                           </AppIconButton>
                         </CustomTooltip>
+                        <span v-if="einsatz.isReserve" class="reserve-tag"
+                          title="Reserve-Einsatz">Reserve</span>
                         <span v-if="einsatz.isPseudo" class="pseudo-tag"
                           title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
                       </template>
                       <template v-else>
                         <span class="ma-placeholder">Personalnr: {{ einsatz.personalNr || "-" }}</span>
+                        <span v-if="einsatz.isReserve" class="reserve-tag"
+                          title="Reserve-Einsatz">Reserve</span>
                         <span v-if="einsatz.isPseudo" class="pseudo-tag"
                           title="Manuell eingeplant (Pseudo-Einsatz)">Pseudo</span>
                       </template>
+                      <span
+                        v-if="einsatz.stundenlisteIncluded === false"
+                        class="stundenliste-excluded-pill"
+                        title="Aus Stundenliste ausgeschlossen"
+                        aria-label="Aus Stundenliste ausgeschlossen"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-eye-slash" />
+                      </span>
                     </div>
                     <div class="ma-badges ma-badges--right">
                       <CustomTooltip v-if="einsatz.bestaetigt" text="Einsatz bestätigt">
@@ -734,15 +772,15 @@
                       " class="badge quali small">
                         {{ einsatz.qualifikationData.designation }}
                       </span>
-                      <OrderHoursVisibilityButton :included="einsatz.stundenlisteIncluded !== false"
-                        :pending="isStundenlisteTogglePending([einsatz])" :subject="einsatz.mitarbeiterData
-                            ? formatEmployeeName(einsatz.mitarbeiterData)
-                            : 'Personalnr. ' + (einsatz.personalNr || '-')
-                          " @toggle="toggleEinsatzStundenlisteInclusion(einsatz)" />
-                      <AppIconButton v-if="einsatz.isPseudo" variant="ghost" size="sm" class="pseudo-remove-btn"
-                        :label="`Pseudo-Einsatz für ${einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')} entfernen`"
-                        @click.stop="removePseudoEinsatz(einsatz._id)">
-                        <font-awesome-icon icon="fa-solid fa-times" />
+                      <AppIconButton
+                        variant="ghost"
+                        size="sm"
+                        class="einsatz-menu-btn"
+                        :label="`Aktionen für ${einsatz.mitarbeiterData ? formatEmployeeName(einsatz.mitarbeiterData) : 'Personalnr. ' + (einsatz.personalNr || '-')}`"
+                        title="Aktionen"
+                        @click.stop="openEinsatzContextMenu($event, einsatz, schichtData)"
+                      >
+                        <font-awesome-icon icon="fa-solid fa-ellipsis-vertical" />
                       </AppIconButton>
                     </div>
                   </div>
@@ -759,26 +797,108 @@
                   Als Pseudo-Einsatz dieser Schicht zuordnen
                 </div>
               </div>
-              <div v-if="isAdmin" class="schicht-docked-actions">
-                <button type="button" class="schicht-docked-btn schicht-docked-duplicate-btn"
-                  :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} als Pseudo-Schicht duplizieren`"
-                  title="Als Pseudo-Schicht nach unten duplizieren" :disabled="duplicatingSchichtKey === schichtData.key ||
-                    deletingSchichtKey === schichtData.key
-                    " @click.stop="duplicateSchichtAsPseudo(schichtData)">
-                  <font-awesome-icon v-if="duplicatingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
-                  <template v-else>
-                    <font-awesome-icon icon="fa-solid fa-copy" class="schicht-duplicate-icon-copy" />
-                    <font-awesome-icon icon="fa-solid fa-arrow-turn-down" class="schicht-duplicate-icon-arrow" />
-                  </template>
-                </button>
-                <button type="button" class="schicht-docked-btn schicht-docked-delete-btn"
-                  :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} löschen`"
-                  title="Schicht löschen" :disabled="deletingSchichtKey === schichtData.key ||
-                    duplicatingSchichtKey === schichtData.key
-                    " @click.stop="deleteSchichtCard(schichtData)">
-                  <font-awesome-icon v-if="deletingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
-                  <font-awesome-icon v-else icon="fa-solid fa-trash" />
-                </button>
+              <div class="schicht-docked-actions">
+                <CustomTooltip
+                  v-if="isAdmin"
+                  :text="
+                    schichtData.meta.istAusgeschrieben
+                      ? 'Ausschreibung beenden'
+                      : 'Ausschreibung öffnen'
+                  "
+                  position="left"
+                >
+                  <button
+                    type="button"
+                    class="schicht-docked-btn schicht-docked-ausschreiben-btn"
+                    :class="{ 'is-active': schichtData.meta.istAusgeschrieben }"
+                    :aria-label="
+                      schichtData.meta.istAusgeschrieben
+                        ? `Ausschreibung für Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} beenden`
+                        : `Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} ausschreiben`
+                    "
+                    :disabled="togglingAusschreibungKey === schichtData.key"
+                    @click.stop="toggleSchichtAusschreibung(schichtData)"
+                  >
+                    <font-awesome-icon
+                      v-if="togglingAusschreibungKey === schichtData.key"
+                      icon="fa-solid fa-spinner"
+                      spin
+                    />
+                    <font-awesome-icon v-else icon="fa-solid fa-bullhorn" />
+                  </button>
+                </CustomTooltip>
+                <CustomTooltip
+                  :text="
+                    schichtStundenlisteIncluded(schichtData)
+                      ? 'Schicht von Stundenliste ausschließen'
+                      : 'Schicht in Stundenliste aufnehmen'
+                  "
+                  position="left"
+                >
+                  <OrderHoursVisibilityButton
+                    class="schicht-docked-btn schicht-docked-visibility-btn"
+                    :included="schichtStundenlisteIncluded(schichtData)"
+                    :pending="isStundenlisteTogglePending(schichtData.einsaetze)"
+                    :subject="schichtData.meta.schichtBezeichnung || 'Schicht'"
+                    :native-title="false"
+                    @toggle="toggleSchichtStundenlisteInclusion(schichtData)"
+                  />
+                </CustomTooltip>
+                <CustomTooltip
+                  v-if="isAdmin && schichtData.meta.isPseudo"
+                  text="Schicht bearbeiten"
+                  position="left"
+                >
+                  <button
+                    type="button"
+                    class="schicht-docked-btn schicht-docked-edit-btn"
+                    :aria-label="`Pseudo-Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} bearbeiten`"
+                    @click.stop="openEditPseudoSchichtDialog(schichtData)"
+                  >
+                    <font-awesome-icon icon="fa-solid fa-pencil" />
+                  </button>
+                </CustomTooltip>
+                <CustomTooltip
+                  v-if="isAdmin"
+                  text="Schicht duplizieren"
+                  position="left"
+                >
+                  <button
+                    type="button"
+                    class="schicht-docked-btn schicht-docked-duplicate-btn"
+                    :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} als Pseudo-Schicht duplizieren`"
+                    :disabled="
+                      duplicatingSchichtKey === schichtData.key ||
+                      deletingSchichtKey === schichtData.key
+                    "
+                    @click.stop="duplicateSchichtAsPseudo(schichtData)"
+                  >
+                    <font-awesome-icon v-if="duplicatingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
+                    <template v-else>
+                      <font-awesome-icon icon="fa-solid fa-copy" class="schicht-duplicate-icon-copy" />
+                      <font-awesome-icon icon="fa-solid fa-arrow-turn-down" class="schicht-duplicate-icon-arrow" />
+                    </template>
+                  </button>
+                </CustomTooltip>
+                <CustomTooltip
+                  v-if="isAdmin"
+                  text="Schicht löschen"
+                  position="left"
+                >
+                  <button
+                    type="button"
+                    class="schicht-docked-btn schicht-docked-delete-btn"
+                    :aria-label="`Schicht ${schichtData.meta.schichtBezeichnung || 'Schicht'} löschen`"
+                    :disabled="
+                      deletingSchichtKey === schichtData.key ||
+                      duplicatingSchichtKey === schichtData.key
+                    "
+                    @click.stop="deleteSchichtCard(schichtData)"
+                  >
+                    <font-awesome-icon v-if="deletingSchichtKey === schichtData.key" icon="fa-solid fa-spinner" spin />
+                    <font-awesome-icon v-else icon="fa-solid fa-trash" />
+                  </button>
+                </CustomTooltip>
               </div>
             </div>
           </div>
@@ -831,6 +951,7 @@
           :shifts="preparedSchichten" :default-location-id="filters.locationV2"
           :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
           :dragging-assigned-einsatz="draggingSchichtEinsatz" @open-employee-card="openMitarbeiterCard"
+          @open-order="onOpenOrderFromStaffing"
           @select-mitarbeiter="selectedStaffingMitarbeiter = $event" @bewerbung-updated="onBewerbungUpdated"
           @unassign-einsatz="handleUnassignDroppedEinsatz" @minimize="setStaffingPanelHidden(true)" />
       </template>
@@ -841,6 +962,7 @@
       :model-value="!staffingPanelHidden" :event="selectedEvent" :shifts="preparedSchichten"
       :default-location-id="filters.locationV2" :external-selected-mitarbeiter="selectedStaffingMitarbeiter"
       :dragging-assigned-einsatz="draggingSchichtEinsatz" @open-employee-card="openMitarbeiterCard"
+      @open-order="onOpenOrderFromStaffing"
       @select-mitarbeiter="selectedStaffingMitarbeiter = $event" @bewerbung-updated="onBewerbungUpdated"
       @unassign-einsatz="handleUnassignDroppedEinsatz" @minimize="setStaffingPanelHidden(true)" />
 
@@ -849,7 +971,7 @@
       class="admin-staffing-expand-rail"
       aria-label="Personal & Bewerbungen einblenden"
     >
-      <CustomTooltip text="Personal & Bewerbungen einblenden" position="left">
+
         <AppIconButton
           variant="ghost"
           size="sm"
@@ -859,7 +981,6 @@
         >
           <font-awesome-icon icon="fa-solid fa-angles-left" />
         </AppIconButton>
-      </CustomTooltip>
     </aside>
 
     <OrderDocumentUploadDialog v-if="showEinsatzDokDialog" :model-value="showEinsatzDokDialog"
@@ -883,13 +1004,29 @@
       :saving="newAuftragSaving" @submit="saveNewPseudoAuftrag" />
     <PseudoAssignmentDialog v-model="showPseudoDialog" v-model:mode="pseudoSchichtMode"
       v-model:new-shift="pseudoNewSchicht" v-model:shift-key="pseudoSelectedSchicht"
+      v-model:is-reserve="pseudoIsReserve" v-model:notify-employee="pseudoNotifyEmployee"
       :kunden-nr="selectedEvent?.kundenNr || null" :order-date="selectedEvent?.vonDatum || null"
       :shifts="preparedSchichten" :search="pseudoSearch" :results="pseudoSearchResults" :selected="pseudoSelectedMas"
       :searching="pseudoSearching" :saving="pseudoSaving" :format-name="formatEmployeeName"
       @update:search="updatePseudoSearch" @toggle="togglePseudoMa" @submit="savePseudoEinsatz" />
     <SchichtDropWarningDialog :model-value="Boolean(dropWarningFlow.steps.length)" :step="currentDropWarningStep"
+      v-model:notify-employee="dropWarningFlow.notifyEmployee"
       :busy="dropWarningFlow.busy" :decision-mode="dropWarningFlow.decisionMode" @cancel="cancelDropWarningFlow"
       @decide="handleDropWarningDecision" />
+    <ContextMenu
+      v-if="einsatzContextMenu.open && einsatzContextMenu.einsatz"
+      :x="einsatzContextMenu.x"
+      :y="einsatzContextMenu.y"
+      :width="230"
+      :title="
+        einsatzContextMenu.einsatz.mitarbeiterData
+          ? formatEmployeeName(einsatzContextMenu.einsatz.mitarbeiterData)
+          : `Personalnr. ${einsatzContextMenu.einsatz.personalNr || '-'}`
+      "
+      :options="einsatzContextMenuOptions"
+      @close="closeEinsatzContextMenu"
+      @select="handleEinsatzContextMenuAction"
+    />
   </div>
 
   <AuftragCalendarSearchDropdown v-if="!isHostedDetail" :visible="showSearchDropdown" :style="dropdownStyle"
@@ -945,6 +1082,9 @@ import {
   faStarHalfStroke,
   faArrowTurnDown,
   faCopy,
+  faBullhorn,
+  faBell,
+  faUserClock,
 } from "@fortawesome/free-solid-svg-icons";
 import { library } from "@fortawesome/fontawesome-svg-core";
 
@@ -993,6 +1133,9 @@ library.add(
   faStarHalfStroke,
   faArrowTurnDown,
   faCopy,
+  faBullhorn,
+  faBell,
+  faUserClock,
 );
 
 import api from "@/utils/api";
@@ -1239,6 +1382,14 @@ export default {
       draggingSchichtEinsatz: null,
       duplicatingSchichtKey: null,
       deletingSchichtKey: null,
+      togglingAusschreibungKey: null,
+      einsatzContextMenu: {
+        open: false,
+        x: 0,
+        y: 0,
+        einsatz: null,
+        schichtData: null,
+      },
       dataStatus: null, // Last import timestamp
       // ── Quick Actions ──────────────────────────────────────────────────────
       // Label dialog
@@ -1271,7 +1422,8 @@ export default {
       newAuftragSaving: false,
       // Pseudo-MA dialog
       showPseudoDialog: false,
-      pseudoSchichtMode: "existing", // 'existing' | 'new'
+      pseudoSchichtMode: "existing", // 'existing' | 'new' | 'edit'
+      editingPseudoSchicht: null,
       pseudoNewSchicht: {
         bezeichnung: "",
         uhrzeitVon: "",
@@ -1279,7 +1431,10 @@ export default {
         berufSchl: "",
         qualSchl: "",
         bedarf: 1,
+        istAusgeschrieben: false,
       },
+      pseudoIsReserve: false,
+      pseudoNotifyEmployee: false,
       pseudoSearch: "",
       pseudoSearchResults: [],
       pseudoSearching: false,
@@ -1296,6 +1451,8 @@ export default {
         schichtData: null,
         schichtId: null,
         decisionMode: "plan",
+        notifyEmployee: false,
+        customAction: null,
         replanFromEinsatzIds: [],
         replanFromDispoIds: [],
       },
@@ -1346,6 +1503,49 @@ export default {
     },
     currentDropWarningStep() {
       return this.dropWarningFlow.steps[this.dropWarningFlow.stepIndex] || null;
+    },
+    einsatzContextMenuOptions() {
+      const einsatz = this.einsatzContextMenu.einsatz;
+      if (!einsatz) return [];
+      const included = einsatz.stundenlisteIncluded !== false;
+      const items = [];
+      if (this.isAdmin) {
+        items.push({
+          label: einsatz.isReserve
+            ? "Reserve zu regulärem Einsatz umwandeln"
+            : "Einsatz zu Reserve umwandeln",
+          action: "toggle-reserve",
+          icon: einsatz.isReserve ? "fa-solid fa-user-plus" : "fa-solid fa-user-clock",
+          variant: "primary",
+        });
+      }
+      items.push({
+        label: included
+          ? "Aus Stundenliste ausschließen"
+          : "In Stundenliste aufnehmen",
+        action: "toggle-stundenliste",
+        icon: included ? "fa-solid fa-eye-slash" : "fa-solid fa-eye",
+        disabled: this.isStundenlisteTogglePending([einsatz]),
+      });
+      if (einsatz.mitarbeiterData?._id) {
+        items.push({
+          label: "Mitarbeiterkarte öffnen",
+          action: "open-card",
+          icon: "fa-solid fa-user",
+        });
+      }
+      if (einsatz.isPseudo) {
+        items.push(
+          { type: "divider" },
+          {
+            label: "Einsatz entfernen",
+            action: "remove-einsatz",
+            icon: "fa-solid fa-trash",
+            variant: "danger",
+          },
+        );
+      }
+      return items;
     },
     hasSelectedEvent: {
       get() {
@@ -2008,6 +2208,130 @@ export default {
         ),
       );
     },
+    schichtRegularCount(schichtData) {
+      if (!schichtData) return 0;
+      if (typeof schichtData.meta?.regularCount === "number") {
+        return schichtData.meta.regularCount;
+      }
+      return (schichtData.einsaetze || []).filter((e) => !e.isReserve).length;
+    },
+    schichtReserveCount(schichtData) {
+      if (!schichtData) return 0;
+      if (typeof schichtData.meta?.reserveCount === "number") {
+        return schichtData.meta.reserveCount;
+      }
+      return (schichtData.einsaetze || []).filter((e) => Boolean(e.isReserve)).length;
+    },
+    async toggleSchichtAusschreibung(schichtData) {
+      if (!this.selectedEvent?.auftragNr || !schichtData || this.togglingAusschreibungKey) return;
+      const targetId =
+        schichtData.meta?.schichtId ||
+        schichtData.meta?.idAuftragArbeitsschichten ||
+        schichtData.key;
+      if (!targetId) return;
+
+      this.togglingAusschreibungKey = schichtData.key;
+      try {
+        const nextVal = !schichtData.meta?.istAusgeschrieben;
+        await api.patch(
+          `/api/auftraege/${this.selectedEvent.auftragNr}/schichten/${encodeURIComponent(String(targetId))}/ausschreibung`,
+          { istAusgeschrieben: nextVal },
+        );
+        await this.reloadSelectedEventDetails();
+      } catch (err) {
+        alert(err.response?.data?.message || "Ausschreibung konnte nicht geändert werden.");
+      } finally {
+        this.togglingAusschreibungKey = null;
+      }
+    },
+    openEinsatzContextMenu(event, einsatz, schichtData) {
+      if (!einsatz) return;
+      const isContextMenu = event?.type === "contextmenu";
+      const rect = !isContextMenu
+        ? event?.currentTarget?.getBoundingClientRect?.()
+        : null;
+      this.einsatzContextMenu = {
+        open: true,
+        x: rect ? rect.right - 230 : event?.clientX || 0,
+        y: rect ? rect.bottom + 4 : event?.clientY || 0,
+        einsatz,
+        schichtData,
+      };
+    },
+    closeEinsatzContextMenu() {
+      this.einsatzContextMenu = {
+        open: false,
+        x: 0,
+        y: 0,
+        einsatz: null,
+        schichtData: null,
+      };
+    },
+    handleEinsatzContextMenuAction(action) {
+      const { einsatz, schichtData } = this.einsatzContextMenu;
+      this.closeEinsatzContextMenu();
+      if (!einsatz || !action) return;
+      if (action === "toggle-reserve") {
+        this.promptToggleEinsatzReserve(einsatz, schichtData);
+      } else if (action === "toggle-stundenliste") {
+        void this.toggleEinsatzStundenlisteInclusion(einsatz);
+      } else if (action === "open-card" && einsatz.mitarbeiterData) {
+        this.openMitarbeiterCard(einsatz.mitarbeiterData);
+      } else if (action === "remove-einsatz" && einsatz.isPseudo) {
+        void this.removePseudoEinsatz(einsatz._id);
+      }
+    },
+    promptToggleEinsatzReserve(einsatz, schichtData = null) {
+      if (!einsatz?._id || !this.selectedEvent?.auftragNr) return;
+      const nextIsReserve = !einsatz.isReserve;
+      const employeeName = einsatz.mitarbeiterData
+        ? this.formatEmployeeName(einsatz.mitarbeiterData)
+        : `Personalnr. ${einsatz.personalNr || "-"}`;
+      const shiftName =
+        schichtData?.meta?.schichtBezeichnung ||
+        einsatz.schichtBezeichnung ||
+        einsatz.bezeichnung ||
+        "Schicht";
+
+      this.dropWarningFlow = {
+        steps: [
+          {
+            type: "notify-employee",
+            employeeName,
+            shiftName,
+            isReserve: nextIsReserve,
+          },
+        ],
+        stepIndex: 0,
+        busy: false,
+        mitarbeiter: einsatz.mitarbeiterData || null,
+        schichtData,
+        schichtId: null,
+        decisionMode: "plan",
+        notifyEmployee: true,
+        customAction: {
+          type: "toggle-reserve",
+          einsatz,
+        },
+        replanFromEinsatzIds: [],
+        replanFromDispoIds: [],
+      };
+    },
+    async executeToggleEinsatzReserve(einsatz, notifyEmployee = false) {
+      if (!einsatz?._id || !this.selectedEvent?.auftragNr) return;
+      await api.patch(
+        `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${einsatz._id}/reserve`,
+        {
+          isReserve: !einsatz.isReserve,
+          notifyEmployee,
+        },
+      );
+      await this.reloadSelectedEventDetails();
+      await Promise.all([
+        this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+        this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+      ]);
+    },
     async duplicateSchichtAsPseudo(schichtData) {
       if (
         !this.isAdmin ||
@@ -2376,19 +2700,28 @@ export default {
         schichtData?.einsaetze || [],
       );
       if (commonQuali) return commonQuali;
+      if (schichtData?.meta?.qualifikationData?.designation) {
+        return schichtData.meta.qualifikationData;
+      }
       const qualSchl = schichtData?.meta?.qualSchl;
       if (!qualSchl) return null;
       const numericKey = Number.parseInt(qualSchl, 10);
       if (!Number.isInteger(numericKey)) return null;
-      const found = (this.dataCache?.qualifikationen || []).find(
+      const fromCache = (this.dataCache?.qualifikationen || []).find(
         (q) => Number(q.qualificationKey) === numericKey,
       );
-      return (
-        found || {
-          qualificationKey: numericKey,
-          designation: `Qualifikation #${numericKey}`,
-        }
-      );
+      if (fromCache) return fromCache;
+      const fromOrderEinsaetze = (this.selectedEvent?.einsaetze || [])
+        .map((e) => e?.qualifikationData)
+        .find((q) => q && Number(q.qualificationKey) === numericKey);
+      if (fromOrderEinsaetze) return fromOrderEinsaetze;
+      if (!this.dataCache?.qualifikationen?.length) {
+        void this.dataCache?.loadQualifikationen?.().catch(() => {});
+      }
+      return {
+        qualificationKey: numericKey,
+        designation: `Qualifikation #${numericKey}`,
+      };
     },
     employeeHasQualification(mitarbeiter, requiredQuali) {
       if (!requiredQuali) return true;
@@ -2568,7 +2901,7 @@ export default {
 
       // 4. Shift Bedarf exceeded
       const bedarf = Number(schichtData?.meta?.bedarf || 0);
-      const currentCount = (schichtData?.einsaetze || []).length;
+      const currentCount = this.schichtRegularCount(schichtData);
       if (bedarf > 0 && currentCount >= bedarf) {
         steps.push({
           type: "bedarf-exceeded",
@@ -2580,14 +2913,12 @@ export default {
       }
 
       if (!steps.length) {
-        await this.executePseudoDropAssignment({
-          mitarbeiter,
-          schichtId,
-          decisionMode: "plan",
-          replanFromEinsatzIds: [],
-          replanFromDispoIds: [],
+        steps.push({
+          type: "notify-employee",
+          employeeName,
+          shiftName,
+          isReserve: false,
         });
-        return;
       }
 
       this.dropWarningFlow = {
@@ -2598,6 +2929,8 @@ export default {
         schichtData,
         schichtId,
         decisionMode: "plan",
+        notifyEmployee: false,
+        customAction: null,
         replanFromEinsatzIds: [],
         replanFromDispoIds: [],
       };
@@ -2612,6 +2945,8 @@ export default {
         schichtData: null,
         schichtId: null,
         decisionMode: "plan",
+        notifyEmployee: false,
+        customAction: null,
         replanFromEinsatzIds: [],
         replanFromDispoIds: [],
       };
@@ -2623,7 +2958,18 @@ export default {
 
       flow.busy = true;
       try {
-        if (
+        if (step.type === "notify-employee") {
+          flow.notifyEmployee = action === "confirm-notify";
+          if (flow.customAction?.type === "toggle-reserve") {
+            await this.executeToggleEinsatzReserve(
+              flow.customAction.einsatz,
+              flow.notifyEmployee,
+            );
+            flow.busy = false;
+            this.cancelDropWarningFlow();
+            return;
+          }
+        } else if (
           step.type === "missing-qualification" &&
           action === "assign-qualification"
         ) {
@@ -2698,6 +3044,7 @@ export default {
           mitarbeiter: flow.mitarbeiter,
           schichtId: flow.schichtId,
           decisionMode: flow.decisionMode,
+          notifyEmployee: flow.notifyEmployee,
           replanFromEinsatzIds: flow.replanFromEinsatzIds,
           replanFromDispoIds: flow.replanFromDispoIds,
         });
@@ -2715,6 +3062,7 @@ export default {
     async executePseudoDropAssignment({
       mitarbeiter,
       schichtId,
+      notifyEmployee = false,
       replanFromEinsatzIds = [],
       replanFromDispoIds = [],
     }) {
@@ -2724,6 +3072,7 @@ export default {
         `/api/auftraege/${this.selectedEvent.auftragNr}/pseudo-einsatz`,
         {
           mitarbeiterId,
+          ...(notifyEmployee ? { notifyEmployee: true } : {}),
           ...(schichtId ? { schichtId } : {}),
           ...(replanFromEinsatzIds.length ? { replanFromEinsatzIds } : {}),
           ...(replanFromDispoIds.length ? { replanFromDispoIds } : {}),
@@ -2762,6 +3111,44 @@ export default {
         ];
       }
     },
+    openEditPseudoSchichtDialog(schichtData) {
+      if (!this.isAdmin || !schichtData?.meta?.isPseudo) return;
+      const meta = schichtData.meta || {};
+      const commonBeruf = this.getCommonBeruf(schichtData.einsaetze || []);
+      const commonQuali = this.getCommonQualifikation(schichtData.einsaetze || []);
+      const resolvedQuali =
+        commonQuali || this.resolveRequiredShiftQualification(schichtData);
+      this.showQuickActions = false;
+      this.pseudoSearch = "";
+      this.pseudoSearchResults = [];
+      this.pseudoSelectedMas = [];
+      this.pseudoSelectedSchicht = null;
+      this.pseudoSchichtMode = "edit";
+      this.pseudoIsReserve = false;
+      this.pseudoNotifyEmployee = false;
+      this.editingPseudoSchicht = schichtData;
+      this.pseudoNewSchicht = {
+        bezeichnung: meta.schichtBezeichnung || "",
+        uhrzeitVon: this.formatTime(meta.uhrzeitVon) || "",
+        uhrzeitBis: this.formatTime(meta.uhrzeitBis) || "",
+        berufSchl: String(
+          meta.berufSchl ??
+            (commonBeruf?.jobKey != null ? commonBeruf.jobKey : ""),
+        ),
+        qualSchl: String(
+          meta.qualSchl ??
+            (resolvedQuali?.qualificationKey != null
+              ? resolvedQuali.qualificationKey
+              : ""),
+        ),
+        bedarf:
+          Number.isInteger(Number(meta.bedarf)) && Number(meta.bedarf) > 0
+            ? Number(meta.bedarf)
+            : Math.max(1, schichtData.einsaetze?.length || 1),
+        istAusgeschrieben: Boolean(meta.istAusgeschrieben),
+      };
+      this.showPseudoDialog = true;
+    },
     handleNewPseudoSchichtDrop(event) {
       this.schichtDragOverKey = null;
       const rawPayload =
@@ -2779,6 +3166,11 @@ export default {
       } catch (error) {
         console.warn("Ungültiger Mitarbeiter-Drag-Payload:", error);
       }
+    },
+    async onOpenOrderFromStaffing(payload) {
+      const auftragNr = payload?.auftragNr ?? payload;
+      if (!auftragNr) return;
+      await this.loadOrderDirectly(auftragNr, payload?.focusDate || undefined);
     },
     async onBewerbungUpdated(payload) {
       if (this.selectedEvent?.auftragNr) {
@@ -3819,12 +4211,13 @@ export default {
       return einsaetze
         .map((entry) => {
           if (typeof entry === "string") {
-            return { name: entry, isPseudo: false };
+            return { name: entry, isPseudo: false, isReserve: false };
           }
           if (entry && typeof entry === "object") {
             return {
               name: String(entry.name || "").trim(),
               isPseudo: Boolean(entry.isPseudo),
+              isReserve: Boolean(entry.isReserve),
             };
           }
           return null;
@@ -3858,10 +4251,18 @@ export default {
               const name = m
                 ? `${m.vorname || ""} ${m.nachname || ""}`.trim()
                 : "";
-              return name ? { name, isPseudo: Boolean(e.isPseudo) } : null;
+              return name
+                ? {
+                    name,
+                    isPseudo: Boolean(e.isPseudo),
+                    isReserve: Boolean(e.isReserve),
+                  }
+                : null;
             })
             .filter(Boolean);
           const pseudoCount = s.einsaetze.filter((e) => e.isPseudo).length;
+          const regularCount = s.einsaetze.filter((e) => !e.isReserve).length;
+          const reserveCount = s.einsaetze.filter((e) => Boolean(e.isReserve)).length;
           return {
             id: s.meta.idAuftragArbeitsschichten || s.meta.schichtId || s.key,
             _id: s.meta.schichtId || null,
@@ -3872,9 +4273,11 @@ export default {
             datumVon: s.meta.datumVon || fullOrder.vonDatum || null,
             qualSchl: s.meta.qualSchl || null,
             berufSchl: s.meta.berufSchl || null,
-            bedarf: s.meta.bedarf || s.einsaetze.length || 1,
-            besetzt: s.einsaetze.length,
+            bedarf: s.meta.bedarf || regularCount || 1,
+            besetzt: regularCount,
+            reserveCount,
             isPseudo: Boolean(s.meta.isPseudo),
+            istAusgeschrieben: Boolean(s.meta.istAusgeschrieben),
             hasPseudoEinsatz: pseudoCount > 0,
             pseudoCount,
             einsaetze: einsaetzeItems,
@@ -4801,6 +5204,9 @@ export default {
       this.pseudoSelectedMas = [];
       this.pseudoSelectedSchicht = null;
       this.pseudoSchichtMode = "existing";
+      this.editingPseudoSchicht = null;
+      this.pseudoIsReserve = false;
+      this.pseudoNotifyEmployee = false;
       this.pseudoNewSchicht = {
         bezeichnung: "",
         uhrzeitVon: "",
@@ -4808,6 +5214,7 @@ export default {
         berufSchl: "",
         qualSchl: "",
         bedarf: 1,
+        istAusgeschrieben: false,
       };
       this.showPseudoDialog = true;
     },
@@ -4847,22 +5254,72 @@ export default {
     async savePseudoEinsatz() {
       if (this.pseudoSaving || !this.selectedEvent) return;
       if (
-        this.pseudoSchichtMode === "new" &&
+        (this.pseudoSchichtMode === "new" || this.pseudoSchichtMode === "edit") &&
         !this.pseudoNewSchicht.bezeichnung.trim()
       )
         return;
-      if (this.pseudoSchichtMode !== "new" && !this.pseudoSelectedMas.length)
+      if (
+        this.pseudoSchichtMode !== "new" &&
+        this.pseudoSchichtMode !== "edit" &&
+        !this.pseudoSelectedMas.length
+      )
         return;
       this.pseudoSaving = true;
       const errors = [];
       try {
-        if (
+        if (this.pseudoSchichtMode === "edit") {
+          const schichtPatch = {
+            bezeichnung: this.pseudoNewSchicht.bezeichnung.trim(),
+            uhrzeitVon: this.pseudoNewSchicht.uhrzeitVon || null,
+            uhrzeitBis: this.pseudoNewSchicht.uhrzeitBis || null,
+            berufSchl: this.pseudoNewSchicht.berufSchl
+              ? String(this.pseudoNewSchicht.berufSchl)
+              : null,
+            qualSchl: this.pseudoNewSchicht.qualSchl
+              ? String(this.pseudoNewSchicht.qualSchl)
+              : null,
+            bedarf: Number(this.pseudoNewSchicht.bedarf) || 1,
+            istAusgeschrieben: Boolean(this.pseudoNewSchicht.istAusgeschrieben),
+          };
+          const targetId = this.editingPseudoSchicht?.meta?.schichtId;
+          if (targetId) {
+            await api.patch(
+              `/api/auftraege/${this.selectedEvent.auftragNr}/schichten/${targetId}`,
+              schichtPatch,
+            );
+          } else if (
+            Array.isArray(this.editingPseudoSchicht?.einsaetze) &&
+            this.editingPseudoSchicht.einsaetze.length
+          ) {
+            await Promise.all(
+              this.editingPseudoSchicht.einsaetze
+                .filter((e) => e?._id)
+                .map((e) =>
+                  api.patch(
+                    `/api/auftraege/${this.selectedEvent.auftragNr}/einsaetze/${e._id}`,
+                    {
+                      schichtBezeichnung: schichtPatch.bezeichnung,
+                      bezeichnung: schichtPatch.bezeichnung,
+                      uhrzeitVon: schichtPatch.uhrzeitVon,
+                      uhrzeitBis: schichtPatch.uhrzeitBis,
+                      berufSchl: schichtPatch.berufSchl,
+                      qualSchl: schichtPatch.qualSchl,
+                      bedarf: schichtPatch.bedarf,
+                    },
+                  ),
+                ),
+            );
+          }
+        } else if (
           this.pseudoSchichtMode === "new" &&
           this.pseudoSelectedMas.length === 0
         ) {
           const payload = {
             isNewPseudoSchicht: true,
             newSchichtBezeichnung: this.pseudoNewSchicht.bezeichnung.trim(),
+            ...(this.pseudoNewSchicht.istAusgeschrieben
+              ? { istAusgeschrieben: true }
+              : {}),
           };
           if (this.pseudoNewSchicht.uhrzeitVon)
             payload.newUhrzeitVon = this.pseudoNewSchicht.uhrzeitVon;
@@ -4882,9 +5339,16 @@ export default {
           await Promise.all(
             this.pseudoSelectedMas.map(async (ma) => {
               try {
-                const payload = { mitarbeiterId: ma._id };
+                const payload = {
+                  mitarbeiterId: ma._id,
+                  ...(this.pseudoIsReserve ? { isReserve: true } : {}),
+                  ...(this.pseudoNotifyEmployee ? { notifyEmployee: true } : {}),
+                };
                 if (this.pseudoSchichtMode === "new") {
                   payload.isNewPseudoSchicht = true;
+                  if (this.pseudoNewSchicht.istAusgeschrieben) {
+                    payload.istAusgeschrieben = true;
+                  }
                   payload.newSchichtBezeichnung =
                     this.pseudoNewSchicht.bezeichnung.trim();
                   if (this.pseudoNewSchicht.uhrzeitVon)
@@ -5252,6 +5716,11 @@ export default {
   width: 26px;
   flex: 0 0 26px;
   margin-top: 9px;
+
+  :deep(.tooltip-container),
+  :deep(.tooltip-trigger) {
+    display: flex;
+  }
 }
 
 .schicht-docked-btn {
@@ -5294,6 +5763,12 @@ export default {
   .schicht-duplicate-icon-arrow {
     font-size: 0.9em;
   }
+}
+
+.schicht-docked-ausschreiben-btn.is-active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 16%, var(--tile-bg));
+  color: var(--primary);
 }
 
 .schicht-docked-delete-btn:hover:not(:disabled) {
@@ -5486,6 +5961,31 @@ export default {
     background: #fef3c7;
     color: #92400e;
   }
+
+  &__reserve {
+    display: inline-block;
+    margin: 0 1px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: rgba(107, 114, 128, 0.22);
+    color: #4b5563;
+    font-weight: 750;
+  }
+}
+
+.shift-reserve-count {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(107, 114, 128, 0.24);
+  color: #4b5563;
+  font-weight: 750;
+}
+
+.shift-einsatz--reserve {
+  color: #6b7280;
+  opacity: 0.88;
 }
 
 .mitarbeiter-row {
@@ -5502,6 +6002,16 @@ export default {
 
     &:active {
       cursor: grabbing;
+    }
+  }
+
+  &--reserve {
+    background: color-mix(in srgb, #6b7280 12%, var(--panel));
+    border-left: 3px solid #9ca3af;
+    padding-left: 9px;
+
+    .ma-info .ma-name {
+      color: #6b7280;
     }
   }
 
@@ -7109,18 +7619,73 @@ export default {
   }
 }
 
+.reserve-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(107, 114, 128, 0.18);
+  border: 1px solid rgba(107, 114, 128, 0.5);
+  color: #4b5563;
+  margin-left: 4px;
+  vertical-align: middle;
+
+  &.reserve-tag--inline {
+    font-size: 0.54rem;
+    padding: 0 4px;
+    line-height: 1.3;
+    margin-left: 4px;
+  }
+}
+
+.stundenliste-excluded-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(107, 114, 128, 0.16);
+  border: 1px solid rgba(107, 114, 128, 0.45);
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.ausgeschrieben-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--primary);
+  flex-shrink: 0;
+
+  &.ausgeschrieben-tag--shift {
+    font-size: 0.54rem;
+    padding: 1px 4px;
+    line-height: 1.2;
+  }
+}
+
+.reserve-toggle-btn {
+  --action-ghost-text: var(--muted);
+
+  &.is-reserve {
+    --action-ghost-text: #4b5563;
+  }
+}
+
 .ma-badges--right {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.pseudo-remove-btn {
-  --action-ghost-text: var(--status-danger-text);
-  --action-accent-text: var(--status-danger-text);
-  --action-ghost-hover: color-mix(in srgb,
-      var(--status-danger-text) 12%,
-      transparent);
 }
 
 // ── Feiertage Highlighting ─────────────────────────────────────────────────

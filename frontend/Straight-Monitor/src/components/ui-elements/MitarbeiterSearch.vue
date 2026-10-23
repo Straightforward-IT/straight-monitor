@@ -477,10 +477,20 @@ watch([() => props.filterValues, filterCatalog], ([values, catalog]) => {
     activeFilters.value = [];
     return;
   }
-  const selectedKeys = new Set(values.map(({ category, value }) => `${category}:${value}`));
-  const nextFilters = catalog.filter((filter) => selectedKeys.has(filter.key));
-  const currentKeys = activeFilters.value.map((filter) => filter.key).sort().join('|');
-  const nextKeys = nextFilters.map((filter) => filter.key).sort().join('|');
+  const catalogByKey = new Map(catalog.map((filter) => [filter.key, filter]));
+  const nextFilters = (values || [])
+    .map((item) => {
+      if (!item?.category || item?.value == null) return null;
+      const key = `${item.category}:${item.value}`;
+      if (catalogByKey.has(key)) return catalogByKey.get(key);
+      if (item.label && FILTER_CATEGORIES[item.category]) {
+        return createFilter(item.category, { value: item.value, label: item.label });
+      }
+      return null;
+    })
+    .filter(Boolean);
+  const currentKeys = activeFilters.value.map((filter) => `${filter.key}:${filter.label}`).join('|');
+  const nextKeys = nextFilters.map((filter) => `${filter.key}:${filter.label}`).join('|');
   if (currentKeys !== nextKeys) activeFilters.value = nextFilters;
 }, { immediate: true, deep: true });
 

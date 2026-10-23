@@ -40,12 +40,40 @@
 
     <section class="home-section">
       <div class="section-heading"><h3>Jobangebote</h3><button type="button" @click="$emit('select-tab', 'jobs')">Alle</button></div>
-      <button v-for="job in jobs.slice(0, 2)" :key="job.id" class="compact-job" type="button" @click="$emit('open-job', job)"><span class="job-date"><strong>{{ dayNumber(job.dateFrom) }}</strong>{{ monthShort(job.dateFrom) }}</span><span><strong>{{ job.title }}</strong><small>{{ job.role || 'Tätigkeit offen' }} · {{ jobTime(job) }}</small></span><span class="places">{{ job.openPlaces }} frei</span></button>
+      <div class="job-card-list">
+        <div
+          v-for="job in jobs.slice(0, 2)"
+          :key="job.id"
+          class="compact-job"
+          :class="{ 'job-card--swiping-out': swipingIds[job.id] }"
+          role="button"
+          tabindex="0"
+          @click="$emit('open-job', job)"
+          @keydown.enter.prevent="$emit('open-job', job)"
+          @keydown.space.prevent="$emit('open-job', job)"
+        >
+          <span class="job-date"><strong>{{ dayNumber(job.dateFrom) }}</strong>{{ monthShort(job.dateFrom) }}</span>
+          <span><strong>{{ job.title }}</strong><small>{{ job.role || 'Tätigkeit offen' }} · {{ jobTime(job) }}</small></span>
+          <div class="compact-job-actions" @click.stop>
+            <span class="places">{{ job.openPlaces }} frei</span>
+            <button
+              type="button"
+              class="job-card-dismiss-x job-card-dismiss-x--compact"
+              title="Jobangebot ablehnen und ausblenden"
+              aria-label="Jobangebot ablehnen"
+              @click.stop="triggerDecline(job)"
+            >
+              <font-awesome-icon icon="fa-solid fa-xmark" />
+            </button>
+          </div>
+        </div>
+      </div>
     </section>
   </section>
 </template>
 
 <script setup>
+import { reactive } from 'vue';
 import PublicUpcomingJobs from '@/components/public/PublicUpcomingJobs.vue';
 import PublicNewsSection from './PublicNewsSection.vue';
 
@@ -70,5 +98,15 @@ defineProps({
   vorname: { type: String, default: '' },
 });
 
-defineEmits(['confirm-news', 'open-calendar-job', 'open-job', 'select-tab']);
+const emit = defineEmits(['confirm-news', 'open-calendar-job', 'open-job', 'decline-job', 'select-tab']);
+const swipingIds = reactive({});
+
+function triggerDecline(job) {
+  if (!job?.id || swipingIds[job.id]) return;
+  swipingIds[job.id] = true;
+  window.setTimeout(() => {
+    emit('decline-job', job);
+    delete swipingIds[job.id];
+  }, 240);
+}
 </script>

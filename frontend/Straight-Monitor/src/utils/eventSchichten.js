@@ -36,7 +36,12 @@ export function buildEventSchichten(event) {
         bedarf: schicht.bedarf ?? null,
         qualSchl: schicht.qualSchl || null,
         berufSchl: schicht.berufSchl || null,
+        qualifikationData: schicht.qualifikationData || null,
+        berufData: schicht.berufData || null,
         isPseudo: isPseudoSchichtDoc(schicht, event),
+        istAusgeschrieben: Boolean(schicht.istAusgeschrieben),
+        regularCount: 0,
+        reserveCount: 0,
         bedarfMet: false,
       },
     };
@@ -69,6 +74,9 @@ export function buildEventSchichten(event) {
           qualSchl: einsatz.qualSchl || null,
           berufSchl: einsatz.berufSchl || null,
           isPseudo: Boolean(einsatz.isPseudo || event?.isPseudo),
+          istAusgeschrieben: false,
+          regularCount: 0,
+          reserveCount: 0,
           bedarfMet: false,
         },
       };
@@ -79,13 +87,26 @@ export function buildEventSchichten(event) {
     if (!grouped[key].meta.qualSchl && einsatz.qualSchl) {
       grouped[key].meta.qualSchl = einsatz.qualSchl;
     }
+    if (!grouped[key].meta.qualifikationData && einsatz.qualifikationData) {
+      grouped[key].meta.qualifikationData = einsatz.qualifikationData;
+    }
+    if (!grouped[key].meta.berufData && einsatz.berufData) {
+      grouped[key].meta.berufData = einsatz.berufData;
+    }
     grouped[key].einsaetze.push(einsatz);
   });
 
   Object.values(grouped).forEach(schicht => {
     const bedarf = schicht.meta.bedarf;
-    schicht.meta.bedarfMet = bedarf ? schicht.einsaetze.length >= bedarf : true;
+    const regularCount = schicht.einsaetze.filter(e => !e.isReserve).length;
+    const reserveCount = schicht.einsaetze.filter(e => Boolean(e.isReserve)).length;
+    schicht.meta.regularCount = regularCount;
+    schicht.meta.reserveCount = reserveCount;
+    schicht.meta.bedarfMet = bedarf ? regularCount >= bedarf : true;
     schicht.einsaetze.sort((left, right) => {
+      if (Boolean(left.isReserve) !== Boolean(right.isReserve)) {
+        return Number(Boolean(left.isReserve)) - Number(Boolean(right.isReserve));
+      }
       const leftName = (left.mitarbeiterData?.nachname || '').toLocaleLowerCase('de');
       const rightName = (right.mitarbeiterData?.nachname || '').toLocaleLowerCase('de');
       return leftName.localeCompare(rightName, 'de');

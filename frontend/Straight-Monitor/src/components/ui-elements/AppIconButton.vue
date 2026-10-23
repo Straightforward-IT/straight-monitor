@@ -10,8 +10,8 @@
     :loading="loading"
     icon-only
     :aria-label="label"
-    :aria-pressed="active === null ? undefined : active"
-    :title="title || label"
+    :aria-pressed="active === null ? $attrs['aria-pressed'] : active"
+    :title="title === null ? undefined : (title || label)"
   >
     <slot />
   </AppButton>

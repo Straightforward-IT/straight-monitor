@@ -13,12 +13,26 @@
       <font-awesome-icon icon="fa-solid fa-circle-check" /> Keine neuen Neuigkeiten
     </div>
     <template v-else>
-      <article v-for="item in items" :key="item.id" class="news-card">
+      <article
+        v-for="item in items"
+        :key="item.id"
+        class="news-card"
+        :class="{ 'news-card--reserve': item.isReserve || item.einsatz?.isReserve }"
+      >
         <div class="news-card__header">
-          <span class="news-card__type">Du wurdest eingeplant für den folgenden Job</span>
+          <span class="news-card__type">
+            {{
+              item.isReserve || item.einsatz?.isReserve
+                ? 'Du wurdest als Reserve eingesetzt'
+                : 'Du wurdest eingeplant für den folgenden Job'
+            }}
+          </span>
           <span class="news-card__progress">{{ item.confirmation.currentStep.position }}/{{ item.confirmation.totalSteps }}</span>
         </div>
-        <h4 class="news-card__title">{{ item.einsatz.title }}</h4>
+        <h4 class="news-card__title">
+          {{ item.einsatz.title }}
+          <span v-if="item.isReserve || item.einsatz?.isReserve" class="news-card__reserve-pill">Reserve</span>
+        </h4>
         <p>{{ formatDate(item.einsatz.dateFrom) }} · {{ formatTime(item.einsatz) }}</p>
         <p class="news-card__location"><font-awesome-icon icon="fa-solid fa-location-dot" /> {{ item.einsatz.location }}</p>
         <button
@@ -69,6 +83,9 @@ function formatTime(einsatz) {
 .news-card { display:grid; gap:.4rem; padding:1.1rem; border:2px solid var(--primary); border-radius:4px; background:linear-gradient(135deg, color-mix(in srgb, var(--primary) 9%, var(--panel)), var(--panel) 48%); box-shadow:0 10px 26px rgba(31,28,25,.14); }
 .news-card__header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; color:var(--muted); font-size:.68rem; font-weight:800; text-transform:uppercase; }
 .news-card__type { color:var(--primary); }
+.news-card--reserve { border-color:#6b7280; background:linear-gradient(135deg, color-mix(in srgb, #6b7280 12%, var(--panel)), var(--panel) 48%); }
+.news-card--reserve .news-card__type { color:#6b7280; }
+.news-card__reserve-pill { display:inline-block; margin-left:.35rem; padding:.12rem .45rem; border-radius:999px; background:color-mix(in srgb, #6b7280 18%, transparent); color:#4b5563; font-size:.66rem; font-weight:750; vertical-align:middle; }
 .news-card__progress { min-width:2.3rem; padding:.2rem .42rem; border-radius:999px; background:var(--text); color:var(--panel); text-align:center; }
 .news-card__intro { margin:.25rem 0 0 !important; color:var(--text) !important; font-size:.78rem !important; font-weight:750; }
 .news-card h4 { margin:0; color:var(--text); font-size:1.15rem; font-weight:850; }

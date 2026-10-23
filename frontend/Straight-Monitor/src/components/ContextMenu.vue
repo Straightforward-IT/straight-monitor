@@ -23,6 +23,7 @@
             option.variant && `context-menu-item--${option.variant}`,
             {
               'context-menu-item--special': option.special,
+              'context-menu-item--highlighted': option.highlighted,
               'context-menu-item--disabled': option.disabled,
               'context-menu-item--has-children': hasChildren(option),
             }
@@ -37,7 +38,14 @@
         >
           <img v-if="option.image" :src="option.image" class="context-menu-item__image" alt="" />
           <FontAwesomeIcon v-if="option.icon" :icon="option.icon" class="context-menu-item__icon" />
-          <span>{{ option.label }}</span>
+          <span class="context-menu-item__label">{{ option.label }}</span>
+          <span
+            v-if="option.badge"
+            class="context-menu-item__badge"
+            :class="option.badgeVariant && `context-menu-item__badge--${option.badgeVariant}`"
+          >
+            {{ option.badge }}
+          </span>
           <FontAwesomeIcon v-if="hasChildren(option)" :icon="['fas', 'chevron-right']" class="context-menu-item__chevron" />
 
           <div
@@ -58,7 +66,11 @@
                 :aria-disabled="Boolean(child.disabled)"
                 :class="[
                   child.variant && `context-menu-item--${child.variant}`,
-                  { 'context-menu-item--special': child.special, 'context-menu-item--disabled': child.disabled }
+                  {
+                    'context-menu-item--special': child.special,
+                    'context-menu-item--highlighted': child.highlighted,
+                    'context-menu-item--disabled': child.disabled,
+                  }
                 ]"
                 @click.stop="!child.disabled && selectOption(child)"
                 @keydown.enter.prevent.stop="!child.disabled && selectOption(child)"
@@ -67,7 +79,14 @@
               >
                 <img v-if="child.image" :src="child.image" class="context-menu-item__image" alt="" />
                 <FontAwesomeIcon v-if="child.icon" :icon="child.icon" class="context-menu-item__icon" />
-                <span>{{ child.label }}</span>
+                <span class="context-menu-item__label">{{ child.label }}</span>
+                <span
+                  v-if="child.badge"
+                  class="context-menu-item__badge"
+                  :class="child.badgeVariant && `context-menu-item__badge--${child.badgeVariant}`"
+                >
+                  {{ child.badge }}
+                </span>
               </div>
             </template>
           </div>
@@ -102,6 +121,9 @@ const props = withDefaults(defineProps<{
     image?: string;
     icon?: string | string[];
     special?: boolean;
+    highlighted?: boolean;
+    badge?: string;
+    badgeVariant?: 'met' | 'open' | 'primary';
     disabled?: boolean;
     variant?: 'primary' | 'danger' | 'muted';
     children?: any[];
@@ -301,7 +323,36 @@ function selectOption(option: any) {
       transition: opacity 0.15s ease;
     }
 
-    &--has-children > span { flex: 1; }
+    &--has-children > .context-menu-item__label { flex: 1; }
+  }
+
+  .context-menu-item__label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .context-menu-item__badge {
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+
+    &--met {
+      background: color-mix(in srgb, #16a34a 15%, transparent);
+      color: #15803d;
+    }
+
+    &--open,
+    &--primary {
+      background: color-mix(in srgb, var(--primary) 16%, transparent);
+      color: var(--primary);
+    }
   }
 
   .context-menu-item__image {
@@ -350,6 +401,25 @@ function selectOption(option: any) {
     }
 
     &::before { opacity: 1; }
+  }
+
+  .context-menu-item--highlighted {
+    background: color-mix(in srgb, var(--primary) 13%, transparent);
+    color: var(--primary);
+    font-weight: 600;
+
+    .context-menu-item__icon {
+      color: var(--primary);
+    }
+
+    &::before {
+      width: 3px;
+      opacity: 1;
+    }
+
+    &:hover, &:focus-visible {
+      background: color-mix(in srgb, var(--primary) 20%, transparent);
+    }
   }
 
   .context-menu-item--disabled {

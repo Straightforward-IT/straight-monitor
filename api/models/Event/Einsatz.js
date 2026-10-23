@@ -109,6 +109,7 @@ const EinsatzSchema = new mongoose.Schema({
   garantiestundenLohn: { type: Number, required: false }, // GARANTIESTD_LOHN
   endeOffen: { type: Number, required: false }, // ENDEOFFEN (0/1?)
   isPseudo: { type: Boolean, default: false }, // Manually added pseudo-employee entry
+  isReserve: { type: Boolean, default: false, index: true }, // Reserve assignment
   stundenlisteIncluded: { type: Boolean, default: true },
   // Monitor-created assignments can require the employee to acknowledge the
   // current shift details in the public portal. Imported and legacy records
@@ -117,6 +118,7 @@ const EinsatzSchema = new mongoose.Schema({
   bestaetigt: { type: Boolean, default: false, index: true },
   bestaetigung: {
     version: { type: String, default: null },
+    flipTaskId: { type: String, default: null },
     einsatzzeitenGelesenAt: { type: Date, default: null },
     einsatzkleidungAt: { type: Date, default: null },
     ankunftspufferAt: { type: Date, default: null },

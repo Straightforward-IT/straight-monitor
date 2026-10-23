@@ -7,7 +7,7 @@ import OrderActionDialog from '@/components/orders/dialogs/OrderActionDialog.vue
 import PseudoOrderCreateDialog from '@/components/orders/dialogs/PseudoOrderCreateDialog.vue';
 import SidePanelFrame from '@/components/frames/SidePanelFrame.vue';
 
-vi.mock('@/utils/api', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
+vi.mock('@/utils/api', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }));
 vi.mock('@/utils/htmlToPdfService', () => ({ exportElementToPdf: vi.fn() }));
 const wrappers = [];
 const order = () => ({ _id: 'order', auftragNr: 42, eventTitel: 'Konferenz', labels: [], einsaetze: [], schichten: [] });
@@ -420,6 +420,50 @@ describe('pseudo-assignment integration', () => {
       mitarbeiterId: employee._id,
       schichtId: 'shift-target-id',
       replanFromEinsatzIds: [oldEinsatzId],
+    });
+  });
+
+  it('tracks regularCount, reserveCount, istAusgeschrieben and bedarfMet (regular only) and converts Reserve <-> Einsatz with notify prompt', async () => {
+    api.patch.mockResolvedValue({ data: { ok: true } });
+    api.get.mockResolvedValue({ data: { auftragNr: 42, einsaetze: [], schichten: [] } });
+
+    const wrapper = workspace();
+    const built = wrapper.vm.calculateSchichten({
+      auftragNr: 42,
+      schichten: [
+        {
+          _id: 's1',
+          idAuftragArbeitsschichten: 10,
+          bezeichnung: 'Service',
+          bedarf: 2,
+          istAusgeschrieben: true,
+        },
+      ],
+      einsaetze: [
+        { _id: 'e1', idAuftragArbeitsschichten: 10, isReserve: false, mitarbeiterData: { nachname: 'Alpha' } },
+        { _id: 'e2', idAuftragArbeitsschichten: 10, isReserve: true, mitarbeiterData: { nachname: 'Beta' } },
+      ],
+    });
+
+    expect(built).toHaveLength(1);
+    expect(built[0].meta.istAusgeschrieben).toBe(true);
+    expect(built[0].meta.regularCount).toBe(1);
+    expect(built[0].meta.reserveCount).toBe(1);
+    // Only regular assignments count toward bedarfMet (1 < 2 -> false)
+    expect(built[0].meta.bedarfMet).toBe(false);
+
+    // Trigger Reserve -> Regular conversion prompt
+    wrapper.vm.promptToggleEinsatzReserve(built[0].einsaetze[1], built[0]);
+    expect(wrapper.vm.dropWarningFlow.steps).toHaveLength(1);
+    expect(wrapper.vm.dropWarningFlow.steps[0].type).toBe('notify-employee');
+    expect(wrapper.vm.dropWarningFlow.steps[0].isReserve).toBe(false);
+
+    await wrapper.vm.handleDropWarningDecision('confirm-notify');
+    await flushPromises();
+
+    expect(api.patch).toHaveBeenCalledWith('/api/auftraege/42/einsaetze/e2/reserve', {
+      isReserve: false,
+      notifyEmployee: true,
     });
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount, shallowMount } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import api from '@/utils/api';
+import { useAuth } from '@/stores/auth';
 import { useSignaturModal } from '@/stores/signaturModal';
 import OrderHoursVisibilityButton from '@/components/orders/OrderHoursVisibilityButton.vue';
 import AuftragCalendarWorkspace from '@/components/orders/calendar/AuftragCalendarWorkspace.vue';
@@ -47,6 +48,8 @@ describe('shared hours-list visibility control', () => {
     wrappers.push(wrapper);
     const button = byLabel(wrapper, 'Service: Aufnahme in Stundenliste');
     expect(button.attributes('type')).toBe('button'); expect(button.attributes('aria-pressed')).toBe('true');
+    expect(button.classes()).not.toContain('app-icon-button--active');
+    expect(wrapper.findAll('font-awesome-icon-stub')).toHaveLength(1);
     expect(button.attributes('title')).toBe('Service aus Stundenliste ausschließen');
     await button.trigger('click'); expect(wrapper.emitted('toggle')).toEqual([[]]);
     await wrapper.setProps({ included: false, pending: true });
@@ -55,13 +58,27 @@ describe('shared hours-list visibility control', () => {
     button.element.click(); expect(wrapper.emitted('toggle')).toHaveLength(1);
   });
 
-  it('patches a single assignment and refreshes hours-list status after success', async () => {
+  it('patches a single assignment via context menu and refreshes hours-list status after success', async () => {
     const item = assignment();
     const { wrapper, loadStatus } = workspace({ preparedSchichten: [{ key: 'shift', meta: { schichtBezeichnung: 'Service' }, einsaetze: [item] }] });
-    await byLabel(wrapper, 'Anna Muster: Aufnahme in Stundenliste').trigger('click'); await flushPromises();
+    expect(wrapper.find('button[aria-label="Anna Muster: Aufnahme in Stundenliste"]').exists()).toBe(false);
+    expect(wrapper.find('.schicht-docked-actions button[aria-label="Service: Aufnahme in Stundenliste"]').exists()).toBe(true);
+    expect(wrapper.find('.stundenliste-excluded-pill').exists()).toBe(false);
+    await byLabel(wrapper, 'Aktionen für Anna Muster').trigger('click');
+    expect(wrapper.vm.einsatzContextMenuOptions).toContainEqual(expect.objectContaining({
+      action: 'toggle-stundenliste',
+      label: 'Aus Stundenliste ausschließen',
+    }));
+    wrapper.vm.handleEinsatzContextMenuAction('toggle-stundenliste');
+    await flushPromises();
     expect(api.patch).toHaveBeenCalledWith('/api/auftraege/42/einsaetze/assignment', { stundenlisteIncluded: false });
     expect(loadStatus).toHaveBeenCalledWith(42);
-    expect(byLabel(wrapper, 'Anna Muster: Aufnahme in Stundenliste').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.find('.ma-info .stundenliste-excluded-pill').exists()).toBe(true);
+    await byLabel(wrapper, 'Aktionen für Anna Muster').trigger('click');
+    expect(wrapper.vm.einsatzContextMenuOptions).toContainEqual(expect.objectContaining({
+      action: 'toggle-stundenliste',
+      label: 'In Stundenliste aufnehmen',
+    }));
   });
 
   it('preserves whole-shift semantics for a mixed selection and blocks parallel requests', async () => {
@@ -84,10 +101,12 @@ describe('shared hours-list visibility control', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     api.patch.mockRejectedValueOnce({ response: { data: { message: 'Änderung abgelehnt' } } });
     const { wrapper } = workspace({ preparedSchichten: [{ key: 'shift', meta: { schichtBezeichnung: 'Service' }, einsaetze: [assignment()] }] });
-    await byLabel(wrapper, 'Anna Muster: Aufnahme in Stundenliste').trigger('click'); await flushPromises();
+    await byLabel(wrapper, 'Aktionen für Anna Muster').trigger('click');
+    wrapper.vm.handleEinsatzContextMenuAction('toggle-stundenliste');
+    await flushPromises();
     expect(alert).toHaveBeenCalledWith('Änderung abgelehnt');
-    expect(byLabel(wrapper, 'Anna Muster: Aufnahme in Stundenliste').attributes('aria-pressed')).toBe('true');
-    expect(byLabel(wrapper, 'Anna Muster: Aufnahme in Stundenliste').element.disabled).toBe(false);
+    expect(byLabel(wrapper, 'Service: Aufnahme in Stundenliste').attributes('aria-pressed')).toBe('true');
+    expect(byLabel(wrapper, 'Service: Aufnahme in Stundenliste').element.disabled).toBe(false);
   });
 });
 
@@ -99,13 +118,48 @@ describe('remaining order detail actions and signature cleanup', () => {
     await button.trigger('click'); expect(openDocument).toHaveBeenCalledWith(doc, { eventTitle: 'Konferenz' });
   });
 
-  it('keeps pseudo-removal confirmation and refreshes the existing order', async () => {
+  it('keeps pseudo-removal confirmation via context menu and refreshes the existing order', async () => {
     const { wrapper } = workspace({ preparedSchichten: [{ key: 'shift', meta: {}, einsaetze: [assignment()] }] });
-    const button = byLabel(wrapper, 'Pseudo-Einsatz für Anna Muster entfernen');
-    await button.trigger('click'); expect(api.delete).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true); await button.trigger('click'); await flushPromises();
+    expect(wrapper.find('button[aria-label="Pseudo-Einsatz für Anna Muster entfernen"]').exists()).toBe(false);
+    await byLabel(wrapper, 'Aktionen für Anna Muster').trigger('click');
+    expect(wrapper.vm.einsatzContextMenuOptions).toContainEqual(expect.objectContaining({
+      action: 'remove-einsatz',
+      label: 'Einsatz entfernen',
+    }));
+    wrapper.vm.handleEinsatzContextMenuAction('remove-einsatz');
+    expect(api.delete).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await byLabel(wrapper, 'Aktionen für Anna Muster').trigger('click');
+    wrapper.vm.handleEinsatzContextMenuAction('remove-einsatz');
+    await flushPromises();
     expect(api.delete).toHaveBeenCalledWith('/api/auftraege/42/pseudo-einsatz/assignment');
     expect(api.get).toHaveBeenCalledWith('/api/auftraege/42/details');
+  });
+
+  it('shows the docked edit button only for pseudo shifts and patches the shift on save', async () => {
+    const { wrapper, pinia } = workspace({
+      preparedSchichten: [
+        { key: 'regular', meta: { schichtId: 'shift-reg', schichtBezeichnung: 'Regulär', isPseudo: false }, einsaetze: [] },
+        { key: 'pseudo', meta: { schichtId: 'shift-pseudo', schichtBezeichnung: 'Pseudo', uhrzeitVon: '10:00', uhrzeitBis: '16:00', bedarf: 2, isPseudo: true }, einsaetze: [] },
+      ],
+    });
+    useAuth(pinia).user = { _id: 'admin', role: 'ADMIN', roles: ['ADMIN'] };
+    await flushPromises();
+    expect(wrapper.find('button[aria-label="Pseudo-Schicht Regulär bearbeiten"]').exists()).toBe(false);
+    const editBtn = byLabel(wrapper, 'Pseudo-Schicht Pseudo bearbeiten');
+    await editBtn.trigger('click');
+    expect(wrapper.vm.showPseudoDialog).toBe(true);
+    expect(wrapper.vm.pseudoSchichtMode).toBe('edit');
+    expect(wrapper.vm.pseudoNewSchicht.bezeichnung).toBe('Pseudo');
+    wrapper.vm.pseudoNewSchicht.bezeichnung = 'Pseudo Neu';
+    await wrapper.vm.savePseudoEinsatz();
+    await flushPromises();
+    expect(api.patch).toHaveBeenCalledWith('/api/auftraege/42/schichten/shift-pseudo', expect.objectContaining({
+      bezeichnung: 'Pseudo Neu',
+      uhrzeitVon: '10:00',
+      uhrzeitBis: '16:00',
+      bedarf: 2,
+    }));
   });
 
   it('preserves week-scroll targets with accessible current-week shared buttons', async () => {

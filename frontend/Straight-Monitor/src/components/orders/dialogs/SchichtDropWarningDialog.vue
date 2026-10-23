@@ -83,6 +83,30 @@
           Möchtest du <strong>{{ step.employeeName }}</strong> trotzdem {{ decisionMode === 'replan' ? 'umplanen' : 'einplanen' }}?
         </p>
       </template>
+
+      <!-- 5. NOTIFY EMPLOYEE PROMPT -->
+      <template v-else-if="step.type === 'notify-employee'">
+        <p class="drop-warn-text">
+          <strong>{{ step.employeeName }}</strong> wird
+          <template v-if="step.isReserve">als <strong>Reserve</strong> </template>
+          in die Schicht <strong>{{ step.shiftName }}</strong> eingeplant.
+        </p>
+        <p class="drop-warn-question">
+          Soll <strong>{{ step.employeeName }}</strong> jetzt per Flip-Task benachrichtigt werden, den Einsatz unter „Jobs“ zu bestätigen?
+        </p>
+      </template>
+
+      <label
+        v-if="step.type !== 'notify-employee' && showNotifyCheckbox"
+        class="drop-warn-notify-checkbox"
+      >
+        <input
+          type="checkbox"
+          :checked="notifyEmployee"
+          @change="emit('update:notifyEmployee', $event.target.checked)"
+        >
+        <span>Mitarbeiter per Flip-Task benachrichtigen (Bestätigung anfordern)</span>
+      </label>
     </div>
 
     <template #footer>
@@ -95,7 +119,27 @@
           Abbrechen
         </AppButton>
 
-        <template v-if="step.type === 'already-planned'">
+        <template v-if="step.type === 'notify-employee'">
+          <AppButton
+            variant="secondary"
+            :disabled="busy"
+            :loading="busy && activeAction === 'skip-notify'"
+            @click="onSelect('skip-notify')"
+          >
+            Ohne Benachrichtigung
+          </AppButton>
+          <AppButton
+            variant="primary"
+            :disabled="busy"
+            :loading="busy && activeAction === 'confirm-notify'"
+            @click="onSelect('confirm-notify')"
+          >
+            <font-awesome-icon icon="fa-solid fa-bell" />
+            Ja, benachrichtigen
+          </AppButton>
+        </template>
+
+        <template v-else-if="step.type === 'already-planned'">
           <CustomTooltip
             text="Bestehende Einplanung bleibt erhalten – der Mitarbeiter wird zusätzlich in diese Schicht eingeplant (Doppelbelegung)."
             position="top"
@@ -176,9 +220,11 @@ const props = defineProps({
   step: { type: Object, default: null },
   busy: { type: Boolean, default: false },
   decisionMode: { type: String, default: 'plan' },
+  notifyEmployee: { type: Boolean, default: true },
+  showNotifyCheckbox: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['cancel', 'decide']);
+const emit = defineEmits(['cancel', 'decide', 'update:notifyEmployee']);
 const activeAction = ref('');
 
 const dialogTitle = computed(() => {
@@ -187,12 +233,14 @@ const dialogTitle = computed(() => {
   if (type === 'already-planned') return 'Bereits in anderer Schicht geplant';
   if (type === 'dispo-blocked') return 'Mitarbeiter nicht verfügbar';
   if (type === 'bedarf-exceeded') return 'Schichtbedarf überschritten';
+  if (type === 'notify-employee') return 'Mitarbeiter benachrichtigen?';
   return 'Hinweis zur Einplanung';
 });
 
 const dialogIcon = computed(() => {
   const type = props.step?.type;
   if (type === 'missing-qualification') return 'fa-solid fa-graduation-cap';
+  if (type === 'notify-employee') return 'fa-solid fa-bell';
   return 'fa-solid fa-triangle-exclamation';
 });
 
@@ -244,6 +292,17 @@ function onSelect(action) {
 
 .drop-warn-danger {
   color: #dc2626;
+}
+
+.drop-warn-notify-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
 }
 
 .drop-warn-highlight {

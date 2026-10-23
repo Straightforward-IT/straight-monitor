@@ -133,9 +133,10 @@
             <button
               type="button"
               class="docked-control-btn"
-              :class="{ active: onlyAvailableOnOrderDay }"
-              :aria-pressed="onlyAvailableOnOrderDay"
-              title="Nur Mitarbeiter anzeigen, die am Auftragstag als verfügbar eingetragen sind"
+              :class="{ active: onlyAvailableOnOrderDay && Boolean(event?.vonDatum) }"
+              :aria-pressed="onlyAvailableOnOrderDay && Boolean(event?.vonDatum)"
+              :disabled="!event?.vonDatum"
+              :title="event?.vonDatum ? 'Nur Mitarbeiter anzeigen, die am Auftragstag als verfügbar eingetragen sind' : 'Auftrag auswählen, um nach Verfügbarkeit am Auftragstag zu filtern'"
               @click="toggleOnlyAvailableOnOrderDay"
             >
               <font-awesome-icon
@@ -164,17 +165,6 @@
               {{ opt.label }}
               <span v-if="opt.count > 0" class="chip-count">{{ opt.count }}</span>
             </FilterChip>
-            <AppIconButton
-              v-if="bewerbungen.length"
-              variant="ghost"
-              size="sm"
-              class="clear-bewerbungen-btn"
-              label="Alle Bewerbungen löschen"
-              title="Alle Bewerbungen löschen"
-              @click="clearAllBewerbungen"
-            >
-              <font-awesome-icon icon="fa-solid fa-trash" />
-            </AppIconButton>
           </div>
         </div>
 
@@ -370,10 +360,10 @@
             :aria-selected="selectedMaId === String(bew.mitarbeiter?._id)"
             :draggable="!isAlreadyAssigned(bew.mitarbeiter) && !['scheduled', 'confirmed'].includes(bew.status)"
             @dragstart="onMitarbeiterDragStart($event, bew.mitarbeiter, bew)"
-            @click="selectMitarbeiter(bew.mitarbeiter)"
+            @click="onBewerbungRowClick(bew)"
             @contextmenu.prevent="openBewerbungMenu($event, bew)"
-            @keydown.enter.prevent="selectMitarbeiter(bew.mitarbeiter)"
-            @keydown.space.prevent="selectMitarbeiter(bew.mitarbeiter)"
+            @keydown.enter.prevent="onBewerbungRowClick(bew)"
+            @keydown.space.prevent="onBewerbungRowClick(bew)"
           >
             <span
               class="staffing-row__grip"
@@ -404,6 +394,9 @@
                       :icon="getCustomerWishForOrder(bew.mitarbeiter).typ === 'negativ' ? 'fa-solid fa-thumbs-down' : 'fa-solid fa-thumbs-up'"
                     />
                     
+                  </span>
+                  <span v-if="bew.isReserve" class="staffing-pill staffing-pill--reserve">
+                    Reserve
                   </span>
                   <span class="bew-status-pill" :class="`bew-status-pill--${bew.status}`">
                     {{ bewerbungStatusLabel(bew.status) }}
@@ -957,12 +950,21 @@
         @close="closeBewerbungMenu"
         @select="handleBewerbungMenuAction"
       />
+
+      <SchichtDropWarningDialog
+        :model-value="Boolean(pendingBewerbungDecision)"
+        :step="pendingBewerbungDecision?.step || null"
+        :busy="Boolean(decidingBewerbungId)"
+        @cancel="pendingBewerbungDecision = null"
+        @decide="onBewerbungNotifyDecide"
+      />
     </aside>
   </Transition>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
   faAddressCard,
@@ -970,6 +972,7 @@ import {
   faAnglesRight,
   faArrowDownWideShort,
   faArrowUpWideShort,
+  faBell,
   faBriefcase,
   faBriefcaseMedical,
   faCalendarCheck,
@@ -989,11 +992,13 @@ import {
   faRotate,
   faRotateRight,
   faSpinner,
+  faTableColumns,
   faThumbsDown,
   faThumbsUp,
   faTrash,
   faUmbrellaBeach,
   faUpRightFromSquare,
+  faUserClock,
   faUserPlus,
   faUsers,
   faXmark,
@@ -1013,6 +1018,7 @@ import { attachMitarbeiterDragPreview } from '@/utils/mitarbeiterDragPreview';
 import { useEmployeeContingents } from '@/composables/useEmployeeContingents';
 import { useEmployeeContingentModals } from '@/composables/useEmployeeContingentModals';
 import { personGroupForMonth, currentPayrollMonth } from '@/utils/employeePayrollMasterData';
+import { buildEventSchichten } from '@/utils/eventSchichten';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 import TlBadge from '@/components/ui-elements/TlBadge.vue';
@@ -1021,6 +1027,7 @@ import ContextMenu from '@/components/ContextMenu.vue';
 import HoverDataCard from '@/components/ui-elements/HoverDataCard.vue';
 import MitarbeiterSearch from '@/components/ui-elements/MitarbeiterSearch.vue';
 import SortMenu from '@/components/ui-elements/SortMenu.vue';
+import SchichtDropWarningDialog from '@/components/orders/dialogs/SchichtDropWarningDialog.vue';
 
 library.add(
   faAddressCard,
@@ -1028,6 +1035,7 @@ library.add(
   faAnglesRight,
   faArrowDownWideShort,
   faArrowUpWideShort,
+  faBell,
   faBriefcase,
   faBriefcaseMedical,
   faCalendarCheck,
@@ -1051,11 +1059,13 @@ library.add(
   faRotate,
   faRotateRight,
   faSpinner,
+  faTableColumns,
   faThumbsDown,
   faThumbsUp,
   faTrash,
   faUmbrellaBeach,
   faUpRightFromSquare,
+  faUserClock,
   faUserPlus,
   faUsers,
   faXmark,
@@ -1073,12 +1083,14 @@ const props = defineProps({
 
 const emit = defineEmits([
   'open-employee-card',
+  'open-order',
   'bewerbung-updated',
   'select-mitarbeiter',
   'unassign-einsatz',
   'minimize',
 ]);
 
+const router = useRouter();
 const auth = useAuth();
 const dataCache = useDataCache();
 const flip = useFlipAll();
@@ -1086,11 +1098,41 @@ const { formatName } = useMitarbeiterNameFormatter();
 const employeeContingents = useEmployeeContingents();
 const { openEmployeeContingent } = useEmployeeContingentModals();
 
+const STAFFING_SEARCH_FILTERS_KEY = 'auftraege.staffingEmployeeSearchFilters';
+
+function loadSavedEmployeeSearchFilters() {
+  try {
+    const raw = localStorage.getItem(STAFFING_SEARCH_FILTERS_KEY);
+    if (raw === null) return { hasSaved: false, filters: [] };
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const valid = parsed.filter(
+        (item) => item && typeof item === 'object' && item.category && item.value != null
+      );
+      return { hasSaved: true, filters: valid };
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return { hasSaved: false, filters: [] };
+}
+
+function saveEmployeeSearchFilters(filters) {
+  try {
+    localStorage.setItem(STAFFING_SEARCH_FILTERS_KEY, JSON.stringify(filters || []));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const initialSearchFiltersState = loadSavedEmployeeSearchFilters();
+const hasSavedEmployeeSearchFilters = ref(initialSearchFiltersState.hasSaved);
+
 const activeTab = ref('all');
 const searchQuery = ref('');
 const searchSelectedEmployeeId = ref(null);
 const searchSelectedEmployee = ref(null);
-const employeeSearchFilters = ref([]);
+const employeeSearchFilters = ref(initialSearchFiltersState.filters);
 const mitarbeitersSortBy = ref('nachname');
 const mitarbeitersIsAscending = ref(true);
 const onlyAvailableOnOrderDay = ref(false);
@@ -1117,6 +1159,7 @@ let mitarbeiterRequestSeq = 0;
 const bewerbungen = ref([]);
 const bewerbungenLoading = ref(false);
 const decidingBewerbungId = ref('');
+const pendingBewerbungDecision = ref(null);
 
 const selectedMaBasic = ref(null);
 const selectedMaFull = ref(null);
@@ -1372,6 +1415,7 @@ const bewerbungMenu = reactive({
   x: 0,
   y: 0,
   item: null,
+  shifts: [],
 });
 
 const employeeRowMenu = reactive({
@@ -1387,7 +1431,7 @@ const orderLocationId = computed(() => {
 });
 
 function syncDefaultLocationFilter(locationId = orderLocationId.value) {
-  if (!locationId) return;
+  if (!locationId || hasSavedEmployeeSearchFilters.value) return;
   const filtersWithoutLocation = employeeSearchFilters.value.filter(
     (filter) => filter.category !== 'standorte'
   );
@@ -1435,7 +1479,7 @@ const filteredAllMitarbeiter = computed(() => {
     list = list.filter((ma) => String(ma._id) === String(searchSelectedEmployeeId.value));
   }
 
-  if (onlyAvailableOnOrderDay.value) {
+  if (onlyAvailableOnOrderDay.value && props.event?.vonDatum) {
     list = list.filter((ma) => availableEmployeeIdsOnOrderDay.value.has(String(ma._id)));
   }
 
@@ -1675,6 +1719,14 @@ const dispoDays = computed(() => {
   return days;
 });
 
+function openMitarbeiterInDispo(ma) {
+  if (!ma?._id) return;
+  const query = { maId: String(ma._id), showHidden: '1' };
+  const locationV2 = ma?.locationV2?._id || ma?.locationV2;
+  if (locationV2) query.locationV2 = String(locationV2);
+  router.push({ path: '/dispo', query });
+}
+
 const employeeRowMenuOptions = computed(() => {
   const ma = employeeRowMenu.ma;
   if (!ma) return [];
@@ -1685,6 +1737,9 @@ const employeeRowMenuOptions = computed(() => {
       icon: 'fa-solid fa-address-card',
       variant: 'primary',
     },
+    ...(ma?.isActive !== false
+      ? [{ label: 'In Dispo öffnen', action: 'open-dispo', icon: ['fas', 'table-columns'] }]
+      : []),
   ];
 });
 
@@ -1709,20 +1764,62 @@ function handleEmployeeRowMenuAction(action) {
   if (!ma || !action) return;
   if (action === 'open-card') {
     emit('open-employee-card', ma);
+  } else if (action === 'open-dispo') {
+    openMitarbeiterInDispo(ma);
   }
+}
+
+function isAppliedShiftForBewerbung(bew, shift) {
+  if (!bew || !shift) return false;
+  const bewSchichtId = String(bew.schicht?._id || bew.schicht || bew.jobId || '').trim();
+  const shiftId = String(shift.meta?.schichtId || shift.meta?._id || '').trim();
+  if (bewSchichtId && shiftId && bewSchichtId === shiftId) return true;
+  const bewLegacyId = bew.idAuftragArbeitsschichten ?? bew.schicht?.idAuftragArbeitsschichten;
+  const shiftLegacyId = shift.meta?.idAuftragArbeitsschichten;
+  if (bewLegacyId != null && shiftLegacyId != null && Number(bewLegacyId) === Number(shiftLegacyId)) {
+    return true;
+  }
+  return false;
 }
 
 const bewerbungMenuOptions = computed(() => {
   const bew = bewerbungMenu.item;
   if (!bew) return [];
 
-  const shiftChildren = (props.shifts || []).length > 1
-    ? props.shifts.map((s) => ({
-        label: `${s.meta?.schichtBezeichnung || 'Schicht'}${s.meta?.uhrzeitVon ? ` (${formatShortTime(s.meta.uhrzeitVon)})` : ''}`,
-        action: `accept:${s.meta?.schichtId || s.meta?.idAuftragArbeitsschichten || s.key}`,
-        icon: 'fa-solid fa-user-plus',
-      }))
-    : null;
+  const availableShifts =
+    Number(props.event?.auftragNr) === Number(bew.auftragNr) && (props.shifts || []).length
+      ? props.shifts
+      : bewerbungMenu.shifts || [];
+
+  const buildShiftChildren = (actionPrefix, icon) =>
+    availableShifts.length > 0
+      ? availableShifts.map((s) => {
+          const regularCount = Array.isArray(s.einsaetze)
+            ? s.einsaetze.filter((e) => !e.isReserve).length
+            : Number(s.meta?.regularCount ?? s.meta?.besetzt ?? 0);
+          const reserveCount = Array.isArray(s.einsaetze)
+            ? s.einsaetze.filter((e) => Boolean(e.isReserve)).length
+            : Number(s.meta?.reserveCount ?? 0);
+          const bedarf = s.meta?.bedarf;
+          const coverageBadge =
+            reserveCount > 0
+              ? `${regularCount}+${reserveCount}/${bedarf ?? '?'}`
+              : `${regularCount}/${bedarf ?? '?'}`;
+          const isMet = bedarf != null && Number(bedarf) > 0 && regularCount >= Number(bedarf);
+          const isApplied = isAppliedShiftForBewerbung(bew, s);
+          return {
+            label: `${s.meta?.schichtBezeichnung || 'Schicht'}${s.meta?.uhrzeitVon ? ` (${formatShortTime(s.meta.uhrzeitVon)})` : ''}`,
+            action: `${actionPrefix}:${s.meta?.schichtId || s.meta?.idAuftragArbeitsschichten || s.key}`,
+            icon,
+            highlighted: isApplied,
+            badge: coverageBadge,
+            badgeVariant: isMet ? 'met' : 'open',
+          };
+        })
+      : null;
+
+  const acceptChildren = buildShiftChildren('accept', 'fa-solid fa-user-plus');
+  const reserveChildren = buildShiftChildren('reserve', 'fa-solid fa-user-clock');
 
   return [
     {
@@ -1730,8 +1827,15 @@ const bewerbungMenuOptions = computed(() => {
       action: 'accept',
       icon: 'fa-solid fa-check',
       variant: 'primary',
-      disabled: bew.status === 'confirmed',
-      ...(shiftChildren ? { children: shiftChildren } : {}),
+      disabled: bew.status === 'confirmed' && !bew.isReserve,
+      ...(acceptChildren ? { children: acceptChildren } : {}),
+    },
+    {
+      label: 'Als Reserve einplanen',
+      action: 'reserve',
+      icon: 'fa-solid fa-user-clock',
+      disabled: bew.status === 'confirmed' && Boolean(bew.isReserve),
+      ...(reserveChildren ? { children: reserveChildren } : {}),
     },
     {
       label: 'Bewerbung ablehnen',
@@ -1742,10 +1846,19 @@ const bewerbungMenuOptions = computed(() => {
     },
     { type: 'divider' },
     {
+      label: 'Job öffnen',
+      action: 'open-job',
+      icon: 'fa-solid fa-briefcase',
+      disabled: !bew.auftragNr && !props.event?.auftragNr,
+    },
+    {
       label: 'Mitarbeiterkarte öffnen',
       action: 'open-card',
       icon: 'fa-solid fa-address-card',
     },
+    ...(bew.mitarbeiter?.isActive !== false
+      ? [{ label: 'In Dispo öffnen', action: 'open-dispo', icon: ['fas', 'table-columns'] }]
+      : []),
   ];
 });
 
@@ -1891,6 +2004,8 @@ function onEmployeeSearchSelect(employee) {
 
 function onEmployeeSearchFiltersChange(activeFilters) {
   employeeSearchFilters.value = activeFilters;
+  hasSavedEmployeeSearchFilters.value = true;
+  saveEmployeeSearchFilters(activeFilters);
   void fetchStaffingMitarbeiter();
   if (!props.event?.auftragNr) {
     void loadBewerbungen();
@@ -1927,11 +2042,12 @@ function formatCommentTime(value) {
 }
 
 function rowDispoInfo(maId) {
-  if (!maId) return null;
+  if (!maId || !props.event?.auftragNr) return null;
   return orderDayDispoMap.value[String(maId)] || null;
 }
 
 function rowDispoStatusClass(maId) {
+  if (!props.event?.auftragNr) return '';
   const status = rowDispoInfo(maId)?.status;
   return status ? `staffing-row--dispo-${status}` : '';
 }
@@ -2006,10 +2122,17 @@ function hasRowDispoTooltip(maId, maObj = null) {
 
 async function loadAvailableEmployeesForOrderDay() {
   const reqId = ++availableDayRequestSeq;
+  if (!props.event?.auftragNr || !props.event?.vonDatum) {
+    availableEmployeeIdsOnOrderDay.value = new Set();
+    orderDayDispoMap.value = {};
+    onlyAvailableOnOrderDay.value = false;
+    availableDayLoading.value = false;
+    return;
+  }
   availableDayLoading.value = true;
   try {
-    const rawStart = props.event?.vonDatum ? new Date(props.event.vonDatum) : new Date();
-    const rawEnd = props.event?.bisDatum ? new Date(props.event.bisDatum) : new Date(rawStart);
+    const rawStart = new Date(props.event.vonDatum);
+    const rawEnd = props.event.bisDatum ? new Date(props.event.bisDatum) : new Date(rawStart);
     const start = Number.isNaN(rawStart.getTime()) ? new Date() : new Date(rawStart);
     const end = Number.isNaN(rawEnd.getTime()) ? new Date(start) : new Date(rawEnd);
     start.setHours(0, 0, 0, 0);
@@ -2254,7 +2377,7 @@ function fuehrerscheinSummary(ma) {
 function bewerbungStatusLabel(status) {
   return (
     {
-      submitted: 'Eingegangen',
+      submitted: 'Offen',
       scheduled: 'Eingeplant',
       confirmed: 'Bestätigt',
       rejected: 'Abgesagt',
@@ -2322,16 +2445,6 @@ async function purgeLegacyDemoApplicationsOnce() {
   }
 }
 
-async function clearAllBewerbungen() {
-  clearLocalDevPortalApplications();
-  try {
-    await api.delete('/api/auftraege/bewerbungen', { params: { scope: 'all' } });
-  } catch (err) {
-    console.warn('Fehler beim Löschen der Bewerbungen:', err);
-  }
-  bewerbungen.value = [];
-}
-
 async function loadBewerbungen() {
   await purgeLegacyDemoApplicationsOnce();
   const auftragNr = props.event?.auftragNr;
@@ -2372,6 +2485,21 @@ async function refreshActiveList() {
       loadBewerbungen(),
       loadAvailableEmployeesForOrderDay(),
     ]);
+  }
+}
+
+function onBewerbungRowClick(bew) {
+  if (!bew) return;
+  if (bew.mitarbeiter) {
+    void selectMitarbeiter(bew.mitarbeiter);
+  }
+  const auftragNr = bew.auftragNr;
+  if (auftragNr && Number(auftragNr) !== Number(props.event?.auftragNr)) {
+    emit('open-order', {
+      auftragNr,
+      focusDate: bew.auftragData?.vonDatum || null,
+      bewerbung: bew,
+    });
   }
 }
 
@@ -2494,12 +2622,29 @@ function openBewerbungMenu(event, bew) {
   bewerbungMenu.item = bew;
   bewerbungMenu.x = rect ? rect.right - 220 : event.clientX;
   bewerbungMenu.y = rect ? rect.bottom + 4 : event.clientY;
+  bewerbungMenu.shifts =
+    Number(props.event?.auftragNr) === Number(bew?.auftragNr) && (props.shifts || []).length
+      ? props.shifts
+      : [];
   bewerbungMenu.open = true;
+
+  if (!bewerbungMenu.shifts.length && bew?.auftragNr) {
+    const targetNr = bew.auftragNr;
+    api
+      .get(`/api/auftraege/${targetNr}/details`)
+      .then(({ data }) => {
+        if (bewerbungMenu.open && bewerbungMenu.item === bew && data) {
+          bewerbungMenu.shifts = buildEventSchichten(data);
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 function closeBewerbungMenu() {
   bewerbungMenu.open = false;
   bewerbungMenu.item = null;
+  bewerbungMenu.shifts = [];
 }
 
 async function handleBewerbungMenuAction(action) {
@@ -2507,8 +2652,23 @@ async function handleBewerbungMenuAction(action) {
   closeBewerbungMenu();
   if (!bew || !action) return;
 
+  if (action === 'open-job') {
+    const auftragNr = bew.auftragNr || props.event?.auftragNr;
+    if (auftragNr) {
+      emit('open-order', {
+        auftragNr,
+        focusDate: bew.auftragData?.vonDatum || null,
+        bewerbung: bew,
+      });
+    }
+    return;
+  }
   if (action === 'open-card') {
     emit('open-employee-card', bew.mitarbeiter);
+    return;
+  }
+  if (action === 'open-dispo') {
+    openMitarbeiterInDispo(bew.mitarbeiter);
     return;
   }
 
@@ -2517,23 +2677,63 @@ async function handleBewerbungMenuAction(action) {
   if (action.startsWith('accept:')) {
     parsedAction = 'accept';
     targetSchichtId = action.slice('accept:'.length);
+  } else if (action.startsWith('reserve:')) {
+    parsedAction = 'reserve';
+    targetSchichtId = action.slice('reserve:'.length);
   }
 
-  if (parsedAction !== 'accept' && parsedAction !== 'deny') return;
+  if (!['accept', 'reserve', 'deny'].includes(parsedAction)) return;
 
+  if (parsedAction === 'accept' || parsedAction === 'reserve') {
+    const shiftLabel =
+      bew.schicht?.bezeichnung || bew.schichtBezeichnung || bew.jobTitle || 'Schicht';
+    pendingBewerbungDecision.value = {
+      bew,
+      parsedAction,
+      targetSchichtId,
+      step: {
+        type: 'notify-employee',
+        employeeName: formatName(bew.mitarbeiter),
+        shiftName: shiftLabel,
+        isReserve: parsedAction === 'reserve',
+      },
+    };
+    return;
+  }
+
+  await executeBewerbungDecision(bew, parsedAction, targetSchichtId, false);
+}
+
+async function onBewerbungNotifyDecide(action) {
+  const pending = pendingBewerbungDecision.value;
+  if (!pending) return;
+  const notifyEmployee = action === 'confirm-notify';
+  pendingBewerbungDecision.value = null;
+  await executeBewerbungDecision(
+    pending.bew,
+    pending.parsedAction,
+    pending.targetSchichtId,
+    notifyEmployee
+  );
+}
+
+async function executeBewerbungDecision(bew, parsedAction, targetSchichtId, notifyEmployee = false) {
   decidingBewerbungId.value = String(bew._id);
+  const isReserve = parsedAction === 'reserve';
   try {
     if (bew.isLocalDemo) {
-      // Update local demo state + schedule if accepted
-      const nextStatus = parsedAction === 'accept' ? 'scheduled' : 'rejected';
-      updateLocalDemoApplication(bew.localEmail, bew.jobId, nextStatus);
-      if (parsedAction === 'accept' && props.event?.auftragNr && bew.mitarbeiter?._id) {
+      const nextStatus = parsedAction === 'deny' ? 'rejected' : 'scheduled';
+      updateLocalDemoApplication(bew.localEmail, bew.jobId, nextStatus, isReserve);
+      if ((parsedAction === 'accept' || parsedAction === 'reserve') && props.event?.auftragNr && bew.mitarbeiter?._id) {
         await api.post(`/api/auftraege/${props.event.auftragNr}/pseudo-einsatz`, {
           mitarbeiterId: bew.mitarbeiter._id,
+          isReserve,
+          notifyEmployee,
           ...(targetSchichtId ? { schichtId: targetSchichtId } : {}),
         });
       }
       bew.status = nextStatus;
+      bew.isReserve = isReserve;
       emit('bewerbung-updated', { bewerbung: bew, action: parsedAction });
       return;
     }
@@ -2545,6 +2745,8 @@ async function handleBewerbungMenuAction(action) {
 
     const { data } = await api.patch(endpoint, {
       action: parsedAction,
+      isReserve,
+      notifyEmployee,
       auftragNr: auftragNr || undefined,
       ...(targetSchichtId ? { schichtId: targetSchichtId } : {}),
     });
@@ -2553,7 +2755,12 @@ async function handleBewerbungMenuAction(action) {
       const idx = bewerbungen.value.findIndex((item) => String(item._id) === String(bew._id));
       if (idx !== -1) bewerbungen.value[idx] = data.bewerbung;
       if (bew.mitarbeiter?.email) {
-        updateLocalDemoApplication(bew.mitarbeiter.email, bew.jobId, data.bewerbung.status);
+        updateLocalDemoApplication(
+          bew.mitarbeiter.email,
+          bew.jobId,
+          data.bewerbung.status,
+          Boolean(data.bewerbung.isReserve)
+        );
       }
     }
 
@@ -2565,19 +2772,23 @@ async function handleBewerbungMenuAction(action) {
   }
 }
 
-function updateLocalDemoApplication(email, jobId, status) {
+function updateLocalDemoApplication(email, jobId, status, isReserve = false) {
   if (!email || !jobId) return;
   try {
     const key = `public_dev_portal:${String(email).trim().toLowerCase()}`;
     const stored = JSON.parse(localStorage.getItem(key) || 'null') || {};
     stored.applications = stored.applications || {};
     stored.applicationSteps = stored.applicationSteps || {};
+    stored.applicationReserves = stored.applicationReserves || {};
     if (status) {
       stored.applications[jobId] = status;
+      if (isReserve) stored.applicationReserves[jobId] = true;
+      else delete stored.applicationReserves[jobId];
       if (status === 'scheduled') stored.applicationSteps[jobId] = 0;
     } else {
       delete stored.applications[jobId];
       delete stored.applicationSteps[jobId];
+      delete stored.applicationReserves[jobId];
     }
     localStorage.setItem(key, JSON.stringify(stored));
   } catch {
@@ -3072,11 +3283,6 @@ defineExpose({
     font-size: 0.68rem;
     opacity: 0.85;
   }
-
-  .clear-bewerbungen-btn {
-    margin-left: auto;
-    color: var(--status-danger-text, #dc2626);
-  }
 }
 
 .staffing-list {
@@ -3461,6 +3667,12 @@ defineExpose({
     background: color-mix(in srgb, #eab308 18%, transparent);
     border: 1px solid color-mix(in srgb, #eab308 45%, transparent);
     color: #b45309;
+  }
+
+  &--reserve {
+    background: color-mix(in srgb, #6b7280 20%, transparent);
+    border: 1px solid color-mix(in srgb, #6b7280 48%, transparent);
+    color: #4b5563;
   }
 }
 

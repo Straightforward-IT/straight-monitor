@@ -71,21 +71,54 @@
         <PublicEinsatzinformation :html="selectedJob.einsatzinformationHtml" />
         <div v-if="selectedJob.isFixture" class="fixture-note">Beispieldaten für die Layout-Erprobung</div>
         <div class="sticky-action">
-          <button v-if="!applicationStatus(selectedJob.id)" class="primary-button" type="button" @click="setApplication(selectedJob.id, 'submitted')">Bewerben</button>
-          <template v-else>
-            <div class="status-panel" :class="`status-${applicationStatus(selectedJob.id)}`">
-              <font-awesome-icon v-if="applicationStatus(selectedJob.id) === 'scheduled'" icon="fa-solid fa-circle-info" />
-              <font-awesome-icon v-else-if="applicationStatus(selectedJob.id) !== 'rejected'" icon="fa-solid fa-circle-check" />
-              <strong>{{ applicationDetailMessage(applicationStatus(selectedJob.id)) }}</strong>
-            </div>
+          <div v-if="!applicationStatus(selectedJob.id)" class="job-decision-actions">
             <button
-              v-if="applicationStatus(selectedJob.id) === 'submitted'"
-              class="withdraw-link"
+              class="danger-button job-decline-main-btn"
               type="button"
-              @click="setApplication(selectedJob.id, null)"
+              @click="declineJob(selectedJob, { closeAfter: true })"
             >
-              Bewerbung zurückziehen
+              <font-awesome-icon icon="fa-solid fa-xmark" />
+              Ablehnen
             </button>
+            <button
+              class="primary-button job-apply-main-btn"
+              type="button"
+              @click="setApplication(selectedJob.id, 'submitted')"
+            >
+              <font-awesome-icon icon="fa-solid fa-check" />
+              Bewerben
+            </button>
+          </div>
+          <template v-else>
+            <div
+              class="status-panel"
+              :class="[
+                `status-${applicationStatus(selectedJob.id)}`,
+                { 'status-reserve': isReserveJob(selectedJob.id) },
+              ]"
+            >
+              <font-awesome-icon v-if="applicationStatus(selectedJob.id) === 'scheduled'" icon="fa-solid fa-circle-info" />
+              <font-awesome-icon v-else-if="applicationStatus(selectedJob.id) === 'rejected'" icon="fa-solid fa-circle-xmark" />
+              <font-awesome-icon v-else icon="fa-solid fa-circle-check" />
+              <strong>{{ applicationDetailMessage(applicationStatus(selectedJob.id), selectedJob.id) }}</strong>
+            </div>
+            <div v-if="applicationStatus(selectedJob.id) === 'submitted'" class="job-decision-actions">
+              <button
+                class="danger-button"
+                type="button"
+                @click="declineJob(selectedJob, { closeAfter: true })"
+              >
+                <font-awesome-icon icon="fa-solid fa-xmark" />
+                Doch ablehnen
+              </button>
+              <button
+                class="secondary-button"
+                type="button"
+                @click="setApplication(selectedJob.id, null)"
+              >
+                Zurückziehen
+              </button>
+            </div>
             <button
               v-else-if="applicationStatus(selectedJob.id) === 'scheduled'"
               class="primary-button wide confirm-assignment-button"
@@ -95,14 +128,23 @@
               <font-awesome-icon icon="fa-solid fa-circle-check" />
               Bestätigung
             </button>
-            <button
-              v-else-if="applicationStatus(selectedJob.id) === 'rejected'"
-              class="secondary-button wide back-to-jobs-button"
-              type="button"
-              @click="selectTab('jobs')"
-            >
-              Zurück zu Jobangeboten
-            </button>
+            <div v-else-if="applicationStatus(selectedJob.id) === 'rejected'" class="job-decision-actions">
+              <button
+                class="secondary-button"
+                type="button"
+                @click="setApplication(selectedJob.id, null)"
+              >
+                <font-awesome-icon icon="fa-solid fa-rotate-left" />
+                Zurückholen
+              </button>
+              <button
+                class="primary-button"
+                type="button"
+                @click="selectTab('jobs')"
+              >
+                Zu Jobangeboten
+              </button>
+            </div>
             <div class="scenario-actions">
               <span>Status simulieren</span>
               <button type="button" @click="setApplication(selectedJob.id, 'scheduled')">Bestätigt</button>
@@ -272,6 +314,7 @@
         @confirm-news="openConfirmationModal"
         @open-calendar-job="openCalendarJob"
         @open-job="openJob"
+        @decline-job="declineJob($event)"
         @select-tab="selectTab"
       />
 
@@ -279,18 +322,26 @@
         v-else-if="activeTab === 'jobs'"
         :application-label="applicationLabel"
         :application-status="applicationStatus"
+        :new-count="newJobs.length"
+        :applied-count="appliedJobs.length"
+        :declined-count="declinedJobs.length"
         :filtered-jobs="filteredJobs"
         :job-filter="jobFilter"
-        :job-roles="jobRoles"
+        :qual-filter="qualFilter"
+        :qualifications="jobQualifications"
         :job-time="jobTime"
-        :jobs="visibleJobs"
+        :jobs="allowedJobs"
         :jobs-are-fixtures="jobsAreFixtures"
         :jobs-error="jobsError"
         :jobs-loading="jobsLoading"
         :short-date="shortDate"
         :weekday="weekday"
         @filter="jobFilter = $event"
+        @qual-filter="qualFilter = $event"
         @open-job="openJob"
+        @decline-job="declineJob($event)"
+        @apply-job="setApplication($event.id, 'submitted')"
+        @restore-job="restoreDeclinedJob($event)"
       />
 
       <CalendarTab
@@ -417,6 +468,7 @@ import {
   faShirt,
   faTriangleExclamation,
   faUser,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import PublicHeader from '../PublicHeader.vue';
@@ -438,7 +490,7 @@ library.add(
   faArrowRightFromBracket, faAddressBook, faBriefcase, faCalendarDays, faCar, faCheck, faChevronRight,
   faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faCopy, faEllipsis,
   faFileCircleExclamation, faFileInvoiceDollar, faFilePdf, faFlask, faFolderOpen,
-  faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser,
+  faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser, faXmark,
 );
 
 const props = defineProps({
@@ -462,7 +514,8 @@ const selectedCalendarJob = ref(null);
 const selectedDocument = ref(null);
 const selectedPayroll = ref(null);
 const returnDetailView = ref(null);
-const jobFilter = ref('all');
+const jobFilter = ref('new');
+const qualFilter = ref('all');
 const jobs = ref([]);
 const jobsLoading = ref(true);
 const jobsError = ref('');
@@ -553,7 +606,7 @@ const blockedKundenNrs = computed(() => {
   }
   return blocked;
 });
-const visibleJobs = computed(() =>
+const allowedJobs = computed(() =>
   jobs.value.filter((job) => {
     const kundenNr = Number(job?.kundenNr);
     if (Number.isFinite(kundenNr) && kundenNr > 0 && blockedKundenNrs.value.has(kundenNr)) {
@@ -562,8 +615,40 @@ const visibleJobs = computed(() =>
     return true;
   })
 );
-const jobRoles = computed(() => [...new Set(visibleJobs.value.map((job) => job.role).filter(Boolean))]);
-const filteredJobs = computed(() => jobFilter.value === 'all' ? visibleJobs.value : visibleJobs.value.filter((job) => job.role === jobFilter.value));
+const newJobs = computed(() =>
+  allowedJobs.value.filter((job) => !demoState.applications[job.id])
+);
+const appliedJobs = computed(() =>
+  allowedJobs.value.filter((job) => ['submitted', 'scheduled', 'confirmed'].includes(demoState.applications[job.id]))
+);
+const visibleJobs = computed(() => newJobs.value);
+const declinedJobs = computed(() =>
+  allowedJobs.value.filter((job) => demoState.applications[job.id] === 'rejected')
+);
+const statusFilteredJobs = computed(() => {
+  if (jobFilter.value === 'applied') return appliedJobs.value;
+  if (jobFilter.value === 'rejected') return declinedJobs.value;
+  return newJobs.value;
+});
+const jobQualifications = computed(() => {
+  const map = new Map();
+  for (const job of allowedJobs.value) {
+    const key = String(job.qualSchl || job.qualificationDesignation || job.role || '').trim();
+    const label = String(job.qualificationDesignation || job.role || '').trim();
+    if (key && label && !map.has(key)) {
+      map.set(key, { key, label });
+    }
+  }
+  return [...map.values()];
+});
+const filteredJobs = computed(() => {
+  const base = statusFilteredJobs.value;
+  if (qualFilter.value === 'all') return base;
+  return base.filter((job) => {
+    const key = String(job.qualSchl || job.qualificationDesignation || job.role || '').trim();
+    return key === qualFilter.value;
+  });
+});
 const nextEinsatz = computed(() => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -615,9 +700,11 @@ const scheduledJobNewsItems = computed(() =>
         type: 'einsatz-bestaetigung',
         source: 'demo-job',
         jobId: job.id,
+        isReserve: Boolean(job.isReserve || demoState.applicationReserves?.[job.id]),
         einsatz: {
           id: job.id,
           auftragNr: job.auftragNr,
+          isReserve: Boolean(job.isReserve || demoState.applicationReserves?.[job.id]),
           title: job.title,
           dateFrom: job.dateFrom,
           dateTo: job.dateTo || job.dateFrom,
@@ -796,11 +883,40 @@ function setApplication(id, status) {
   }
   void syncApplicationToBackend(id, status, 0);
 }
-function applicationLabel(status) { return ({ submitted: 'Bewerbung eingegangen', scheduled: 'Bestätigung ausstehend', confirmed: 'Eingeplant & bestätigt', rejected: 'Abgesagt' }[status] || status); }
-function applicationDetailMessage(status) {
-  if (status === 'scheduled') return 'Du wurdest in diesen Job eingeplant, bestätige bitte jetzt dass du dabei bist.';
-  if (status === 'rejected') return 'Deine Bewerbung konnte leider nicht angenommen werden.';
-  return applicationLabel(status);
+function declineJob(job, options = {}) {
+  const id = typeof job === 'object' ? job?.id : job;
+  if (!id) return;
+  setApplication(id, 'rejected');
+  if (options.closeAfter && detailView.value === 'job') {
+    closeDetail();
+  }
+}
+function restoreDeclinedJob(job) {
+  const id = typeof job === 'object' ? job?.id : job;
+  if (!id) return;
+  setApplication(id, null);
+  if (jobFilter.value === 'rejected' && declinedJobs.value.length === 0) {
+    jobFilter.value = 'new';
+  }
+}
+function isReserveJob(id) {
+  return Boolean(demoState.applicationReserves?.[id]);
+}
+function applicationLabel(status, id = null) {
+  const isRes = id ? isReserveJob(id) : false;
+  if (status === 'scheduled') return isRes ? 'Reserve · Bestätigung offen' : 'Bestätigung ausstehend';
+  if (status === 'confirmed') return isRes ? 'Reserve · Bestätigt' : 'Eingeplant & bestätigt';
+  return ({ submitted: 'Offen', rejected: 'Abgesagt' }[status] || status);
+}
+function applicationDetailMessage(status, id = null) {
+  const isRes = id ? isReserveJob(id) : false;
+  if (status === 'scheduled') {
+    return isRes
+      ? 'Du wurdest als Reserve eingesetzt. Bitte bestätige jetzt deine Reserve-Schicht.'
+      : 'Du wurdest in diesen Job eingeplant, bestätige bitte jetzt dass du dabei bist.';
+  }
+  if (status === 'rejected') return 'Jobangebot abgelehnt.';
+  return applicationLabel(status, id);
 }
 function startTime() { Object.assign(timeEntry.value, { status: 'running', startedAt: new Date().toISOString(), stoppedAt: null, elapsedMs: 0, pauseStartedAt: null, pauseMs: 0, correction: null, history: [] }); }
 function togglePause() { const entry = timeEntry.value; if (entry.status === 'running') { entry.status = 'paused'; entry.pauseStartedAt = new Date().toISOString(); entry.elapsedMs = elapsedMs.value; } else { entry.pauseMs += Date.now() - new Date(entry.pauseStartedAt).getTime(); entry.pauseStartedAt = null; entry.status = 'running'; } }
@@ -949,6 +1065,9 @@ async function loadJobs() {
     if (response.data.applicationSteps && typeof response.data.applicationSteps === 'object') {
       demoState.applicationSteps = { ...(demoState.applicationSteps || {}), ...response.data.applicationSteps };
     }
+    if (response.data.applicationReserves && typeof response.data.applicationReserves === 'object') {
+      demoState.applicationReserves = { ...(demoState.applicationReserves || {}), ...response.data.applicationReserves };
+    }
     if (!jobs.value.length && response.data?.source !== 'database' && import.meta.env.DEV) {
       jobs.value = createDemoJobs();
       jobsAreFixtures.value = true;
@@ -1041,7 +1160,7 @@ button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:tra
 .bottom-nav { position:fixed; z-index:50; right:0; bottom:0; left:0; display:grid; grid-template-columns:repeat(4,1fr); min-height:48px; padding:3px max(6px,env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left)); background:color-mix(in srgb,var(--panel) 96%,transparent); border-top:1px solid var(--border); backdrop-filter:blur(16px); }.bottom-nav button { display:grid; min-width:0; place-items:center; gap:1px; padding:2px 0; border:0; background:none; color:var(--muted); font-size:.58rem; line-height:1.1; cursor:pointer; }.bottom-nav button.active { color:var(--primary); }.nav-icon { position:relative; display:grid; width:26px; height:22px; place-items:center; font-size:.95rem; }.nav-icon i { position:absolute; top:-4px; right:-5px; display:grid; min-width:14px; height:14px; padding:0 3px; place-items:center; border:1px solid var(--primary); border-radius:7px; background:var(--panel); color:var(--primary); font-size:.5rem; font-style:normal; }.desktop-nav { display:none; }
 .filter-row { display:flex; gap:.45rem; overflow-x:auto; margin:0 -1rem 1rem; padding:0 1rem; scrollbar-width:none; }.filter-row button,.sub-tabs button,.segmented-control button,.scenario-actions button { flex:0 0 auto; min-height:36px; padding:.45rem .75rem; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; }.filter-row button.active,.sub-tabs button.active,.segmented-control button.active { border-color:var(--primary); color:var(--primary); }
 .job-card { display:grid; width:100%; grid-template-columns:48px minmax(0,1fr) auto; align-items:start; gap:.75rem; margin-bottom:.7rem; padding:.9rem; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); text-align:left; cursor:pointer; }.job-card-date { display:grid; gap:.15rem; color:var(--primary); font-size:.68rem; text-align:center; }.job-card-date span { color:var(--text); }.job-card-title { display:flex; align-items:flex-start; justify-content:space-between; gap:.5rem; }.job-card h3 { margin:0; font-size:1rem; }.job-card-body>p { margin:.15rem 0 .6rem; color:var(--muted); font-size:.75rem; }.job-meta { display:flex; flex-wrap:wrap; gap:.65rem; color:var(--muted); font-size:.72rem; }.job-card-footer { display:flex; justify-content:space-between; gap:.5rem; margin-top:.7rem; padding-top:.6rem; border-top:1px solid var(--border); font-size:.7rem; }.job-card-footer strong { color:var(--dev-green); }.job-card>svg { align-self:center; color:var(--muted); font-size:.7rem; }.mini-status { color:var(--primary); font-size:.68rem; font-weight:700; }.loading-row,.empty-state { padding:2rem 1rem; color:var(--muted); text-align:center; }.loading-row svg { margin-right:.4rem; }
-.job-hero { padding:1rem 0 1.2rem; border-bottom:3px solid var(--primary); }.job-hero.compact { padding-top:.35rem; }.date-kicker { color:var(--primary); font-size:.72rem; font-weight:800; text-transform:uppercase; }.job-hero h2 { margin:.35rem 0 .2rem; font-size:1.65rem; }.job-hero p { color:var(--muted); }.detail-list { margin-top:.5rem; }.detail-row { display:grid; grid-template-columns:100px minmax(0,1fr); gap:1rem; padding:.85rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }.detail-row span { color:var(--muted); }.detail-address-row { display:inline-flex; align-items:center; gap:.45rem; flex-wrap:wrap; }.detail-address-row>span { color:var(--text); }.address-copy-btn { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--muted); font-size:.75rem; cursor:pointer; -webkit-tap-highlight-color:transparent; }.address-copy-btn:active,.address-copy-btn--copied { color:var(--primary); }.fixture-note,.data-flow-note { margin-top:1rem; padding:.7rem; background:color-mix(in srgb,var(--primary) 9%,var(--panel)); color:var(--muted); font-size:.72rem; }.sticky-action { margin-top:1rem; }.sticky-action>.primary-button,.back-to-jobs-button,.confirm-assignment-button { width:100%; }.back-to-jobs-button,.confirm-assignment-button { margin-top:.6rem; }.withdraw-link { display:block; width:100%; margin-top:.55rem; padding:.4rem 0; border:0; background:none; color:var(--muted); font-size:.78rem; text-align:center; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }.withdraw-link:active { color:var(--text); }.status-panel { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:46px; padding:.5rem .85rem; border:1px solid var(--dev-green); border-radius:6px; color:var(--dev-green); font-size:.85rem; text-align:center; }.status-scheduled { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 8%,var(--panel)); color:var(--text); font-weight:500; }.status-scheduled svg { color:var(--primary); flex-shrink:0; }.status-rejected { border-color:var(--border); background:var(--panel); color:var(--muted); font-weight:500; }.scenario-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:1rem; }.scenario-actions span { width:100%; color:var(--muted); font-size:.68rem; text-transform:uppercase; }.scenario-actions.full button { flex:1; }
+.job-hero { padding:1rem 0 1.2rem; border-bottom:3px solid var(--primary); }.job-hero.compact { padding-top:.35rem; }.date-kicker { color:var(--primary); font-size:.72rem; font-weight:800; text-transform:uppercase; }.job-hero h2 { margin:.35rem 0 .2rem; font-size:1.65rem; }.job-hero p { color:var(--muted); }.detail-list { margin-top:.5rem; }.detail-row { display:grid; grid-template-columns:100px minmax(0,1fr); gap:1rem; padding:.85rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }.detail-row span { color:var(--muted); }.detail-address-row { display:inline-flex; align-items:center; gap:.45rem; flex-wrap:wrap; }.detail-address-row>span { color:var(--text); }.address-copy-btn { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--muted); font-size:.75rem; cursor:pointer; -webkit-tap-highlight-color:transparent; }.address-copy-btn:active,.address-copy-btn--copied { color:var(--primary); }.fixture-note,.data-flow-note { margin-top:1rem; padding:.7rem; background:color-mix(in srgb,var(--primary) 9%,var(--panel)); color:var(--muted); font-size:.72rem; }.sticky-action { margin-top:1rem; }.sticky-action>.primary-button,.back-to-jobs-button,.confirm-assignment-button { width:100%; }.job-decision-actions { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-top:.6rem; }.job-decision-actions button { width:100%; }.job-decline-main-btn { background:color-mix(in srgb,var(--dev-red,#b84235) 10%,transparent); }.back-to-jobs-button,.confirm-assignment-button { margin-top:.6rem; }.withdraw-link { display:block; width:100%; margin-top:.55rem; padding:.4rem 0; border:0; background:none; color:var(--muted); font-size:.78rem; text-align:center; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }.withdraw-link:active { color:var(--text); }.status-panel { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:46px; padding:.5rem .85rem; border:1px solid var(--dev-green); border-radius:6px; color:var(--dev-green); font-size:.85rem; text-align:center; }.status-scheduled { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 8%,var(--panel)); color:var(--text); font-weight:500; }.status-scheduled svg { color:var(--primary); flex-shrink:0; }.status-rejected { border-color:var(--border); background:var(--panel); color:var(--muted); font-weight:500; }.scenario-actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:1rem; }.scenario-actions span { width:100%; color:var(--muted); font-size:.68rem; text-transform:uppercase; }.scenario-actions.full button { flex:1; }
 .timer-surface { display:grid; min-height:210px; margin:1rem 0; place-items:center; align-content:center; gap:.6rem; background:var(--panel); border:1px solid var(--border); }.timer-status { color:var(--dev-green); font-size:.75rem; font-weight:700; }.timer { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(2rem,12vw,3.4rem); letter-spacing:0; }.timer-caption { color:var(--muted); font-size:.72rem; }.time-actions { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }.time-actions>:only-child { grid-column:1/-1; }.summary-panel { margin-top:1rem; }.summary-panel>div { display:flex; justify-content:space-between; padding:.6rem 0; border-bottom:1px solid var(--border); }.summary-panel span { color:var(--muted); }.summary-total { font-size:1.05rem; }.workflow-panel { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; gap:.25rem; margin-top:1rem; font-size:.65rem; text-align:center; }.workflow-panel span { padding:.4rem .2rem; color:var(--muted); }.workflow-panel span.active { color:var(--primary); font-weight:800; }.workflow-panel svg { color:var(--border); }.text-button { margin-top:1rem; border:0; background:none; color:var(--primary); text-decoration:underline; cursor:pointer; }
 .correction-form,.availability-editor { display:grid; gap:.8rem; margin-top:1rem; padding:1rem; border:1px solid var(--border); background:var(--panel); }.correction-form label,.availability-editor label { display:grid; gap:.35rem; color:var(--muted); font-size:.75rem; }.correction-form input,.correction-form textarea,.availability-editor input { width:100%; box-sizing:border-box; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.correction-history { display:grid; gap:.3rem; margin-top:1rem; padding:.8rem; border-left:3px solid #c27a16; background:var(--panel); font-size:.75rem; }.correction-history span,.correction-history p { color:var(--muted); }
 .personal-data-menu { margin-top:.8rem; }.personal-data-form { display:grid; gap:.85rem; }.personal-data-form>label { display:grid; gap:.35rem; color:var(--muted); font-size:.78rem; }.personal-data-form input,.personal-data-form select { width:100%; box-sizing:border-box; min-height:44px; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.personal-data-form .job-hero { margin-bottom:.2rem; }.personal-data-error { color:var(--dev-red); }
