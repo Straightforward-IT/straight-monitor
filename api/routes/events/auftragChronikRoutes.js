@@ -5,12 +5,19 @@ const requireAdmin = require('../../middleware/requireAuftragChronikAdmin');
 const asyncHandler = require('../../middleware/AsyncHandler');
 const Auftrag = require('../../models/Event/Auftrag');
 const Entry = require('../../models/Event/AuftragChronikEntry');
+const {
+  ensureOrderCreationEntry,
+  ensureOrderSignatureEntries,
+  enrichEntriesWithEmployeeIds,
+} = require('../../services/operations/AuftragChronikService');
 
 const orderContext = asyncHandler(async (req, res, next) => {
   if (!/^\d+$/.test(req.params.auftragNr) || !Number.isSafeInteger(Number(req.params.auftragNr)) || Number(req.params.auftragNr) <= 0) {
     return res.status(400).json({ message: 'Ungültige Auftragsnummer.' });
   }
-  const order = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) }).select('_id auftragNr eventTitel locationV2').lean();
+  const order = await Auftrag.findOne({ auftragNr: Number(req.params.auftragNr) })
+    .select('_id auftragNr eventTitel locationV2 geschSt dtAngelegtAm createdAt bediener createdBy creationOrigin kundenNr source')
+    .lean();
   if (!order) return res.status(404).json({ message: 'Auftrag nicht gefunden.' });
   // Match the order routes: a location is required, Admins can access every location.
   if (!order.locationV2) return res.status(400).json({ message: 'Dem Auftrag ist kein Standort zugeordnet.' });
@@ -31,6 +38,10 @@ function decodeCursor(cursor) {
 router.get('/:auftragNr/chronik', auth, requireAdmin, orderContext, asyncHandler(async (req, res) => {
   const limit = req.query.limit === undefined ? 30 : Number(req.query.limit);
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) return res.status(400).json({ message: 'Limit muss zwischen 1 und 100 liegen.' });
+  if (req.query.cursor === undefined) {
+    await ensureOrderCreationEntry(req.chronikOrder, req.chronikUser);
+    await ensureOrderSignatureEntries(req.chronikOrder, req.chronikUser);
+  }
   const filter = { auftragId: req.chronikOrder._id };
   if (req.query.cursor !== undefined) {
     let cursor;
@@ -42,7 +53,7 @@ router.get('/:auftragNr/chronik', auth, requireAdmin, orderContext, asyncHandler
     ];
   }
   const rows = await Entry.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).lean();
-  const entries = rows.slice(0, limit);
+  const entries = await enrichEntriesWithEmployeeIds(rows.slice(0, limit));
   res.json({ entries, nextCursor: rows.length > limit ? encodeCursor(entries.at(-1)) : null });
 }));
 

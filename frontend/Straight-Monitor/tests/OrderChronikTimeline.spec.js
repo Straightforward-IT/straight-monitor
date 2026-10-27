@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import OrderChronikTimeline from '../src/components/orders/OrderChronikTimeline.vue';
+import OrderChronikDrawer from '../src/components/orders/OrderChronikDrawer.vue';
+import AuftragDetailsSidePanel from '../src/components/orders/AuftragDetailsSidePanel.vue';
+import { notifyAuftragMutation } from '../src/utils/auftragChanges.js';
 
 const mocks = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() }, auth: null }));
 vi.mock('@/utils/api', () => ({ default: mocks.api }));
@@ -40,9 +43,9 @@ describe('OrderChronikTimeline', () => {
     expect(wrapper.find('textarea').exists()).toBe(true);
   });
 
-  it('shows stable names and field differences, and appends older pages without duplicates', async () => {
-    mocks.api.get.mockResolvedValueOnce(page([change('new')], 'cursor-1'))
-      .mockResolvedValueOnce(page([change('new'), change('old')]));
+  it('shows stable names and field differences, and appends older pages without duplicates in top-to-bottom chronological order', async () => {
+    mocks.api.get.mockResolvedValueOnce(page([change('new', 'Neueste Änderung')], 'cursor-1'))
+      .mockResolvedValueOnce(page([change('new', 'Neueste Änderung'), change('old', 'Älteste Änderung')]));
     render();
     await flushPromises();
     expect(wrapper.text()).toContain('Anna Planung');
@@ -52,7 +55,10 @@ describe('OrderChronikTimeline', () => {
     await wrapper.find('.chronik-more').trigger('click');
     await flushPromises();
     expect(mocks.api.get.mock.calls[1][1].params).toEqual({ limit: 30, cursor: 'cursor-1' });
-    expect(wrapper.findAll('.chronik-entry')).toHaveLength(2);
+    const items = wrapper.findAll('.chronik-entry');
+    expect(items).toHaveLength(2);
+    expect(items[0].text()).toContain('Älteste Änderung');
+    expect(items[1].text()).toContain('Neueste Änderung');
     expect(wrapper.find('.chronik-more').exists()).toBe(false);
   });
 
@@ -126,7 +132,7 @@ describe('OrderChronikTimeline', () => {
     await flushPromises();
     expect(mocks.api.post).toHaveBeenCalledWith('/api/auftraege/123/chronik/notes', { text });
     expect(wrapper.find('textarea').element.value).toBe('');
-    expect(wrapper.find('.chronik-note').text()).toBe(text);
+    expect(wrapper.findAll('.chronik-note').map(item => item.text())).toEqual(['Abgesprochen mit dem Kunden.', text]);
     expect(wrapper.find('img').exists()).toBe(false);
     expect(wrapper.findAll('.chronik-delete')).toHaveLength(1);
   });
@@ -153,5 +159,193 @@ describe('OrderChronikTimeline', () => {
     const signal = mocks.api.get.mock.calls[0][1].signal;
     wrapper.unmount(); wrapper = undefined;
     expect(signal.aborted).toBe(true);
+  });
+
+  it('displays the loaded entry count in OrderChronikDrawer and aligns offset with the leftmost open side panel', async () => {
+    const pageContainer = document.createElement('div');
+    pageContainer.className = 'auftraege-page';
+    const detailPanel = document.createElement('aside');
+    detailPanel.className = 'sp-panel';
+    detailPanel.getBoundingClientRect = () => ({ left: 680, width: 420, top: 0, bottom: 800, right: 1100, height: 800 });
+    const staffingPanel = document.createElement('aside');
+    staffingPanel.className = 'admin-staffing-panel';
+    staffingPanel.getBoundingClientRect = () => ({ left: 1100, width: 380, top: 0, bottom: 800, right: 1480, height: 800 });
+    pageContainer.append(detailPanel, staffingPanel);
+    document.body.appendChild(pageContainer);
+    Object.defineProperty(document.documentElement, 'clientWidth', { value: 1480, configurable: true });
+
+    mocks.api.get.mockResolvedValueOnce(page([change('c1'), note('n1')]));
+    wrapper = mount(OrderChronikDrawer, {
+      attachTo: pageContainer,
+      props: { auftragNr: 123, orderTitle: 'Messe Nord', revision: 0 },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.cdf-count').text()).toBe('2');
+    expect(wrapper.find('.cdf-context-title').text()).toBe('#123 · Messe Nord');
+    expect(wrapper.find('.cdf-drawer').attributes('style')).toContain('--cdf-side-panel-offset: 800px');
+
+    pageContainer.remove();
+  });
+
+  it('exposes the Admin Chronik toggle button in AuftragDetailsSidePanel only when enabled', async () => {
+    const baseProps = {
+      modelValue: true,
+      event: { auftragNr: 123, eventTitel: 'Messe Nord', auftStatus: 2, vonDatum: '2026-09-11', bisDatum: '2026-09-11' },
+      formatRange: () => '11.09.2026',
+      statusClass: () => 'status-confirmed',
+      statusText: () => 'Bestätigt',
+    };
+    wrapper = mount(AuftragDetailsSidePanel, {
+      props: baseProps,
+      global: { stubs: { 'font-awesome-icon': true } },
+    });
+    expect(wrapper.find('button[aria-label="Auftragschronik"]').exists()).toBe(false);
+
+    await wrapper.setProps({ showChronikToggle: true, chronikOpen: true });
+    const btn = wrapper.get('button[aria-label="Auftragschronik"]');
+    expect(btn.attributes('aria-expanded')).toBe('true');
+    expect(btn.attributes('aria-controls')).toBe('order-chronik-panel');
+    await btn.trigger('click');
+    expect(wrapper.emitted('toggle-chronik')).toHaveLength(1);
+  });
+
+  it('reloads OrderChronikDrawer when notifyAuftragMutation announces a change for the active order', async () => {
+    mocks.api.get
+      .mockResolvedValueOnce(page([change('c1', 'Erste Änderung')]))
+      .mockResolvedValueOnce(page([change('c2', 'Zweite Änderung'), change('c1', 'Erste Änderung')]));
+
+    const revision = reactive({ value: 0 });
+    const activeAuftragNr = 123;
+    const { onAuftragMutation } = await import('../src/utils/auftragChanges.js');
+    const stop = onAuftragMutation((nr) => {
+      if (Number(nr) === activeAuftragNr) revision.value++;
+    });
+
+    wrapper = mount(OrderChronikDrawer, {
+      props: { auftragNr: activeAuftragNr, orderTitle: 'Messe Nord', revision: revision.value },
+    });
+    await flushPromises();
+    expect(wrapper.find('.cdf-count').text()).toBe('1');
+    expect(wrapper.text()).toContain('Erste Änderung');
+
+    notifyAuftragMutation({ method: 'patch', url: '/api/auftraege/123/schichten/s1' });
+    await wrapper.setProps({ revision: revision.value });
+    await flushPromises();
+
+    expect(wrapper.find('.cdf-count').text()).toBe('2');
+    expect(wrapper.text()).toContain('Zweite Änderung');
+    stop();
+  });
+
+  it('displays the Zvoove icon badge for Zvoove import entries and strips legacy Liste 7001 suffixes', async () => {
+    mocks.api.get.mockResolvedValueOnce(
+      page([
+        {
+          ...change('z1', 'Auftrag angelegt: Messe (Liste 7001)'),
+          source: 'zvoove',
+          actor: { id: 'zvoove', name: 'M. Dispo (Liste 7001)' },
+        },
+      ]),
+    );
+    render();
+    await flushPromises();
+    expect(wrapper.find('.chronik-author').text()).toBe('M. Dispo');
+    expect(wrapper.find('.chronik-zvoove-badge img.chronik-zvoove-icon').exists()).toBe(true);
+    expect(wrapper.find('.chronik-summary').text()).toContain('Auftrag angelegt: Messe');
+  });
+
+  it('renders interactive links for SignaturVorgang and Mitarbeiter in Chronik entries', async () => {
+    mocks.api.get.mockResolvedValueOnce(
+      page([
+        {
+          _id: 'sig-entry',
+          kind: 'change',
+          action: 'SignaturVorgang.completed',
+          actor: { id: 'admin', name: 'Admin Test' },
+          createdAt: '2026-09-11T10:00:00.000Z',
+          summary: 'Stundenliste Signatur: Abgeschlossen (Stundenliste Messe)',
+          changes: [{
+            entity: 'SignaturVorgang',
+            entityId: 'vorgang-1',
+            signaturVorgangId: 'vorgang-1',
+            typKey: 'stundenliste',
+            label: 'Stundenliste Messe',
+            action: 'updated',
+            fields: [{ field: 'status', label: 'Status', before: 'open', after: 'completed', beforeLabel: 'Gestartet (Offen)', afterLabel: 'Abgeschlossen' }],
+          }],
+        },
+        change('emp-entry', 'Einsatz geändert: Mara Muster (#123)'),
+      ]),
+    );
+    render();
+    await flushPromises();
+
+    // Summary link chips for both the employee and the Stundenliste
+    expect(wrapper.find('.chronik-inline-link--employee').text()).toContain('Mara Muster (#123)');
+    expect(wrapper.find('.chronik-inline-link--signatur').text()).toContain('Stundenliste');
+    // Clickable buttons in the expanded details and diff table
+    expect(wrapper.findAll('.chronik-link-btn').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('differentiates Angelegt, Geändert, Gelöscht and Notiz pills and uses compact CustomTooltip rows for created/deleted items', async () => {
+    mocks.api.get.mockResolvedValueOnce(
+      page([
+        note('n1', 'admin', 'Kurze Info'),
+        {
+          _id: 'del-entry',
+          kind: 'change',
+          action: 'Einsatz.deleted',
+          actor: { id: 'admin', name: 'Admin Test' },
+          createdAt: '2026-09-11T09:30:00.000Z',
+          summary: 'Einsatz gelöscht: Kai Test (#122)',
+          changes: [{
+            entity: 'Einsatz',
+            entityId: 'e-del',
+            label: 'Kai Test (#122) · Service · 18:00',
+            action: 'deleted',
+            fields: [
+              { field: 'personalNr', label: 'Mitarbeiter', before: 122, beforeLabel: 'Kai Test (#122)', after: null, afterLabel: '—' },
+              { field: 'uhrzeitVon', label: 'Uhrzeit von', before: '18:00', beforeLabel: '18:00', after: null, afterLabel: '—' },
+              { field: 'uhrzeitBis', label: 'Uhrzeit bis', before: '23:00', beforeLabel: '23:00', after: null, afterLabel: '—' },
+            ],
+          }],
+        },
+        change('upd-entry', 'Einsatz geändert'),
+        {
+          _id: 'create-entry',
+          kind: 'change',
+          action: 'Auftrag.created',
+          actor: { id: 'admin', name: 'Admin Test' },
+          createdAt: '2026-09-11T08:00:00.000Z',
+          summary: 'Auftrag angelegt: Messe Nord',
+          changes: [{
+            entity: 'Schicht',
+            entityId: 's-1',
+            label: 'Service',
+            action: 'created',
+            fields: [
+              { field: 'bezeichnung', label: 'Bezeichnung', before: null, beforeLabel: '—', after: 'Service', afterLabel: 'Service' },
+              { field: 'uhrzeitVon', label: 'Uhrzeit von', before: null, beforeLabel: '—', after: '18:00', afterLabel: '18:00' },
+              { field: 'uhrzeitBis', label: 'Uhrzeit bis', before: null, beforeLabel: '—', after: '23:00', afterLabel: '23:00' },
+              { field: 'bedarf', label: 'Bedarf', before: null, beforeLabel: '—', after: 3, afterLabel: '3' },
+            ],
+          }],
+        },
+      ]),
+    );
+    render();
+    await flushPromises();
+
+    // Chronological order (oldest top -> newest bottom): Angelegt, Geändert, Gelöscht, Notiz
+    const metaPills = wrapper.findAll('.chronik-action-pill--meta').map(p => p.text());
+    expect(metaPills).toEqual(['Angelegt', 'Geändert', 'Gelöscht', 'Notiz']);
+
+    // Only the 'updated' change renders a Vorher/Nachher table; 'created' and 'deleted' render compact rows with hover buttons
+    expect(wrapper.findAll('table')).toHaveLength(1);
+    expect(wrapper.findAll('.chronik-change--compact')).toHaveLength(2);
+    expect(wrapper.findAll('.chronik-hover-btn').length).toBeGreaterThanOrEqual(2);
+    expect(wrapper.text()).toContain('18:00–23:00');
+    expect(wrapper.text()).toContain('Bedarf: 3');
   });
 });

@@ -3,7 +3,13 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
-const { buildChanges, withAuftragChronik } = require('../services/operations/AuftragChronikService');
+const {
+  buildChanges,
+  withAuftragChronik,
+  captureImportSnapshots,
+  recordImportChronikEntries,
+  recordSignaturVorgangChronik,
+} = require('../services/operations/AuftragChronikService');
 const router = require('../routes/events/auftraegeRoutes');
 const Auftrag = require('../models/Event/Auftrag');
 const Schicht = require('../models/Event/Schicht');
@@ -17,6 +23,7 @@ const Einsatzort = require('../models/Event/Einsatzort');
 const Sequence = require('../models/System/Sequence');
 const SignaturVorgang = require('../models/Signature/SignaturVorgang');
 require('../models/System/SignaturTyp');
+require('../models/System/Adresse');
 const auth = require('../middleware/auth');
 
 describe('Auftrag Chronik field diffs', () => {
@@ -242,7 +249,7 @@ describe('Auftrag Chronik routes with real transactions', function () {
     const rows = await feed();
     assert.equal(rows.length, 6);
     assert.equal(rows[2].action, 'Auftrag.released');
-    assert.equal(rows.at(-1).changes.filter(item => item.action === 'deleted').length, 2);
+    assert.equal(rows.at(-1).changes.filter(item => item.action === 'deleted').length, 3);
     assert.equal(await Auftrag.countDocuments({ _id: order._id }), 0);
     assert.equal((await request('GET', `/${order.auftragNr}/chronik`, undefined, admin)).status, 404);
     await Auftrag.create({ auftragNr: order.auftragNr, eventTitel: 'Wiederverwendete Nummer', locationV2: location._id });
@@ -307,5 +314,178 @@ describe('Auftrag Chronik routes with real transactions', function () {
     await Auftrag.updateOne({ _id: order._id }, { $set: { locationV2: null } });
     assert.equal((await request('GET', `/${order.auftragNr}/chronik`, undefined, admin)).status, 400);
     assert.equal((await request('GET', '/999999/chronik', undefined, admin)).status, 404);
+  });
+
+  it('records Liste 7001 imports (creation and diff updates) and backfills missing creation entries for pre-existing Zvoove orders', async () => {
+    const importedNr = 7001001;
+    const beforeFirstImport = await captureImportSnapshots([importedNr]);
+    const importedOrder = await Auftrag.create({
+      auftragNr: importedNr,
+      eventTitel: 'Zvoove Gala',
+      kundenNr: 555,
+      bediener: 'M. Zvoove',
+      dtAngelegtAm: new Date('2026-09-01T08:00:00Z'),
+      vonDatum: new Date('2026-09-15T00:00:00Z'),
+      bisDatum: new Date('2026-09-15T00:00:00Z'),
+      locationV2: location._id,
+      source: 'zvoove',
+      aktiv: 1,
+      auftStatus: 2,
+    });
+    await Schicht.create({
+      auftragNr: importedNr,
+      locationV2: location._id,
+      source: 'zvoove',
+      idAuftragArbeitsschichten: 42,
+      bezeichnung: 'Bankett',
+      datumVon: new Date('2026-09-15T00:00:00Z'),
+      datumBis: new Date('2026-09-15T00:00:00Z'),
+      uhrzeitVon: '17:00',
+      uhrzeitBis: '23:00',
+      bedarf: 2,
+    });
+    await Einsatz.create({
+      auftragNr: importedNr,
+      locationV2: location._id,
+      source: 'zvoove',
+      idAuftragArbeitsschichten: 42,
+      personalNr: 200001,
+      schichtBezeichnung: 'Bankett',
+      datumVon: new Date('2026-09-15T00:00:00Z'),
+      datumBis: new Date('2026-09-15T00:00:00Z'),
+      uhrzeitVon: '17:00',
+      uhrzeitBis: '23:00',
+      bedarf: 2,
+    });
+
+    await recordImportChronikEntries({
+      beforeMap: beforeFirstImport,
+      auftragNrs: [importedNr],
+      userId: admin._id,
+      sourceLabel: 'Liste 7001',
+    });
+
+    let entries = await Entry.find({ auftragId: importedOrder._id }).sort({ createdAt: 1, _id: 1 }).lean();
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].action, 'Auftrag.created');
+    assert.equal(entries[0].source, 'zvoove');
+    assert.equal(entries[0].actor.name, 'M. Zvoove');
+    assert.equal(entries[0].changes.length, 3);
+
+    // Re-importing identical data with freshly replaced Schicht/Einsatz documents produces no duplicate entry
+    const beforeUnchangedImport = await captureImportSnapshots([importedNr]);
+    await Schicht.deleteMany({ auftragNr: importedNr });
+    await Einsatz.deleteMany({ auftragNr: importedNr });
+    await Schicht.create({
+      auftragNr: importedNr,
+      locationV2: location._id,
+      source: 'zvoove',
+      idAuftragArbeitsschichten: 42,
+      bezeichnung: 'Bankett',
+      datumVon: new Date('2026-09-15T00:00:00Z'),
+      datumBis: new Date('2026-09-15T00:00:00Z'),
+      uhrzeitVon: '17:00',
+      uhrzeitBis: '23:00',
+      bedarf: 2,
+    });
+    await Einsatz.create({
+      auftragNr: importedNr,
+      locationV2: location._id,
+      source: 'zvoove',
+      idAuftragArbeitsschichten: 42,
+      personalNr: 200001,
+      schichtBezeichnung: 'Bankett',
+      datumVon: new Date('2026-09-15T00:00:00Z'),
+      datumBis: new Date('2026-09-15T00:00:00Z'),
+      uhrzeitVon: '17:00',
+      uhrzeitBis: '23:00',
+      bedarf: 2,
+    });
+    await recordImportChronikEntries({
+      beforeMap: beforeUnchangedImport,
+      auftragNrs: [importedNr],
+      userId: admin._id,
+      sourceLabel: 'Liste 7001',
+    });
+    assert.equal(await Entry.countDocuments({ auftragId: importedOrder._id }), 1);
+
+    // Re-importing with a changed shift bedarf records only the actual diff
+    const beforeChangedImport = await captureImportSnapshots([importedNr]);
+    await Schicht.deleteMany({ auftragNr: importedNr });
+    await Schicht.create({
+      auftragNr: importedNr,
+      locationV2: location._id,
+      source: 'zvoove',
+      idAuftragArbeitsschichten: 42,
+      bezeichnung: 'Bankett',
+      datumVon: new Date('2026-09-15T00:00:00Z'),
+      datumBis: new Date('2026-09-15T00:00:00Z'),
+      uhrzeitVon: '17:00',
+      uhrzeitBis: '23:00',
+      bedarf: 4,
+    });
+    await recordImportChronikEntries({
+      beforeMap: beforeChangedImport,
+      auftragNrs: [importedNr],
+      userId: admin._id,
+      sourceLabel: 'Liste 7001',
+    });
+    entries = await Entry.find({ auftragId: importedOrder._id }).sort({ createdAt: 1, _id: 1 }).lean();
+    assert.equal(entries.length, 2);
+    assert.equal(entries[1].action, 'Auftrag.updated');
+    assert.equal(entries[1].changes.length, 1);
+    assert.equal(entries[1].changes[0].entity, 'Schicht');
+    assert.equal(entries[1].changes[0].action, 'updated');
+    assert.deepEqual(
+      entries[1].changes[0].fields.map(f => ({ field: f.field, before: f.before, after: f.after })),
+      [{ field: 'bedarf', before: 2, after: 4 }],
+    );
+
+    // Pre-existing Zvoove order without a creation entry gets one automatically on GET /:auftragNr/chronik
+    const legacyZvooveOrder = await Auftrag.create({
+      auftragNr: 7001002,
+      eventTitel: 'Bestandsauftrag Zvoove',
+      kundenNr: 777,
+      bediener: 'K. Dispo',
+      dtAngelegtAm: new Date('2026-08-20T10:15:00Z'),
+      vonDatum: new Date('2026-09-20T00:00:00Z'),
+      bisDatum: new Date('2026-09-20T00:00:00Z'),
+      locationV2: location._id,
+      source: 'zvoove',
+      aktiv: 1,
+      auftStatus: 2,
+    });
+    const chronikRes = await request('GET', `/${legacyZvooveOrder.auftragNr}/chronik`, undefined, admin);
+    assert.equal(chronikRes.status, 200);
+    assert.equal(chronikRes.body.entries.length, 1);
+    assert.equal(chronikRes.body.entries[0].action, 'Auftrag.created');
+    assert.equal(chronikRes.body.entries[0].source, 'zvoove');
+    assert.equal(chronikRes.body.entries[0].actor.name, 'K. Dispo');
+
+    // SignaturVorgang lifecycle events (started, completed, cancelled) are recorded and deduplicated
+    const sigVorgang = {
+      _id: oid(),
+      name: 'Stundenliste Bestandsauftrag',
+      typKey: 'stundenliste',
+      auftragNr: legacyZvooveOrder.auftragNr,
+      locationV2: location._id,
+      status: 'open',
+      createdBy: admin._id,
+      submitters: [
+        { role: 'Verleiher', name: 'Test Admin', email: 'admin@example.test' },
+        { role: 'Entleiher', name: 'Kunde GmbH', email: 'kunde@example.test' },
+      ],
+    };
+    await recordSignaturVorgangChronik(sigVorgang, 'started', admin);
+    await recordSignaturVorgangChronik(sigVorgang, 'started', admin); // duplicate is ignored
+    await recordSignaturVorgangChronik({ ...sigVorgang, status: 'completed' }, 'completed', admin);
+    await recordSignaturVorgangChronik({ ...sigVorgang, _id: oid(), status: 'cancelled' }, 'cancelled', admin);
+
+    const sigChronikRes = await request('GET', `/${legacyZvooveOrder.auftragNr}/chronik`, undefined, admin);
+    assert.equal(sigChronikRes.status, 200);
+    const sigActions = sigChronikRes.body.entries.map(e => e.action);
+    assert.ok(sigActions.includes('SignaturVorgang.started'));
+    assert.ok(sigActions.includes('SignaturVorgang.completed'));
+    assert.ok(sigActions.includes('SignaturVorgang.cancelled'));
   });
 });

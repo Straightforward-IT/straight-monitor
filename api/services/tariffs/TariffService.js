@@ -127,6 +127,8 @@ async function preview(files, userId, actor) {
   const personalNumbers = [...domain.collectPersonalNumbers(importData), ...previous.assignments.map(row => row.personalNr)];
   // Match the canonical number in the domain. Exact $in queries would miss
   // aliases with leading zeroes and could conceal ambiguous employee matches.
+  // The 709 export may select only PERSSTATUS 1/2. Do not restrict this lookup
+  // to active employees: omitted employees and their tariff history survive.
   const employees = personalNumbers.length ? await Mitarbeiter.find({}).select('_id personalnr personalnrHistory vorname nachname').lean() : [];
   const next = domain.buildDataset(importData, employees, { retainedAssignments: previous.assignments });
   const assignmentUpload = partialImportRoles.length && !partialImportRoles.includes('employeeAssignments') ? [] : next.assignments;

@@ -12,6 +12,47 @@ Fehlerhafte Pflichtfelder, Beziehungen, Matrixzellen oder unlesbare Kalenderdate
 
 **Geprüften Datenstand aktivieren** veröffentlicht den vollständig gespeicherten Importlauf über einen gemeinsamen Zeiger. Alle Lesezugriffe verwenden genau einen Importstand. Eine zwischenzeitliche Aktivierung eines anderen Admins führt zu HTTP 409; die Importdetails müssen erneut geprüft werden. Identische Datenstände werden wiederverwendet. Vorherige Stände bleiben gespeichert; die Oberfläche zeigt die letzten 50 Importläufe. Nach einem Prozessabbruch kann eine seit 15 Minuten verwaiste Vorbereitung durch erneute Vorschau ersetzt werden.
 
+### Export 709: Tarif Personal ab 26.10.2026
+
+Die aktuelle Exportabfrage steht in [709-Tarif-Personal.sql](709-Tarif-Personal.sql).
+Sie liefert genau acht Spalten: `ID`, `IPERSONALNR`, `ID_LCS_TARIF`,
+`ID_LCS_TARIFMAGRUPPE`, `ID_LCS_TARIFGRUPPEN`, `ID_LCS_TARIFSTUFEN`, `DTVON`
+und `DTBIS`. Zusätzliche bisherige Exportspalten sind für den Import nicht nötig;
+ältere breite Dateien bleiben lesbar.
+
+Der Join auf `PERSONAL` beschränkt den Export auf `PERSSTATUS IN (1, 2)`
+(Bewerber und aktive Mitarbeiter). Zusätzlich werden nur Zuordnungen mit offenem
+Ende oder `DTBIS >= 01.01.2026` geliefert. Der Filter bezieht sich ausdrücklich
+auf **DTBIS**, nicht auf DTVON: Eine seit Jahren bestehende, weiterhin offene
+Zuordnung bleibt Bestandteil der Liste. Eine am 01.01.2026 endende Zuordnung
+ist ebenfalls enthalten.
+
+Diese Auswahl erfolgt im Quellsystem. `PERSSTATUS` ist keine zusätzliche
+Importspalte und wird nicht aus einem lokalen `isActive`-Wert rekonstruiert.
+Gelieferte Bewerber werden über aktuelle beziehungsweise historische
+Personalnummern zugeordnet, auch wenn sie lokal noch nicht als aktiv markiert
+sind. Nicht vorhandene oder mehrdeutige Personalnummern bleiben als ungeklärt
+gekennzeichnet. Der Tarifimport verändert keinen Mitarbeiterstatus und legt
+keinen Personalstamm an.
+
+Die gefilterte Datei ist ein **Update-Auszug**, keine vollständige Bestandsliste:
+Ausgelassene inaktive Mitarbeiter bleiben im System. Ihre bisherigen
+Tarifzuordnungen einschließlich der letzten Zuordnung, der Originalquelle und
+historischer Zeiträume vor 2026 werden unverändert in den nächsten Tarifstand
+übernommen. Aus dem Fehlen einer Zeile wird weder eine Löschung noch eine
+Beendigung oder Statusänderung abgeleitet. Gelieferte Zeilen werden weiterhin
+über Quell-ID beziehungsweise einen eindeutigen fachlichen Treffer aktualisiert.
+Dasselbe gilt beim Import aller 14 Tabellen. Auch eine 709-Datei ohne Treffer
+ist mit den acht Spaltenüberschriften zulässig und erhält alle Zuordnungen.
+
+Absicherung am 26.10.2026: Vier zusätzliche API-Regressionstests prüfen die
+achtspaltige Datei als Einzelimport, zusammen mit 710 und im vollständigen Import
+sowie eine Datei ohne Treffer. Sie prüfen gelieferte lokal inaktive Bewerber,
+ausgelassene inaktive Mitarbeiter, offene Zuordnungen mit Beginn vor 2026,
+alte abgeschlossene Zeiträume, Wiederholungsimporte und unveränderte frühere
+Snapshots. 41 Domain- und 46 API-Tests sind erfolgreich; die API-Prüfung verwendet
+eine isolierte lokale Testdatenbank. Ein produktiver Import wurde nicht ausgeführt.
+
 ### Wiederholte Importe von 709 und 710
 
 Tarif Personal (709) und ÜTZ (710) werden mit der bisherigen Historie zusammengeführt.

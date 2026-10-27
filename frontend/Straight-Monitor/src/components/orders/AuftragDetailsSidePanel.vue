@@ -32,6 +32,20 @@
     <template #actions>
       <div class="sidebar-header-actions">
         <AppIconButton
+          v-if="showChronikToggle && event"
+          variant="ghost"
+          size="sm"
+          class="sidebar-chronik-btn"
+          :class="{ 'is-active': chronikOpen }"
+          label="Auftragschronik"
+          title="Auftragschronik"
+          :aria-expanded="chronikOpen"
+          aria-controls="order-chronik-panel"
+          @click.stop="$emit('toggle-chronik')"
+        >
+          <font-awesome-icon :icon="faClockRotateLeft" />
+        </AppIconButton>
+        <AppIconButton
           v-if="event && presentation === 'panel'"
           variant="ghost"
           size="sm"
@@ -81,7 +95,7 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import { faAnglesLeft, faCalendarDays, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faAnglesLeft, faCalendarDays, faClockRotateLeft, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import SidePanelFrame from "@/components/frames/SidePanelFrame.vue";
 import AppIconButton from "@/components/ui-elements/AppIconButton.vue";
 
@@ -92,6 +106,8 @@ const props = defineProps({
   presentation: { type: String, default: 'panel' },
   minimizable: { type: Boolean, default: false },
   minimizeId: { type: String, default: '' },
+  showChronikToggle: { type: Boolean, default: false },
+  chronikOpen: { type: Boolean, default: false },
   showStaffingExpand: { type: Boolean, default: false },
   showModalSide: { type: Boolean, default: false },
   formatRange: { type: Function, required: true },
@@ -99,7 +115,7 @@ const props = defineProps({
   statusText: { type: Function, required: true },
 });
 
-const emit = defineEmits(["update:modelValue", "actions", "undock", "expand-staffing"]);
+const emit = defineEmits(["update:modelValue", "actions", "undock", "expand-staffing", "toggle-chronik"]);
 const calendarTarget = computed(() => {
   const number = props.event?.auftragNr || props.auftragNr;
   if (props.presentation !== 'modal' || !number) return null;
@@ -127,6 +143,10 @@ function closeForCalendarNavigation(event) {
 .sidebar-status.status-confirmed { background: color-mix(in srgb, var(--status-success-text) 12%, var(--tile-bg)); color: var(--status-success-text); }
 .sidebar-status.status-completed { background: #dbeafe; color: #1e40af; }
 .sidebar-header-actions { display: flex; align-items: center; gap: 4px; }
+.sidebar-chronik-btn.is-active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
 .auftrag-details-modal { --surface: var(--panel); --soft: var(--hover); --brand: var(--primary); }
 .auftrag-calendar-link { display: inline-flex; align-items: center; gap: 8px; color: var(--primary); font-size: .875rem; font-weight: 600; text-underline-offset: 3px; }
 .auftrag-calendar-link:focus-visible { outline: 2px solid var(--control-focus-ring); outline-offset: 3px; }

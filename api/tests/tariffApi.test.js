@@ -35,6 +35,16 @@ function workbooks(overrides = {}) {
   });
 }
 
+// Exact output contract of the filtered Zvoove 709 query (no status column).
+function personnel709Workbook(rows) {
+  const columns = ['ID', 'IPERSONALNR', 'ID_LCS_TARIF', 'ID_LCS_TARIFMAGRUPPE', 'ID_LCS_TARIFGRUPPEN', 'ID_LCS_TARIFSTUFEN', 'DTVON', 'DTBIS'];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    columns, ...rows.map(row => columns.map(column => row[column] ?? null)),
+  ]), 'Tabelle1');
+  return { fieldname: 'employeeAssignments', originalname: '709.xlsx', buffer: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) };
+}
+
 describe('Eigenständige Tarif-API', function () {
   this.timeout(120000);
   let mongo, server, base, admin, staff, first, second, originalSecret;
@@ -337,6 +347,82 @@ describe('Eigenständige Tarif-API', function () {
     assert.notEqual(rebuilt.body._id, stale.body._id); assert.equal(rebuilt.body.counts.aboveTariff, 2);
     assert.equal((await activate(rebuilt.body, other.body._id)).status, 200);
   });
+  for (const mode of ['709', '709+710', 'vollständig']) {
+    it(`erhält ausgelassene inaktive Mitarbeiter und alte Historie beim gefilterten Acht-Spalten-709-Import (${mode})`, async () => {
+      // The SQL status filter is upstream. A delivered applicant must still be
+      // matched even if the local employee record is not marked active.
+      const applicant = { _id: oid(), personalnr: '1001990', vorname: 'Bewerber', nachname: 'Test', isActive: false };
+      await Mitarbeiter.collection.insertOne(applicant);
+      await Mitarbeiter.collection.updateOne({ _id: second._id }, { $set: { isActive: false } });
+      const original = {
+        ID: 501, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015,
+        ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2017-11-12', DTBIS: null,
+      };
+      const inactive = { ...original, ID: 502, IPERSONALNR: 1001507, DTVON: '2022-01-01', CUSTOM_FLAG: 'inactive-original' };
+      const old = { ...original, ID: 503, DTVON: '2016-01-01', DTBIS: '2017-11-11', CUSTOM_FLAG: 'closed-before-2026' };
+      const candidate = { ...original, ID: 504, IPERSONALNR: 1001990, DTVON: '2025-07-01' };
+      const initial = await preview({ employeeAssignments: [original, inactive, old, candidate] });
+      assert.equal(initial.body.status, 'READY');
+      assert.equal((await activate(initial.body)).status, 200);
+      const beforeInactive = (await request(`/employee-history?key=${second._id}`)).body.assignments[0];
+      const beforeOld = (await request(`/employee-history?key=${first._id}`)).body.assignments.find(row => row.legacyId === '503');
+
+      // Older DTVON with an open DTBIS is included by the new SQL query.
+      const selected = [{ ...original, ID_LCS_TARIFGRUPPEN: 24932 }, candidate];
+      const upload = personnel709Workbook(selected);
+      let files = [upload];
+      if (mode !== '709') files = workbooks({ employeeAssignments: selected })
+        .filter(file => mode === 'vollständig' || ['employeeAssignments', 'aboveTariff'].includes(file.fieldname))
+        .map(file => file.fieldname === 'employeeAssignments' ? upload : file);
+      const next = await request('/imports/preview', { method: 'POST', files });
+      assert.equal(next.body.status, 'READY'); assert.equal(next.body.errorCount, 0);
+      assert.deepEqual({ received: next.body.assignmentHistory.received, retained: next.body.assignmentHistory.retained,
+        updated: next.body.assignmentHistory.updated, added: next.body.assignmentHistory.added },
+      { received: 2, retained: 2, updated: 2, added: 0 });
+      assert.equal(next.body.counts.employeeAssignments, 4);
+      assert.equal(next.body.changes.employeeAssignments.removed, 0);
+      assert.equal((await activate(next.body, initial.body._id)).status, 200);
+
+      const afterInactive = (await request(`/employee-history?key=${second._id}`)).body.assignments;
+      assert.equal(afterInactive.length, 1);
+      for (const key of ['legacyId', 'validFrom', 'validUntil', 'employeeGroupId', 'payGroupId', 'stageId', 'source']) {
+        assert.deepEqual(afterInactive[0][key], beforeInactive[key]);
+      }
+      const after = (await request(`/employee-history?key=${first._id}`)).body.assignments;
+      assert.deepEqual(after.find(row => row.legacyId === '503').source, beforeOld.source);
+      const changed = after.find(row => row.legacyId === '501');
+      assert.equal(Object.keys(changed.source.raw).length, 8);
+      assert.equal(changed.source.filename, '709.xlsx');
+      assert.equal(changed.validFrom, '2017-11-12'); assert.equal(changed.validUntil, null);
+      assert.equal((await request(`/employees/${first._id}/base-rate?date=2026-10-26`)).body.value, '16.08');
+      assert.equal((await request(`/employees/${second._id}/base-rate?date=2026-10-26`)).body.value, '15.33');
+      const applicantHistory = (await request(`/employee-history?key=${applicant._id}`)).body.assignments;
+      assert.equal(applicantHistory.length, 1); assert.equal(applicantHistory[0].matchStatus, 'MATCHED');
+      assert.equal((await request(`/employees/${applicant._id}/base-rate?date=2026-10-26`)).body.value, '15.33');
+
+      const repeated = await request('/imports/preview', { method: 'POST', files });
+      assert.equal(repeated.body.errorCount, 0);
+      assert.equal(repeated.body.counts.employeeAssignments, 4);
+      assert.equal(repeated.body.assignmentHistory.added, 0);
+      assert.deepEqual(repeated.body.changes.employeeAssignments, { added: 0, changed: 0, removed: 0, unchanged: 4 });
+      assert.equal(await models.Assignment.countDocuments({ importId: initial.body._id }), 4);
+      assert.equal((await models.Assignment.findOne({ importId: initial.body._id, legacyId: '501' }).lean()).payGroupId, '21016');
+      assert.equal((await Mitarbeiter.collection.findOne({ _id: second._id })).isActive, false);
+    });
+  }
+
+  it('erhält alle Tarifzuordnungen bei einer gefilterten 709-Datei ohne Treffer mit den acht Spaltenüberschriften', async () => {
+    const initial = await preview(); assert.equal((await activate(initial.body)).status, 200);
+    const next = await request('/imports/preview', { method: 'POST', files: [personnel709Workbook([])] });
+    assert.equal(next.body.errorCount, 0);
+    assert.equal(next.body.counts.employeeAssignments, 2);
+    assert.equal(next.body.assignmentHistory.received, 0);
+    assert.equal(next.body.assignmentHistory.retained, 2);
+    assert.equal(next.body.changes.employeeAssignments.removed, 0);
+    assert.equal((await activate(next.body, initial.body._id)).status, 200);
+    assert.equal((await request(`/employee-history?key=${second._id}`)).body.assignments.length, 1);
+  });
+
   it('verhindert das Aktivieren einer veralteten Tarif-Personal-Vorschau', async () => {
     const initial = await preview(); await activate(initial.body);
     const changed = { ID: 501, IPERSONALNR: 1000001, ID_LCS_TARIF: 17055, ID_LCS_TARIFMAGRUPPE: 21015, ID_LCS_TARIFGRUPPEN: 21016, ID_LCS_TARIFSTUFEN: 21025, DTVON: '2017-11-12', DTBIS: null, CUSTOM_FLAG: 'Korrektur' };

@@ -147,11 +147,11 @@
           <div class="input-group">
             <div class="input-item">
               <label class="input-label" for="flip-location">Standort*</label>
-              <AppSelect id="flip-location" v-model="location" :disabled="isSubmitting" required>
+              <AppSelect id="flip-location" v-model="locationV2" :disabled="isSubmitting" required>
                 <option value="">-</option>
-                <option value="Hamburg">Hamburg</option>
-                <option value="Berlin">Berlin</option>
-                <option value="Köln">Köln</option>
+                <option v-for="loc in locations" :key="loc._id" :value="loc._id">
+                  {{ loc.nameFull }}
+                </option>
               </AppSelect>
             </div>
           </div>
@@ -339,7 +339,8 @@ export default {
       email: "",
       personalnr: "",
       primary_user_group: "",
-      location: "",
+      locations: [],
+      locationV2: "",
       isService: false,
       isLogistik: false,
       isKueche: false,
@@ -439,15 +440,8 @@ export default {
     isDev() {
       return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     },
-    availableLocations() {
-      return (index) => {
-        const allLocations = Object.keys(this.bewerber_project_gids);
-        return allLocations.filter(
-          (loc) =>
-            !this.locations.includes(loc) ||
-            this.locations.indexOf(loc) === index
-        );
-      };
+    selectedLocation() {
+      return this.locations.find((loc) => String(loc._id) === String(this.locationV2)) || null;
     },
     filteredMitarbeiter() {
       const query = this.searchMitarbeiter.toLowerCase().trim();
@@ -626,12 +620,30 @@ export default {
       this.nachname = mitarbeiter.nachname;
       this.email = mitarbeiter.email;
 
+      const mitarbeiterLocationId = mitarbeiter.locationV2?._id || mitarbeiter.locationV2;
+      if (mitarbeiterLocationId) {
+        this.locationV2 = String(mitarbeiterLocationId);
+      }
+
       if (mitarbeiter.asana_id) {
         this.asana_id = mitarbeiter.asana_id;
         await this.fetchAsanaTask(mitarbeiter.asana_id);
       }
 
       this.filteredMitarbeiter = [];
+    },
+    async fetchLocations() {
+      if (!this.token) return this.switchToDashboard();
+      try {
+        const { data } = await api.get("/api/locations");
+        this.locations = Array.isArray(data) ? data : [];
+        if (this.asanaTask?.memberships && !this.locationV2) {
+          this.parseTaskProjects(this.asanaTask.memberships);
+        }
+      } catch (error) {
+        console.error("Fehler beim Laden der Standorte:", error);
+        this.locations = [];
+      }
     },
     async fetchInactiveMitarbeiter() {
       if (!this.token) return this.switchToDashboard();
@@ -821,7 +833,7 @@ export default {
       this.email = "";
       this.personalnr = "";
       this.primary_user_group = "";
-      this.location = "";
+      this.locationV2 = "";
       this.isService = false;
       this.isLogistik = false;
       this.isKueche = false;
@@ -865,7 +877,7 @@ export default {
     !this.nachname?.trim() ||
     !this.email?.trim() ||
     !this.personalnr?.trim() ||
-    !this.location
+    !this.selectedLocation
   ) {
     this.showNotification('warning', 'Bitte fülle alle Pflichtfelder aus: Vorname, Nachname, E-Mail, Personalnummer (oder 0), Standort.');
     return;
@@ -882,11 +894,12 @@ export default {
       last_name: this.nachname,
       email: this.email,
       personalnr: personalnrValue,
+      locationV2: this.selectedLocation._id,
       role: "USER",
       created_by: this.userEmail,
       attributes: [
         { name: "job_title",  value: this.job_title },
-        { name: "location",   value: this.location },
+        { name: "location",   value: this.selectedLocation.nameFull },
         { name: "department", value: this.department },
         { name: "isService",  value: String(this.isService) },
         { name: "isLogistik", value: String(this.isLogistik) },
@@ -924,10 +937,20 @@ export default {
     this.isSubmitting = false;
   }
 },
+    findLocationIdByName(name) {
+      if (!name) return "";
+      const target = this.normalizeLocation(String(name).trim());
+      const match = this.locations.find(
+        (loc) =>
+          this.normalizeLocation(loc.nameFull || "") === target ||
+          this.normalizeLocation(loc.shortName || "") === target
+      );
+      return match ? String(match._id) : "";
+    },
     parseTaskProjects(memberships) {
   if (!memberships || memberships.length === 0) return;
 
-  const projectGids = memberships.map((m) => m.project.gid);
+  const projectGids = memberships.map((m) => m.project?.gid).filter(Boolean);
   const projectMapping = {};
 
   for (const [loc, projects] of Object.entries(this.bewerber_project_gids)) {
@@ -936,14 +959,14 @@ export default {
     }
   }
 
-  // Map canonical display names
-  const canonicalMap = { Hamburg: "Hamburg", Berlin: "Berlin", "Köln": "Köln" };
-
   for (const gid of projectGids) {
     const rawLocation = projectMapping[gid];
-    if (rawLocation && canonicalMap[rawLocation]) {
-      this.location = canonicalMap[rawLocation];
-      return; // Use first match
+    if (rawLocation) {
+      const matchedLocationId = this.findLocationIdByName(rawLocation);
+      if (matchedLocationId) {
+        this.locationV2 = matchedLocationId;
+        return; // Use first match
+      }
     }
   }
 },
@@ -955,6 +978,7 @@ export default {
   mounted() {
     this.setAxiosAuthToken();
     this.fetchUserData();
+    this.fetchLocations();
     this.fetchInactiveMitarbeiter();
     this.fetchFlipUsers();
     this.fetchFlipUserGroups();

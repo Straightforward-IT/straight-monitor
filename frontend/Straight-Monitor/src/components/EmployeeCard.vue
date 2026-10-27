@@ -1471,7 +1471,45 @@
             </div>
             <div v-if="resolvedMa.eintrittsdatum"><dt>Eintritt</dt><dd>{{ formatDate(resolvedMa.eintrittsdatum) }}</dd></div>
             <div v-if="resolvedMa.austrittsdatum"><dt>Austritt</dt><dd>{{ formatDate(resolvedMa.austrittsdatum) }}</dd></div>
-            <div v-if="resolvedMa.sozialversicherungsnummer"><dt>Sozialvers.-Nr.</dt><dd>{{ resolvedMa.sozialversicherungsnummer }} <AppIconButton class="copy-inline-btn" size="sm" variant="ghost" label="Sozialversicherungsnummer kopieren" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)"><font-awesome-icon icon="fa-solid fa-copy" /></AppIconButton></dd></div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'sozialversicherungsnummer' }">
+              <dt>Sozialvers.-Nr. <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Sozialversicherungsnummer bearbeiten" @click.stop="startEditStammdaten('sozialversicherungsnummer')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'sozialversicherungsnummer'">
+                {{ resolvedMa.sozialversicherungsnummer || '—' }}
+                <AppIconButton v-if="resolvedMa.sozialversicherungsnummer" class="copy-inline-btn" size="sm" variant="ghost" label="Sozialversicherungsnummer kopieren" @click.stop="copyToClipboard(resolvedMa.sozialversicherungsnummer)"><font-awesome-icon icon="fa-solid fa-copy" /></AppIconButton>
+              </dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppTextInput v-model.trim="stammdatenDraft.sozialversicherungsnummer" aria-label="Sozialversicherungsnummer" placeholder="Sozialversicherungsnummer" :disabled="savingStammdatenField" />
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Sozialversicherungsnummer speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Bearbeitung der Sozialversicherungsnummer abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
+            <div class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'aufenthalt' }">
+              <dt>Aufenthalt &amp; Arbeitserlaubnis <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Aufenthalts- und Arbeitserlaubnis bearbeiten" @click.stop="startEditStammdaten('aufenthalt')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
+              <dd v-if="editingStammdatenField !== 'aufenthalt'" class="stammdaten-detail-list">
+                <span>Aufenthaltsberechtigt: {{ resolvedMa.aufenthaltsberechtigt === true ? 'Ja' : resolvedMa.aufenthaltsberechtigt === false ? 'Nein' : '—' }}</span>
+                <template v-if="resolvedMa.aufenthaltsberechtigt === false">
+                  <span>Aufenthaltserlaubnis bis: {{ resolvedMa.aufenthaltserlaubnisBis ? formatDate(resolvedMa.aufenthaltserlaubnisBis) : '—' }}</span>
+                  <span>Arbeitserlaubnis bis: {{ resolvedMa.arbeitserlaubnisBis ? formatDate(resolvedMa.arbeitserlaubnisBis) : '—' }}</span>
+                </template>
+              </dd>
+              <dd v-else class="stammdaten-inline-editor">
+                <AppSelect v-model="stammdatenDraft.aufenthaltsberechtigt" size="sm" aria-label="Aufenthaltsberechtigt" :disabled="savingStammdatenField">
+                  <option value="">Nicht angegeben</option>
+                  <option value="true">Ja (unbefristet / berechtigt)</option>
+                  <option value="false">Nein (zeitlich befristet)</option>
+                </AppSelect>
+                <template v-if="stammdatenDraft.aufenthaltsberechtigt === 'false'">
+                  <AppTextInput v-model="stammdatenDraft.aufenthaltserlaubnisBis" type="date" aria-label="Aufenthaltserlaubnis gültig bis" :disabled="savingStammdatenField" />
+                  <AppTextInput v-model="stammdatenDraft.arbeitserlaubnisBis" type="date" aria-label="Arbeitserlaubnis gültig bis" :disabled="savingStammdatenField" />
+                </template>
+                <span class="stammdaten-edit-actions">
+                  <AppIconButton class="stammdaten-save-btn" size="sm" label="Aufenthalts- und Arbeitserlaubnis speichern" :loading="savingStammdatenField" @click.stop="saveStammdaten"><font-awesome-icon v-if="!savingStammdatenField" icon="fa-solid fa-check" /></AppIconButton>
+                  <AppIconButton class="stammdaten-cancel-btn" size="sm" variant="ghost" label="Bearbeitung der Aufenthalts- und Arbeitserlaubnis abbrechen" :disabled="savingStammdatenField" @click.stop="cancelEditStammdaten"><font-awesome-icon icon="fa-solid fa-xmark" /></AppIconButton>
+                </span>
+              </dd>
+            </div>
             <div v-if="addressLines(resolvedMa.adresse).length" class="stammdaten-field" :class="{ 'stammdaten-field--editing': editingStammdatenField === 'adresse' }">
               <dt>Adresse <AppIconButton class="stammdaten-edit-btn" size="sm" variant="ghost" label="Adresse bearbeiten" @click.stop="startEditStammdaten('adresse')"><font-awesome-icon icon="fa-solid fa-pen" /></AppIconButton></dt>
               <dd v-if="editingStammdatenField !== 'adresse'" class="stammdaten-address"><span v-for="(line, idx) in addressLines(resolvedMa.adresse)" :key="idx">{{ line }}</span></dd>
@@ -2572,6 +2610,14 @@ export default {
         nationalitaet: {
           nationalitaet: employee.nationalitaet != null ? String(employee.nationalitaet) : '',
         },
+        sozialversicherungsnummer: {
+          sozialversicherungsnummer: employee.sozialversicherungsnummer || '',
+        },
+        aufenthalt: {
+          aufenthaltsberechtigt: typeof employee.aufenthaltsberechtigt === 'boolean' ? String(employee.aufenthaltsberechtigt) : '',
+          aufenthaltserlaubnisBis: dateForInput(employee.aufenthaltserlaubnisBis),
+          arbeitserlaubnisBis: dateForInput(employee.arbeitserlaubnisBis),
+        },
         adresse: {
           strasse: employee.adresse?.strasse || '',
           plz: employee.adresse?.plz || '',
@@ -2670,6 +2716,19 @@ export default {
         };
       } else if (field === 'nationalitaet') {
         update = { nationalitaet: this.stammdatenDraft.nationalitaet || '' };
+      } else if (field === 'sozialversicherungsnummer') {
+        update = { sozialversicherungsnummer: this.stammdatenDraft.sozialversicherungsnummer?.trim() || '' };
+      } else if (field === 'aufenthalt') {
+        const aufenthaltsberechtigt = this.stammdatenDraft.aufenthaltsberechtigt === 'true'
+          ? true
+          : this.stammdatenDraft.aufenthaltsberechtigt === 'false'
+            ? false
+            : null;
+        update = {
+          aufenthaltsberechtigt,
+          aufenthaltserlaubnisBis: aufenthaltsberechtigt === false ? (this.stammdatenDraft.aufenthaltserlaubnisBis || null) : null,
+          arbeitserlaubnisBis: aufenthaltsberechtigt === false ? (this.stammdatenDraft.arbeitserlaubnisBis || null) : null,
+        };
       } else if (field === 'adresse' || field === 'adresse2') {
         update = {
           [field]: {
@@ -4049,6 +4108,10 @@ export default {
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
           nationalitaet: formData.nationalitaet,
+          sozialversicherungsnummer: formData.sozialversicherungsnummer,
+          aufenthaltsberechtigt: formData.aufenthaltsberechtigt,
+          aufenthaltserlaubnisBis: formData.aufenthaltsberechtigt === false ? (formData.aufenthaltserlaubnisBis || null) : null,
+          arbeitserlaubnisBis: formData.aufenthaltsberechtigt === false ? (formData.arbeitserlaubnisBis || null) : null,
           additionalEmails: formData.additionalEmails,
           adresse: formData.adresse,
           adresse2: formData.adresse2,
@@ -4096,6 +4159,10 @@ export default {
           geburtsname: formData.geburtsname,
           geburtsort: formData.geburtsort,
           nationalitaet: formData.nationalitaet,
+          sozialversicherungsnummer: formData.sozialversicherungsnummer,
+          aufenthaltsberechtigt: formData.aufenthaltsberechtigt,
+          aufenthaltserlaubnisBis: formData.aufenthaltsberechtigt === false ? (formData.aufenthaltserlaubnisBis || null) : null,
+          arbeitserlaubnisBis: formData.aufenthaltsberechtigt === false ? (formData.arbeitserlaubnisBis || null) : null,
           additionalEmails: formData.additionalEmails,
           adresse: formData.adresse,
           adresse2: formData.adresse2,

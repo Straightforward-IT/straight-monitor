@@ -2141,7 +2141,7 @@ router.patch(
           runValidators: true,
           context: "query", // Wichtig für 'unique' Validatoren bei Updates
         }
-      ).populate([
+      ).select("+sozialversicherungsnummer").populate([
         { path: "locationV2", select: "nameFull shortName color externalId" },
         { path: "laufzettel_received", select: "_id name" },
         { path: "laufzettel_submitted", select: "_id name" },
@@ -3162,12 +3162,41 @@ router.post(
       last_name,
       email,
       personalnr,
+      locationV2,
       role = "USER",
       created_by,
       primary_user_group_id,
       attributes,
       user_group_ids,
     } = req.body;
+
+    let resolvedLocation = null;
+    if (locationV2) {
+      resolvedLocation = await resolveActiveLocation(locationV2);
+      if (!resolvedLocation) {
+        return res.status(400).json({
+          message: "Der gewählte Standort ist nicht aktiv oder existiert nicht.",
+        });
+      }
+    } else {
+      const locationAttrValue = Array.isArray(attributes)
+        ? attributes.find((attr) => attr?.name === "location")?.value
+        : null;
+      if (locationAttrValue) {
+        resolvedLocation = await resolveLocationFromStandortName(locationAttrValue);
+      }
+      if (!resolvedLocation && personalnr) {
+        resolvedLocation = await resolveLocationFromPersonalnr(personalnr);
+      }
+    }
+
+    const normalizedAttributes = Array.isArray(attributes)
+      ? attributes.map((attr) =>
+          attr?.name === "location" && resolvedLocation
+            ? { ...attr, value: resolvedLocation.nameFull }
+            : attr
+        )
+      : attributes;
 
     const normalizedEmail = email.toLowerCase();
     let mitarbeiter;
@@ -3243,6 +3272,9 @@ router.post(
         mitarbeiter.email = normalizedEmail;
         mitarbeiter.erstellt_von = created_by;
         mitarbeiter.isActive = true;
+        if (resolvedLocation) {
+          mitarbeiter.locationV2 = resolvedLocation._id;
+        }
         
         // Update personalnr - always set if provided
         if (personalnr) {
@@ -3258,6 +3290,7 @@ router.post(
           nachname: last_name,
           email: normalizedEmail,
           personalnr: personalnr?.trim() || null,
+          locationV2: resolvedLocation?._id || null,
           erstellt_von: created_by,
           isActive: true,
         });
@@ -3272,7 +3305,7 @@ router.post(
         status: "ACTIVE",
         benutzername: normalizedEmail,
         rolle: role,
-        attributes,
+        attributes: normalizedAttributes,
         primary_user_group_id,
       });
 

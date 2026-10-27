@@ -3,7 +3,12 @@
     :to="embeddedTarget"
     :disabled="!embedded"
   >
-    <Transition name="cdf-slide">
+    <Transition
+      name="cdf-slide"
+      appear
+      @before-enter="onBeforeEnter"
+      @after-enter="syncLayout"
+    >
       <aside
         v-if="modelValue"
         ref="drawerRef"
@@ -54,24 +59,28 @@
               name="actions"
               :collapsed="collapsed"
             />
-            <button
+            <AppIconButton
               v-if="collapsible"
-              type="button"
+              variant="ghost"
+              size="sm"
               class="cdf-icon-btn"
+              :label="collapsed ? 'Ausklappen' : 'Einklappen'"
               :title="collapsed ? 'Ausklappen' : 'Einklappen'"
               @click.stop="toggleCollapsed"
             >
-              <font-awesome-icon :icon="['fas', collapsed ? 'chevron-up' : 'chevron-down']" />
-            </button>
-            <button
+              <font-awesome-icon :icon="['fas', collapsed ? 'angles-up' : 'angles-down']" />
+            </AppIconButton>
+            <AppIconButton
               v-if="showClose"
-              type="button"
+              variant="ghost"
+              size="sm"
               class="cdf-icon-btn"
+              label="Schließen"
               title="Schließen"
               @click.stop="close"
             >
               <font-awesome-icon :icon="['fas', 'xmark']" />
-            </button>
+            </AppIconButton>
           </div>
         </header>
         <template v-if="!collapsed">
@@ -99,9 +108,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faChevronDown, faChevronUp, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faAnglesDown, faAnglesUp, faXmark } from '@fortawesome/free-solid-svg-icons';
+import AppIconButton from '@/components/ui-elements/AppIconButton.vue';
 
-library.add(faChevronDown, faChevronUp, faXmark);
+library.add(faAnglesDown, faAnglesUp, faXmark);
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -158,7 +168,7 @@ let dragging = false;
 let startY = 0;
 let startHeight = 0;
 let sidePanelObserver = null;
-let observedSidePanel = null;
+let observedSidePanels = [];
 let contentObserver = null;
 let sidePanelWaitObserver = null;
 
@@ -206,39 +216,83 @@ function stopResize() {
   window.removeEventListener('mouseup', stopResize);
 }
 
+function getPanelTargetRect(panel) {
+  const rect = panel.getBoundingClientRect();
+  if (
+    panel.classList?.contains('sp-enter-from') ||
+    panel.classList?.contains('sp-enter-active')
+  ) {
+    const rawWidth =
+      panel.style?.getPropertyValue?.('--sp-width') ||
+      (typeof getComputedStyle === 'function'
+        ? getComputedStyle(panel).getPropertyValue('--sp-width')
+        : '');
+    const cssVarWidth = Number.parseFloat(rawWidth);
+    if (Number.isFinite(cssVarWidth) && cssVarWidth > rect.width) {
+      return {
+        left: rect.right - cssVarWidth,
+        width: cssVarWidth,
+      };
+    }
+  }
+  return rect;
+}
+
 function syncSidePanelOffset() {
-  if (!props.sidePanelOpen || !drawerRef.value) {
+  if (!props.sidePanelOpen) {
     sidePanelObserver?.disconnect();
     sidePanelWaitObserver?.disconnect();
     sidePanelWaitObserver = null;
-    observedSidePanel = null;
+    observedSidePanels = [];
     sidePanelOffset.value = '0px';
     return;
   }
 
-  const sidePanel = document.querySelector(props.sidePanelSelector);
-  if (!sidePanel) {
+  const sidePanels = props.sidePanelSelector && typeof document !== 'undefined'
+    ? Array.from(document.querySelectorAll(props.sidePanelSelector))
+    : [];
+  if (!sidePanels.length) {
     // The drawer and side panel can be mounted in the same render pass. Wait
     // for the panel rather than permanently falling back to the viewport edge.
     sidePanelWaitObserver?.disconnect();
-    sidePanelWaitObserver = new MutationObserver(() => {
-      if (document.querySelector(props.sidePanelSelector)) {
-        sidePanelWaitObserver?.disconnect();
-        sidePanelWaitObserver = null;
-        syncSidePanelOffset();
-      }
-    });
-    sidePanelWaitObserver.observe(document.body, { childList: true, subtree: true });
-  } else {
-    sidePanelWaitObserver?.disconnect();
-    sidePanelWaitObserver = null;
+    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.body) {
+      sidePanelWaitObserver = new MutationObserver(() => {
+        if (props.sidePanelSelector && document.querySelector(props.sidePanelSelector)) {
+          sidePanelWaitObserver?.disconnect();
+          sidePanelWaitObserver = null;
+          syncSidePanelOffset();
+        }
+      });
+      sidePanelWaitObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    observedSidePanels = [];
+    return;
   }
-  if (sidePanel !== observedSidePanel) {
+
+  const parent = sidePanels[0]?.parentElement;
+  sidePanelWaitObserver?.disconnect();
+  sidePanelWaitObserver = null;
+  if (parent && typeof MutationObserver !== 'undefined') {
+    sidePanelWaitObserver = new MutationObserver(() => syncSidePanelOffset());
+    sidePanelWaitObserver.observe(parent, { childList: true });
+  }
+
+  const targetsToObserve = [
+    ...new Set([
+      ...sidePanels,
+      ...sidePanels.map(panel => panel.previousElementSibling).filter(Boolean),
+    ]),
+  ];
+  const sameTargets =
+    targetsToObserve.length === observedSidePanels.length &&
+    targetsToObserve.every((el, idx) => el === observedSidePanels[idx]);
+
+  if (!sameTargets) {
     sidePanelObserver?.disconnect();
-    observedSidePanel = sidePanel;
-    if (sidePanel) {
+    observedSidePanels = targetsToObserve;
+    if (targetsToObserve.length && typeof ResizeObserver !== 'undefined') {
       sidePanelObserver = new ResizeObserver(syncSidePanelOffset);
-      sidePanelObserver.observe(sidePanel);
+      targetsToObserve.forEach(target => sidePanelObserver.observe(target));
     }
   }
 
@@ -246,12 +300,19 @@ function syncSidePanelOffset() {
   // is resolved against the viewport's client width. Using innerWidth would
   // leave a scrollbar-wide gap between the drawer and the side panel.
   const viewportWidth = document.documentElement.clientWidth;
-  sidePanelOffset.value = sidePanel
-    ? `${Math.max(0, viewportWidth - sidePanel.getBoundingClientRect().left)}px`
-    : '0px';
+  const rects = sidePanels
+    .map(panel => getPanelTargetRect(panel))
+    .filter(rect => rect.width > 0 || rect.left > 0);
+  const effectiveRects = rects.length ? rects : [ getPanelTargetRect(sidePanels[0]) ];
+  const leftEdge = Math.min(...effectiveRects.map(rect => rect.left));
+  sidePanelOffset.value = `${Math.max(0, viewportWidth - leftEdge)}px`;
 }
 
 function syncNaturalHeight() {
+  if (!props.bodyScrollable) {
+    naturalHeight.value = 0;
+    return;
+  }
   const drawer = drawerRef.value;
   const header = drawer?.querySelector('.cdf-header');
   const body = drawer?.querySelector('.cdf-body');
@@ -283,8 +344,23 @@ function syncLayout() {
   observeDrawerContent();
 }
 
+function onBeforeEnter(el) {
+  syncSidePanelOffset();
+  if (el?.style) {
+    el.style.setProperty('--cdf-left-offset', props.leftOffset);
+    el.style.setProperty('--cdf-side-panel-offset', sidePanelOffset.value);
+  }
+}
+
+function onGlobalPointerMove(event) {
+  if (event.buttons === 1 && props.sidePanelOpen && !dragging) {
+    syncSidePanelOffset();
+  }
+}
+
 onMounted(() => {
   window.addEventListener('resize', syncLayout);
+  window.addEventListener('mousemove', onGlobalPointerMove, { passive: true });
   nextTick(syncLayout);
 });
 
@@ -294,6 +370,7 @@ onBeforeUnmount(() => {
   sidePanelWaitObserver?.disconnect();
   contentObserver?.disconnect();
   window.removeEventListener('resize', syncLayout);
+  window.removeEventListener('mousemove', onGlobalPointerMove);
 });
 </script>
 
@@ -313,7 +390,6 @@ onBeforeUnmount(() => {
   border-radius: 12px 0 0;
   background: var(--tile-bg);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
-  transition: right 0.25s ease;
 }
 
 .cdf-drawer--with-side-panel { right: var(--cdf-side-panel-offset); }
@@ -363,16 +439,20 @@ onBeforeUnmount(() => {
 .cdf-icon-btn:hover { background: var(--hover); color: var(--text); }
 .cdf-body { flex: 1; min-height: 0; padding: 12px 16px; overflow-y: auto; }
 .cdf-body-content { min-height: 0; }
-.cdf-body--static { display: flex; overflow: hidden; padding-right: 24px; }
-.cdf-body--static .cdf-body-content { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.cdf-body--static { display: flex; overflow: hidden; padding: 0; }
+.cdf-body--static .cdf-body-content { display: flex; flex: 1; flex-direction: column; min-height: 0; width: 100%; }
 .cdf-footer { flex: 0 0 auto; padding: 0 16px 12px; background: var(--tile-bg); }
 
 @media (max-width: 1100px) {
   .cdf-drawer--desktop-only { display: none; }
 }
 
-.cdf-slide-enter-active,
-.cdf-slide-leave-active { transition: transform 0.25s ease; }
+.cdf-drawer.cdf-slide-enter-active,
+.cdf-drawer.cdf-slide-leave-active {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .cdf-slide-enter-from,
-.cdf-slide-leave-to { transform: translateY(100%); }
+.cdf-slide-leave-to {
+  transform: translateY(100%);
+}
 </style>

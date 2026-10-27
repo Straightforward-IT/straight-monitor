@@ -87,6 +87,32 @@
             </AppSelect>
           </div>
         </div>
+
+        <div class="form-grid form-grid--three">
+          <div class="form-group">
+            <label :for="fieldId('sozialversicherungsnummer')">Sozialversicherungsnr.</label>
+            <AppTextInput :id="fieldId('sozialversicherungsnummer')" v-model.trim="form.sozialversicherungsnummer" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label :for="fieldId('aufenthaltsberechtigt')">Aufenthaltsberechtigt</label>
+            <AppSelect :id="fieldId('aufenthaltsberechtigt')" v-model="form.aufenthaltsberechtigt" class="form-input">
+              <option :value="null">— nicht gesetzt —</option>
+              <option :value="true">Ja (unbefristet / berechtigt)</option>
+              <option :value="false">Nein (zeitlich befristet)</option>
+            </AppSelect>
+          </div>
+        </div>
+
+        <div v-if="form.aufenthaltsberechtigt === false" class="form-grid form-grid--three">
+          <div class="form-group">
+            <label :for="fieldId('aufenthaltserlaubnisBis')">Aufenthaltserlaubnis gültig bis</label>
+            <AppTextInput :id="fieldId('aufenthaltserlaubnisBis')" v-model="form.aufenthaltserlaubnisBis" type="date" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label :for="fieldId('arbeitserlaubnisBis')">Arbeitserlaubnis gültig bis</label>
+            <AppTextInput :id="fieldId('arbeitserlaubnisBis')" v-model="form.arbeitserlaubnisBis" type="date" class="form-input" />
+          </div>
+        </div>
       </section>
 
       <section class="form-section">
@@ -411,6 +437,10 @@ const form = ref({
   geburtsname: "",
   geburtsort: "",
   nationalitaet: "",
+  sozialversicherungsnummer: "",
+  aufenthaltsberechtigt: null,
+  aufenthaltserlaubnisBis: "",
+  arbeitserlaubnisBis: "",
   additionalEmails: [],
   personalnrHistory: [],
   persgruppe: null,
@@ -448,6 +478,10 @@ watch(
         geburtsname: newVal.geburtsname || "",
         geburtsort: newVal.geburtsort || "",
         nationalitaet: newVal.nationalitaet != null ? String(newVal.nationalitaet) : "",
+        sozialversicherungsnummer: newVal.sozialversicherungsnummer || "",
+        aufenthaltsberechtigt: typeof newVal.aufenthaltsberechtigt === 'boolean' ? newVal.aufenthaltsberechtigt : null,
+        aufenthaltserlaubnisBis: toDateInput(newVal.aufenthaltserlaubnisBis),
+        arbeitserlaubnisBis: toDateInput(newVal.arbeitserlaubnisBis),
         additionalEmails: [...(newVal.additionalEmails || [])],
         personalnrHistory: [...(newVal.personalnrHistory || [])],
         persgruppe: personGroupForMonth(newVal),
@@ -564,11 +598,19 @@ function archiveOldPersonalnrIfChanged() {
   }
 }
 
+function normalizePermitFields() {
+  if (form.value.aufenthaltsberechtigt !== false) {
+    form.value.aufenthaltserlaubnisBis = "";
+    form.value.arbeitserlaubnisBis = "";
+  }
+}
+
 function save() {
   if (props.saving) return;
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
+  normalizePermitFields();
   archiveOldPersonalnrIfChanged();
   emit("save", form.value);
 }
@@ -578,6 +620,7 @@ function saveForce() {
   form.value.additionalEmails = form.value.additionalEmails.filter(
     (e) => e && e.trim() !== ""
   );
+  normalizePermitFields();
   archiveOldPersonalnrIfChanged();
   emit("save-force", form.value);
 }

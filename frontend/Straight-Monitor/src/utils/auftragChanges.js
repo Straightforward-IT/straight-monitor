@@ -8,6 +8,18 @@ export function notifyAuftragMutation(config = {}, data) {
     for (const number of numbers) for (const listener of listeners) listener(number);
     return;
   }
+  const sigMatch = String(config.url || '').match(/\/api\/signaturen\/stundenliste\/(\d+)(?:\/|$|\?)/);
+  if (sigMatch && !String(config.url || '').includes('/draft')) {
+    for (const listener of listeners) listener(Number(sigMatch[1]));
+    return;
+  }
+  if (/\/api\/signaturen(?:\/|$|\?)/.test(String(config.url || ''))) {
+    const nr = Number(data?.auftragNr ?? data?.vorgang?.auftragNr);
+    if (Number.isSafeInteger(nr) && nr > 0) {
+      for (const listener of listeners) listener(nr);
+      return;
+    }
+  }
   const match = String(config.url || '').match(/\/api\/auftraege\/(\d+)(\/[^?]*)?(?:\?|$)/);
   if (!match || match[2]?.startsWith('/chronik')) return;
   for (const listener of listeners) listener(Number(match[1]));

@@ -100,6 +100,8 @@
                     <tr><td>AN – Strasse2</td><td>AO – PLZ2</td><td>AP – Ort2</td></tr>
                     <tr><td>AQ – Land2</td><td>AR – Telefon2 (TEL2)</td><td>AS – E-Mail2 (EMAIL2)</td></tr>
                     <tr><td>AT – Staatsangehörigkeitsschlüssel (STAATANGEH)</td><td>AU – Steuerklasse (STKLASSE)</td><td>AV – Geschäftsstelle (GESCHST)</td></tr>
+                    <tr><td>AW – Sozialversicherungsnr. (SOZVERSNR)</td><td>AX – Aufenthaltsberechtigt (AUFENTHBER, J/N)</td><td>AY – Aufenthaltserlaubnis bis (AUFENTHERL)</td></tr>
+                    <tr><td>AZ – Arbeitserlaubnis bis (ARBERLAUBN)</td><td colspan="2">AY &amp; AZ werden nur übernommen, wenn AX = N</td></tr>
                   </tbody></table>
                 </div>
               </details>

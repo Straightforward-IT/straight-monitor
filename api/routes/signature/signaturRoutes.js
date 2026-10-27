@@ -34,6 +34,15 @@ const {
   getDriveItemById,
   downloadDriveItemBuffer,
 } = require('../../services/integrations/GraphService');
+const { recordSignaturVorgangChronik } = require('../../services/operations/AuftragChronikService');
+
+async function safeRecordSignaturChronik(vorgang, event, userOrId = null) {
+  try {
+    await recordSignaturVorgangChronik(vorgang, event, userOrId);
+  } catch (err) {
+    logger.warn(`SignaturVorgang Chronik recording failed (${event} for ${vorgang?._id}):`, err.message);
+  }
+}
 
 const router = express.Router();
 const archiveUpload = multer({
@@ -802,9 +811,13 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
         logger.warn(`[Stundenliste redo] DocuSeal archive failed for ${existingVorgang.submissionId}:`, e.message);
       }
     }
+    const prevExistingStatus = existingVorgang.status;
     existingVorgang.status      = 'cancelled';
     existingVorgang.cancelledAt = new Date();
     await existingVorgang.save();
+    if (prevExistingStatus === 'open' || existingVorgang.submissionId) {
+      await safeRecordSignaturChronik(existingVorgang, 'cancelled', req.user?.id);
+    }
     logger.info(`[Stundenliste redo] Existing vorgang ${existingVorgang._id} cancelled for Auftrag ${auftragNr}`);
   }
 
@@ -901,6 +914,7 @@ router.post('/stundenliste/:auftragNr', auth, asyncHandler(async (req, res) => {
   };
   const vorgang = draftVorgang ? Object.assign(draftVorgang, vorgangData) : new SignaturVorgang(vorgangData);
   await vorgang.save();
+  await safeRecordSignaturChronik(vorgang, 'started', req.user?.id);
   await vorgang.populate([
     { path: 'typ', select: 'key label linkedTo' },
     { path: 'locationV2', select: 'nameFull shortName color' },
@@ -1015,9 +1029,13 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
           logger.warn(`[Reisekosten redo] DocuSeal archive failed for ${existing.submissionId}:`, e.message);
         }
       }
+      const prevStatus = existing.status;
       existing.status = 'cancelled';
       existing.cancelledAt = new Date();
       await existing.save();
+      if (prevStatus === 'open' || existing.submissionId) {
+        await safeRecordSignaturChronik(existing, 'cancelled', req.user?.id);
+      }
     }
   }
 
@@ -1094,6 +1112,7 @@ router.post('/reisekostenabrechnung/:id', auth, asyncHandler(async (req, res) =>
     createdBy: req.user.id,
   });
   await vorgang.save();
+  await safeRecordSignaturChronik(vorgang, 'started', req.user?.id);
   await vorgang.populate([
     { path: 'typ', select: 'key label linkedTo' },
     { path: 'locationV2', select: 'nameFull shortName color' },
@@ -1226,11 +1245,14 @@ router.get('/', auth, asyncHandler(async (req, res) => {
           changed = refreshSubmitterFromDocuSeal(local, live, vorgang.typKey === 'stundenliste') || changed;
           return local;
         });
-        if (submission.status === 'completed' && vorgang.status !== 'completed') {
+        const newlyCompleted = submission.status === 'completed' && vorgang.status !== 'completed';
+        if (newlyCompleted) {
           vorgang.status = 'completed';
+          vorgang.completedAt = vorgang.completedAt || new Date();
           changed = true;
         }
         if (changed) await vorgang.save();
+        if (newlyCompleted) await safeRecordSignaturChronik(vorgang, 'completed', req.user?.id);
         await syncLinkedReisekosten(vorgang);
       } catch (err) {
         logger.warn(`Bulk status refresh failed for vorgang ${vorgang._id}:`, err.message);
@@ -1799,10 +1821,13 @@ router.get('/:id', auth, asyncHandler(async (req, res) => {
           }
           return local;
         });
-        if (submission.status === 'completed') {
+        const newlyCompleted = submission.status === 'completed' && vorgang.status !== 'completed';
+        if (newlyCompleted) {
           vorgang.status = 'completed';
+          vorgang.completedAt = vorgang.completedAt || new Date();
         }
         await vorgang.save();
+        if (newlyCompleted) await safeRecordSignaturChronik(vorgang, 'completed', req.user?.id);
         await syncLinkedReisekosten(vorgang);
       }
     } catch (err) {
@@ -2100,6 +2125,9 @@ router.patch('/:id', auth, asyncHandler(async (req, res) => {
   }
 
   await vorgang.save();
+  if (submit && vorgang.status === 'open') {
+    await safeRecordSignaturChronik(vorgang, 'started', req.user?.id);
+  }
   await vorgang.populate([
     { path: 'typ', select: 'key label linkedTo' },
     { path: 'locationV2', select: 'nameFull shortName color' },
@@ -2119,6 +2147,8 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
     return res.status(409).json({ message: 'Abgeschlossene Vorgänge können nicht storniert werden' });
   }
 
+  const wasStarted = vorgang.status === 'open' || Boolean(vorgang.submissionId);
+
   if (vorgang.submissionId) {
     try {
       await DocuSealService.archiveSubmission(vorgang.submissionId);
@@ -2137,6 +2167,9 @@ router.delete('/:id', auth, asyncHandler(async (req, res) => {
   vorgang.status      = 'cancelled';
   vorgang.cancelledAt = new Date();
   await vorgang.save();
+  if (wasStarted) {
+    await safeRecordSignaturChronik(vorgang, 'cancelled', req.user?.id);
+  }
 
   if (unsignedPdfKey) {
     try {
@@ -2238,6 +2271,11 @@ router.post('/webhook', verifyDocuSealWebhook, asyncHandler(async (req, res) => 
   }
 
   await vorgang.save();
+  if (eventType === 'submission.completed') {
+    await safeRecordSignaturChronik(vorgang, 'completed', vorgang.createdBy);
+  } else if (eventType === 'submission.expired' || eventType === 'submission.archived') {
+    await safeRecordSignaturChronik(vorgang, 'cancelled', vorgang.createdBy);
+  }
 
   // Keep a linked Reisekostenabrechnung's status in sync with its signature process.
   await syncLinkedReisekosten(vorgang);

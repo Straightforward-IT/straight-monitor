@@ -484,12 +484,15 @@
     <!-- Sidebar for Event Details -->
     <AuftragDetailsSidePanel v-model="hasSelectedEvent" :event="selectedEvent" :auftrag-nr="hostedAuftragNr"
       :presentation="isHostedDetail ? 'modal' : 'panel'" :minimizable="detailMinimizable"
-      :minimize-id="detailMinimizeId" :show-staffing-expand="isAdmin && isHostedDetail && staffingPanelHidden" :show-modal-side="isAdmin &&
+      :minimize-id="detailMinimizeId" :show-chronik-toggle="isAdmin && Boolean(selectedEvent)"
+      :chronik-open="Boolean(isAdmin && showChronik && selectedEvent)"
+      :show-staffing-expand="isAdmin && isHostedDetail && staffingPanelHidden" :show-modal-side="isAdmin &&
         isHostedDetail &&
         Boolean(selectedEvent) &&
         !staffingPanelHidden
         " :format-range="formatDateRange" :status-class="getEventStatusClass" :status-text="getStatusText"
-      @actions="toggleQuickActionsMenu" @undock="undockSelectedOrder" @expand-staffing="setStaffingPanelHidden(false)">
+      @actions="toggleQuickActionsMenu" @undock="undockSelectedOrder" @expand-staffing="setStaffingPanelHidden(false)"
+      @toggle-chronik="toggleChronik">
       <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
       <div v-else-if="detailError" class="order-detail-error" role="alert">
         <p>{{ detailError }}</p>
@@ -944,6 +947,31 @@
           @sign-expense="openReisekostenSignatur" @delete-expense="deleteReisekosten"
           @preview-document="previewEinsatzDok" @download-document="downloadEinsatzDok"
           @delete-document="deleteEinsatzDok" @upload="onEinsatzDokUpload" />
+
+        <section
+          v-if="isAdmin && showChronik && (isHostedDetail || isCompactChronikViewport)"
+          id="order-chronik-panel"
+          class="order-chronik-inline-section"
+          aria-label="Chronik"
+        >
+          <div class="section-header">
+            <h3>Chronik</h3>
+            <AppIconButton
+              variant="ghost"
+              size="sm"
+              label="Chronik aktualisieren"
+              title="Aktualisieren"
+              @click="chronikRevision++"
+            >
+              <font-awesome-icon icon="fa-solid fa-rotate-right" />
+            </AppIconButton>
+          </div>
+          <OrderChronikTimeline
+            :key="selectedEvent.auftragNr"
+            :auftrag-nr="selectedEvent.auftragNr"
+            :revision="chronikRevision"
+          />
+        </section>
       </template>
       <template v-if="isAdmin && isHostedDetail" #modal-side>
         <AuftragAdminStaffingSidePanel ref="adminStaffingPanel" embedded
@@ -982,6 +1010,18 @@
           <font-awesome-icon icon="fa-solid fa-angles-left" />
         </AppIconButton>
     </aside>
+
+    <!-- Admin Chronik Companion Drawer (Desktop) -->
+    <OrderChronikDrawer
+      v-if="isAdmin && !isHostedDetail"
+      id="order-chronik-panel"
+      :show="Boolean(showChronik && selectedEvent && !isCompactChronikViewport)"
+      :auftrag-nr="selectedEvent?.auftragNr ?? null"
+      :order-title="selectedEvent?.eventTitel || ''"
+      :revision="chronikRevision"
+      :side-panel-open="Boolean(selectedEvent)"
+      @close="setChronikOpen(false)"
+    />
 
     <OrderDocumentUploadDialog v-if="showEinsatzDokDialog" :model-value="showEinsatzDokDialog"
       v-model:title="einsatzDokTitle" v-model:scope="einsatzDokScope" v-model:type="einsatzDokType"
@@ -1167,6 +1207,9 @@ import { useTimeCaptureModals } from "@/composables/useTimeCaptureModals";
 import AuftragListView from "@/components/orders/AuftragListView.vue";
 import AuftragDetailsSidePanel from "@/components/orders/AuftragDetailsSidePanel.vue";
 import AuftragAdminStaffingSidePanel from "@/components/orders/AuftragAdminStaffingSidePanel.vue";
+import OrderChronikDrawer from "@/components/orders/OrderChronikDrawer.vue";
+import OrderChronikTimeline from "@/components/orders/OrderChronikTimeline.vue";
+import { onAuftragMutation } from "@/utils/auftragChanges";
 import SearchBar from "@/components/SearchBar.vue";
 import Toolbar from "@/components/ui-elements/Toolbar.vue";
 import ToolbarButton from "@/components/ui-elements/ToolbarButton.vue";
@@ -1212,6 +1255,8 @@ export default {
     AuftragListView,
     AuftragDetailsSidePanel,
     AuftragAdminStaffingSidePanel,
+    OrderChronikDrawer,
+    OrderChronikTimeline,
     OrderDocumentsPanel,
     OrderHoursVisibilityButton,
     AppButton,
@@ -1366,9 +1411,19 @@ export default {
       collapsedCustomerGroups: {},
       locations: [],
       isMobile: false,
+      isCompactChronikViewport:
+        typeof window !== "undefined" ? window.innerWidth <= 1100 : false,
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
       selectedStaffingMitarbeiter: null,
+      showChronik: (() => {
+        try {
+          return localStorage.getItem("auftraege.chronikHidden") !== "1";
+        } catch {
+          return true;
+        }
+      })(),
+      chronikRevision: 0,
       staffingPanelHidden: (() => {
         try {
           return localStorage.getItem("auftraege.staffingPanelHidden") === "1";
@@ -1577,7 +1632,8 @@ export default {
       const u = this.user || {};
       return (
         String(u.role || "").toUpperCase() === "ADMIN" ||
-        (Array.isArray(u.roles) && u.roles.includes("ADMIN"))
+        (Array.isArray(u.roles) &&
+          u.roles.some((role) => String(role || "").toUpperCase() === "ADMIN"))
       );
     },
     isVertrieb() {
@@ -3224,6 +3280,27 @@ export default {
       }
       this.$nextTick(() => this.updateCalendarGridWidth());
     },
+    setChronikOpen(value) {
+      this.showChronik = Boolean(value);
+      try {
+        localStorage.setItem(
+          "auftraege.chronikHidden",
+          this.showChronik ? "0" : "1",
+        );
+      } catch {
+        /* localStorage unavailable */
+      }
+    },
+    toggleChronik() {
+      this.setChronikOpen(!this.showChronik);
+      if (this.showChronik && (this.isHostedDetail || this.isCompactChronikViewport)) {
+        this.$nextTick(() => {
+          const panel = this.$el?.querySelector?.("#order-chronik-panel")
+            || document.getElementById("order-chronik-panel");
+          panel?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        });
+      }
+    },
 
     // Check if all einsaetze in a schicht have the same beruf
     getCommonBeruf(einsaetze) {
@@ -3253,6 +3330,7 @@ export default {
     },
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
+      this.isCompactChronikViewport = window.innerWidth <= 1100;
       this.updateCalendarGridWidth();
     },
     updateCalendarGridWidth() {
@@ -5510,6 +5588,14 @@ export default {
     this.showNeuMenu = false;
   },
   async mounted() {
+    this.stopChronikUpdates = onAuftragMutation((auftragNr) => {
+      if (
+        this.isAdmin &&
+        Number(this.selectedEvent?.auftragNr) === Number(auftragNr)
+      ) {
+        this.chronikRevision++;
+      }
+    });
     if (this.isHostedDetail) {
       await this.loadHostedOrder();
       return;
@@ -5585,6 +5671,7 @@ export default {
     this.handlePseudoRouteQuery();
   },
   beforeUnmount() {
+    this.stopChronikUpdates?.();
     this.detailDisposed = true;
     this.detailRevision++;
     this.detailController?.abort();
@@ -5692,8 +5779,15 @@ export default {
   }
 }
 
-/* Schichten Section */
-.schichten-section {
+/* Schichten & Inline Chronik Sections */
+.order-chronik-inline-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.schichten-section,
+.order-chronik-inline-section {
   .section-header {
     display: flex;
     align-items: center;

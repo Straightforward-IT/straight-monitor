@@ -50,7 +50,7 @@ Chronik data is stored in a separate collection and is not populated into ordina
 
 ## Frontend and verification
 
-`OrderChronikDrawer` reuses `CompanionDrawerFrame`; its size and collapse state use `orders_chronik_drawer`. On mobile and at widths up to 1100px, `OrderChronikTimeline` renders inside the order-detail panel. Each automatic event expands into entity changes and before/after fields. The timeline supports notes, own-note deletion, refresh, and older-page loading.
+`OrderChronikDrawer` reuses `CompanionDrawerFrame`; its size and collapse state use `orders_chronik_drawer`, and its right edge tracks the open detail and Admin staffing side panels (`.auftraege-page .sp-panel, .auftraege-page .admin-staffing-panel, .auftraege-page .admin-staffing-expand-rail`). For Admins, the Chronik opens automatically with the selected order and can be toggled from the `AuftragDetailsSidePanel` header (`Auftragschronik`). On mobile, at widths up to 1100px, and in the undocked `AuftragModal`, `OrderChronikTimeline` renders inline inside the order-detail panel. Each automatic event expands into entity changes and before/after fields. The timeline supports notes, own-note deletion, refresh, and older-page loading.
 
 Successful order mutations notify the selected order through `utils/auftragChanges.js`, including editor saves and shift/assignment removals. Chronik note requests do not recursively trigger that notification. Order switches, later refreshes, role changes, and unmounts invalidate previous reads.
 

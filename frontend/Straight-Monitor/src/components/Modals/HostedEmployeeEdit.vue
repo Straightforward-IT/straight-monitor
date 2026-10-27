@@ -45,9 +45,12 @@ async function save(form, force = false) {
   conflict.value = null;
   const fields = ['vorname', 'nachname', 'personalnr', 'email', 'telefon', 'iban',
     'konfektionsgroesse', 'schuhgroesse', 'geburtsname', 'geburtsort', 'nationalitaet',
+    'sozialversicherungsnummer', 'aufenthaltsberechtigt',
     'additionalEmails', 'adresse', 'adresse2', 'vorarbeitgebertage',
     'fuehrerscheine', 'persgruppe', 'persgruppeMonth', 'persgruppe_set_explicitly'];
   const payload = Object.fromEntries(fields.map(field => [field, form[field]]));
+  payload.aufenthaltserlaubnisBis = form.aufenthaltsberechtigt === false ? (form.aufenthaltserlaubnisBis || null) : null;
+  payload.arbeitserlaubnisBis = form.aufenthaltsberechtigt === false ? (form.arbeitserlaubnisBis || null) : null;
   if (Array.isArray(payload.fuehrerscheine)) {
     payload.fuehrerscheine = payload.fuehrerscheine.map((license) => ({
       ...license,
