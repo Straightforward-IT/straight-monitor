@@ -803,7 +803,13 @@ async function loadEinsatzMitarbeiter(auftragNr) {
   try {
     const res = await props.api.get('/api/public/einsatz-mitarbeiter', { params: { auftragNr } });
     const all = [];
+    const einsatzIdsByPersonalNr = new Map();
     (res.data || []).forEach(s => s.mitarbeiter?.forEach(ma => {
+      if (ma.einsatzId && ma.personalNr != null) {
+        const list = einsatzIdsByPersonalNr.get(ma.personalNr) || [];
+        list.push(String(ma.einsatzId));
+        einsatzIdsByPersonalNr.set(ma.personalNr, list);
+      }
       if (!all.find(m => m.personalNr === ma.personalNr)) all.push(ma);
     }));
     einsatzMitarbeiter.value = all;
@@ -815,14 +821,16 @@ async function loadEinsatzMitarbeiter(auftragNr) {
     let noShowSet = new Set();
     try {
       const checkInRes = await props.api.get('/api/public/checkins', { params: { auftragNr } });
-      (checkInRes.data?.noShow || []).forEach(nr => noShowSet.add(nr));
+      (checkInRes.data?.noShow || []).forEach(key => noShowSet.add(String(key)));
     } catch { /* ignore */ }
 
     // Pre-fill MA rows from stored annotations (Verspätung from localStorage + Nicht Erschienen from server)
     const prefilledRows = [];
     for (const ma of all) {
       const parts = [];
-      if (noShowSet.has(ma.personalNr)) parts.push('Nicht erschienen');
+      const maEinsatzIds = einsatzIdsByPersonalNr.get(ma.personalNr) || [];
+      const isNoShow = noShowSet.has(String(ma.personalNr)) || maEinsatzIds.some(id => noShowSet.has(id));
+      if (isNoShow) parts.push('Nicht erschienen');
       try {
         const raw = localStorage.getItem(`maannot_${auftragNr}_${ma.personalNr}`);
         if (raw) {

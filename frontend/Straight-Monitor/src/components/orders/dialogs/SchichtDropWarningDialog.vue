@@ -96,8 +96,22 @@
         </p>
       </template>
 
+      <!-- 6. BEDARF FILLED / END AUSSCHREIBUNG PROMPT -->
+      <template v-else-if="step.type === 'end-ausschreibung'">
+        <p class="drop-warn-text">
+          Der Bedarf für die Schicht <strong>{{ step.shiftName }}</strong> ist jetzt gedeckt:
+        </p>
+        <div class="drop-warn-highlight drop-warn-highlight--quali">
+          <font-awesome-icon icon="fa-solid fa-bullhorn" />
+          <span>Besetzt: <strong>{{ step.currentCount }} / {{ step.bedarf }}</strong></span>
+        </div>
+        <p class="drop-warn-question">
+          Ausschreibung für <strong>{{ step.shiftName }}</strong> jetzt beenden?
+        </p>
+      </template>
+
       <label
-        v-if="step.type !== 'notify-employee' && showNotifyCheckbox"
+        v-if="!['notify-employee', 'end-ausschreibung'].includes(step.type) && showNotifyCheckbox"
         class="drop-warn-notify-checkbox"
       >
         <input
@@ -112,6 +126,7 @@
     <template #footer>
       <div class="drop-warn-footer">
         <AppButton
+          v-if="step.type !== 'end-ausschreibung'"
           variant="secondary"
           :disabled="busy"
           @click="onCancel"
@@ -119,7 +134,27 @@
           Abbrechen
         </AppButton>
 
-        <template v-if="step.type === 'notify-employee'">
+        <template v-if="step.type === 'end-ausschreibung'">
+          <AppButton
+            variant="secondary"
+            :disabled="busy"
+            :loading="busy && activeAction === 'keep-ausschreibung'"
+            @click="onSelect('keep-ausschreibung')"
+          >
+            Ausgeschrieben lassen
+          </AppButton>
+          <AppButton
+            variant="primary"
+            :disabled="busy"
+            :loading="busy && activeAction === 'end-ausschreibung'"
+            @click="onSelect('end-ausschreibung')"
+          >
+            <font-awesome-icon icon="fa-solid fa-bullhorn" />
+            Ausschreibung beenden
+          </AppButton>
+        </template>
+
+        <template v-else-if="step.type === 'notify-employee'">
           <AppButton
             variant="secondary"
             :disabled="busy"
@@ -234,6 +269,7 @@ const dialogTitle = computed(() => {
   if (type === 'dispo-blocked') return 'Mitarbeiter nicht verfügbar';
   if (type === 'bedarf-exceeded') return 'Schichtbedarf überschritten';
   if (type === 'notify-employee') return 'Mitarbeiter benachrichtigen?';
+  if (type === 'end-ausschreibung') return 'Bedarf gedeckt – Ausschreibung beenden?';
   return 'Hinweis zur Einplanung';
 });
 
@@ -241,6 +277,7 @@ const dialogIcon = computed(() => {
   const type = props.step?.type;
   if (type === 'missing-qualification') return 'fa-solid fa-graduation-cap';
   if (type === 'notify-employee') return 'fa-solid fa-bell';
+  if (type === 'end-ausschreibung') return 'fa-solid fa-bullhorn';
   return 'fa-solid fa-triangle-exclamation';
 });
 

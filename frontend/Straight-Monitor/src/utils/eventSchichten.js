@@ -40,6 +40,8 @@ export function buildEventSchichten(event) {
         berufData: schicht.berufData || null,
         isPseudo: isPseudoSchichtDoc(schicht, event),
         istAusgeschrieben: Boolean(schicht.istAusgeschrieben),
+        qualifiedMitarbeiterCount: typeof schicht.qualifiedMitarbeiterCount === 'number' ? schicht.qualifiedMitarbeiterCount : null,
+        visibleMitarbeiterCount: typeof schicht.visibleMitarbeiterCount === 'number' ? schicht.visibleMitarbeiterCount : null,
         regularCount: 0,
         reserveCount: 0,
         bedarfMet: false,

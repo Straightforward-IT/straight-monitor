@@ -9,11 +9,11 @@ const CheckInSchema = new mongoose.Schema(
       index: true,
     },
     checkedIn: {
-      type: [Number], // Array of personalNr values
+      type: [mongoose.Schema.Types.Mixed], // Array of Einsatz _id strings (or legacy personalNr numbers)
       default: [],
     },
     noShow: {
-      type: [Number], // Array of personalNr values marked as "Nicht Erschienen"
+      type: [mongoose.Schema.Types.Mixed], // Array of Einsatz _id strings (or legacy personalNr numbers) marked as "Nicht Erschienen"
       default: [],
     },
   },

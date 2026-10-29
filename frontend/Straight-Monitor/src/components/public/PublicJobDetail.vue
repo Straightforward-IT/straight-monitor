@@ -181,7 +181,7 @@
           <div class="ma-list">
             <div
               v-for="ma in schicht.mitarbeiter"
-              :key="ma.personalNr"
+              :key="ma.einsatzId || ma.personalNr"
               class="ma-card"
               :class="{ 'checked-in': isTeamleiter && ma.checkedIn && !ma.noShow, 'nicht-erschienen': isTeamleiter && ma.noShow, 'is-teamleiter': ma.isTeamleiter, 'ma-card--readonly': !isTeamleiter }"
             >
@@ -212,7 +212,7 @@
               </a>
               <!-- Three-dot menu trigger -->
               <button
-                v-if="isTeamleiter"
+                v-if="isTeamleiter || ma.isTeamleiter"
                 class="ma-menu-btn"
                 @click.stop="openActionSheet(ma)"
                 aria-label="Optionen"
@@ -256,6 +256,24 @@
     <!-- MA Action Sheet -->
     <PublicBottomSheet v-model="actionSheet.open" sheet-class="annot-actionsheet">
       <p class="annot-actionsheet-name">{{ actionSheet.ma?.vorname }} {{ actionSheet.ma?.nachname }}</p>
+      <button
+        v-if="actionSheet.ma?.isTeamleiter"
+        class="annot-action-item"
+        :class="{ 'annot-action-item--disabled': !canRequestLaufzettel }"
+        :disabled="!canRequestLaufzettel"
+        @click="requestLaufzettelForTeamleiter(actionSheet.ma)"
+      >
+        <span class="annot-action-icon annot-action-icon--laufzettel">
+          <img :src="imgLaufzettel" class="annot-action-img" alt="" />
+        </span>
+        <span class="annot-action-content">
+          <span>{{ laufzettelSubmitting ? 'Wird beantragt…' : hasRequestedLaufzettel(actionSheet.ma) ? 'Laufzettel bereits beantragt' : 'Laufzettel beantragen' }}</span>
+          <span v-if="laufzettelDisabledHint" class="annot-action-hint">{{ laufzettelDisabledHint }}</span>
+        </span>
+        <span v-if="hasRequestedLaufzettel(actionSheet.ma)" class="annot-action-badge annot-action-badge--done">
+          <font-awesome-icon icon="fa-solid fa-check" />
+        </span>
+      </button>
       <button v-if="isTeamleiter" class="annot-action-item" @click="openVerspaetung(actionSheet.ma)">
         <span class="annot-action-icon annot-action-icon--delay"><font-awesome-icon icon="fa-solid fa-clock" /></span>
         Verspätung eintragen
@@ -416,12 +434,15 @@ import PublicDocumentPreviewModal from './PublicDocumentPreviewModal.vue';
 import { showToast } from '@getflip/bridge';
 import eventreportLight from '@/assets/eventreport.png';
 import eventreportDark from '@/assets/eventreport-dark.png';
+import laufzettelLight from '@/assets/laufzettel.png';
+import laufzettelDark from '@/assets/laufzettel-dark.png';
 import { pruefeArbeitszeit } from '@/utils/arbeitszeitValidierung.js';
 
 library.add(faUserClock, faWallet);
 
 const theme = useTheme();
 const imgEventreport = computed(() => theme.isDark ? eventreportDark : eventreportLight);
+const imgLaufzettel = computed(() => theme.isDark ? laufzettelDark : laufzettelLight);
 
 const props = defineProps({
   einsatz: { type: Object, required: true },
@@ -460,7 +481,85 @@ const zeitValidierung = computed(() => {
   return pruefeArbeitszeit({ start: zeitForm.start, end: zeitForm.end, pausen: zeitForm.pausen });
 });
 
-defineEmits(['back', 'write-report']);
+const emit = defineEmits(['back', 'write-report', 'laufzettel-submitted']);
+
+const laufzettelSubmitting = ref(false);
+const requestedLaufzettelTlKeys = ref(new Set());
+
+const laufzettelTimeframeState = computed(() => {
+  if (!props.einsatz?.datumVon) return 'invalid';
+  const start = new Date(props.einsatz.datumVon);
+  if (Number.isNaN(start.getTime())) return 'invalid';
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  if (start > today) return 'future';
+  if (start < sevenDaysAgo) return 'expired';
+  return 'allowed';
+});
+
+const laufzettelDisabledHint = computed(() => {
+  if (laufzettelTimeframeState.value === 'future') {
+    return 'Nicht verfügbar für zukünftige Jobs';
+  }
+  if (laufzettelTimeframeState.value === 'expired') {
+    return 'Nur bis max. 7 Tage in der Vergangenheit möglich';
+  }
+  return '';
+});
+
+function hasRequestedLaufzettel(ma) {
+  if (!ma || !props.einsatz?.auftragNr) return false;
+  const key = `${props.einsatz.auftragNr}:${ma.personalNr}`;
+  if (requestedLaufzettelTlKeys.value.has(key)) return true;
+
+  const fullName = `${ma.vorname || ''} ${ma.nachname || ''}`.trim().toLowerCase();
+  const submitted = props.mitarbeiter?.laufzettel_submitted || [];
+  return submitted.some(lz => {
+    if (String(lz?.auftragnummer) !== String(props.einsatz.auftragNr)) return false;
+    const tlName = `${lz?.teamleiter?.vorname || ''} ${lz?.teamleiter?.nachname || ''}`.trim().toLowerCase()
+      || String(lz?.name_teamleiter || '').trim().toLowerCase();
+    return Boolean(fullName && tlName && fullName === tlName);
+  });
+}
+
+const canRequestLaufzettel = computed(() =>
+  laufzettelTimeframeState.value === 'allowed' &&
+  !laufzettelSubmitting.value &&
+  !hasRequestedLaufzettel(actionSheet.value.ma)
+);
+
+async function requestLaufzettelForTeamleiter(ma) {
+  if (!ma || !canRequestLaufzettel.value) return;
+  laufzettelSubmitting.value = true;
+  try {
+    await props.api.post('/api/public/laufzettel', {
+      email: props.email,
+      auftragNr: props.einsatz.auftragNr,
+      teamleiter_personalnr: ma.personalNr,
+    });
+    const nextSet = new Set(requestedLaufzettelTlKeys.value);
+    nextSet.add(`${props.einsatz.auftragNr}:${ma.personalNr}`);
+    requestedLaufzettelTlKeys.value = nextSet;
+    actionSheet.value.open = false;
+    emit('laufzettel-submitted');
+    try { showToast({ text: 'Laufzettel wurde erfolgreich beantragt!', intent: 'success', duration: 2500 }); } catch {}
+  } catch (err) {
+    const msg = err.response?.data?.msg || err.message || 'Fehler beim Beantragen';
+    try {
+      showToast({ text: msg, intent: 'error', duration: 3000 });
+    } catch {
+      alert('Fehler beim Beantragen: ' + msg);
+    }
+  } finally {
+    laufzettelSubmitting.value = false;
+  }
+}
 
 const loadingMa = ref(false);
 const schichtGruppen = ref([]);
@@ -547,6 +646,7 @@ function toggleNichtErschienen(ma) {
   actionSheet.value.open = false;
   props.api.post('/api/public/noshow/toggle', {
     auftragNr: props.einsatz.auftragNr,
+    einsatzId: ma.einsatzId,
     personalNr: ma.personalNr,
   }).catch(() => {
     ma.noShow = !ma.noShow; // revert on error
@@ -1148,13 +1248,17 @@ async function loadCheckIns(auftragNr) {
     const checkedIn = res.data?.checkedIn || [];
     const noShow = res.data?.noShow || [];
     return {
-      checkedIn: Object.fromEntries(checkedIn.map(nr => [nr, true])),
-      noShow: Object.fromEntries(noShow.map(nr => [nr, true])),
+      checkedIn: Object.fromEntries(checkedIn.map(key => [String(key), true])),
+      noShow: Object.fromEntries(noShow.map(key => [String(key), true])),
     };
   } catch { return { checkedIn: {}, noShow: {} }; }
 }
 
 const checkInInProgress = new Set();
+
+function maCheckInKey(ma) {
+  return String(ma.einsatzId || ma.personalNr);
+}
 
 // ── SSE: live check-in updates from other Teamleiter ─────────────────
 const checkInEventSource = ref(null);
@@ -1175,11 +1279,15 @@ function connectCheckInSSE(auftragNr) {
       const payload = JSON.parse(event.data);
       // Ignore the initial connection-confirmation event
       if (payload.type === 'connected') return;
-      const { personalNr, checkedIn, noShow } = payload;
-      // Use Number() coercion on both sides — API may return strings, SSE sends integers
-      const pNr = Number(personalNr);
+      const { einsatzId, personalNr, checkedIn, noShow } = payload;
+      const targetEinsatzId = einsatzId ? String(einsatzId) : null;
+      const pNr = personalNr != null ? Number(personalNr) : null;
       for (const schicht of schichtGruppen.value) {
-        const ma = schicht.mitarbeiter.find(m => Number(m.personalNr) === pNr);
+        const ma = schicht.mitarbeiter.find(m =>
+          targetEinsatzId
+            ? String(m.einsatzId) === targetEinsatzId
+            : (pNr != null && Number(m.personalNr) === pNr)
+        );
         if (ma) {
           ma.checkedIn = checkedIn;
           ma.noShow = noShow;
@@ -1205,14 +1313,16 @@ function disconnectCheckInSSE() {
 onUnmounted(disconnectCheckInSSE);
 
 async function toggleCheckIn(ma) {
-  if (checkInInProgress.has(ma.personalNr)) return;
-  checkInInProgress.add(ma.personalNr);
+  const key = maCheckInKey(ma);
+  if (checkInInProgress.has(key)) return;
+  checkInInProgress.add(key);
   try {
     // If "nicht erschienen": click clears that state first via API
     if (ma.noShow) {
       ma.noShow = false;
       props.api.post('/api/public/noshow/toggle', {
         auftragNr: props.einsatz.auftragNr,
+        einsatzId: ma.einsatzId,
         personalNr: ma.personalNr,
       }).catch(() => {
         ma.noShow = true; // revert on error
@@ -1223,6 +1333,7 @@ async function toggleCheckIn(ma) {
     try {
       const res = await props.api.post('/api/public/checkins/toggle', {
         auftragNr: props.einsatz.auftragNr,
+        einsatzId: ma.einsatzId,
         personalNr: ma.personalNr,
       });
       ma.checkedIn = res.data.checkedIn; // reconcile with server truth
@@ -1230,7 +1341,7 @@ async function toggleCheckIn(ma) {
       ma.checkedIn = !ma.checkedIn; // revert on error
     }
   } finally {
-    checkInInProgress.delete(ma.personalNr);
+    checkInInProgress.delete(key);
   }
 }
 
@@ -1246,8 +1357,8 @@ async function loadMitarbeiter() {
       ...schicht,
       mitarbeiter: schicht.mitarbeiter.map(ma => ({
         ...ma,
-        checkedIn: !!saved.checkedIn[ma.personalNr],
-        noShow: !!saved.noShow[ma.personalNr],
+        checkedIn: !!(saved.checkedIn[String(ma.einsatzId)] || (!ma.einsatzId && saved.checkedIn[String(ma.personalNr)])),
+        noShow: !!(saved.noShow[String(ma.einsatzId)] || (!ma.einsatzId && saved.noShow[String(ma.personalNr)])),
       }))
     }));
     schichtGruppen.value = nextGroups;
@@ -2104,6 +2215,28 @@ watch(() => props.einsatz?._id, () => {
 .annot-action-item:active {
   background: var(--hover);
 }
+.annot-action-item:disabled,
+.annot-action-item--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.annot-action-item:disabled:active,
+.annot-action-item--disabled:active {
+  background: var(--tile-bg);
+}
+.annot-action-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+.annot-action-hint {
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--muted);
+  line-height: 1.3;
+}
 .annot-action-icon {
   width: 32px;
   height: 32px;
@@ -2113,6 +2246,14 @@ watch(() => props.einsatz?._id, () => {
   justify-content: center;
   font-size: 0.85rem;
   flex-shrink: 0;
+}
+.annot-action-icon--laufzettel {
+  background: rgba(16, 185, 129, 0.12);
+}
+.annot-action-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 .annot-action-icon--delay {
   background: rgba(234, 88, 12, 0.12);
@@ -2134,6 +2275,10 @@ watch(() => props.einsatz?._id, () => {
 .annot-action-badge--noshow {
   background: rgba(220, 38, 38, 0.1);
   color: #dc2626;
+}
+.annot-action-badge--done {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
 }
 
 .annot-cancel-btn {

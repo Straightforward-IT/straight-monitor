@@ -8,6 +8,10 @@
       </button>
     </div>
 
+    <p class="view-intro">
+      Sprich <strong>zu Beginn deines Jobs</strong> einen Teamleiter an. Beantrage den Laufzettel anschließend hier im Portal und wähle den entsprechenden Job sowie den Teamleiter aus. In der Regel laden wir dich nach <strong>4 positiven Feedbacks</strong>  zur nächsten Schulung ein.
+    </p>
+
     <!-- ── SUCCESS ─────────────────────────────── -->
     <div v-if="submitSuccess" class="success-state">
       <div class="success-icon">
@@ -29,6 +33,9 @@
           <span v-else class="selected-value">{{ selectedEinsatzLabel }}</span>
           <font-awesome-icon icon="fa-solid fa-chevron-down" />
         </div>
+        <span class="field-hint">
+          Laufzettel können nur für Einsätze der letzten 7 Tage beantragt werden.
+        </span>
         <div v-if="showJobPicker" class="picker-overlay" @click="showJobPicker = false">
           <div class="picker-sheet" @click.stop>
             <div class="picker-header">
@@ -51,7 +58,7 @@
                 <span class="picker-item-date">{{ formatDate(e.datumVon) }}</span>
               </div>
               <div v-if="pastEinsaetze.length === 0" class="picker-empty">
-                Keine vergangenen Jobs gefunden.
+                Keine Jobs aus den letzten 7 Tagen gefunden.
               </div>
             </div>
           </div>
@@ -429,7 +436,23 @@ function formatDate(d) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.view-intro {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+  background: var(--tile-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  margin: 0 0 1.25rem;
+}
+
+.view-intro strong {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .view-title {
@@ -532,6 +555,14 @@ function formatDate(d) {
   margin-bottom: 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .custom-select {

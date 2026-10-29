@@ -607,14 +607,16 @@
                         title="Pseudo-Schicht"
                         >Pseudo</span
                       >
-                      <span
+                      <CustomTooltip
                         v-if="schichtData.meta.istAusgeschrieben"
-                        class="ausgeschrieben-tag"
-                        title="Schicht ist im Mitarbeiter-Portal ausgeschrieben"
+                        :text="`Sichtbar für ${schichtData.meta.qualifiedMitarbeiterCount ?? schichtData.meta.visibleMitarbeiterCount ?? 0} Mitarbeiter`"
+                        position="top"
                       >
-                        <font-awesome-icon icon="fa-solid fa-bullhorn" />
-                        Ausgeschrieben
-                      </span>
+                        <span class="ausgeschrieben-tag">
+                          <font-awesome-icon icon="fa-solid fa-bullhorn" />
+                          Ausgeschrieben
+                        </span>
+                      </CustomTooltip>
                       <span
                         v-if="
                           getCommonQualifikation(schichtData.einsaetze) ||
@@ -3040,6 +3042,64 @@ export default {
         replanFromDispoIds: [],
       };
     },
+    findPreparedSchichtForPrompt(targetHint = null) {
+      const list = this.preparedSchichten || [];
+      if (!list.length) return null;
+      if (!targetHint) return list[0] || null;
+      const hintStr = String(
+        targetHint?.meta?.schichtId ||
+        targetHint?.meta?.idAuftragArbeitsschichten ||
+        targetHint?.key ||
+        targetHint
+      ).trim();
+      return (
+        list.find(
+          (s) =>
+            String(s.key) === hintStr ||
+            (s.meta?.schichtId && String(s.meta.schichtId) === hintStr) ||
+            (s.meta?.idAuftragArbeitsschichten != null &&
+              String(s.meta.idAuftragArbeitsschichten) === hintStr),
+        ) || null
+      );
+    },
+    promptEndAusschreibungIfBedarfMet(targetHint = null) {
+      const schichtData = this.findPreparedSchichtForPrompt(targetHint);
+      if (!schichtData?.meta?.istAusgeschrieben) return false;
+      const bedarf = Number(schichtData.meta?.bedarf || 0);
+      const currentCount = this.schichtRegularCount(schichtData);
+      if (!(bedarf > 0 && currentCount >= bedarf)) return false;
+
+      const shiftName = schichtData.meta?.schichtBezeichnung || "Schicht";
+      const schichtId =
+        schichtData.meta?.schichtId ||
+        schichtData.meta?.idAuftragArbeitsschichten ||
+        schichtData.key;
+
+      this.dropWarningFlow = {
+        steps: [
+          {
+            type: "end-ausschreibung",
+            shiftName,
+            currentCount,
+            bedarf,
+          },
+        ],
+        stepIndex: 0,
+        busy: false,
+        mitarbeiter: null,
+        schichtData,
+        schichtId,
+        decisionMode: "plan",
+        notifyEmployee: false,
+        customAction: {
+          type: "end-ausschreibung",
+          schichtData,
+        },
+        replanFromEinsatzIds: [],
+        replanFromDispoIds: [],
+      };
+      return true;
+    },
     async handleDropWarningDecision(action) {
       const step = this.currentDropWarningStep;
       const flow = this.dropWarningFlow;
@@ -3047,15 +3107,29 @@ export default {
 
       flow.busy = true;
       try {
+        if (step.type === "end-ausschreibung") {
+          if (action === "end-ausschreibung" && flow.schichtData?.meta?.istAusgeschrieben) {
+            await this.toggleSchichtAusschreibung(flow.schichtData);
+          }
+          flow.busy = false;
+          this.cancelDropWarningFlow();
+          return;
+        }
         if (step.type === "notify-employee") {
           flow.notifyEmployee = action === "confirm-notify";
           if (flow.customAction?.type === "toggle-reserve") {
+            const targetHint =
+              flow.schichtData ||
+              flow.customAction.einsatz?.schicht?._id ||
+              flow.customAction.einsatz?.schicht ||
+              flow.customAction.einsatz?.idAuftragArbeitsschichten;
             await this.executeToggleEinsatzReserve(
               flow.customAction.einsatz,
               flow.notifyEmployee,
             );
             flow.busy = false;
             this.cancelDropWarningFlow();
+            this.promptEndAusschreibungIfBedarfMet(targetHint);
             return;
           }
         } else if (
@@ -3129,6 +3203,7 @@ export default {
           return;
         }
 
+        const targetHint = flow.schichtData || flow.schichtId;
         await this.executePseudoDropAssignment({
           mitarbeiter: flow.mitarbeiter,
           schichtId: flow.schichtId,
@@ -3139,6 +3214,7 @@ export default {
         });
         flow.busy = false;
         this.cancelDropWarningFlow();
+        this.promptEndAusschreibungIfBedarfMet(targetHint);
       } catch (err) {
         flow.busy = false;
         alert(
@@ -3264,6 +3340,16 @@ export default {
     async onBewerbungUpdated(payload) {
       if (this.selectedEvent?.auftragNr) {
         await this.reloadSelectedEventDetails();
+        if (payload?.action === "accept") {
+          const bew = payload?.bewerbung;
+          const targetHint =
+            bew?.schicht?._id ||
+            bew?.schicht ||
+            bew?.idAuftragArbeitsschichten ||
+            bew?.jobId ||
+            null;
+          this.promptEndAusschreibungIfBedarfMet(targetHint);
+        }
       } else if (payload?.action === "accept" && payload?.bewerbung?.auftragNr) {
         await this.selectEvent({ auftragNr: payload.bewerbung.auftragNr });
       }
@@ -5501,11 +5587,20 @@ export default {
         this.selectedEvent = detailsRes.data;
         this.preparedSchichten = this.calculateSchichten(this.selectedEvent);
         this.syncCalendarOrderFromDetails(this.selectedEvent);
+        const canPromptEndAusschreibung =
+          this.pseudoSchichtMode !== "edit" &&
+          this.pseudoSchichtMode !== "new" &&
+          !this.pseudoIsReserve &&
+          this.pseudoSelectedMas.length > 0;
+        const targetShiftKeyForPrompt = this.pseudoSelectedSchicht;
         this.showPseudoDialog = false;
         if (errors.length)
           alert(
             "Einige konnten nicht eingeplant werden:\n" + errors.join("\n"),
           );
+        if (canPromptEndAusschreibung) {
+          this.promptEndAusschreibungIfBedarfMet(targetShiftKeyForPrompt);
+        }
       } catch (err) {
         alert(err.response?.data?.message || "Fehler beim Einplanen");
       } finally {
@@ -7813,6 +7908,13 @@ export default {
   border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
   color: var(--primary);
   flex-shrink: 0;
+  cursor: default;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 26%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 75%, transparent);
+  }
 
   &.ausgeschrieben-tag--shift {
     font-size: 0.54rem;

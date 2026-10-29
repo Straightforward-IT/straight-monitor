@@ -67,8 +67,8 @@ class TelefonlisteService {
     });
     const berufByKey = new Map(berufe.map((beruf) => [Number(beruf.jobKey), beruf]));
     const schichtById = new Map(schichten.map((schicht) => [String(schicht.idAuftragArbeitsschichten), schicht]));
-    const checkedInPersonalNrs = new Set((checkIn?.checkedIn || []).map(String));
-    const noShowPersonalNrs = new Set((checkIn?.noShow || []).map(String));
+    const checkedInKeys = new Set((checkIn?.checkedIn || []).map(String));
+    const noShowKeys = new Set((checkIn?.noShow || []).map(String));
     const groups = new Map();
 
     einsaetze.forEach((einsatz) => {
@@ -90,6 +90,8 @@ class TelefonlisteService {
 
       const person = mitarbeiterByPersonalNr.get(String(einsatz.personalNr)) || null;
       const beruf = berufByKey.get(Number.parseInt(einsatz.berufSchl, 10)) || null;
+      const einsatzIdStr = String(einsatz._id);
+      const personalNrStr = String(einsatz.personalNr);
       groups.get(key).mitarbeiter.push({
         personalNr: einsatz.personalNr,
         vorname: person?.vorname || '',
@@ -99,8 +101,8 @@ class TelefonlisteService {
         bereich: this._roleLabel(beruf?.designation || einsatz.bezeichnung),
         uhrzeitVon: schicht?.uhrzeitVon || einsatz.uhrzeitVon || null,
         uhrzeitBis: schicht?.uhrzeitBis || einsatz.uhrzeitBis || null,
-        checkedIn: checkedInPersonalNrs.has(String(einsatz.personalNr)),
-        noShow: noShowPersonalNrs.has(String(einsatz.personalNr)),
+        checkedIn: checkedInKeys.has(einsatzIdStr) || checkedInKeys.has(personalNrStr),
+        noShow: noShowKeys.has(einsatzIdStr) || noShowKeys.has(personalNrStr),
       });
     });
 

@@ -153,6 +153,7 @@
           :public-menu-options="publicMenuOptions"
           @back="goBackFromJob"
           @write-report="writeReportForJob"
+          @laufzettel-submitted="loadData"
         />
 
         <!-- Event Report (Teamleiter) -->

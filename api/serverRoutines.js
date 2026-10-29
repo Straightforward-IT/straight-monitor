@@ -12,6 +12,7 @@ const {
 const { runApplicantMailRetentionCleanup } = require("./services/employee/ApplicantMailRetentionService");
 const { expireEmployeeDocumentRequests } = require("./services/employee/EmployeeDocumentService");
 const { sendMonthlyWatchlistReports } = require("./services/operations/KundenWatchlistReportService");
+const { expireStartedSchichtAusschreibungen } = require("./services/operations/SchichtAusschreibungService");
 const registry = require("./config/registry");
 const logger = require("./utils/logger");
 
@@ -275,6 +276,17 @@ async function runApplicantMailGdprCleanup() {
           logger.info("Employee document expiry check completed:", JSON.stringify(result));
         } catch (error) {
           logger.routineError("Employee Document Expiry Check", error);
+        }
+      }));
+    }
+
+    // 📢 Schicht-Ausschreibungen automatisch beenden, sobald Schicht begonnen hat (alle 15 Min)
+    if (!DISABLE_LIST.has("schicht_ausschreibung_expiry")) {
+      cron.schedule("*/15 * * * *", guard(async () => {
+        try {
+          await expireStartedSchichtAusschreibungen();
+        } catch (error) {
+          logger.routineError("Schicht Ausschreibung Expiry Check", error);
         }
       }));
     }

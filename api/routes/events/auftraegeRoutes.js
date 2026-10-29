@@ -39,6 +39,10 @@ const { withAuftragChronik } = require('../../services/operations/AuftragChronik
 const { allocateMonitorId } = require('../../services/operations/MonitorIdService');
 const { invalidateForTimeChange } = require('../../services/operations/EinsatzBestaetigungService');
 const { notifyEinsatzAssignment } = require('../../services/operations/EinsatzFlipTaskService');
+const {
+  hasSchichtStarted,
+  expireStartedSchichtAusschreibungen,
+} = require('../../services/operations/SchichtAusschreibungService');
 const resolveQueries = require('../../utils/resolveQueries');
 const { canAccess } = require('../../services/TimeCaptureService');
 const { resolveGroupOrderDefaults, resolveOrderView } = require('../../services/operations/AuftragsgruppeOrderService');
@@ -803,6 +807,7 @@ router.get('/', async (req, res) => {
     
     // Aggregate schichten bedarf/besetzt status per auftrag
     // besetzt is not stored reliably — compute from actual Einsatz records
+    const nowForAusschreibung = new Date();
     const schichten = await Schicht.find(
       { auftragNr: { $in: auftragNrs }, bedarf: { $gt: 0 } },
       {
@@ -813,6 +818,7 @@ router.get('/', async (req, res) => {
         uhrzeitVon: 1,
         uhrzeitBis: 1,
         datumVon: 1,
+        datumBis: 1,
         qualSchl: 1,
         berufSchl: 1,
         source: 1,
@@ -823,6 +829,18 @@ router.get('/', async (req, res) => {
         groupShiftKey: 1,
       }
     ).lean();
+
+    const auftragDatesByNr = new Map(auftraege.map((a) => [a.auftragNr, a]));
+    const expiredSchichtIdsInList = [];
+    for (const s of schichten) {
+      if (s.istAusgeschrieben && hasSchichtStarted(s, auftragDatesByNr.get(s.auftragNr), nowForAusschreibung)) {
+        s.istAusgeschrieben = false;
+        expiredSchichtIdsInList.push(s._id);
+      }
+    }
+    if (expiredSchichtIdsInList.length) {
+      Schicht.updateMany({ _id: { $in: expiredSchichtIdsInList }, istAusgeschrieben: true }, { $set: { istAusgeschrieben: false } }).catch(() => {});
+    }
 
     // Count actual Einsätze per (auftragNr, idAuftragArbeitsschichten)
     const einsatzBySchicht = await Einsatz.aggregate([
@@ -1018,6 +1036,21 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
     const schichten = await Schicht.find({ auftragNr: parseInt(auftragNr) })
       .sort({ idAuftragArbeitsschichten: 1, datumVon: 1 })
       .lean();
+
+    const nowForDetail = new Date();
+    const expiredDetailSchichtIds = [];
+    for (const s of schichten) {
+      if (s.istAusgeschrieben && hasSchichtStarted(s, auftrag, nowForDetail)) {
+        s.istAusgeschrieben = false;
+        expiredDetailSchichtIds.push(s._id);
+      }
+    }
+    if (expiredDetailSchichtIds.length) {
+      await Schicht.updateMany(
+        { _id: { $in: expiredDetailSchichtIds }, istAusgeschrieben: true },
+        { $set: { istAusgeschrieben: false } }
+      );
+    }
     
     // -- Optimization: Batch fetch related data --
     const personalNrs = [...new Set(einsaetze.map(e => e.personalNr).filter(Boolean).map(String))];
@@ -1068,16 +1101,103 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
       return result;
     });
 
+    // Compute how many Mitarbeiter would see each ausgeschriebene Schicht in the Public Monitor (JobsTab)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const auftragLocationId = auftrag.locationV2?._id || auftrag.locationV2 || null;
+    const isAuftragVisibleInJobs = Boolean(
+      auftragLocationId &&
+      !auftrag.isPseudo &&
+      Number(auftrag.auftStatus) === 2
+    );
+
+    const regularOccupiedBySchichtId = new Map();
+    const regularOccupiedByLegacyId = new Map();
+    const fallbackQualBySchichtId = new Map();
+    const fallbackQualByLegacyId = new Map();
+
+    einsaetze.forEach(e => {
+      const isReserve = Boolean(e.isReserve);
+      const schichtIdStr = e.schicht?._id ? String(e.schicht._id) : (e.schicht ? String(e.schicht) : null);
+      if (schichtIdStr) {
+        if (!isReserve) regularOccupiedBySchichtId.set(schichtIdStr, (regularOccupiedBySchichtId.get(schichtIdStr) || 0) + 1);
+        if (e.qualSchl && !fallbackQualBySchichtId.has(schichtIdStr)) fallbackQualBySchichtId.set(schichtIdStr, String(e.qualSchl).trim());
+      } else if (e.idAuftragArbeitsschichten != null) {
+        const legacyKey = String(e.idAuftragArbeitsschichten);
+        if (!isReserve) regularOccupiedByLegacyId.set(legacyKey, (regularOccupiedByLegacyId.get(legacyKey) || 0) + 1);
+        if (e.qualSchl && !fallbackQualByLegacyId.has(legacyKey)) fallbackQualByLegacyId.set(legacyKey, String(e.qualSchl).trim());
+      }
+    });
+
+    const visibleMitarbeiterCountByQualKey = new Map();
+    if (isAuftragVisibleInJobs && qualiList.length) {
+      const qualIds = qualiList.map(q => q._id);
+      const qualIdToKey = new Map(qualiList.map(q => [String(q._id), String(q.qualificationKey).trim()]));
+      const locationEmployees = await Mitarbeiter.find({
+        locationV2: auftragLocationId,
+        qualifikationen: { $in: qualIds },
+      })
+        .select('qualifikationen kundenwuensche')
+        .populate('kundenwuensche.kunde', 'kundenNr')
+        .lean();
+
+      const orderKundenNr = Number(auftrag.kundenNr);
+      for (const emp of locationEmployees) {
+        if (Number.isFinite(orderKundenNr) && orderKundenNr > 0) {
+          const isBlocked = (emp.kundenwuensche || []).some(w =>
+            w?.typ === 'negativ' && Number(w.kunde?.kundenNr ?? w.kundenNr) === orderKundenNr
+          );
+          if (isBlocked) continue;
+        }
+        const seenKeys = new Set();
+        for (const qId of emp.qualifikationen || []) {
+          const key = qualIdToKey.get(String(qId?._id || qId));
+          if (key && !seenKeys.has(key)) {
+            seenKeys.add(key);
+            visibleMitarbeiterCountByQualKey.set(key, (visibleMitarbeiterCountByQualKey.get(key) || 0) + 1);
+          }
+        }
+      }
+    }
+
     const schichtenWithRefs = schichten.map(schicht => {
       const result = { ...schicht };
       if (schicht.berufSchl) {
         const key = parseInt(schicht.berufSchl, 10);
         result.berufData = berufMap.get(key) || null;
       }
-      if (schicht.qualSchl) {
-        const key = parseInt(schicht.qualSchl, 10);
+      const schichtIdStr = String(schicht._id);
+      const legacyKeyStr = schicht.idAuftragArbeitsschichten != null ? String(schicht.idAuftragArbeitsschichten) : null;
+      const resolvedQualSchl = String(
+        schicht.qualSchl ||
+        fallbackQualBySchichtId.get(schichtIdStr) ||
+        (legacyKeyStr ? fallbackQualByLegacyId.get(legacyKeyStr) : '') ||
+        ''
+      ).trim();
+      if (resolvedQualSchl) {
+        const key = parseInt(resolvedQualSchl, 10);
         result.qualifikationData = qualiMap.get(key) || null;
       }
+
+      const occupiedPlaces = regularOccupiedBySchichtId.get(schichtIdStr)
+        ?? (legacyKeyStr ? regularOccupiedByLegacyId.get(legacyKeyStr) : undefined)
+        ?? 0;
+      const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
+      const isNotStartedYet = !hasSchichtStarted(schicht, auftrag, nowForDetail);
+      const qualifiedMitarbeiterCount = resolvedQualSchl
+        ? (visibleMitarbeiterCountByQualKey.get(resolvedQualSchl) || 0)
+        : 0;
+      const isShiftVisibleAsNewJob = Boolean(
+        isAuftragVisibleInJobs &&
+        schicht.istAusgeschrieben &&
+        Number(schicht.bedarf || 0) > 0 &&
+        isNotStartedYet &&
+        resolvedQualSchl
+      );
+
+      result.qualifiedMitarbeiterCount = qualifiedMitarbeiterCount;
+      result.visibleMitarbeiterCount = isShiftVisibleAsNewJob ? qualifiedMitarbeiterCount : 0;
+      result.openPlaces = openPlaces;
       return result;
     });
     

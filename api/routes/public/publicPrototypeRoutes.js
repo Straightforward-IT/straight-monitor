@@ -9,6 +9,10 @@ const Einsatz = require('../../models/Event/Einsatz');
 const JobBewerbung = require('../../models/Event/JobBewerbung');
 const mongoose = require('mongoose');
 const { completeEinsatzFlipTask } = require('../../services/operations/EinsatzFlipTaskService');
+const {
+  hasSchichtStarted,
+  expireStartedSchichtAusschreibungen,
+} = require('../../services/operations/SchichtAusschreibungService');
 const { createTomorrowConfirmationFixture, deleteTomorrowConfirmationFixture } = require('../../services/public/PublicNeuigkeitenFixtureService');
 
 const router = express.Router();
@@ -110,7 +114,10 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
     }
   }
 
-  const today = new Date();
+  const now = new Date();
+  await expireStartedSchichtAusschreibungen(now);
+
+  const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
   const schichtQuery = appliedSchichtIds.length
@@ -238,7 +245,7 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
 
     if (!hasApplication) {
       if (!schicht.istAusgeschrieben) return [];
-      if (!openPlaces) return [];
+      if (hasSchichtStarted(schicht, auftrag, now)) return [];
       if (!resolvedQualSchl || !employeeQualKeys.has(resolvedQualSchl)) return [];
     }
 

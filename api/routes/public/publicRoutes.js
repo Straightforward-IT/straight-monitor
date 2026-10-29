@@ -997,6 +997,7 @@ router.get(
         einsatzBezeichnung: e.bezeichnung,
       });
       schichtMap[key].mitarbeiter.push({
+        einsatzId: String(e._id),
         personalNr: e.personalNr,
         vorname: ma?.vorname || null,
         nachname: ma?.nachname || null,
@@ -1500,10 +1501,11 @@ router.get(
 router.post(
   "/laufzettel",
   asyncHandler(async (req, res) => {
-    const { email, auftragNr, teamleiter_email } = req.body;
+    const { email, auftragNr, teamleiter_email, teamleiter_personalnr } = req.body;
+    const submitterEmail = req.oidcEmail || email;
 
-    if (!email || !auftragNr || !teamleiter_email) {
-      return res.status(400).json({ msg: "Pflichtfelder fehlen (email, auftragNr, teamleiter_email)" });
+    if (!submitterEmail || !auftragNr || (!teamleiter_email && !teamleiter_personalnr)) {
+      return res.status(400).json({ msg: "Pflichtfelder fehlen (email, auftragNr, teamleiter_email oder teamleiter_personalnr)" });
     }
 
     const auftragLocation = await resolveLocationFromAuftrag(auftragNr);
@@ -1516,15 +1518,27 @@ router.post(
     };
 
     // Resolve Mitarbeiter (submitter — check additionalEmails too)
-    const maEmail = email.toLowerCase().trim();
+    const maEmail = String(submitterEmail).toLowerCase().trim();
     const mitarbeiter = await Mitarbeiter.findOne({ $or: [{ email: maEmail }, { additionalEmails: maEmail }] });
     if (!mitarbeiter) {
       return res.status(404).json({ msg: "Mitarbeiter nicht gefunden" });
     }
 
-    // Resolve Teamleiter (check additionalEmails too)
-    const tlEmail = teamleiter_email.toLowerCase().trim();
-    const teamleiter = await Mitarbeiter.findOne({ $or: [{ email: tlEmail }, { additionalEmails: tlEmail }] });
+    // Resolve Teamleiter (check additionalEmails or personalnr/personalnrHistory)
+    let teamleiter = null;
+    if (teamleiter_email) {
+      const tlEmail = String(teamleiter_email).toLowerCase().trim();
+      teamleiter = await Mitarbeiter.findOne({ $or: [{ email: tlEmail }, { additionalEmails: tlEmail }] });
+    }
+    if (!teamleiter && teamleiter_personalnr != null && String(teamleiter_personalnr).trim() !== "") {
+      const tlPersonalNr = String(teamleiter_personalnr).trim();
+      teamleiter = await Mitarbeiter.findOne({
+        $or: [
+          { personalnr: tlPersonalNr },
+          { "personalnrHistory.value": tlPersonalNr },
+        ],
+      });
+    }
     if (!teamleiter) {
       return res.status(404).json({ msg: "Teamleiter nicht gefunden" });
     }
@@ -1885,77 +1899,102 @@ router.get(
 
 // ──────────────────────────────────────────────
 // POST /api/public/checkins/toggle
-// Toggles a single personalNr in the check-in list
-// Body: { auftragNr, personalNr }
+// Toggles a single einsatzId (or legacy personalNr) in the check-in list
+// Body: { auftragNr, einsatzId, personalNr }
 // Returns: { checkedIn: boolean } — the new state
 // ──────────────────────────────────────────────
 router.post(
   "/checkins/toggle",
   asyncHandler(async (req, res) => {
-    const { auftragNr, personalNr } = req.body;
-    if (!auftragNr || !personalNr) {
-      return res.status(400).json({ msg: "auftragNr and personalNr are required" });
+    const { auftragNr, einsatzId, personalNr } = req.body;
+    const rawKey = einsatzId != null && String(einsatzId).trim() !== ""
+      ? String(einsatzId).trim()
+      : (personalNr != null ? parseInt(personalNr, 10) : null);
+    if (!auftragNr || !rawKey) {
+      return res.status(400).json({ msg: "auftragNr and einsatzId (or personalNr) are required" });
     }
-    const nr = parseInt(auftragNr);
-    const pNr = parseInt(personalNr);
+    const nr = parseInt(auftragNr, 10);
+    const keyStr = String(rawKey);
+    const pNr = personalNr != null ? parseInt(personalNr, 10) : null;
 
     let doc = await CheckIn.findOne({ auftragNr: nr });
     if (!doc) {
-      doc = new CheckIn({ auftragNr: nr, checkedIn: [pNr] });
+      doc = new CheckIn({ auftragNr: nr, checkedIn: [rawKey] });
       await doc.save();
-      broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: true, noShow: false });
+      broadcastCheckInUpdate(nr, { einsatzId: keyStr, personalNr: pNr, checkedIn: true, noShow: false });
       return res.json({ checkedIn: true });
     }
 
-    const idx = doc.checkedIn.indexOf(pNr);
+    const idx = (doc.checkedIn || []).findIndex((v) => String(v) === keyStr);
+    let newCheckedIn;
     if (idx === -1) {
-      doc.checkedIn.push(pNr);
+      // If toggling by einsatzId and legacy personalNr was stored, remove legacy personalNr to avoid stale global state
+      if (einsatzId && pNr) {
+        const legacyIdx = (doc.checkedIn || []).findIndex((v) => String(v) === String(pNr));
+        if (legacyIdx !== -1) doc.checkedIn.splice(legacyIdx, 1);
+      }
+      doc.checkedIn.push(rawKey);
+      newCheckedIn = true;
     } else {
       doc.checkedIn.splice(idx, 1);
+      newCheckedIn = false;
     }
+    doc.markModified("checkedIn");
     await doc.save();
-    const newCheckedIn = idx === -1;
-    broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: newCheckedIn, noShow: false });
+    broadcastCheckInUpdate(nr, { einsatzId: keyStr, personalNr: pNr, checkedIn: newCheckedIn, noShow: false });
     res.json({ checkedIn: newCheckedIn });
   })
 );
 
 // ──────────────────────────────────────────────
 // POST /api/public/noshow/toggle
-// Toggles a single personalNr in the no-show list
-// Body: { auftragNr, personalNr }
+// Toggles a single einsatzId (or legacy personalNr) in the no-show list
+// Body: { auftragNr, einsatzId, personalNr }
 // Returns: { noShow: boolean } — the new state
 // ──────────────────────────────────────────────
 router.post(
   "/noshow/toggle",
   asyncHandler(async (req, res) => {
-    const { auftragNr, personalNr } = req.body;
-    if (!auftragNr || !personalNr) {
-      return res.status(400).json({ msg: "auftragNr and personalNr are required" });
+    const { auftragNr, einsatzId, personalNr } = req.body;
+    const rawKey = einsatzId != null && String(einsatzId).trim() !== ""
+      ? String(einsatzId).trim()
+      : (personalNr != null ? parseInt(personalNr, 10) : null);
+    if (!auftragNr || !rawKey) {
+      return res.status(400).json({ msg: "auftragNr and einsatzId (or personalNr) are required" });
     }
-    const nr = parseInt(auftragNr);
-    const pNr = parseInt(personalNr);
+    const nr = parseInt(auftragNr, 10);
+    const keyStr = String(rawKey);
+    const pNr = personalNr != null ? parseInt(personalNr, 10) : null;
 
     let doc = await CheckIn.findOne({ auftragNr: nr });
     if (!doc) {
-      doc = new CheckIn({ auftragNr: nr, checkedIn: [], noShow: [pNr] });
+      doc = new CheckIn({ auftragNr: nr, checkedIn: [], noShow: [rawKey] });
       await doc.save();
-      broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: false, noShow: true });
+      broadcastCheckInUpdate(nr, { einsatzId: keyStr, personalNr: pNr, checkedIn: false, noShow: true });
       return res.json({ noShow: true });
     }
 
-    const idx = (doc.noShow || []).indexOf(pNr);
+    const idx = (doc.noShow || []).findIndex((v) => String(v) === keyStr);
+    let newNoShow;
     if (idx === -1) {
-      doc.noShow.push(pNr);
+      if (einsatzId && pNr) {
+        const legacyIdx = (doc.noShow || []).findIndex((v) => String(v) === String(pNr));
+        if (legacyIdx !== -1) doc.noShow.splice(legacyIdx, 1);
+      }
+      doc.noShow.push(rawKey);
       // Remove from checkedIn if present
-      const ciIdx = doc.checkedIn.indexOf(pNr);
+      const ciIdx = (doc.checkedIn || []).findIndex((v) => String(v) === keyStr || (pNr && String(v) === String(pNr)));
       if (ciIdx !== -1) doc.checkedIn.splice(ciIdx, 1);
+      newNoShow = true;
     } else {
       doc.noShow.splice(idx, 1);
+      newNoShow = false;
     }
+    doc.markModified("noShow");
+    doc.markModified("checkedIn");
     await doc.save();
-    const newNoShow = idx === -1;
-    broadcastCheckInUpdate(nr, { personalNr: pNr, checkedIn: !!doc.checkedIn.includes(pNr), noShow: newNoShow });
+    const isCheckedIn = (doc.checkedIn || []).some((v) => String(v) === keyStr);
+    broadcastCheckInUpdate(nr, { einsatzId: keyStr, personalNr: pNr, checkedIn: isCheckedIn, noShow: newNoShow });
     res.json({ noShow: newNoShow });
   })
 );
