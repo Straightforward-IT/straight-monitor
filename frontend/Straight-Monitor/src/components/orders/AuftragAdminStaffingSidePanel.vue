@@ -129,6 +129,17 @@
             <button
               type="button"
               class="docked-control-btn"
+              :class="{ active: isTeamleiterFilterActive }"
+              :aria-pressed="isTeamleiterFilterActive"
+              title="Nur Teamleiter anzeigen (Qualifikation 50055)"
+              @click="toggleQualificationFilter(50055)"
+            >
+              <font-awesome-icon icon="fa-solid fa-user-tie" />
+              <span>TL</span>
+            </button>
+            <button
+              type="button"
+              class="docked-control-btn"
               :class="{ active: onlyAvailableOnOrderDay && Boolean(event?.vonDatum) }"
               :aria-pressed="onlyAvailableOnOrderDay && Boolean(event?.vonDatum)"
               :disabled="!event?.vonDatum"
@@ -997,6 +1008,7 @@ import {
   faUserClock,
   faUserPlus,
   faUsers,
+  faUserTie,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import {
@@ -1064,6 +1076,7 @@ library.add(
   faUserClock,
   faUserPlus,
   faUsers,
+  faUserTie,
   faXmark,
 );
 
@@ -2740,7 +2753,7 @@ async function executeBewerbungDecision(bew, parsedAction, targetSchichtId, noti
       }
       bew.status = nextStatus;
       bew.isReserve = isReserve;
-      emit('bewerbung-updated', { bewerbung: bew, action: parsedAction });
+      emit('bewerbung-updated', { bewerbung: bew, action: parsedAction, targetSchichtId });
       return;
     }
 
@@ -2770,7 +2783,12 @@ async function executeBewerbungDecision(bew, parsedAction, targetSchichtId, noti
       }
     }
 
-    emit('bewerbung-updated', { bewerbung: data?.bewerbung || bew, action: parsedAction });
+    emit('bewerbung-updated', {
+      bewerbung: data?.bewerbung || bew,
+      action: parsedAction,
+      targetSchichtId,
+      einsatz: data?.einsatz || null,
+    });
   } catch (err) {
     alert(err.response?.data?.message || 'Bewerbung konnte nicht aktualisiert werden.');
   } finally {
@@ -2915,11 +2933,77 @@ onMounted(async () => {
   }
 });
 
+async function toggleQualificationFilter(qualification) {
+  if (!qualification) return false;
+  if (!dataCache.qualifikationen?.length && typeof indexedDB !== 'undefined') {
+    await dataCache.loadQualifikationen().catch(() => {});
+  }
+  const rawKey = Number.parseInt(
+    qualification?.qualificationKey ?? qualification?.qualSchl ?? qualification,
+    10
+  );
+  const fromCache = (dataCache.qualifikationen || []).find((item) => {
+    if (qualification?._id && String(item._id) === String(qualification._id)) return true;
+    if (!Number.isNaN(rawKey) && Number.parseInt(item.qualificationKey, 10) === rawKey) return true;
+    if (
+      qualification?.designation &&
+      String(item.designation).trim().toLowerCase() ===
+        String(qualification.designation).trim().toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  const value = String(fromCache?._id || qualification?._id || '').trim();
+  if (!value) return false;
+  const label =
+    fromCache?.designation ||
+    qualification?.designation ||
+    (!Number.isNaN(rawKey) ? `Qualifikation #${rawKey}` : 'Qualifikation');
+
+  activeTab.value = 'all';
+
+  const exists = employeeSearchFilters.value.some(
+    (f) => f.category === 'qualifikationen' && String(f.value) === value
+  );
+  const nextFilters = exists
+    ? employeeSearchFilters.value.filter(
+        (f) => !(f.category === 'qualifikationen' && String(f.value) === value)
+      )
+    : [...employeeSearchFilters.value, { category: 'qualifikationen', label, value }];
+
+  onEmployeeSearchFiltersChange(nextFilters);
+  return !exists;
+}
+
+function hasQualificationFilter(qualification) {
+  if (!qualification) return false;
+  const rawKey = Number.parseInt(
+    qualification?.qualificationKey ?? qualification?.qualSchl ?? qualification,
+    10
+  );
+  const fromCache = (dataCache.qualifikationen || []).find((item) => {
+    if (qualification?._id && String(item._id) === String(qualification._id)) return true;
+    if (!Number.isNaN(rawKey) && Number.parseInt(item.qualificationKey, 10) === rawKey) return true;
+    return false;
+  });
+  const value = String(fromCache?._id || qualification?._id || '').trim();
+  if (!value) return false;
+  return employeeSearchFilters.value.some(
+    (f) => f.category === 'qualifikationen' && String(f.value) === value
+  );
+}
+
+const isTeamleiterFilterActive = computed(() => hasQualificationFilter(50055));
+
 defineExpose({
   loadBewerbungen,
   loadAvailableEmployeesForOrderDay,
   rowDispoInfo,
   selectMitarbeiter,
+  toggleQualificationFilter,
+  hasQualificationFilter,
 });
 </script>
 

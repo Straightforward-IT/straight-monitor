@@ -14,8 +14,8 @@
     left-offset="73px"
     :default-height="380"
     :body-scrollable="false"
+    :show-close="false"
     desktop-only
-    @close="$emit('close')"
   >
     <template #actions>
       <AppIconButton

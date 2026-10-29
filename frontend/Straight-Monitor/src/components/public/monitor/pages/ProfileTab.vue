@@ -11,6 +11,9 @@
         <PublicListItem icon="fa-solid fa-file-lines" title="Event Reports" description="Berichte erstellen und verwalten" @click="$emit('open-event-reports')" />
         <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel ausfüllen" description="Evaluierungen bearbeiten" :badge="openLaufzettelCount || null" @click="$emit('open-evaluations')" />
       </template>
+      <template v-else>
+        <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel" description="Laufzettel von einem Teamleiter anfordern" :badge="submittedLaufzettelCount || null" @click="$emit('open-laufzettel')" />
+      </template>
       <PublicListItem :icon="themeIsDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'" title="Darstellung" :description="themeIsDark ? 'Dunkler Modus aktiv' : 'Heller Modus aktiv'" @click="$emit('open-appearance')" />
       <PublicListItem icon="fa-solid fa-rotate-left" title="Prototyp zurücksetzen" description="Alle lokalen Demo-Zustände löschen" @click="$emit('reset')" />
     </div>
@@ -28,6 +31,7 @@ defineProps({
   missingDocumentCount: { type: Number, default: 0 },
   nextProfileRank: { type: String, default: 'none' },
   openLaufzettelCount: { type: Number, default: 0 },
+  submittedLaufzettelCount: { type: Number, default: 0 },
   profileImageUrl: { type: String, default: '' },
   profileRankClass: { type: String, default: '' },
   resetMessage: { type: String, default: '' },
@@ -35,5 +39,5 @@ defineProps({
   vorname: { type: String, default: '' },
 });
 
-defineEmits(['cycle-rank', 'open-appearance', 'open-documents', 'open-evaluations', 'open-event-reports', 'open-personal-data', 'reset']);
+defineEmits(['cycle-rank', 'open-appearance', 'open-documents', 'open-evaluations', 'open-event-reports', 'open-laufzettel', 'open-personal-data', 'reset']);
 </script>

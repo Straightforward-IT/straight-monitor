@@ -40,6 +40,7 @@ export function buildEventSchichten(event) {
         berufData: schicht.berufData || null,
         isPseudo: isPseudoSchichtDoc(schicht, event),
         istAusgeschrieben: Boolean(schicht.istAusgeschrieben),
+        locationQualificationCount: typeof schicht.locationQualificationCount === 'number' ? schicht.locationQualificationCount : null,
         qualifiedMitarbeiterCount: typeof schicht.qualifiedMitarbeiterCount === 'number' ? schicht.qualifiedMitarbeiterCount : null,
         visibleMitarbeiterCount: typeof schicht.visibleMitarbeiterCount === 'number' ? schicht.visibleMitarbeiterCount : null,
         regularCount: 0,
@@ -88,6 +89,15 @@ export function buildEventSchichten(event) {
     }
     if (!grouped[key].meta.qualSchl && einsatz.qualSchl) {
       grouped[key].meta.qualSchl = einsatz.qualSchl;
+    }
+    if (
+      grouped[key].meta.locationQualificationCount == null &&
+      event?.locationQualificationCounts
+    ) {
+      const qKey = parseInt(grouped[key].meta.qualSchl || einsatz.qualSchl, 10);
+      if (!isNaN(qKey) && typeof event.locationQualificationCounts[String(qKey)] === 'number') {
+        grouped[key].meta.locationQualificationCount = event.locationQualificationCounts[String(qKey)];
+      }
     }
     if (!grouped[key].meta.qualifikationData && einsatz.qualifikationData) {
       grouped[key].meta.qualifikationData = einsatz.qualifikationData;

@@ -484,15 +484,14 @@
     <!-- Sidebar for Event Details -->
     <AuftragDetailsSidePanel v-model="hasSelectedEvent" :event="selectedEvent" :auftrag-nr="hostedAuftragNr"
       :presentation="isHostedDetail ? 'modal' : 'panel'" :minimizable="detailMinimizable"
-      :minimize-id="detailMinimizeId" :show-chronik-toggle="isAdmin && Boolean(selectedEvent)"
-      :chronik-open="Boolean(isAdmin && showChronik && selectedEvent)"
+      :minimize-id="detailMinimizeId" :reloading="detailReloading || detailLoading"
       :show-staffing-expand="isAdmin && isHostedDetail && staffingPanelHidden" :show-modal-side="isAdmin &&
         isHostedDetail &&
         Boolean(selectedEvent) &&
         !staffingPanelHidden
         " :format-range="formatDateRange" :status-class="getEventStatusClass" :status-text="getStatusText"
       @actions="toggleQuickActionsMenu" @undock="undockSelectedOrder" @expand-staffing="setStaffingPanelHidden(false)"
-      @toggle-chronik="toggleChronik">
+      @refresh="refreshCurrentAuftragEverything">
       <p v-if="detailLoading" role="status">Auftragsdetails werden geladen …</p>
       <div v-else-if="detailError" class="order-detail-error" role="alert">
         <p>{{ detailError }}</p>
@@ -612,26 +611,45 @@
                         :text="`Sichtbar für ${schichtData.meta.qualifiedMitarbeiterCount ?? schichtData.meta.visibleMitarbeiterCount ?? 0} Mitarbeiter`"
                         position="top"
                       >
-                        <span class="ausgeschrieben-tag">
+                        <span
+                          class="ausgeschrieben-tag is-clickable"
+                          :class="{ 'is-filter-active': isSchichtQualificationFilterActive(schichtData) }"
+                          role="button"
+                          tabindex="0"
+                          @click.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                          @keydown.enter.prevent.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                          @keydown.space.prevent.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                        >
                           <font-awesome-icon icon="fa-solid fa-bullhorn" />
                           Ausgeschrieben
                         </span>
                       </CustomTooltip>
-                      <span
+                      <CustomTooltip
                         v-if="
                           getCommonQualifikation(schichtData.einsaetze) ||
                           resolveRequiredShiftQualification(schichtData)
                         "
-                        class="schicht-quali"
+                        :text="getSchichtQualificationTooltip(schichtData)"
+                        position="top"
                       >
-                        <font-awesome-icon icon="fa-solid fa-graduation-cap" />
-                        {{
-                          (
-                            getCommonQualifikation(schichtData.einsaetze) ||
-                            resolveRequiredShiftQualification(schichtData)
-                          ).designation
-                        }}
-                      </span>
+                        <span
+                          class="schicht-quali is-clickable"
+                          :class="{ 'is-filter-active': isSchichtQualificationFilterActive(schichtData) }"
+                          role="button"
+                          tabindex="0"
+                          @click.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                          @keydown.enter.prevent.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                          @keydown.space.prevent.stop="toggleSchichtQualificationInStaffing(schichtData)"
+                        >
+                          <font-awesome-icon icon="fa-solid fa-graduation-cap" />
+                          {{
+                            (
+                              getCommonQualifikation(schichtData.einsaetze) ||
+                              resolveRequiredShiftQualification(schichtData)
+                            ).designation
+                          }}
+                        </span>
+                      </CustomTooltip>
                     </div>
                   </div>
                 </div>
@@ -951,7 +969,7 @@
           @delete-document="deleteEinsatzDok" @upload="onEinsatzDokUpload" />
 
         <section
-          v-if="isAdmin && showChronik && (isHostedDetail || isCompactChronikViewport)"
+          v-if="isAdmin && (isHostedDetail || isCompactChronikViewport)"
           id="order-chronik-panel"
           class="order-chronik-inline-section"
           aria-label="Chronik"
@@ -1017,12 +1035,11 @@
     <OrderChronikDrawer
       v-if="isAdmin && !isHostedDetail"
       id="order-chronik-panel"
-      :show="Boolean(showChronik && selectedEvent && !isCompactChronikViewport)"
+      :show="Boolean(selectedEvent && !isCompactChronikViewport)"
       :auftrag-nr="selectedEvent?.auftragNr ?? null"
       :order-title="selectedEvent?.eventTitel || ''"
       :revision="chronikRevision"
       :side-panel-open="Boolean(selectedEvent)"
-      @close="setChronikOpen(false)"
     />
 
     <OrderDocumentUploadDialog v-if="showEinsatzDokDialog" :model-value="showEinsatzDokDialog"
@@ -1418,13 +1435,7 @@ export default {
       mobileDayIndex: 0,
       selectedMitarbeiter: null,
       selectedStaffingMitarbeiter: null,
-      showChronik: (() => {
-        try {
-          return localStorage.getItem("auftraege.chronikHidden") !== "1";
-        } catch {
-          return true;
-        }
-      })(),
+      showChronik: true,
       chronikRevision: 0,
       staffingPanelHidden: (() => {
         try {
@@ -2814,6 +2825,50 @@ export default {
         designation: `Qualifikation #${numericKey}`,
       };
     },
+    getSchichtQualificationTooltip(schichtData) {
+      const quali =
+        this.getCommonQualifikation(schichtData?.einsaetze || []) ||
+        this.resolveRequiredShiftQualification(schichtData);
+      const qKey = Number.parseInt(
+        quali?.qualificationKey ?? schichtData?.meta?.qualSchl,
+        10,
+      );
+      const mapCount =
+        !Number.isNaN(qKey) &&
+        this.selectedEvent?.locationQualificationCounts &&
+        typeof this.selectedEvent.locationQualificationCounts[String(qKey)] === "number"
+          ? this.selectedEvent.locationQualificationCounts[String(qKey)]
+          : null;
+      const count =
+        mapCount ??
+        schichtData?.meta?.locationQualificationCount ??
+        schichtData?.meta?.qualifiedMitarbeiterCount ??
+        0;
+      const locationName =
+        this.selectedEvent?.locationV2?.nameFull ||
+        this.selectedEvent?.locationV2?.shortName ||
+        "diesem Standort";
+      return `${count} Mitarbeiter in ${locationName} mit dieser Qualifikation`;
+    },
+    isSchichtQualificationFilterActive(schichtData) {
+      const quali =
+        this.getCommonQualifikation(schichtData?.einsaetze || []) ||
+        this.resolveRequiredShiftQualification(schichtData);
+      if (!quali) return false;
+      return Boolean(this.$refs.adminStaffingPanel?.hasQualificationFilter?.(quali));
+    },
+    async toggleSchichtQualificationInStaffing(schichtData) {
+      if (!this.isAdmin) return;
+      const quali =
+        this.getCommonQualifikation(schichtData?.einsaetze || []) ||
+        this.resolveRequiredShiftQualification(schichtData);
+      if (!quali) return;
+      if (this.staffingPanelHidden) {
+        this.setStaffingPanelHidden(false);
+        await this.$nextTick();
+      }
+      await this.$refs.adminStaffingPanel?.toggleQualificationFilter?.(quali);
+    },
     employeeHasQualification(mitarbeiter, requiredQuali) {
       if (!requiredQuali) return true;
       const list = mitarbeiter?.qualifikationen || [];
@@ -3340,9 +3395,14 @@ export default {
     async onBewerbungUpdated(payload) {
       if (this.selectedEvent?.auftragNr) {
         await this.reloadSelectedEventDetails();
+        await Promise.all([
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
         if (payload?.action === "accept") {
           const bew = payload?.bewerbung;
           const targetHint =
+            payload?.targetSchichtId ||
             bew?.schicht?._id ||
             bew?.schicht ||
             bew?.idAuftragArbeitsschichten ||
@@ -3350,7 +3410,10 @@ export default {
             null;
           this.promptEndAusschreibungIfBedarfMet(targetHint);
         }
-      } else if (payload?.action === "accept" && payload?.bewerbung?.auftragNr) {
+      } else if (
+        (payload?.action === "accept" || payload?.action === "reserve") &&
+        payload?.bewerbung?.auftragNr
+      ) {
         await this.selectEvent({ auftragNr: payload.bewerbung.auftragNr });
       }
     },
@@ -4263,10 +4326,24 @@ export default {
       return this.selectEvent({ auftragNr: this.hostedAuftragNr });
     },
     async reloadSelectedEventDetails() {
-      if (!this.selectedEvent?.auftragNr || this.detailReloading) return;
+      if (!this.selectedEvent?.auftragNr) return;
       this.detailReloading = true;
       try {
         await this.selectEvent(this.selectedEvent);
+      } finally {
+        this.detailReloading = false;
+      }
+    },
+    async refreshCurrentAuftragEverything() {
+      if (!this.selectedEvent?.auftragNr) return;
+      this.detailReloading = true;
+      try {
+        this.chronikRevision += 1;
+        await Promise.all([
+          this.selectEvent(this.selectedEvent),
+          this.$refs.adminStaffingPanel?.loadBewerbungen?.(),
+          this.$refs.adminStaffingPanel?.loadAvailableEmployeesForOrderDay?.(),
+        ]);
       } finally {
         this.detailReloading = false;
       }
@@ -6103,6 +6180,23 @@ export default {
   font-weight: 650;
   line-height: 1.25;
   white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &.is-clickable {
+    cursor: pointer;
+  }
+
+  &:hover,
+  &.is-filter-active {
+    background: color-mix(in srgb, #10b981 22%, transparent);
+    border-color: color-mix(in srgb, #10b981 70%, var(--border));
+  }
+
+  &.is-filter-active {
+    box-shadow: 0 0 0 1px color-mix(in srgb, #10b981 45%, transparent);
+  }
 
   svg {
     flex: 0 0 auto;
@@ -7909,11 +8003,21 @@ export default {
   color: var(--primary);
   flex-shrink: 0;
   cursor: default;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 
-  &:hover {
+  &.is-clickable {
+    cursor: pointer;
+  }
+
+  &:hover,
+  &.is-filter-active {
     background: color-mix(in srgb, var(--primary) 26%, transparent);
     border-color: color-mix(in srgb, var(--primary) 75%, transparent);
+  }
+
+  &.is-filter-active {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent);
   }
 
   &.ausgeschrieben-tag--shift {

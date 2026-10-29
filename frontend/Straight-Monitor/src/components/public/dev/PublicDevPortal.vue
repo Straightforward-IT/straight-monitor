@@ -37,6 +37,7 @@
           :public-menu-options="['*', 'dev-mode']"
           :wallet-pass-enabled="true"
           @write-report="$emit('write-report', $event)"
+          @laufzettel-submitted="$emit('laufzettel-submitted')"
         />
       </template>
 
@@ -382,6 +383,135 @@
         <PublicListItem v-else :clickable="false" icon="fa-solid fa-file-invoice-dollar" title="Keine Abrechnungen vorhanden" description="Bereitgestellte Abrechnungen erscheinen hier." />
       </template>
 
+      <template v-else-if="detailView === 'laufzettel'">
+        <section class="job-hero compact">
+          <span class="date-kicker">Mein Profil</span>
+          <h2>Laufzettel</h2>
+          <p>
+            Sprich zu Beginn deines Jobs einen Teamleiter an. Beantrage den Laufzettel anschließend hier im Portal und wähle den entsprechenden Job sowie den Teamleiter aus. In der Regel laden wir dich nach <strong>4</strong> positiven Feedbacks zur nächsten Schulung ein.
+          </p>
+        </section>
+
+        <div v-if="laufzettelSubmitSuccess" class="status-panel laufzettel-success-banner">
+          <font-awesome-icon icon="fa-solid fa-circle-check" />
+          <strong>Dein Laufzettel wurde erfolgreich übermittelt.</strong>
+        </div>
+
+        <div class="sticky-action">
+          <button class="primary-button wide" type="button" @click="openLaufzettelForm">
+            <font-awesome-icon icon="fa-solid fa-plus" />
+            Neuer Laufzettel
+          </button>
+        </div>
+
+        <section class="home-section">
+          <div class="section-heading">
+            <h3>Eingereichte Laufzettel</h3>
+            <span>{{ laufzettelSubmitted.length }}</span>
+          </div>
+          <div v-if="laufzettelSubmitted.length" class="document-list">
+            <PublicListItem
+              v-for="doc in laufzettelSubmitted"
+              :key="doc._id"
+              :clickable="false"
+              :chevron="false"
+              :icon="isLaufzettelDone(doc) ? 'fa-solid fa-circle-check' : 'fa-solid fa-file-lines'"
+              :icon-class="isLaufzettelDone(doc) ? 'document-status-approved' : ''"
+              :title="doc.kunde || doc.title || doc.name || 'Laufzettel'"
+              :description="laufzettelDescription(doc)"
+              :badge="laufzettelStatusLabel(doc)"
+            />
+          </div>
+          <PublicListItem
+            v-else
+            :clickable="false"
+            :chevron="false"
+            icon="fa-solid fa-file-lines"
+            title="Noch keine Laufzettel eingereicht"
+            description="Beantrage deinen ersten Laufzettel über den Button oben."
+          />
+        </section>
+      </template>
+
+      <form v-else-if="detailView === 'laufzettel-new'" class="personal-data-form" @submit.prevent="submitLaufzettel">
+        <section class="job-hero compact">
+          <span class="date-kicker">Laufzettel</span>
+          <h2>Neuer Laufzettel</h2>
+          <p>Laufzettel können nur für Einsätze der letzten 7 Tage beantragt werden.</p>
+        </section>
+
+        <label>
+          <span>Job auswählen *</span>
+          <select :value="selectedLaufzettelEinsatz?._id || ''" required @change="onSelectLaufzettelEinsatz($event.target.value)">
+            <option value="" disabled>— Job wählen —</option>
+            <option v-for="e in pastSevenDaysEinsaetze" :key="e._id" :value="e._id">
+              {{ e.auftrag?.eventTitel || e.bezeichnung || `#${e.auftragNr}` }} ({{ formatLaufzettelDate(e.datumVon) }})
+            </option>
+          </select>
+          <small v-if="pastSevenDaysEinsaetze.length === 0" class="laufzettel-field-hint">
+            Keine Jobs aus den letzten 7 Tagen gefunden.
+          </small>
+        </label>
+
+        <template v-if="selectedLaufzettelEinsatz">
+          <section class="detail-list">
+            <div v-if="selectedLaufzettelEinsatz.auftrag?.eventTitel || selectedLaufzettelEinsatz.bezeichnung" class="detail-row">
+              <span>Event</span>
+              <strong>{{ selectedLaufzettelEinsatz.auftrag?.eventTitel || selectedLaufzettelEinsatz.bezeichnung }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Datum</span>
+              <strong>{{ formatLaufzettelDate(selectedLaufzettelEinsatz.datumVon) }}</strong>
+            </div>
+            <div v-if="selectedLaufzettelEinsatz.auftrag?.eventLocation || selectedLaufzettelEinsatz.auftrag?.eventOrt" class="detail-row">
+              <span>Ort</span>
+              <strong>{{ selectedLaufzettelEinsatz.auftrag?.eventLocation || selectedLaufzettelEinsatz.auftrag?.eventOrt }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Niederlassung</span>
+              <strong>{{ selectedLaufzettelStandortName || 'Keine Niederlassung ermittelbar.' }}</strong>
+            </div>
+          </section>
+
+          <div class="laufzettel-tl-field">
+            <span class="laufzettel-tl-label">Teamleitung auswählen *</span>
+            <div v-if="loadingLaufzettelTeamleiter" class="loading-row">
+              <font-awesome-icon icon="fa-solid fa-spinner" spin /> Lade Mitarbeiter…
+            </div>
+            <p v-else-if="laufzettelTeamleiterCandidates.length === 0" class="inline-message">
+              Keine Kandidaten gefunden.
+            </p>
+            <div v-else class="segmented-control laufzettel-tl-options">
+              <button
+                v-for="tl in laufzettelTeamleiterCandidates"
+                :key="tl.personalnr || tl.email"
+                type="button"
+                :class="{ active: selectedLaufzettelTeamleiter?.personalnr === tl.personalnr }"
+                @click="selectedLaufzettelTeamleiter = tl"
+              >
+                {{ tl.vorname }} {{ tl.nachname }}
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <p v-if="laufzettelError" class="inline-message personal-data-error">{{ laufzettelError }}</p>
+
+        <div class="job-decision-actions">
+          <button class="secondary-button" type="button" @click="closeDetail">
+            Abbrechen
+          </button>
+          <button
+            class="primary-button"
+            type="submit"
+            :disabled="!selectedLaufzettelEinsatz || !selectedLaufzettelTeamleiter || !selectedLaufzettelStandort || laufzettelSubmitting"
+          >
+            <font-awesome-icon :icon="laufzettelSubmitting ? 'fa-solid fa-spinner' : 'fa-solid fa-paper-plane'" :spin="laufzettelSubmitting" />
+            {{ laufzettelSubmitting ? 'Wird gesendet…' : 'Einreichen' }}
+          </button>
+        </div>
+      </form>
+
       <ProfileTab
         v-else-if="activeTab === 'profile'"
         :initials="initials"
@@ -389,6 +519,7 @@
         :missing-document-count="missingDocumentCount"
         :next-profile-rank="nextProfileRank"
         :open-laufzettel-count="openLaufzettelCount"
+        :submitted-laufzettel-count="laufzettelSubmitted.length"
         :profile-image-url="profileImageUrl"
         :profile-rank-class="profileRankClass"
         :reset-message="resetMessage"
@@ -397,6 +528,7 @@
         @cycle-rank="cycleProfileRank"
         @open-appearance="openAppearance"
         @open-documents="openDocuments"
+        @open-laufzettel="openLaufzettel"
         @open-personal-data="openPersonalData"
         @open-evaluations="$emit('open-evaluations')"
         @open-event-reports="$emit('open-event-reports')"
@@ -428,7 +560,7 @@
 
 <script setup>
 import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformation.vue';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { showToast } from '@getflip/bridge';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -443,17 +575,21 @@ import {
   faCircleExclamation,
   faCircleInfo,
   faCircleXmark,
+  faClipboardCheck,
   faClock,
   faCopy,
   faEllipsis,
   faFileCircleExclamation,
   faFileInvoiceDollar,
+  faFileLines,
   faFilePdf,
   faFlask,
   faFolderOpen,
   faHouse,
   faLocationDot,
   faMoon,
+  faPaperPlane,
+  faPlus,
   faRotateLeft,
   faSpinner,
   faSun,
@@ -480,9 +616,9 @@ import { usePublicDevDemo } from './usePublicDevDemo';
 
 library.add(
   faArrowRightFromBracket, faAddressBook, faBriefcase, faCalendarDays, faCar, faCheck, faChevronRight,
-  faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClock, faCopy, faEllipsis,
-  faFileCircleExclamation, faFileInvoiceDollar, faFilePdf, faFlask, faFolderOpen,
-  faHouse, faLocationDot, faMoon, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser, faXmark,
+  faCircleCheck, faCircleExclamation, faCircleInfo, faCircleXmark, faClipboardCheck, faClock, faCopy, faEllipsis,
+  faFileCircleExclamation, faFileInvoiceDollar, faFileLines, faFilePdf, faFlask, faFolderOpen,
+  faHouse, faLocationDot, faMoon, faPaperPlane, faPlus, faRotateLeft, faSpinner, faSun, faShirt, faTriangleExclamation, faUser, faXmark,
 );
 
 const props = defineProps({
@@ -495,7 +631,7 @@ const props = defineProps({
   isTeamleiter: { type: Boolean, default: false },
   debugTlActive: { type: Boolean, default: false },
 });
-const emit = defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'personal-data-saved', 'toggle-debug-tl']);
+const emit = defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'laufzettel-submitted', 'personal-data-saved', 'toggle-debug-tl']);
 
 const theme = useTheme();
 const { state: demoState, reset } = usePublicDevDemo(props.email);
@@ -835,12 +971,220 @@ const calendarEinsaetze = computed(() => {
 const openLaufzettelCount = computed(() =>
   (props.mitarbeiter?.laufzettel_received || []).filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
 );
+const laufzettelSubmitted = computed(() => props.mitarbeiter?.laufzettel_submitted || []);
+const selectedLaufzettelEinsatz = ref(null);
+const selectedLaufzettelStandort = ref('');
+const laufzettelTeamleiterCandidates = ref([]);
+const selectedLaufzettelTeamleiter = ref(null);
+const loadingLaufzettelTeamleiter = ref(false);
+const laufzettelSubmitting = ref(false);
+const laufzettelSubmitSuccess = ref(false);
+const laufzettelError = ref('');
+const laufzettelDraftReady = ref(false);
+
+const selectedLaufzettelStandortName = computed(() =>
+  selectedLaufzettelEinsatz.value?.auftrag?.locationV2?.nameFull || ''
+);
+const pastSevenDaysEinsaetze = computed(() => {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+  return props.einsaetze
+    .filter((e) => {
+      if (!e.datumVon) return false;
+      const start = new Date(e.datumVon);
+      return start >= sevenDaysAgo && start <= today;
+    })
+    .sort((a, b) => new Date(b.datumVon) - new Date(a.datumVon));
+});
+
+function detectLaufzettelStandort(einsatz) {
+  return einsatz?.auftrag?.locationV2?._id ? String(einsatz.auftrag.locationV2._id) : '';
+}
+function laufzettelDraftPrefix() {
+  return `public_laufzettel_draft_${(props.email || 'u').toLowerCase()}_`;
+}
+function laufzettelDraftKeyFor(einsatz = selectedLaufzettelEinsatz.value) {
+  const id = einsatz?._id || einsatz?.auftragNr || '';
+  return id ? `${laufzettelDraftPrefix()}${id}` : '';
+}
+function findLatestLaufzettelDraft() {
+  try {
+    let latest = null;
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(laufzettelDraftPrefix())) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const draft = JSON.parse(raw);
+      if (!draft?.selectedEinsatzId && !draft?.auftragNr) continue;
+      if (!latest || new Date(draft.savedAt || 0) > new Date(latest.savedAt || 0)) {
+        latest = draft;
+      }
+    }
+    return latest;
+  } catch {
+    return null;
+  }
+}
+async function loadLaufzettelTeamleiter(auftragNr) {
+  loadingLaufzettelTeamleiter.value = true;
+  laufzettelTeamleiterCandidates.value = [];
+  try {
+    const res = await props.api.get('/api/public/einsatz-teamleiter', {
+      params: { auftragNr },
+    });
+    laufzettelTeamleiterCandidates.value = (res.data || []).filter(
+      (tl) => (tl.email || '').toLowerCase() !== (props.email || '').toLowerCase()
+    );
+  } catch {
+    laufzettelTeamleiterCandidates.value = [];
+  } finally {
+    loadingLaufzettelTeamleiter.value = false;
+  }
+}
+async function applyLaufzettelDraft(draft) {
+  if (!draft) return false;
+  const einsatz = pastSevenDaysEinsaetze.value.find(
+    (e) =>
+      (draft.selectedEinsatzId && e._id === draft.selectedEinsatzId) ||
+      (draft.auftragNr && String(e.auftragNr) === String(draft.auftragNr))
+  );
+  if (!einsatz) return false;
+  selectedLaufzettelEinsatz.value = einsatz;
+  selectedLaufzettelStandort.value = detectLaufzettelStandort(einsatz);
+  await loadLaufzettelTeamleiter(einsatz.auftragNr);
+  if (draft.selectedTeamleiter) {
+    selectedLaufzettelTeamleiter.value =
+      laufzettelTeamleiterCandidates.value.find(
+        (tl) =>
+          (draft.selectedTeamleiter.personalnr && tl.personalnr === draft.selectedTeamleiter.personalnr) ||
+          (draft.selectedTeamleiter.email && tl.email === draft.selectedTeamleiter.email)
+      ) || draft.selectedTeamleiter;
+  }
+  return true;
+}
+async function onSelectLaufzettelEinsatz(einsatzId) {
+  const einsatz = pastSevenDaysEinsaetze.value.find((e) => String(e._id) === String(einsatzId));
+  if (!einsatz) return;
+  selectedLaufzettelEinsatz.value = einsatz;
+  selectedLaufzettelTeamleiter.value = null;
+  selectedLaufzettelStandort.value = detectLaufzettelStandort(einsatz);
+  laufzettelError.value = '';
+  await loadLaufzettelTeamleiter(einsatz.auftragNr);
+  try {
+    const raw = localStorage.getItem(laufzettelDraftKeyFor(einsatz));
+    if (raw) await applyLaufzettelDraft(JSON.parse(raw));
+  } catch {}
+}
+function openLaufzettel() {
+  laufzettelSubmitSuccess.value = false;
+  laufzettelError.value = '';
+  returnDetailView.value = null;
+  detailView.value = 'laufzettel';
+  window.scrollTo(0, 0);
+}
+async function openLaufzettelForm() {
+  laufzettelSubmitSuccess.value = false;
+  laufzettelError.value = '';
+  selectedLaufzettelEinsatz.value = null;
+  selectedLaufzettelTeamleiter.value = null;
+  selectedLaufzettelStandort.value = '';
+  laufzettelTeamleiterCandidates.value = [];
+  laufzettelDraftReady.value = false;
+  returnDetailView.value = 'laufzettel';
+  detailView.value = 'laufzettel-new';
+  window.scrollTo(0, 0);
+  try {
+    await applyLaufzettelDraft(findLatestLaufzettelDraft());
+  } finally {
+    laufzettelDraftReady.value = true;
+  }
+}
+async function submitLaufzettel() {
+  if (!selectedLaufzettelEinsatz.value || !selectedLaufzettelTeamleiter.value || laufzettelSubmitting.value) return;
+  laufzettelSubmitting.value = true;
+  laufzettelError.value = '';
+  try {
+    await props.api.post('/api/public/laufzettel', {
+      email: props.email,
+      auftragNr: selectedLaufzettelEinsatz.value.auftragNr,
+      teamleiter_email: selectedLaufzettelTeamleiter.value.email,
+      teamleiter_personalnr: selectedLaufzettelTeamleiter.value.personalnr,
+    });
+    const draftKey = laufzettelDraftKeyFor();
+    if (draftKey) {
+      try { localStorage.removeItem(draftKey); } catch {}
+    }
+    laufzettelSubmitSuccess.value = true;
+    returnDetailView.value = null;
+    detailView.value = 'laufzettel';
+    emit('laufzettel-submitted');
+    try { await showToast({ text: 'Laufzettel eingereicht!', intent: 'success', duration: 2500 }); } catch {}
+  } catch (err) {
+    laufzettelError.value = err.response?.data?.msg || err.message || 'Fehler beim Einreichen.';
+  } finally {
+    laufzettelSubmitting.value = false;
+  }
+}
+watch(
+  [selectedLaufzettelEinsatz, selectedLaufzettelTeamleiter, selectedLaufzettelStandort],
+  () => {
+    if (!laufzettelDraftReady.value || detailView.value !== 'laufzettel-new' || !selectedLaufzettelEinsatz.value) return;
+    const key = laufzettelDraftKeyFor();
+    if (!key) return;
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          selectedEinsatzId: selectedLaufzettelEinsatz.value._id || '',
+          auftragNr: selectedLaufzettelEinsatz.value.auftragNr || '',
+          selectedStandort: selectedLaufzettelStandort.value,
+          selectedTeamleiter: selectedLaufzettelTeamleiter.value
+            ? {
+                personalnr: selectedLaufzettelTeamleiter.value.personalnr,
+                email: selectedLaufzettelTeamleiter.value.email,
+                vorname: selectedLaufzettelTeamleiter.value.vorname,
+                nachname: selectedLaufzettelTeamleiter.value.nachname,
+              }
+            : null,
+          savedAt: new Date().toISOString(),
+        })
+      );
+    } catch {}
+  },
+  { deep: true }
+);
+function formatLaufzettelDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  const now = new Date();
+  if (dt.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }) === now.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' })) return 'Heute';
+  return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Berlin' });
+}
+function isLaufzettelDone(doc) {
+  return doc?.status === 'ABGESCHLOSSEN' || doc?.status === 'Bearbeitet';
+}
+function laufzettelStatusLabel(doc) {
+  return isLaufzettelDone(doc) ? 'Bewertet' : 'Eingereicht';
+}
+function laufzettelDescription(doc) {
+  const parts = [];
+  if (doc?.name_teamleiter) parts.push(`TL: ${doc.name_teamleiter}`);
+  if (doc?.location) parts.push(doc.location);
+  const dateStr = formatLaufzettelDate(doc?.datum || doc?.createdAt);
+  if (dateStr) parts.push(dateStr);
+  return parts.join(' · ') || 'Eingereicht';
+}
+
 const navigation = computed(() => [
   { id: 'home', label: 'Home', icon: 'fa-solid fa-house' }, { id: 'jobs', label: 'Jobs', icon: 'fa-solid fa-briefcase', badge: visibleJobs.value.length || null },
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
-const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'contact-data': 'Kontakt', 'driving-license': 'Führerschein', 'apparel-sizes': 'Kleidergrößen', documents: 'Unterlagen', 'document-list': 'Dokumente', 'payroll-list': 'Abrechnungen', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
+const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'contact-data': 'Kontakt', 'driving-license': 'Führerschein', 'apparel-sizes': 'Kleidergrößen', laufzettel: 'Laufzettel', 'laufzettel-new': 'Neuer Laufzettel', documents: 'Unterlagen', 'document-list': 'Dokumente', 'payroll-list': 'Abrechnungen', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
 const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.status === 'running' && entry.startedAt ? Math.max(0, nowTick.value - new Date(entry.startedAt).getTime() - (entry.pauseMs || 0)) : entry.elapsedMs || 0; });
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
@@ -1295,7 +1639,7 @@ button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:tra
 .today-shift { padding:1rem; border-left:4px solid var(--primary); background:var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.07); }.today-shift--empty { border-left-color:var(--border); box-shadow:none; }.shift-topline { display:flex; justify-content:space-between; gap:.75rem; color:var(--muted); font-size:.72rem; font-weight:700; text-transform:uppercase; }.shift-topline span:last-child { overflow:hidden; text-align:right; text-overflow:ellipsis; white-space:nowrap; }.today-shift h3 { margin:.6rem 0 .25rem; font-size:1.25rem; }.today-shift p { margin-bottom:1rem; color:var(--muted); font-size:.82rem; }
 .primary-button,.secondary-button,.danger-button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:46px; padding:.72rem 1rem; border-radius:6px; font-weight:750; cursor:pointer; }.primary-button { border:1px solid var(--primary); background:transparent; color:var(--primary); }.secondary-button { border:1px solid var(--border); background:var(--surface); color:var(--text); }.danger-button { border:1px solid var(--dev-red); background:transparent; color:var(--dev-red); }.wide,.today-shift .primary-button { width:100%; }
 .home-section { margin-top:1.4rem; }.section-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }.section-heading h3 { margin:0; font-size:.95rem; }.section-heading>span { display:grid; width:24px; height:24px; place-items:center; border-radius:50%; background:var(--primary); color:white; font-size:.7rem; }.section-heading button { border:0; background:none; color:var(--primary); font-size:.78rem; cursor:pointer; }
-.action-row,.compact-job,.settings-list button { display:grid; width:100%; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.75rem; min-height:62px; padding:.65rem 0; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }.action-row>span:nth-child(2),.compact-job>span:nth-child(2),.settings-list button>span { display:grid; gap:.15rem; }.action-row small,.compact-job small,.settings-list small { color:var(--muted); font-size:.72rem; }.action-row>svg,.settings-list button>svg:last-child { color:var(--muted); font-size:.72rem; }.action-icon { display:grid; width:38px; height:38px; place-items:center; border-radius:6px; }.action-icon.warning { background:#fff0d8; color:#b56200; }.action-icon.calm { background:#dceef3; color:var(--dev-blue); }.action-icon.success { background:#dff3e9; color:var(--dev-green); }.profile-count-badge { display:grid; min-width:20px; height:20px; padding:0 4px; place-items:center; border:1px solid var(--primary); border-radius:10px; color:var(--primary); font-size:.65rem; font-style:normal; font-weight:800; }
+.action-row,.compact-job { display:grid; width:100%; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.75rem; min-height:62px; padding:.65rem 0; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }.action-row>span:nth-child(2),.compact-job>span:nth-child(2) { display:grid; gap:.15rem; }.action-row small,.compact-job small { color:var(--muted); font-size:.72rem; }.action-row>svg { color:var(--muted); font-size:.72rem; }.action-icon { display:grid; width:38px; height:38px; place-items:center; border-radius:6px; }.action-icon.warning { background:#fff0d8; color:#b56200; }.action-icon.calm { background:#dceef3; color:var(--dev-blue); }.action-icon.success { background:#dff3e9; color:var(--dev-green); }.profile-count-badge { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; min-width:22px; height:22px; padding:0 4px; border:1px solid var(--primary); border-radius:999px; color:var(--primary); font-size:.68rem; font-style:normal; font-weight:800; line-height:1; }
 .compact-job { grid-template-columns:45px minmax(0,1fr) auto; }.job-date { display:grid; color:var(--primary); font-size:.65rem; text-align:center; }.job-date strong { font-size:1.1rem; }.places { color:var(--dev-green); font-size:.68rem; font-weight:750; }
 .bottom-nav { position:fixed; z-index:50; right:0; bottom:0; left:0; display:grid; grid-template-columns:repeat(4,1fr); min-height:48px; padding:3px max(6px,env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left)); background:color-mix(in srgb,var(--panel) 96%,transparent); border-top:1px solid var(--border); backdrop-filter:blur(16px); }.bottom-nav button { display:grid; min-width:0; place-items:center; gap:1px; padding:2px 0; border:0; background:none; color:var(--muted); font-size:.58rem; line-height:1.1; cursor:pointer; }.bottom-nav button.active { color:var(--primary); }.nav-icon { position:relative; display:grid; width:26px; height:22px; place-items:center; font-size:.95rem; }.nav-icon i { position:absolute; top:-4px; right:-5px; display:grid; min-width:14px; height:14px; padding:0 3px; place-items:center; border:1px solid var(--primary); border-radius:7px; background:var(--panel); color:var(--primary); font-size:.5rem; font-style:normal; }.desktop-nav { display:none; }
 .filter-row { display:flex; gap:.45rem; overflow-x:auto; margin:0 -1rem 1rem; padding:0 1rem; scrollbar-width:none; }.filter-row button,.sub-tabs button,.segmented-control button,.scenario-actions button { flex:0 0 auto; min-height:36px; padding:.45rem .75rem; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; }.filter-row button.active,.sub-tabs button.active,.segmented-control button.active { border-color:var(--primary); color:var(--primary); }
@@ -1304,6 +1648,7 @@ button,input,textarea { font:inherit; } button { -webkit-tap-highlight-color:tra
 .timer-surface { display:grid; min-height:210px; margin:1rem 0; place-items:center; align-content:center; gap:.6rem; background:var(--panel); border:1px solid var(--border); }.timer-status { color:var(--dev-green); font-size:.75rem; font-weight:700; }.timer { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(2rem,12vw,3.4rem); letter-spacing:0; }.timer-caption { color:var(--muted); font-size:.72rem; }.time-actions { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }.time-actions>:only-child { grid-column:1/-1; }.summary-panel { margin-top:1rem; }.summary-panel>div { display:flex; justify-content:space-between; padding:.6rem 0; border-bottom:1px solid var(--border); }.summary-panel span { color:var(--muted); }.summary-total { font-size:1.05rem; }.workflow-panel { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; gap:.25rem; margin-top:1rem; font-size:.65rem; text-align:center; }.workflow-panel span { padding:.4rem .2rem; color:var(--muted); }.workflow-panel span.active { color:var(--primary); font-weight:800; }.workflow-panel svg { color:var(--border); }.text-button { margin-top:1rem; border:0; background:none; color:var(--primary); text-decoration:underline; cursor:pointer; }
 .correction-form,.availability-editor { display:grid; gap:.8rem; margin-top:1rem; padding:1rem; border:1px solid var(--border); background:var(--panel); }.correction-form label,.availability-editor label { display:grid; gap:.35rem; color:var(--muted); font-size:.75rem; }.correction-form input,.correction-form textarea,.availability-editor input { width:100%; box-sizing:border-box; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.correction-history { display:grid; gap:.3rem; margin-top:1rem; padding:.8rem; border-left:3px solid #c27a16; background:var(--panel); font-size:.75rem; }.correction-history span,.correction-history p { color:var(--muted); }
 .personal-data-menu { margin-top:.8rem; }.personal-data-form { display:grid; gap:.85rem; }.personal-data-form>label { display:grid; gap:.35rem; color:var(--muted); font-size:.78rem; }.personal-data-form input,.personal-data-form select { width:100%; box-sizing:border-box; min-height:44px; padding:.65rem; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text); }.personal-data-form .job-hero { margin-bottom:.2rem; }.personal-data-error { color:var(--dev-red); }
+.laufzettel-success-banner { margin-top:1rem; }.laufzettel-field-hint { color:var(--muted); font-size:.74rem; line-height:1.4; }.laufzettel-tl-field { display:grid; gap:.45rem; margin-top:.2rem; }.laufzettel-tl-label { color:var(--muted); font-size:.78rem; }.laufzettel-tl-options { flex-wrap:wrap; }.laufzettel-tl-options button.active { background:color-mix(in srgb,var(--primary) 10%,transparent); font-weight:700; }
 .availability-list { border-top:1px solid var(--border); }.availability-list>button { display:grid; width:100%; grid-template-columns:74px minmax(0,1fr) auto; align-items:center; gap:.6rem; min-height:62px; padding:.6rem 0; border:0; border-bottom:1px solid var(--border); background:transparent; color:var(--text); text-align:left; cursor:pointer; }.availability-list>button.selected { color:var(--primary); }.availability-date { display:grid; }.availability-date small { color:var(--muted); }.availability-value { display:flex; align-items:center; gap:.4rem; font-size:.8rem; }.availability-value.available { color:var(--dev-green); }.availability-value.unavailable { color:var(--dev-red); }.availability-value.partial { color:#b56200; }.availability-list button>svg { color:var(--muted); font-size:.7rem; }.segmented-control { display:flex; gap:.35rem; overflow-x:auto; }.time-inputs { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
 .sub-tabs { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; margin-bottom:1rem; }.sub-tabs button { width:100%; }.document-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.5rem; border-bottom:1px solid var(--border); }.document-row>button,.payroll-row { display:grid; width:100%; grid-template-columns:38px minmax(0,1fr) auto; align-items:center; gap:.7rem; min-height:66px; padding:.55rem 0; border:0; background:transparent; color:var(--text); text-align:left; cursor:pointer; }.document-row>button>span:nth-child(2),.payroll-row>span:nth-child(2) { display:grid; gap:.16rem; }.document-row small,.payroll-row small { color:var(--muted); font-size:.7rem; }.document-row button>svg,.payroll-row>svg { color:var(--muted); font-size:.7rem; }.document-status,.payroll-row>span:first-child { display:grid; width:36px; height:36px; place-items:center; border-radius:6px; background:var(--surface); }.document-status.approved,.document-status.in_review { color:var(--dev-green); }.document-status.missing,.document-status.expiring { color:#b56200; }.upload-button { padding:.4rem .55rem; border:1px solid var(--primary); border-radius:5px; color:var(--primary); font-size:.68rem; font-weight:700; cursor:pointer; }.upload-button input { position:absolute; width:1px; height:1px; opacity:0; }.document-preview { display:grid; min-height:380px; place-items:center; align-content:center; gap:.6rem; margin-bottom:1rem; padding:2rem; border:1px solid var(--border); background:var(--panel); text-align:center; }.document-preview>svg { color:#c6453a; font-size:3rem; }.payroll-preview>svg { color:var(--dev-green); }.document-preview h2,.document-preview p { margin:0; }.document-preview p,.document-preview span { color:var(--muted); font-size:.75rem; }.inline-message { margin-top:.7rem; color:var(--primary); font-size:.75rem; text-align:center; }
 .profile-intro { --rank-accent:var(--primary); --rank-ring:var(--rank-accent); display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1rem; }.profile-intro h2 { display:flex; align-items:center; gap:.45rem; margin:0 0 .15rem; font-size:1.35rem; }.profile-intro strong { font-size:.84rem; }.profile-avatar-ring { display:grid; flex:0 0 auto; place-items:center; width:58px; height:58px; padding:3px; border-radius:50%; box-sizing:border-box; background:var(--rank-ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--rank-accent) 26%,transparent); }.profile-avatar { display:grid; flex:0 0 auto; place-items:center; overflow:hidden; border-radius:50%; background:var(--primary); color:white; font-weight:800; object-fit:cover; }.profile-avatar--large { width:52px; height:52px; }.profile-avatar--nav { width:24px; height:24px; font-size:.65rem; }.rank-test-button { display:inline-flex; align-items:center; gap:.35rem; margin-left:auto; padding:.35rem .55rem; border:1px solid var(--rank-accent); border-radius:6px; background:transparent; color:var(--rank-accent); font-size:.7rem; font-weight:700; cursor:pointer; }.rank-test-button:active { opacity:.7; }.profile-rank--bronze { --rank-accent:#b87333; }.profile-rank--silver { --rank-accent:#9ca3af; }.profile-rank--gold { --rank-accent:#d4a72c; }.profile-rank--diamond { --rank-accent:#39b8c8; }.profile-rank--onyx { --rank-accent:#7c3aed; --rank-ring:linear-gradient(135deg,#0d0520,#2e0f6e,#7c3aed,#4a1aaa,#180e40); }.profile-rank--rainbow { --rank-accent:#e15d86; --rank-ring:linear-gradient(135deg,#ef4444,#facc15,#22c55e,#38bdf8,#8b5cf6,#ec4899); }.profile-rank--legend { --rank-accent:#b7791f; }.profile-rank--immortal { --rank-accent:#d946ef; }.settings-list { margin-top:1rem; }.settings-list button>svg:first-child { width:34px; color:var(--primary); }.settings-list .exit-row { color:var(--dev-red); }

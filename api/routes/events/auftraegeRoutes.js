@@ -1130,9 +1130,10 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
     });
 
     const visibleMitarbeiterCountByQualKey = new Map();
-    if (isAuftragVisibleInJobs && qualiList.length) {
+    const locationMitarbeiterCountByQualKey = new Map();
+    if (auftragLocationId && qualiList.length) {
       const qualIds = qualiList.map(q => q._id);
-      const qualIdToKey = new Map(qualiList.map(q => [String(q._id), String(q.qualificationKey).trim()]));
+      const qualIdToKey = new Map(qualiList.map(q => [String(q._id), String(parseInt(q.qualificationKey, 10))]));
       const locationEmployees = await Mitarbeiter.find({
         locationV2: auftragLocationId,
         qualifikationen: { $in: qualIds },
@@ -1143,18 +1144,22 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
 
       const orderKundenNr = Number(auftrag.kundenNr);
       for (const emp of locationEmployees) {
-        if (Number.isFinite(orderKundenNr) && orderKundenNr > 0) {
-          const isBlocked = (emp.kundenwuensche || []).some(w =>
+        const isBlocked =
+          Number.isFinite(orderKundenNr) &&
+          orderKundenNr > 0 &&
+          (emp.kundenwuensche || []).some(w =>
             w?.typ === 'negativ' && Number(w.kunde?.kundenNr ?? w.kundenNr) === orderKundenNr
           );
-          if (isBlocked) continue;
-        }
+
         const seenKeys = new Set();
         for (const qId of emp.qualifikationen || []) {
           const key = qualIdToKey.get(String(qId?._id || qId));
           if (key && !seenKeys.has(key)) {
             seenKeys.add(key);
-            visibleMitarbeiterCountByQualKey.set(key, (visibleMitarbeiterCountByQualKey.get(key) || 0) + 1);
+            locationMitarbeiterCountByQualKey.set(key, (locationMitarbeiterCountByQualKey.get(key) || 0) + 1);
+            if (isAuftragVisibleInJobs && !isBlocked) {
+              visibleMitarbeiterCountByQualKey.set(key, (visibleMitarbeiterCountByQualKey.get(key) || 0) + 1);
+            }
           }
         }
       }
@@ -1168,15 +1173,16 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
       }
       const schichtIdStr = String(schicht._id);
       const legacyKeyStr = schicht.idAuftragArbeitsschichten != null ? String(schicht.idAuftragArbeitsschichten) : null;
-      const resolvedQualSchl = String(
+      const rawQualSchl = String(
         schicht.qualSchl ||
         fallbackQualBySchichtId.get(schichtIdStr) ||
         (legacyKeyStr ? fallbackQualByLegacyId.get(legacyKeyStr) : '') ||
         ''
       ).trim();
-      if (resolvedQualSchl) {
-        const key = parseInt(resolvedQualSchl, 10);
-        result.qualifikationData = qualiMap.get(key) || null;
+      const parsedQualKey = parseInt(rawQualSchl, 10);
+      const normalizedQualKey = !isNaN(parsedQualKey) ? String(parsedQualKey) : rawQualSchl;
+      if (!isNaN(parsedQualKey)) {
+        result.qualifikationData = qualiMap.get(parsedQualKey) || null;
       }
 
       const occupiedPlaces = regularOccupiedBySchichtId.get(schichtIdStr)
@@ -1184,28 +1190,35 @@ router.get('/:auftragNr/details', auth, async (req, res) => {
         ?? 0;
       const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
       const isNotStartedYet = !hasSchichtStarted(schicht, auftrag, nowForDetail);
-      const qualifiedMitarbeiterCount = resolvedQualSchl
-        ? (visibleMitarbeiterCountByQualKey.get(resolvedQualSchl) || 0)
+      const locationQualificationCount = normalizedQualKey
+        ? (locationMitarbeiterCountByQualKey.get(normalizedQualKey) || 0)
+        : 0;
+      const qualifiedMitarbeiterCount = normalizedQualKey
+        ? (visibleMitarbeiterCountByQualKey.get(normalizedQualKey) || 0)
         : 0;
       const isShiftVisibleAsNewJob = Boolean(
         isAuftragVisibleInJobs &&
         schicht.istAusgeschrieben &&
         Number(schicht.bedarf || 0) > 0 &&
         isNotStartedYet &&
-        resolvedQualSchl
+        normalizedQualKey
       );
 
+      result.locationQualificationCount = locationQualificationCount;
       result.qualifiedMitarbeiterCount = qualifiedMitarbeiterCount;
       result.visibleMitarbeiterCount = isShiftVisibleAsNewJob ? qualifiedMitarbeiterCount : 0;
       result.openPlaces = openPlaces;
       return result;
     });
-    
+
+    const locationQualificationCounts = Object.fromEntries(locationMitarbeiterCountByQualKey.entries());
+
     res.json({
       ...auftrag,
       kundeData,
       einsaetze: einsaetzeWithMitarbeiter,
-      schichten: schichtenWithRefs
+      schichten: schichtenWithRefs,
+      locationQualificationCounts,
     });
     
   } catch (error) {

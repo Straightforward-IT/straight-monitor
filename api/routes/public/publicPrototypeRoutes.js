@@ -74,12 +74,20 @@ function getBlockedKundenNrs(mitarbeiter) {
   return blocked;
 }
 
+function normalizeQualKey(raw) {
+  if (raw === null || raw === undefined) return '';
+  const str = String(raw).trim();
+  if (!str) return '';
+  const parsed = Number.parseInt(str, 10);
+  return Number.isFinite(parsed) ? String(parsed) : str;
+}
+
 function getMitarbeiterQualKeys(mitarbeiter) {
   const set = new Set();
   for (const q of mitarbeiter?.qualifikationen || []) {
-    const key = q?.qualificationKey ?? q;
-    if (key !== null && key !== undefined && String(key).trim() !== '') {
-      set.add(String(key).trim());
+    const key = normalizeQualKey(q?.qualificationKey ?? q);
+    if (key) {
+      set.add(key);
     }
   }
   return set;
@@ -201,10 +209,12 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
 
   const allQualKeys = new Set();
   for (const s of schichten) {
-    const q = s.qualSchl
+    const q = normalizeQualKey(
+      s.qualSchl
       || fallbackQualById.get(String(s._id))
-      || fallbackQualByLegacy.get(`${s.auftragNr}:${s.idAuftragArbeitsschichten}`);
-    if (q) allQualKeys.add(String(q).trim());
+      || fallbackQualByLegacy.get(`${s.auftragNr}:${s.idAuftragArbeitsschichten}`)
+    );
+    if (q) allQualKeys.add(q);
   }
   const qualDocs = allQualKeys.size
     ? await Qualifikation.find({
@@ -219,7 +229,7 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
         .lean()
     : [];
   const qualDesignationMap = new Map(
-    qualDocs.map((q) => [String(q.qualificationKey).trim(), q.designation])
+    qualDocs.map((q) => [normalizeQualKey(q.qualificationKey), q.designation])
   );
 
   const jobs = schichten.flatMap((schicht) => {
@@ -236,12 +246,12 @@ router.get('/jobs', requirePrototypeOidc, asyncHandler(async (req, res) => {
     const openPlaces = Math.max(0, Number(schicht.bedarf || 0) - occupiedPlaces);
     const hasApplication = Boolean(applications[schichtIdStr]);
 
-    const resolvedQualSchl = String(
+    const resolvedQualSchl = normalizeQualKey(
       schicht.qualSchl ||
       fallbackQualById.get(schichtIdStr) ||
       fallbackQualByLegacy.get(legacyKeyStr) ||
       ''
-    ).trim();
+    );
 
     if (!hasApplication) {
       if (!schicht.istAusgeschrieben) return [];

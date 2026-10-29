@@ -46,6 +46,7 @@
       @write-report="openEventReportFromDev"
       @open-event-reports="openEventReportFromDev()"
       @open-evaluations="openEvaluationsFromDev"
+      @laufzettel-submitted="loadData"
       @personal-data-saved="Object.assign(mitarbeiter, $event)"
       @toggle-debug-tl="toggleDebugTL"
     />

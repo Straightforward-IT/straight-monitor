@@ -54,20 +54,20 @@ defineEmits(['click']);
 </script>
 
 <style scoped>
-.public-list-item { display:flex; width:100%; min-height:62px; border-bottom:1px solid var(--border); }
-.public-list-item__button { display:grid; flex:1; width:100%; grid-template-columns:34px minmax(0,1fr) auto auto; align-items:center; gap:.75rem; padding:.65rem 0; border:0; background:transparent; color:var(--text); text-align:left; }
+.public-list-item { display:flex; align-items:center; width:100%; min-height:62px; border-bottom:1px solid var(--border); }
+.public-list-item__button { display:flex; flex:1; width:100%; min-width:0; align-items:center; gap:.75rem; min-height:62px; padding:.65rem 0; border:0; background:transparent; color:var(--text); text-align:left; }
 button.public-list-item__button { cursor:pointer; }
-.public-list-item__icon { width:34px; color:var(--primary); }
+.public-list-item__icon { width:34px; flex:0 0 34px; color:var(--primary); }
 .public-list-item__icon.document-status-approved,
 .public-list-item__icon.document-status-in_review { color:var(--dev-green, #2e8b57); }
 .public-list-item__icon.document-status-missing,
 .public-list-item__icon.document-status-expiring,
 .public-list-item__icon.document-status-expired { color:#b56200; }
-.public-list-item__content { display:grid; min-width:0; gap:.15rem; }
+.public-list-item__content { display:grid; flex:1 1 auto; min-width:0; gap:.15rem; }
 .public-list-item__content strong { font-size:.82rem; font-weight:600; }
 .public-list-item__content small { overflow:hidden; color:var(--muted); font-size:.72rem; text-overflow:ellipsis; white-space:nowrap; }
-.public-list-item__badge { display:grid; min-width:20px; height:20px; padding:0 4px; place-items:center; border:1px solid var(--primary); border-radius:10px; color:var(--primary); font-size:.65rem; font-style:normal; font-weight:800; }
-.public-list-item__chevron { color:var(--muted); font-size:.72rem; }
+.public-list-item__badge { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-sizing:border-box; min-width:22px; height:22px; padding:0 4px; border:1px solid var(--primary); border-radius:999px; color:var(--primary); font-size:.68rem; font-style:normal; font-weight:800; line-height:1; }
+.public-list-item__chevron { flex-shrink:0; color:var(--muted); font-size:.72rem; }
 .public-list-item__actions { display:flex; align-items:center; padding-left:.5rem; }
 @media (max-width:390px) {
   .public-list-item__actions { padding-left:.25rem; }
