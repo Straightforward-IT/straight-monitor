@@ -31,6 +31,8 @@ const AuftragChronikEntrySchema = new mongoose.Schema({
     entityId: { type: mongoose.Schema.Types.ObjectId, required: true },
     label: { type: String, required: true },
     action: { type: String, enum: ['created', 'updated', 'deleted'], required: true },
+    actorName: { type: String, default: null },
+    actorAt: { type: Date, default: null },
     mitarbeiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Mitarbeiter', default: null },
     signaturVorgangId: { type: mongoose.Schema.Types.ObjectId, ref: 'SignaturVorgang', default: null },
     typKey: { type: String, default: null },

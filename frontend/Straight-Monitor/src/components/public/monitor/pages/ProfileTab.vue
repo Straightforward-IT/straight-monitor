@@ -12,7 +12,7 @@
         <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel ausfüllen" description="Evaluierungen bearbeiten" :badge="openLaufzettelCount || null" @click="$emit('open-evaluations')" />
       </template>
       <template v-else>
-        <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel" description="Laufzettel von einem Teamleiter anfordern" :badge="submittedLaufzettelCount || null" @click="$emit('open-laufzettel')" />
+        <PublicListItem icon="fa-solid fa-clipboard-check" title="Laufzettel" description="Laufzettel von einem Teamleiter anfordern" @click="$emit('open-laufzettel')" />
       </template>
       <PublicListItem :icon="themeIsDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'" title="Darstellung" :description="themeIsDark ? 'Dunkler Modus aktiv' : 'Heller Modus aktiv'" @click="$emit('open-appearance')" />
       <PublicListItem icon="fa-solid fa-rotate-left" title="Prototyp zurücksetzen" description="Alle lokalen Demo-Zustände löschen" @click="$emit('reset')" />
@@ -31,7 +31,6 @@ defineProps({
   missingDocumentCount: { type: Number, default: 0 },
   nextProfileRank: { type: String, default: 'none' },
   openLaufzettelCount: { type: Number, default: 0 },
-  submittedLaufzettelCount: { type: Number, default: 0 },
   profileImageUrl: { type: String, default: '' },
   profileRankClass: { type: String, default: '' },
   resetMessage: { type: String, default: '' },

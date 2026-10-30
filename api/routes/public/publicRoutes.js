@@ -13,6 +13,7 @@ const asyncHandler = require("../../middleware/AsyncHandler");
 const publicAuth = require("../../middleware/publicAuth");
 const Mitarbeiter = require("../../models/Employee/Mitarbeiter");
 const Einsatz = require("../../models/Event/Einsatz");
+const Stundenzeit = require("../../models/Stundenzeit");
 const DispoEintrag = require("../../models/System/DispoEintrag");
 const Comment = require("../../models/System/Comment");
 const User = require("../../models/System/User");
@@ -543,7 +544,11 @@ router.get(
     }));
 
     // Determine Teamleiter status via Qualifikation key 50055
-    const teamleiterQual = await Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean();
+    const [teamleiterQual, linkedUser] = await Promise.all([
+      Qualifikation.findOne({ qualificationKey: 50055 }).select('_id').lean(),
+      User.exists({ mitarbeiter: mitarbeiter._id }),
+    ]);
+    mitarbeiterObj.hasUser = Boolean(linkedUser);
     const tlQualId = teamleiterQual ? String(teamleiterQual._id) : null;
     mitarbeiterObj.isTeamleiter = tlQualId
       ? (mitarbeiterObj.qualifikationen || []).some(q => String(q._id || q) === tlQualId)
@@ -803,11 +808,16 @@ router.get(
 
     // Get unique auftragNrs to enrich with Auftrag details
     const auftragNrs = [...new Set(einsaetze.map((e) => e.auftragNr))];
-    const auftraege = await Auftrag.find({ auftragNr: { $in: auftragNrs } })
-      .select("auftragNr eventTitel kundenNr geschSt locationV2 einsatzort eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum labels")
-      .populate('locationV2', 'nameFull shortName color externalId isActive')
-      .populate({ path: 'einsatzort', select: 'bezeichnung adresse', populate: { path: 'adresse', select: 'name strasse plz ort land' } })
-      .lean();
+    const [auftraege, workingTimeEntries] = await Promise.all([
+      Auftrag.find({ auftragNr: { $in: auftragNrs } })
+        .select("auftragNr eventTitel kundenNr geschSt locationV2 einsatzort eventLocation eventStrasse eventPlz eventOrt vonDatum bisDatum labels isPseudo")
+        .populate('locationV2', 'nameFull shortName color externalId isActive')
+        .populate({ path: 'einsatzort', select: 'bezeichnung adresse', populate: { path: 'adresse', select: 'name strasse plz ort land' } })
+        .lean(),
+      // Any existing capture locks employee input, regardless of review status.
+      Stundenzeit.find({ _id: { $in: einsaetze.map(einsatz => einsatz._id) } }).select('_id').lean(),
+    ]);
+    const workingTimeIds = new Set(workingTimeEntries.map(entry => String(entry._id)));
     const directSchichtIds = [...new Set(einsaetze.map(einsatz => String(einsatz.schicht || '')).filter(Boolean))];
     const legacyShiftKeys = [...new Set(einsaetze.map(einsatz => einsatz.idAuftragArbeitsschichten).filter(value => value !== null && value !== undefined))];
     const shiftClauses = [
@@ -815,7 +825,7 @@ router.get(
       ...(legacyShiftKeys.length ? [{ auftragNr: { $in: auftragNrs }, idAuftragArbeitsschichten: { $in: legacyShiftKeys } }] : []),
     ];
     const schichten = shiftClauses.length
-      ? await Schicht.find({ $or: shiftClauses }).select('auftragNr idAuftragArbeitsschichten einsatzinformation').lean()
+      ? await Schicht.find({ $or: shiftClauses }).select('auftragNr idAuftragArbeitsschichten einsatzinformation isPseudo source clientId day groupShiftKey').lean()
       : [];
     const schichtById = new Map(schichten.map(schicht => [String(schicht._id), schicht]));
     const schichtByLegacyKey = new Map(schichten.map(schicht => [`${schicht.auftragNr}:${schicht.idAuftragArbeitsschichten}`, schicht]));
@@ -854,11 +864,17 @@ router.get(
     const enriched = einsaetze.map((e) => {
       const schicht = schichtById.get(String(e.schicht || ''))
         || schichtByLegacyKey.get(`${e.auftragNr}:${e.idAuftragArbeitsschichten}`);
+      const auftrag = auftragMap[e.auftragNr] || null;
+      const pseudoSchicht = schicht?.isPseudo || (schicht?.source === 'monitor'
+        && !schicht.idAuftragArbeitsschichten && !schicht.clientId && !schicht.day && !schicht.groupShiftKey);
       return {
         ...e,
+        hasWorkingTimeEntry: workingTimeIds.has(String(e._id)),
+        // Keep pseudo jobs accessible while excluding them from time-entry reminders.
+        workingTimeOptional: Boolean(e.isPseudo || pseudoSchicht || auftrag?.isPseudo),
         stabileSchichtId: schicht?._id || e.schicht || null,
         einsatzinformationHtml: schicht?.einsatzinformation?.renderedHtml || '',
-        auftrag: auftragMap[e.auftragNr] || null,
+        auftrag,
       };
     });
 

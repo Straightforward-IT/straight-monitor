@@ -188,7 +188,7 @@ describe('OrderChronikTimeline', () => {
     pageContainer.remove();
   });
 
-  it('exposes the Admin Chronik toggle button in AuftragDetailsSidePanel only when enabled', async () => {
+  it('exposes the refresh button in AuftragDetailsSidePanel and keeps OrderChronikDrawer collapsible without a close button', async () => {
     const baseProps = {
       modelValue: true,
       event: { auftragNr: 123, eventTitel: 'Messe Nord', auftStatus: 2, vonDatum: '2026-09-11', bisDatum: '2026-09-11' },
@@ -200,14 +200,17 @@ describe('OrderChronikTimeline', () => {
       props: baseProps,
       global: { stubs: { 'font-awesome-icon': true } },
     });
-    expect(wrapper.find('button[aria-label="Auftragschronik"]').exists()).toBe(false);
-
-    await wrapper.setProps({ showChronikToggle: true, chronikOpen: true });
-    const btn = wrapper.get('button[aria-label="Auftragschronik"]');
-    expect(btn.attributes('aria-expanded')).toBe('true');
-    expect(btn.attributes('aria-controls')).toBe('order-chronik-panel');
+    const btn = wrapper.get('button[aria-label="Auftrag aktualisieren"]');
     await btn.trigger('click');
-    expect(wrapper.emitted('toggle-chronik')).toHaveLength(1);
+    expect(wrapper.emitted('refresh')).toHaveLength(1);
+    wrapper.unmount();
+
+    wrapper = mount(OrderChronikDrawer, {
+      props: { auftragNr: 123, orderTitle: 'Messe Nord', revision: 0 },
+    });
+    await flushPromises();
+    expect(wrapper.find('button[aria-label="Chronik aktualisieren"]').exists()).toBe(true);
+    expect(wrapper.find('button[aria-label="Schließen"]').exists()).toBe(false);
   });
 
   it('reloads OrderChronikDrawer when notifyAuftragMutation announces a change for the active order', async () => {
@@ -238,21 +241,77 @@ describe('OrderChronikTimeline', () => {
     stop();
   });
 
-  it('displays the Zvoove icon badge for Zvoove import entries and strips legacy Liste 7001 suffixes', async () => {
+  it('displays the Zvoove icon badge as source without import user and renders per-change sub-authors for Auftrag and Einsatz only', async () => {
     mocks.api.get.mockResolvedValueOnce(
       page([
         {
-          ...change('z1', 'Auftrag angelegt: Messe (Liste 7001)'),
+          _id: 'z1',
+          kind: 'change',
+          action: 'Auftrag.created',
           source: 'zvoove',
-          actor: { id: 'zvoove', name: 'M. Dispo (Liste 7001)' },
+          actor: { id: 'importer', name: 'Eileen Denecke' },
+          createdAt: '2026-08-30T22:00:00.000Z',
+          summary: 'Auftrag angelegt: Messe (Liste 7001)',
+          changes: [
+            {
+              entity: 'Auftrag',
+              entityId: 'a1',
+              label: 'Messe',
+              action: 'created',
+              actorName: 'AG',
+              actorAt: '2026-08-30T22:00:00.000Z',
+              fields: [
+                { field: 'bediener', label: 'Bearbeiter', before: null, after: 'AG', beforeLabel: '—', afterLabel: 'AG' },
+                { field: 'dtAngelegtAm', label: 'Angelegt am', before: null, after: '2026-08-30T22:00:00.000Z', beforeLabel: '—', afterLabel: '2026-08-30T22:00:00.000Z' },
+              ],
+            },
+            {
+              entity: 'Schicht',
+              entityId: 's1',
+              label: 'Moritz HO',
+              action: 'created',
+              fields: [
+                { field: 'bezeichnung', label: 'Bezeichnung', before: null, after: 'Moritz HO', beforeLabel: '—', afterLabel: 'Moritz HO' },
+              ],
+            },
+            {
+              entity: 'Einsatz',
+              entityId: 'e1',
+              label: 'Anna Test (#200001) · Moritz HO · 08:00',
+              action: 'created',
+              actorName: 'AK',
+              actorAt: '2026-09-02T14:20:00.000Z',
+              fields: [
+                { field: 'cProtBediener', label: 'Protokoll-Bearbeiter', before: null, after: 'AK', beforeLabel: '—', afterLabel: 'AK' },
+                { field: 'dtProtDatum', label: 'Protokolldatum', before: null, after: '2026-09-02T14:20:00.000Z', beforeLabel: '—', afterLabel: '2026-09-02T14:20:00.000Z' },
+              ],
+            },
+            {
+              entity: 'Einsatz',
+              entityId: 'e2',
+              label: 'Ben Test (#200002) · Moritz HO · 08:00',
+              action: 'created',
+              actorName: 'MS',
+              actorAt: '2026-09-03T09:15:00.000Z',
+              fields: [
+                { field: 'cProtBediener', label: 'Protokoll-Bearbeiter', before: null, after: 'MS', beforeLabel: '—', afterLabel: 'MS' },
+              ],
+            },
+          ],
         },
       ]),
     );
     render();
     await flushPromises();
-    expect(wrapper.find('.chronik-author').text()).toBe('M. Dispo');
+    // Import user is never shown in the Zvoove entry header; Zvoove is shown as source
+    expect(wrapper.find('.chronik-author').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Eileen Denecke');
     expect(wrapper.find('.chronik-zvoove-badge img.chronik-zvoove-icon').exists()).toBe(true);
     expect(wrapper.find('.chronik-summary').text()).toContain('Auftrag angelegt: Messe');
+
+    // Sub-authors are rendered for Auftrag ('AG') and the two Einsätze ('AK', 'MS'), but NOT for Schicht
+    const subauthors = wrapper.findAll('.chronik-subauthor__name').map(el => el.text());
+    expect(subauthors).toEqual(['AG', 'AK', 'MS']);
   });
 
   it('renders interactive links for SignaturVorgang and Mitarbeiter in Chronik entries', async () => {

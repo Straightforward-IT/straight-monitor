@@ -89,6 +89,27 @@ describe('Operational time capture API', function () {
     assert.equal(state.body.original.netMinutes, 450);
     assert.equal((await submit(second._id)).status, 201); // another shift in the same order
   });
+  it('allows optional employee time capture on pseudo assignments and includes only captured ones in office review', async () => {
+    await Einsatz.updateOne({ _id: einsatz._id }, { $set: { isPseudo: true } });
+    const state = await request(`/${einsatz._id}`, { publicAccess: true });
+    assert.equal(state.status, 200);
+    assert.equal(state.body.locked, false);
+    assert.equal(await Stundenzeit.countDocuments(), 0);
+    assert.equal((await request(`/orders/${order.auftragNr}`)).body.einsaetze.some(row => row._id === String(einsatz._id)), false);
+
+    const otherToken = jwt.sign({ source: 'oidc', email: other.email }, process.env.JWT_SECRET, { issuer: 'straight-monitor' });
+    assert.equal((await request(`/${einsatz._id}`, { publicAccess: true, token: otherToken, method: 'POST', body: time() })).status, 404);
+    assert.equal((await submit()).status, 201);
+    assert.equal((await submit()).status, 409);
+    const review = await request(`/orders/${order.auftragNr}`);
+    assert.ok(review.body.einsaetze.some(row => row._id === String(einsatz._id)));
+    assert.equal(review.body.entries.find(row => row._id === String(einsatz._id)).employeeSubmission.netMinutes, 450);
+    assert.equal((await update('release', 1)).status, 200);
+    const released = (await month()).body.initialData.entries.find(row => row.einsatzId === String(einsatz._id));
+    assert.equal(released.kind, 'productive');
+    assert.equal(released.minutes, 450);
+  });
+
   it('allows entries before the scheduled end and an optional office note', async () => {
     const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const futureShift = await Schicht.create({ auftragNr: order.auftragNr, datumVon: new Date(`${futureDate}T00:00:00Z`), uhrzeitVon: '10:00', uhrzeitBis: '18:00' });

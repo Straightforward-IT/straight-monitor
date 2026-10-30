@@ -58,11 +58,11 @@
                 <div class="table-scroll">
                   <table class="req-table"><tbody>
                     <tr><td>A – Prüffeld (7001)</td><td colspan="2">Muss in jeder Zeile 7001 enthalten</td></tr>
-                    <tr><td>AUFTRAGNR, GESCHST, ...</td><td>Auftragsdaten</td></tr>
+                    <tr><td>AUFTRAGNR, A_GESCHST, BEDIENER (AF), DTANGELEGTAM (AG), ...</td><td>Auftragsdaten (inkl. Ersteller &amp; Anlagedatum)</td></tr>
                     <tr><td>KUNDENNR, KUNDNAME, ...</td><td>Kundendaten</td></tr>
                     <tr><td>ADR1_*, ADR2_*, ADR3_* (NUMMER, LNAME, STRASSE, PLZ, ORT, ...)</td><td>Kunden-Adressen</td></tr>
-                    <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten</td></tr>
-                    <tr><td>PERSONALNR, DATUMVON, BEZEICHN, ...</td><td>Einsatzdaten</td></tr>
+                    <tr><td>ID_AUFTRAG_ARBEITSSCHICHTEN, BEZEICHNUNG, ...</td><td>Schichtdaten (ohne eigenen Bediener)</td></tr>
+                    <tr><td>PERSONALNR, DATUMVON, BEZEICHN, CPROTBEDIENER (J), DTPROTDATUM (K), ...</td><td>Einsatzdaten (inkl. Disponent &amp; Protokolldatum)</td></tr>
                   </tbody></table>
                 </div>
               </details>

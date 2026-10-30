@@ -84,6 +84,31 @@ function recordLabel(entity, record, names) {
     record.schichtBezeichnung, record.uhrzeitVon].filter(Boolean).join(' · ');
 }
 
+function resolveChangeActor(entity, action, oldRecord, newRecord) {
+  if (action === 'deleted') return {};
+  const record = newRecord || oldRecord;
+  if (!record) return {};
+  if (entity === 'Auftrag' && action === 'created') {
+    const actorName = String(record.bediener || '').trim() || null;
+    const rawAt = record.dtAngelegtAm ? new Date(record.dtAngelegtAm) : null;
+    const actorAt = rawAt && !Number.isNaN(rawAt.getTime()) ? rawAt : null;
+    return {
+      ...(actorName ? { actorName } : {}),
+      ...(actorAt ? { actorAt } : {}),
+    };
+  }
+  if (entity === 'Einsatz' && (action === 'created' || action === 'updated')) {
+    const actorName = String(record.cProtBediener || '').trim() || null;
+    const rawAt = record.dtProtDatum ? new Date(record.dtProtDatum) : null;
+    const actorAt = rawAt && !Number.isNaN(rawAt.getTime()) ? rawAt : null;
+    return {
+      ...(actorName ? { actorName } : {}),
+      ...(actorAt ? { actorAt } : {}),
+    };
+  }
+  return {};
+}
+
 function buildChanges(before, after, names = new Map()) {
   const changes = [];
   const ids = names?.ids;
@@ -106,11 +131,13 @@ function buildChanges(before, after, names = new Map()) {
       });
       if (!fields.length && oldRecord && newRecord) continue;
       const targetRecord = newRecord || oldRecord;
+      const action = !oldRecord ? 'created' : !newRecord ? 'deleted' : 'updated';
       const mitarbeiterId = entity === 'Einsatz' && targetRecord?.personalNr != null
         ? ids?.get(String(targetRecord.personalNr))
         : undefined;
       changes.push({ entity, entityId: id, label: recordLabel(entity, targetRecord, names),
-        action: !oldRecord ? 'created' : !newRecord ? 'deleted' : 'updated',
+        action,
+        ...resolveChangeActor(entity, action, oldRecord, newRecord),
         ...(mitarbeiterId ? { mitarbeiterId } : {}),
         fields });
     }
@@ -425,11 +452,14 @@ async function ensureOrderCreationEntry(orderOrNr, fallbackActor = null) {
   }
 
   const isZvoove = order.source === 'zvoove' || order.creationOrigin === 'zvoove-import';
-  const actorId = creator?._id || (mongoose.isValidObjectId(order.createdBy) ? order.createdBy : null)
-    || fallbackActor?._id || fallbackActor?.id || IMPORT_SYSTEM_ACTOR_ID;
-  const actorName = creator?.name || creator?.email
-    || order.bediener
-    || (isZvoove ? 'Zvoove' : (fallbackActor?.name || fallbackActor?.email || 'System'));
+  const zvooveBediener = String(order.bediener || '').trim();
+  const actorId = isZvoove
+    ? IMPORT_SYSTEM_ACTOR_ID
+    : (creator?._id || (mongoose.isValidObjectId(order.createdBy) ? order.createdBy : null)
+      || fallbackActor?._id || fallbackActor?.id || IMPORT_SYSTEM_ACTOR_ID);
+  const actorName = isZvoove
+    ? (zvooveBediener || 'Zvoove')
+    : (creator?.name || creator?.email || zvooveBediener || fallbackActor?.name || fallbackActor?.email || 'System');
 
   let createdAt = order.dtAngelegtAm ? new Date(order.dtAngelegtAm) : (order.createdAt ? new Date(order.createdAt) : new Date());
   if (Number.isNaN(createdAt.getTime())) createdAt = new Date();
@@ -465,7 +495,6 @@ async function ensureOrderCreationEntry(orderOrNr, fallbackActor = null) {
 async function recordImportChronikEntries({
   beforeMap,
   auftragNrs = [],
-  userId = null,
 } = {}) {
   if (mongoose.connection.readyState !== 1 || !(beforeMap instanceof Map)) return [];
   const allNrs = [...new Set([...beforeMap.keys(), ...(auftragNrs || []).map(Number)])]
@@ -486,9 +515,8 @@ async function recordImportChronikEntries({
     if (ord?._id) allOrderIds.push(ord._id);
   }
 
-  const [names, user, existingCreatedOrderIds] = await Promise.all([
+  const [names, existingCreatedOrderIds] = await Promise.all([
     employeeNames({ Einsatz: allBeforeEinsaetze }, { Einsatz: allAfterEinsaetze }),
-    mongoose.isValidObjectId(userId) ? User.findById(userId).select('_id name email').lean() : null,
     allOrderIds.length
       ? Entry.distinct('auftragId', { auftragId: { $in: allOrderIds }, action: 'Auftrag.created' })
       : [],
@@ -509,12 +537,15 @@ async function recordImportChronikEntries({
       : null);
     if (!locationV2) continue;
 
-    const actorId = user?._id || (mongoose.isValidObjectId(order.createdBy) ? order.createdBy : null) || IMPORT_SYSTEM_ACTOR_ID;
-    const importActorName = user?.name || user?.email || order.bediener || 'Zvoove';
+    // Never attribute Zvoove import changes to the Monitor user who uploaded the file.
+    const actorId = IMPORT_SYSTEM_ACTOR_ID;
+    const orderBediener = String(order.bediener || '').trim();
 
     if (!before.Auftrag?.length && after.Auftrag?.length) {
       const changes = buildChanges({}, after, names);
       if (changes.length) {
+        let createdAt = order.dtAngelegtAm ? new Date(order.dtAngelegtAm) : new Date();
+        if (Number.isNaN(createdAt.getTime())) createdAt = new Date();
         entriesToInsert.push({
           auftragId: order._id,
           auftragNr: order.auftragNr,
@@ -523,10 +554,10 @@ async function recordImportChronikEntries({
           kind: 'change',
           action: 'Auftrag.created',
           source: 'zvoove',
-          actor: { id: actorId, name: order.bediener || importActorName },
+          actor: { id: actorId, name: orderBediener || 'Zvoove' },
           summary: summary('Auftrag.created', changes),
           changes,
-          createdAt: new Date(),
+          createdAt,
         });
       }
       continue;
@@ -543,7 +574,7 @@ async function recordImportChronikEntries({
           if (Number.isNaN(initialCreatedAt.getTime()) || initialCreatedAt >= new Date()) {
             initialCreatedAt = new Date(Date.now() - 1000);
           }
-          const initialActorName = beforeOrder.bediener || importActorName;
+          const initialActorName = String(beforeOrder.bediener || '').trim() || orderBediener || 'Zvoove';
           entriesToInsert.push({
             auftragId: order._id,
             auftragNr: order.auftragNr,
@@ -572,7 +603,7 @@ async function recordImportChronikEntries({
           kind: 'change',
           action: 'Auftrag.updated',
           source: 'zvoove',
-          actor: { id: actorId, name: importActorName },
+          actor: { id: actorId, name: 'Zvoove' },
           summary: summary('Auftrag.updated', diffChanges),
           changes: diffChanges,
           createdAt: new Date(),
@@ -727,7 +758,33 @@ async function enrichEntriesWithEmployeeIds(entries = []) {
   if (mongoose.connection.readyState !== 1 || !Array.isArray(entries) || !entries.length) return entries;
   const pnrs = new Set();
   for (const entry of entries) {
+    if (entry.source === 'zvoove' && entry.action !== 'Auftrag.created') {
+      entry.actor = { id: entry.actor?.id || IMPORT_SYSTEM_ACTOR_ID, name: 'Zvoove' };
+    }
     for (const change of entry.changes || []) {
+      if (change.action !== 'deleted') {
+        if (change.entity === 'Auftrag' && change.action === 'created') {
+          if (!change.actorName) {
+            const bedField = (change.fields || []).find(f => f.field === 'bediener');
+            const val = String(bedField?.after ?? '').trim();
+            if (val && val !== '—') change.actorName = val;
+          }
+          if (!change.actorAt) {
+            const dtField = (change.fields || []).find(f => f.field === 'dtAngelegtAm');
+            if (dtField?.after) change.actorAt = dtField.after;
+          }
+        } else if (change.entity === 'Einsatz') {
+          if (!change.actorName) {
+            const bedField = (change.fields || []).find(f => f.field === 'cProtBediener');
+            const val = String(bedField?.after ?? '').trim();
+            if (val && val !== '—') change.actorName = val;
+          }
+          if (!change.actorAt) {
+            const dtField = (change.fields || []).find(f => f.field === 'dtProtDatum');
+            if (dtField?.after) change.actorAt = dtField.after;
+          }
+        }
+      }
       const labelMatch = String(change.label || '').match(/\(#(\d+)\)/);
       if (labelMatch) pnrs.add(labelMatch[1]);
       for (const field of change.fields || []) {

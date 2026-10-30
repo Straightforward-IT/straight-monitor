@@ -109,7 +109,7 @@ function calculate(date, input, employee = false) {
 }
 async function assignment(id, session = null) {
   const einsatz = await Einsatz.findById(objectId(id)).session(session).lean();
-  if (!einsatz || einsatz.isPseudo || einsatz.personalNr == null) fail(404, 'Einsatz nicht verfügbar.');
+  if (!einsatz || einsatz.personalNr == null) fail(404, 'Einsatz nicht verfügbar.');
   let shift = einsatz.schicht ? await Schicht.findOne({ _id: einsatz.schicht, auftragNr: einsatz.auftragNr }).session(session).lean() : null;
   const date = einsatz.detailDatumVon || einsatz.datumVon;
   if (!shift && einsatz.idAuftragArbeitsschichten != null) {
@@ -187,7 +187,10 @@ async function dayEntryTypes() {
 }
 async function review(user, number, employeeId) {
   const auftrag = await orderForUser(user, number);
-  const filter = { auftragNr: auftrag.auftragNr, isPseudo: { $ne: true }, personalNr: { $ne: null } };
+  const capturedIds = await Stundenzeit.distinct('_id', { auftragNr: auftrag.auftragNr });
+  const filter = { auftragNr: auftrag.auftragNr, personalNr: { $ne: null },
+    $or: [{ isPseudo: { $ne: true } }, { _id: { $in: capturedIds } }],
+  };
   if (employeeId) filter.personalNr = { $in: employeeNumbers(await employeeForUser(user, employeeId)) };
   const einsaetze = await Einsatz.find(filter).sort({ datumVon: 1, personalNr: 1 }).lean();
   const [employees, entries, kunde] = await Promise.all([

@@ -36,8 +36,9 @@
           :token="token"
           :public-menu-options="['*', 'dev-mode']"
           :wallet-pass-enabled="true"
-          @write-report="$emit('write-report', $event)"
+          @write-report="openEventReportFromJob"
           @laufzettel-submitted="$emit('laufzettel-submitted')"
+          @working-time-recorded="$emit('working-time-recorded', $event)"
         />
       </template>
 
@@ -512,6 +513,35 @@
         </div>
       </form>
 
+      <EvaluationsPage
+        v-else-if="detailView === 'evaluations' || detailView === 'evaluation-form'"
+        :api="api"
+        :email="email"
+        :mode="detailView === 'evaluation-form' ? 'form' : 'list'"
+        :received="laufzettelReceived"
+        :selected-laufzettel="selectedEvaluierungLaufzettel"
+        :submit-success="evaluierungSubmitSuccess"
+        @select-laufzettel="openEvaluierungForm"
+        @cancel-form="closeDetail"
+        @submitted="onEvaluierungSubmitted"
+      />
+
+      <EventReportsPage
+        v-else-if="['event-reports', 'event-report-detail', 'event-report-new'].includes(detailView)"
+        :api="api"
+        :einsaetze="einsaetze"
+        :email="email"
+        :mitarbeiter="mitarbeiter"
+        :mode="detailView === 'event-report-new' ? 'form' : detailView === 'event-report-detail' ? 'detail' : 'list'"
+        :prefill-einsatz="eventReportPrefillEinsatz"
+        :selected-report="selectedEventReport"
+        :submit-success="eventReportSubmitSuccess"
+        @open-new="openEventReportForm()"
+        @open-detail="openEventReportDetail"
+        @cancel-form="closeDetail"
+        @submitted="onEventReportSubmitted"
+      />
+
       <ProfileTab
         v-else-if="activeTab === 'profile'"
         :initials="initials"
@@ -519,7 +549,6 @@
         :missing-document-count="missingDocumentCount"
         :next-profile-rank="nextProfileRank"
         :open-laufzettel-count="openLaufzettelCount"
-        :submitted-laufzettel-count="laufzettelSubmitted.length"
         :profile-image-url="profileImageUrl"
         :profile-rank-class="profileRankClass"
         :reset-message="resetMessage"
@@ -530,8 +559,8 @@
         @open-documents="openDocuments"
         @open-laufzettel="openLaufzettel"
         @open-personal-data="openPersonalData"
-        @open-evaluations="$emit('open-evaluations')"
-        @open-event-reports="$emit('open-event-reports')"
+        @open-evaluations="openEvaluations"
+        @open-event-reports="openEventReports"
         @reset="resetPrototype"
       />
     </PublicMonitorContentFrame>
@@ -611,6 +640,8 @@ import JobsTab from '../monitor/pages/JobsTab.vue';
 import CalendarTab from '../monitor/pages/CalendarTab.vue';
 import ProfileTab from '../monitor/pages/ProfileTab.vue';
 import AppearanceSettingsPage from '../monitor/pages/AppearanceSettingsPage.vue';
+import EvaluationsPage from '../monitor/pages/EvaluationsPage.vue';
+import EventReportsPage from '../monitor/pages/EventReportsPage.vue';
 import '../monitor/assets/public-monitor.css';
 import { usePublicDevDemo } from './usePublicDevDemo';
 
@@ -631,7 +662,7 @@ const props = defineProps({
   isTeamleiter: { type: Boolean, default: false },
   debugTlActive: { type: Boolean, default: false },
 });
-const emit = defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'laufzettel-submitted', 'personal-data-saved', 'toggle-debug-tl']);
+const emit = defineEmits(['exit', 'write-report', 'open-event-reports', 'open-evaluations', 'laufzettel-submitted', 'personal-data-saved', 'toggle-debug-tl', 'working-time-recorded']);
 
 const theme = useTheme();
 const { state: demoState, reset } = usePublicDevDemo(props.email);
@@ -803,8 +834,12 @@ const nextEinsatzLocation = computed(() => {
 const upcomingEinsaetze = computed(() => props.einsaetze.filter(
   (einsatz) => String(einsatz._id) !== String(nextEinsatz.value?._id)
 ));
+const timeEntryHistoryStart = Date.parse('2026-01-01T00:00:00+01:00');
 const recentJobsWithoutTimeEntry = computed(() => props.einsaetze.filter((einsatz) =>
-  einsatzEnd(einsatz) < new Date().setHours(0, 0, 0, 0) && !einsatz.hasWorkingTimeEntry
+  new Date(einsatz.datumVon).getTime() >= timeEntryHistoryStart
+    && einsatzEnd(einsatz) < new Date().setHours(0, 0, 0, 0)
+    && !einsatz.hasWorkingTimeEntry
+    && !einsatz.workingTimeOptional
 ));
 const CONFIRMATION_STEPS = [
   {
@@ -968,9 +1003,15 @@ const calendarEinsaetze = computed(() => {
     });
   return [...props.einsaetze, ...jobEntries];
 });
+const laufzettelReceived = computed(() => props.mitarbeiter?.laufzettel_received || []);
 const openLaufzettelCount = computed(() =>
-  (props.mitarbeiter?.laufzettel_received || []).filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
+  laufzettelReceived.value.filter((laufzettel) => laufzettel.status !== 'ABGESCHLOSSEN').length
 );
+const selectedEvaluierungLaufzettel = ref(null);
+const evaluierungSubmitSuccess = ref(false);
+const selectedEventReport = ref(null);
+const eventReportPrefillEinsatz = ref(null);
+const eventReportSubmitSuccess = ref(false);
 const laufzettelSubmitted = computed(() => props.mitarbeiter?.laufzettel_submitted || []);
 const selectedLaufzettelEinsatz = ref(null);
 const selectedLaufzettelStandort = ref('');
@@ -1184,7 +1225,28 @@ const navigation = computed(() => [
   { id: 'calendar', label: 'Kalender', icon: 'fa-solid fa-calendar-days' },
   { id: 'profile', label: 'Profil', icon: 'fa-solid fa-ellipsis' },
 ]);
-const pageTitle = computed(() => ({ 'calendar-job': 'Job Details', job: 'Job ansehen', time: 'Arbeitszeit', appearance: 'Darstellung', 'personal-data': 'Meine Daten', 'contact-data': 'Kontakt', 'driving-license': 'Führerschein', 'apparel-sizes': 'Kleidergrößen', laufzettel: 'Laufzettel', 'laufzettel-new': 'Neuer Laufzettel', documents: 'Unterlagen', 'document-list': 'Dokumente', 'payroll-list': 'Abrechnungen', document: 'Dokument', payroll: 'Abrechnung' }[detailView.value] || 'Mitarbeiterportal'));
+const pageTitle = computed(() => ({
+  'calendar-job': 'Job Details',
+  job: 'Job ansehen',
+  time: 'Arbeitszeit',
+  appearance: 'Darstellung',
+  'personal-data': 'Meine Daten',
+  'contact-data': 'Kontakt',
+  'driving-license': 'Führerschein',
+  'apparel-sizes': 'Kleidergrößen',
+  laufzettel: 'Laufzettel',
+  'laufzettel-new': 'Neuer Laufzettel',
+  evaluations: 'Laufzettel ausfüllen',
+  'evaluation-form': 'Evaluierung',
+  'event-reports': 'Event Reports',
+  'event-report-detail': 'Event Report',
+  'event-report-new': 'Neuer Event Report',
+  documents: 'Unterlagen',
+  'document-list': 'Dokumente',
+  'payroll-list': 'Abrechnungen',
+  document: 'Dokument',
+  payroll: 'Abrechnung',
+}[detailView.value] || 'Mitarbeiterportal'));
 const elapsedMs = computed(() => { const entry = timeEntry.value; return entry.status === 'running' && entry.startedAt ? Math.max(0, nowTick.value - new Date(entry.startedAt).getTime() - (entry.pauseMs || 0)) : entry.elapsedMs || 0; });
 const formattedElapsed = computed(() => formatDuration(elapsedMs.value));
 const timeStatusLabel = computed(() => ({ idle: 'Noch nicht eingecheckt', running: 'Eingecheckt', paused: 'Pause läuft', stopped: 'Arbeit beendet', submitted: 'Zeit eingereicht', approved: 'Durch Office freigegeben', locked: 'Für Payroll gesperrt' }[timeEntry.value.status]));
@@ -1196,18 +1258,85 @@ function selectTab(tab) {
   refreshPortalNews({ throttle: true });
 }
 function closeDetail() {
-  const returnView = returnDetailView.value;
+  const returnView = returnDetailView.value === 'profile' ? null : returnDetailView.value;
   returnDetailView.value = null;
   detailView.value = returnView;
-  selectedJob.value = null;
-  selectedCalendarJob.value = null;
-  selectedDocument.value = null;
-  selectedPayroll.value = null;
+  if (returnView !== 'job') selectedJob.value = null;
+  if (returnView !== 'calendar-job') selectedCalendarJob.value = null;
+  if (returnView !== 'document') selectedDocument.value = null;
+  if (returnView !== 'payroll') selectedPayroll.value = null;
+  if (returnView !== 'evaluation-form') selectedEvaluierungLaufzettel.value = null;
+  if (returnView !== 'event-report-detail') selectedEventReport.value = null;
+  if (returnView !== 'event-report-new') eventReportPrefillEinsatz.value = null;
   previewMessage.value = '';
   showCorrection.value = false;
   if (!returnView && activeTab.value === 'home') {
     refreshPortalNews({ throttle: true });
   }
+}
+function openEvaluations() {
+  evaluierungSubmitSuccess.value = false;
+  selectedEvaluierungLaufzettel.value = null;
+  returnDetailView.value = null;
+  detailView.value = 'evaluations';
+  window.scrollTo(0, 0);
+}
+function openEvaluierungForm(lz) {
+  evaluierungSubmitSuccess.value = false;
+  selectedEvaluierungLaufzettel.value = lz;
+  returnDetailView.value = 'evaluations';
+  detailView.value = 'evaluation-form';
+  window.scrollTo(0, 0);
+}
+function onEvaluierungSubmitted() {
+  selectedEvaluierungLaufzettel.value = null;
+  evaluierungSubmitSuccess.value = true;
+  returnDetailView.value = null;
+  detailView.value = 'evaluations';
+  window.scrollTo(0, 0);
+  emit('laufzettel-submitted');
+}
+function openEventReports() {
+  eventReportSubmitSuccess.value = false;
+  selectedEventReport.value = null;
+  eventReportPrefillEinsatz.value = null;
+  returnDetailView.value = null;
+  detailView.value = 'event-reports';
+  window.scrollTo(0, 0);
+}
+function openEventReportDetail(report) {
+  eventReportSubmitSuccess.value = false;
+  selectedEventReport.value = report;
+  returnDetailView.value = 'event-reports';
+  detailView.value = 'event-report-detail';
+  window.scrollTo(0, 0);
+}
+function openEventReportForm(einsatz = null) {
+  eventReportSubmitSuccess.value = false;
+  eventReportPrefillEinsatz.value = einsatz || null;
+  returnDetailView.value = 'event-reports';
+  detailView.value = 'event-report-new';
+  window.scrollTo(0, 0);
+}
+function openEventReportFromJob(einsatz) {
+  eventReportSubmitSuccess.value = false;
+  eventReportPrefillEinsatz.value = einsatz || null;
+  returnDetailView.value = 'calendar-job';
+  detailView.value = 'event-report-new';
+  window.scrollTo(0, 0);
+}
+function onEventReportSubmitted() {
+  eventReportPrefillEinsatz.value = null;
+  eventReportSubmitSuccess.value = true;
+  if (returnDetailView.value === 'calendar-job' && selectedCalendarJob.value) {
+    returnDetailView.value = null;
+    detailView.value = 'calendar-job';
+  } else {
+    returnDetailView.value = null;
+    detailView.value = 'event-reports';
+  }
+  window.scrollTo(0, 0);
+  emit('laufzettel-submitted');
 }
 function openJob(job) { selectedJob.value = job; detailView.value = 'job'; window.scrollTo(0, 0); }
 function openCalendarJob(einsatz) {

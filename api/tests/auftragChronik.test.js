@@ -350,6 +350,8 @@ describe('Auftrag Chronik routes with real transactions', function () {
       source: 'zvoove',
       idAuftragArbeitsschichten: 42,
       personalNr: 200001,
+      cProtBediener: 'AK',
+      dtProtDatum: new Date('2026-09-02T14:20:00Z'),
       schichtBezeichnung: 'Bankett',
       datumVon: new Date('2026-09-15T00:00:00Z'),
       datumBis: new Date('2026-09-15T00:00:00Z'),
@@ -371,6 +373,9 @@ describe('Auftrag Chronik routes with real transactions', function () {
     assert.equal(entries[0].source, 'zvoove');
     assert.equal(entries[0].actor.name, 'M. Zvoove');
     assert.equal(entries[0].changes.length, 3);
+    assert.equal(entries[0].changes.find(c => c.entity === 'Auftrag').actorName, 'M. Zvoove');
+    assert.equal(entries[0].changes.find(c => c.entity === 'Schicht').actorName, null);
+    assert.equal(entries[0].changes.find(c => c.entity === 'Einsatz').actorName, 'AK');
 
     // Re-importing identical data with freshly replaced Schicht/Einsatz documents produces no duplicate entry
     const beforeUnchangedImport = await captureImportSnapshots([importedNr]);
@@ -394,6 +399,8 @@ describe('Auftrag Chronik routes with real transactions', function () {
       source: 'zvoove',
       idAuftragArbeitsschichten: 42,
       personalNr: 200001,
+      cProtBediener: 'AK',
+      dtProtDatum: new Date('2026-09-02T14:20:00Z'),
       schichtBezeichnung: 'Bankett',
       datumVon: new Date('2026-09-15T00:00:00Z'),
       datumBis: new Date('2026-09-15T00:00:00Z'),
@@ -433,9 +440,11 @@ describe('Auftrag Chronik routes with real transactions', function () {
     entries = await Entry.find({ auftragId: importedOrder._id }).sort({ createdAt: 1, _id: 1 }).lean();
     assert.equal(entries.length, 2);
     assert.equal(entries[1].action, 'Auftrag.updated');
+    assert.equal(entries[1].actor.name, 'Zvoove');
     assert.equal(entries[1].changes.length, 1);
     assert.equal(entries[1].changes[0].entity, 'Schicht');
     assert.equal(entries[1].changes[0].action, 'updated');
+    assert.equal(entries[1].changes[0].actorName, null);
     assert.deepEqual(
       entries[1].changes[0].fields.map(f => ({ field: f.field, before: f.before, after: f.after })),
       [{ field: 'bedarf', before: 2, after: 4 }],

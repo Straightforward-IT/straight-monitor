@@ -47,6 +47,7 @@
       @open-event-reports="openEventReportFromDev()"
       @open-evaluations="openEvaluationsFromDev"
       @laufzettel-submitted="loadData"
+      @working-time-recorded="markWorkingTimeRecorded"
       @personal-data-saved="Object.assign(mitarbeiter, $event)"
       @toggle-debug-tl="toggleDebugTL"
     />
@@ -155,6 +156,7 @@
           @back="goBackFromJob"
           @write-report="writeReportForJob"
           @laufzettel-submitted="loadData"
+          @working-time-recorded="markWorkingTimeRecorded"
         />
 
         <!-- Event Report (Teamleiter) -->
@@ -526,6 +528,11 @@ function goBackFromJob() {
 function openEvaluierungForm(lz) {
   selectedLaufzettel.value = lz;
   navigateTo('evaluierung');
+}
+
+function markWorkingTimeRecorded(einsatzId) {
+  const einsatz = einsaetze.value.find(entry => String(entry._id) === String(einsatzId));
+  if (einsatz) einsatz.hasWorkingTimeEntry = true;
 }
 
 function writeReportForJob(einsatz) {

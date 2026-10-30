@@ -75,7 +75,6 @@
 
           <div class="chronik-content">
             <div class="chronik-meta">
-              <strong class="chronik-author">{{ cleanActorName(entry) }}</strong>
               <span
                 v-if="isZvooveEntry(entry)"
                 class="chronik-zvoove-badge"
@@ -88,6 +87,10 @@
                 >
                 <span>Zvoove</span>
               </span>
+              <strong
+                v-else
+                class="chronik-author"
+              >{{ cleanActorName(entry) }}</strong>
               <small
                 class="chronik-action-pill chronik-action-pill--meta"
                 :class="`chronik-action-pill--${entryActionMeta(entry).variant}`"
@@ -227,6 +230,10 @@
                           >
                             <font-awesome-icon :icon="['fas', 'user']" />
                             <span>{{ empChange.label }}</span>
+                            <small
+                              v-if="changeActorName(empChange)"
+                              class="chronik-tooltip__subauthor"
+                            >{{ changeActorName(empChange) }}</small>
                           </button>
                         </div>
                       </div>
@@ -275,6 +282,20 @@
                         class="chronik-compact-chip"
                       >{{ chip }}</span>
                     </template>
+
+                    <span
+                      v-if="changeActorName(change)"
+                      class="chronik-subauthor"
+                      :title="changeActorTooltip(change)"
+                    >
+                      <font-awesome-icon :icon="['fas', 'user-pen']" />
+                      <strong class="chronik-subauthor__name">{{ changeActorName(change) }}</strong>
+                      <time
+                        v-if="changeActorTime(change)"
+                        class="chronik-subauthor__time"
+                        :datetime="changeActorTime(change)"
+                      >{{ formatTime(changeActorTime(change)) }}</time>
+                    </span>
 
                     <button
                       v-if="change.entity === 'SignaturVorgang' && (change.signaturVorgangId || change.entityId)"
@@ -467,6 +488,7 @@ import {
   faSpinner,
   faTrash,
   faUser,
+  faUserPen,
   faUsers,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '@/utils/api';
@@ -490,6 +512,7 @@ library.add(
   faSpinner,
   faTrash,
   faUser,
+  faUserPen,
   faUsers,
 );
 
@@ -714,6 +737,54 @@ function entryShifts(entry) {
 function entryAssignments(entry) {
   if (!Array.isArray(entry?.changes)) return [];
   return entry.changes.filter(c => c.entity === 'Einsatz');
+}
+
+function changeActorName(change) {
+  if (!change || change.action === 'deleted') return null;
+  if (change.entity === 'Schicht') return null;
+  const direct = String(change.actorName || '').trim();
+  if (direct && direct !== '—') return direct;
+  const fields = Array.isArray(change.fields) ? change.fields : [];
+  if (change.entity === 'Auftrag' && change.action === 'created') {
+    const bedField = fields.find(f => f.field === 'bediener');
+    const val = String(bedField?.after ?? bedField?.afterLabel ?? '').trim();
+    return val && val !== '—' ? val : null;
+  }
+  if (change.entity === 'Einsatz') {
+    const bedField = fields.find(f => f.field === 'cProtBediener');
+    const val = String(bedField?.after ?? bedField?.afterLabel ?? '').trim();
+    return val && val !== '—' ? val : null;
+  }
+  return null;
+}
+
+function changeActorTime(change) {
+  if (!change || change.action === 'deleted') return null;
+  if (change.entity === 'Schicht') return null;
+  if (change.actorAt && !Number.isNaN(new Date(change.actorAt).getTime())) {
+    return new Date(change.actorAt).toISOString();
+  }
+  const fields = Array.isArray(change.fields) ? change.fields : [];
+  const timeFieldName =
+    change.entity === 'Auftrag' && change.action === 'created'
+      ? 'dtAngelegtAm'
+      : change.entity === 'Einsatz'
+        ? 'dtProtDatum'
+        : null;
+  if (!timeFieldName) return null;
+  const dtField = fields.find(f => f.field === timeFieldName);
+  const raw = dtField?.after;
+  if (!raw || raw === '—') return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function changeActorTooltip(change) {
+  const name = changeActorName(change);
+  if (!name) return '';
+  const time = changeActorTime(change);
+  const roleLabel = change.entity === 'Auftrag' ? 'Auftrag angelegt von' : 'Einsatz eingeplant von';
+  return time ? `${roleLabel}: ${name} (${formatTime(time)})` : `${roleLabel}: ${name}`;
 }
 
 function entityDisplayName(entity) {
@@ -1281,6 +1352,49 @@ defineExpose({ reload, loading });
   font-size: 0.7rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+.chronik-subauthor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #2563eb 28%, var(--border));
+  background: color-mix(in srgb, #2563eb 8%, var(--tile-bg));
+  color: var(--text);
+  font-size: 0.69rem;
+  font-weight: 500;
+  line-height: 1.3;
+
+  svg {
+    color: #2563eb;
+    font-size: 0.64rem;
+  }
+
+  &__name {
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  &__time {
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+
+    &::before {
+      content: '· ';
+    }
+  }
+}
+
+.chronik-tooltip__subauthor {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  font-size: 0.65rem;
+  font-weight: 700;
 }
 
 .chronik-hover-btn {

@@ -7,38 +7,56 @@
       <h2 class="upcoming-jobs__title">{{ title }}</h2>
       <CountBadge v-if="badgeCount" :count="badgeCount" color="orange" />
     </div>
-    <button
-      v-for="einsatz in upcomingEinsaetze"
-      :key="einsatz._id"
-      class="upcoming-jobs__card"
-      type="button"
-      @click="$emit('open-job', einsatz)"
-    >
-      <span class="upcoming-jobs__body">
-        <span class="upcoming-jobs__header">
-          <span class="upcoming-jobs__date">{{ formatShortDate(einsatz.datumVon) }}</span>
-          <span v-if="einsatz.uhrzeitVon" class="upcoming-jobs__time">
-            {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ` - ${formatTime(einsatz.uhrzeitBis)}` : '' }}
+    <section v-for="year in groupedEinsaetze" :key="year.label" class="upcoming-jobs__year" :aria-label="year.label">
+      <h3 class="upcoming-jobs__year-heading">{{ year.label }}</h3>
+      <div v-for="month in year.months" :key="month.label" class="upcoming-jobs__month">
+        <h4 v-if="month.label" class="upcoming-jobs__month-heading">{{ month.label }}</h4>
+        <button
+          v-for="einsatz in month.einsaetze"
+          :key="einsatz._id"
+          class="upcoming-jobs__card"
+          type="button"
+          @click="$emit('open-job', einsatz)"
+        >
+          <span class="upcoming-jobs__body">
+            <span class="upcoming-jobs__header">
+              <span class="upcoming-jobs__date">{{ formatShortDate(einsatz.datumVon) }}</span>
+              <span v-if="einsatz.uhrzeitVon" class="upcoming-jobs__time">
+                {{ formatTime(einsatz.uhrzeitVon) }}{{ einsatz.uhrzeitBis ? ` - ${formatTime(einsatz.uhrzeitBis)}` : '' }}
+              </span>
+              <span v-else class="upcoming-jobs__time upcoming-jobs__time--muted">Ganztags</span>
+            </span>
+            <strong class="upcoming-jobs__name">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `#${einsatz.auftragNr}` }}</strong>
+            <span v-if="einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt" class="upcoming-jobs__location">
+              <font-awesome-icon icon="fa-solid fa-location-dot" />
+              {{ einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt }}
+            </span>
           </span>
-          <span v-else class="upcoming-jobs__time upcoming-jobs__time--muted">Ganztags</span>
-        </span>
-        <strong class="upcoming-jobs__name">{{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `#${einsatz.auftragNr}` }}</strong>
-        <span v-if="einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt" class="upcoming-jobs__location">
-          <font-awesome-icon icon="fa-solid fa-location-dot" />
-          {{ einsatz.auftrag?.eventLocation || einsatz.auftrag?.eventOrt }}
-        </span>
-      </span>
-      <font-awesome-icon icon="fa-solid fa-chevron-right" class="upcoming-jobs__arrow" />
-    </button>
+          <font-awesome-icon icon="fa-solid fa-chevron-right" class="upcoming-jobs__arrow" />
+        </button>
+      </div>
+    </section>
+    <AppButton
+      v-if="upcomingEinsaetze.length > previewLimit"
+      variant="secondary"
+      size="sm"
+      block
+      :aria-expanded="showAll"
+      :aria-label="`${showAll ? 'Weniger anzeigen' : 'Alle weiteren anzeigen'}: ${title}`"
+      @click="showAll = !showAll"
+    >
+      {{ showAll ? 'Weniger anzeigen' : `Alle weiteren anzeigen (${upcomingEinsaetze.length - previewLimit})` }}
+    </AppButton>
     <p v-if="!upcomingEinsaetze.length" class="upcoming-jobs__empty">{{ emptyLabel }}</p>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faChevronRight, faLocationDot } from '@fortawesome/free-solid-svg-icons';
 import CountBadge from '@/components/ui-elements/CountBadge.vue';
+import AppButton from '@/components/ui-elements/AppButton.vue';
 
 library.add(faChevronRight, faLocationDot);
 
@@ -50,6 +68,8 @@ const props = defineProps({
   einsaetze: { type: Array, default: () => [] },
   title: { type: String, default: 'Nächste Jobs' },
 });
+const previewLimit = 3;
+const showAll = ref(false);
 
 const upcomingEinsaetze = computed(() => {
   const today = new Date();
@@ -62,6 +82,24 @@ const upcomingEinsaetze = computed(() => {
       return props.completed ? end < today : end >= today;
     })
     .sort((left, right) => new Date(left.datumVon) - new Date(right.datumVon));
+});
+
+const periodFormatter = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', year: 'numeric', month: 'long' });
+const visibleEinsaetze = computed(() => showAll.value ? upcomingEinsaetze.value : upcomingEinsaetze.value.slice(0, previewLimit));
+const groupedEinsaetze = computed(() => {
+  const years = new Map();
+  for (const einsatz of visibleEinsaetze.value) {
+    const date = einsatz.datumVon ? new Date(einsatz.datumVon) : null;
+    const parts = date && Number.isFinite(date.getTime()) ? periodFormatter.formatToParts(date) : [];
+    const yearLabel = parts.find(part => part.type === 'year')?.value || 'Datum offen';
+    const monthLabel = parts.find(part => part.type === 'month')?.value || '';
+    if (!years.has(yearLabel)) years.set(yearLabel, { label: yearLabel, months: [] });
+    const year = years.get(yearLabel);
+    let month = year.months.find(month => month.label === monthLabel);
+    if (!month) { month = { label: monthLabel, einsaetze: [] }; year.months.push(month); }
+    month.einsaetze.push(einsatz);
+  }
+  return [...years.values()];
 });
 
 const emptyLabel = computed(() => props.completed ? 'Keine Jobs ohne Zeiterfassung.' : 'Keine bevorstehenden Jobs.');
@@ -87,6 +125,11 @@ function formatShortDate(value) {
 .upcoming-jobs__hint { margin: 0 0 .75rem; color: var(--muted); font-size: .78rem; line-height: 1.5; }
 .upcoming-jobs__hint span { margin-right: 4px; color: var(--primary); }
 .upcoming-jobs__heading { display:flex; align-items:center; gap:.45rem; margin:0 0 .75rem; padding-bottom:.5rem; border-bottom:2px solid var(--border); }.upcoming-jobs__title { margin:0; color:var(--text); font-size:1rem; font-weight:600; }
+.upcoming-jobs__year { margin-top: 1.25rem; }
+.upcoming-jobs__year-heading { display: flex; align-items: center; gap: .75rem; margin: 0 0 .75rem; color: var(--text); font-size: .95rem; font-weight: 700; }
+.upcoming-jobs__year-heading::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+.upcoming-jobs__month + .upcoming-jobs__month { margin-top: 1.1rem; }
+.upcoming-jobs__month-heading { margin: 0 0 .5rem; color: var(--muted); font-size: .8rem; font-weight: 600; }
 .upcoming-jobs__card { display: flex; width: 100%; align-items: center; gap: .5rem; margin-bottom: .5rem; padding: .75rem .75rem .75rem 1rem; border: 0; border-left: 3px solid var(--primary); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; text-align: left; }
 .upcoming-jobs__body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .2rem; }
 .upcoming-jobs__header { display: flex; align-items: baseline; gap: .4rem; }

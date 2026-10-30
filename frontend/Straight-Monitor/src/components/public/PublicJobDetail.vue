@@ -3,9 +3,22 @@
 
     <!-- Job Header -->
     <div class="job-header">
-      <h2 class="job-title">
-        {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}
-      </h2>
+      <div class="job-header__top">
+        <h2 class="job-title">
+          {{ einsatz.auftrag?.eventTitel || einsatz.bezeichnung || `Auftrag #${einsatz.auftragNr}` }}
+        </h2>
+        <RouterLink
+          v-if="mitarbeiter?.hasUser && monitorOrderTarget"
+          :to="monitorOrderTarget"
+          class="job-monitor-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Auftrag im Monitor öffnen (neuer Tab)"
+        >
+          <font-awesome-icon :icon="faDisplay" />
+          Monitor
+        </RouterLink>
+      </div>
       <div class="job-badges">
         <span v-if="einsatz.schichtBezeichnung" class="badge">
           {{ einsatz.schichtBezeichnung }}
@@ -422,8 +435,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
+import { RouterLink } from 'vue-router';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { faUserClock, faWallet } from '@fortawesome/free-solid-svg-icons';
+import { faDisplay, faUserClock, faWallet } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/stores/theme';
 import FilterChip from '@/components/ui-elements/FilterChip.vue';
 import PublicEinsatzinformation from '@/components/public/PublicEinsatzinformation.vue';
@@ -456,6 +470,20 @@ const props = defineProps({
   walletPassEnabled: { type: Boolean, default: false },
 });
 
+const monitorOrderTarget = computed(() => {
+  const number = props.einsatz.auftrag?.auftragNr || props.einsatz.auftragNr;
+  if (!number) return null;
+  const dateValue = props.einsatz.datumVon || props.einsatz.auftrag?.vonDatum;
+  const date = dateValue ? new Date(dateValue) : null;
+  const location = props.einsatz.auftrag?.locationV2;
+  const locationId = typeof location === 'object' ? location?._id : location;
+  return { path: '/auftraege', query: {
+    tab: 'calendar', auftragnr: String(number),
+    ...(date && !Number.isNaN(date.getTime()) ? { focusDate: date.toISOString().slice(0, 10) } : {}),
+    ...(locationId ? { locationV2: String(locationId) } : {}),
+  } };
+});
+
 const hasReport = computed(() => {
   if (!props.mitarbeiter?.eventreports || !props.einsatz?.auftragNr) return false;
   return props.mitarbeiter.eventreports.some(
@@ -481,7 +509,7 @@ const zeitValidierung = computed(() => {
   return pruefeArbeitszeit({ start: zeitForm.start, end: zeitForm.end, pausen: zeitForm.pausen });
 });
 
-const emit = defineEmits(['back', 'write-report', 'laufzettel-submitted']);
+const emit = defineEmits(['back', 'write-report', 'laufzettel-submitted', 'working-time-recorded']);
 
 const laufzettelSubmitting = ref(false);
 const requestedLaufzettelTlKeys = ref(new Set());
@@ -713,6 +741,7 @@ async function loadZeitStatus() {
     const { data } = await props.api.get(`/api/public/working-times/${id}`, { headers: { 'x-public-token': props.token } });
     if (request !== zeitRequest) return;
     zeitEingereicht.value = data.locked;
+    if (data.locked) emit('working-time-recorded', id);
     zeitStatusReady.value = true;
   } catch (error) {
     if (request === zeitRequest) zeitError.value = error?.response?.data?.message || 'Erfassungsstatus konnte nicht geladen werden.';
@@ -732,12 +761,14 @@ async function submitZeiterfassung() {
     }, { headers: { 'x-public-token': props.token } });
     if (props.einsatz._id !== id) return;
     zeitEingereicht.value = true;
+    emit('working-time-recorded', id);
     zeiterfassungSheet.value = false;
     try { showToast({ text: 'Arbeitszeit eingereicht. Änderungen erfolgen jetzt durch das Büro.', intent: 'success', duration: 3500 }); } catch {}
   } catch (error) {
     if (props.einsatz._id !== id) return;
     if (error?.response?.status === 409) {
       zeitEingereicht.value = true;
+      emit('working-time-recorded', id);
       zeiterfassungSheet.value = false;
     }
     zeitError.value = error?.response?.data?.message || 'Zeit konnte nicht übermittelt werden. Deine Eingaben bleiben erhalten.';
@@ -1441,6 +1472,36 @@ watch(() => props.einsatz?._id, () => {
 .job-header {
   margin-bottom: 1.25rem;
 }
+
+.job-header__top {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  margin-bottom: .5rem;
+}
+
+.job-header__top .job-title {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+}
+
+.job-monitor-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .7rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--control-radius, 8px);
+  color: var(--primary);
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.job-monitor-link:hover { background: var(--hover); }
+.job-monitor-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .job-title {
   font-size: 1.3rem;
